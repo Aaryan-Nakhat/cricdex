@@ -75,3 +75,6 @@ docker-embed-rules:
 docker-query:
 	@if [ -z "$$Q" ]; then echo 'usage: make docker-query Q="<your question>" [FORMATS=ipl,t20i]'; exit 2; fi
 	docker compose run --rm cricdex uv run python scripts/embed_rules.py query "$$Q" --formats "$${FORMATS:-}"
+
+docker-pressure-runs:
+	docker compose run --rm cricdex uv run python scripts/compute_metrics.py pressure-runs --collection "$${COLLECTION:-recently_played_30_male}" --top-n "$${TOP_N:-50}"

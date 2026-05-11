@@ -4,7 +4,14 @@ Novel context-adjusted ratings. Skip commodity (avg/SR/eco) — only ship novel.
 
 ## Batter
 
-- Pressure Runs — runs when required RPB > venue median for phase.
+- **Pressure Runs ✅ shipped** — runs scored by the batter on balls where
+  the required RPB exceeds `1.5 ×` the venue+phase median required RPB.
+  CLI: `make docker-pressure-runs COLLECTION=ipl TOP_N=50` or
+  `uv run python scripts/compute_metrics.py pressure-runs --collection ipl`.
+  Returns: `pressure_runs`, `pressure_balls`, `pressure_sr_per_100_balls`,
+  `pct_balls_under_pressure`, plus chase totals. Chase-only (innings_idx=1,
+  T20/ODI). Pressure for the team batting first is captured separately by
+  Phase Dilation / Setting Tax.
 - Intent Curve — SR per ball-faced bucket.
 - Recoverability Index — runs in next 6 balls after dot/partner-wicket.
 - Crease Stickiness — balls before first boundary.
