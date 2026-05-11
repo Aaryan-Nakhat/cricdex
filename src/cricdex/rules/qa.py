@@ -35,7 +35,7 @@ FORMAT_TO_SOURCE_IDS: dict[str, list[str]] = {
     "u19_men": ["icc_u19_men_world_cup_2024"],
     "u19_women": ["icc_u19_women_t20wc_2025"],
     "t20wc": ["icc_men_t20wc_2026"],
-    "ipl": ["ipl_pc_2026"],
+    "ipl": ["ipl_pc_2026", "ipl_impact_player_2025_27"],
     "hundred": ["hundred_pc_2025"],
     "bbl": ["bbl_pc_2024_25"],
     "wbbl": ["wbbl_pc_2025_26"],

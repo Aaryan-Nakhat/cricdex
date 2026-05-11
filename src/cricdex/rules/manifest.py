@@ -148,10 +148,28 @@ SOURCES: list[RuleSource] = [
         title="IPL Playing Conditions",
         organization="BCCI / IPL",
         tier="league_men",
-        url="https://documents.iplt20.com/bcci/documents/1774954744346_TATA_IPL_2026_Match_Playing_Conditions.pdf",
+        url="https://documents.iplt20.com/bcci/documents/1775736835406_TATA_IPL_2026_Match_Playing_Conditions.pdf",
         edition="Effective 1 March 2026",
         effective_from=date(2026, 3, 1),
         verified=True,
+    ),
+    RuleSource(
+        id="ipl_impact_player_2025_27",
+        title="IPL Impact Player Regulation (2025-2027 cycle)",
+        organization="BCCI / IPL",
+        tier="supplementary",
+        url="https://www.iplt20.com/news/4109/ipl-governing-council-announces-tata-ipl-player-regulations-2025-27",
+        edition="2025-2027 cycle",
+        effective_from=date(2025, 3, 1),
+        verified=True,
+        notes=(
+            "Curated supplementary clauses. The Impact Player rule lives in the "
+            "TATA IPL Player Regulations 2025-27 (a separate BCCI document not "
+            "publicly hosted as PDF), not in the Match Playing Conditions PDF. "
+            "Clauses sit in data/rules/curated/ — synthesized from the official "
+            "iplt20.com announcement (news 4109) plus ESPNcricinfo / Wisden / "
+            "Olympics.com explainers. Re-curate when BCCI publishes a public PDF."
+        ),
     ),
     RuleSource(
         id="hundred_pc_2025",
