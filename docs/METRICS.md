@@ -1,0 +1,162 @@
+# CricMetrics — methodology
+
+Standard cricket scorecards (average, strike rate, economy) are
+context-blind: a 25-ball 40 in a slack chase scores the same as a
+25-ball 40 chasing 12 an over. The metrics in this module are designed
+to put context back in. Every formula is computable directly from
+Cricsheet ball-by-ball data — no scraping, no proprietary feeds.
+
+All metrics output a polars DataFrame and are dumped to
+`data/metrics/<slug>_<collection>.json` for the dashboard to consume.
+
+---
+
+## Pressure Runs — `cricdex.metrics.batter.pressure_runs`
+
+**What it captures:** runs scored by a batter on chase deliveries where
+the required run rate per ball is meaningfully higher than the venue
+historically demands at the same phase.
+
+**Computation:**
+1. For each 2nd-innings ball in T20 / ODI matches:
+   - `runs_needed = (1st_innings_total + 1) − runs_before_ball`
+   - `balls_remaining = innings_balls_allotted − balls_bowled_before`
+   - `required_rpb = runs_needed / balls_remaining`
+2. Compute `median_required_rpb` per (venue, phase) across the whole
+   collection.
+3. A ball is **under pressure** if
+   `required_rpb > 1.5 × median_required_rpb(venue, phase)`.
+4. Aggregate per batter: `pressure_balls`, `pressure_runs`,
+   `pressure_sr_per_100_balls`, `pct_balls_under_pressure`.
+
+**Why 1.5× venue median (not absolute threshold):** different venues
+demand wildly different chase rates (Bangalore vs Lord's). The venue's
+own historical median normalises that out — "pressure" means hard
+*for that ground*, not above some hand-picked global cut-off.
+
+**Why chase-only:** required RPB has no clean definition outside a
+chase. Pressure for the team batting first is captured by Phase
+Dilation / Setting Tax (planned).
+
+**CLI:** `make docker-pressure-runs COLLECTION=ipl TOP_N=50`
+
+---
+
+## Intent Curve — `cricdex.metrics.batter.intent_curve`
+
+**What it captures:** how a batter's strike rate changes as they spend
+more time at the crease. Slow starters who heat up look very different
+to immediate aggressors.
+
+**Computation:**
+1. For each (batter, innings) compute `balls_faced_to_date` per ball.
+2. Bucket: `0-5`, `6-10`, `11-20`, `21-30`, `31-50`, `51+`.
+3. Per (batter, bucket): `SR = 100 × runs / legal_balls`.
+
+**Reading:** rising curve = grower; flat-high = aggressor;
+flat-medium = grinder; falling = tires.
+
+**Filter:** `min_balls_in_bucket` (default 200) so single innings don't
+dominate.
+
+---
+
+## Recoverability Index — `cricdex.metrics.batter.recoverability_index`
+
+**What it captures:** a batter's ability to re-engage after a dot ball.
+Mental-reset proxy.
+
+**Computation:**
+1. Identify every dot ball faced by the batter.
+2. For each, sum the runs they scored in the *next 6 balls they faced*
+   in the same innings.
+3. Aggregate per batter: `runs_per_6_after_dot = 6 × Σruns / Σfollowing_balls`.
+
+**Reading:** a value of 9 means the batter averages 9 runs over the
+next 6 balls after eating a dot — strong re-engagement. A value of 4
+means the dot tends to spread into more dots.
+
+**Filter:** `min_dot_balls` (default 100) for sample-size safety.
+
+---
+
+## Counter-Attack Coefficient — `cricdex.metrics.batter.counter_attack_coefficient`
+
+**What it captures:** the surviving batter's strike rate in the 12
+balls immediately after a *partner* wicket. Quantifies who absorbs
+collapse pressure vs who freezes.
+
+**Computation:**
+1. For each ball where a wicket fell, mark the next 12 balls in the
+   same innings.
+2. For each such ball, attribute the runs to the batter facing —
+   *excluding* the dismissed striker (so we measure the survivor, not
+   the new arrival who's still gauging conditions).
+3. Aggregate: `counter_attack_sr = 100 × runs / legal_balls`.
+
+**Filter:** `min_partner_wickets` (default 20).
+
+---
+
+## Boundary Dependency Ratio — `cricdex.metrics.batter.boundary_dependency`
+
+**What it captures:** what fraction of a batter's career runs come
+from boundaries vs running between wickets.
+
+**Computation:** `bdr_pct = 100 × Σrunsfrom4or6 / Σruns`.
+
+**Reading:** high BDR = boundary-or-bust profile, vulnerable when the
+boundary isn't there (small grounds shrink, bowlers wide); low BDR =
+rotator who keeps the strike turning. Neither is "better" — the metric
+exists to distinguish *style*.
+
+**Filter:** `min_runs` (default 200).
+
+---
+
+## Sticky Dot Pressure — `cricdex.metrics.bowler.sticky_dot_pressure`
+
+**What it captures:** a bowler's wicket rate on the delivery immediately
+after building a streak of 4+ consecutive dots in the same over.
+
+**Computation:**
+1. Walk every over delivered by each bowler, tracking running
+   `streak_len` of consecutive dot balls.
+2. When `streak_len ≥ threshold` (default 4), look at the next
+   delivery in the same over.
+3. Wicket rate = wickets on that "post-pressure" ball ÷ total
+   post-pressure balls.
+
+**Why "same over":** the streak resets across overs because the field +
+batter context is different. Within an over the bowler is genuinely
+sustaining the pressure.
+
+**Reading:** different from raw economy — a tight 4-dot bowler who
+never converts the pressure into a wicket scores low here even though
+their economy looks great.
+
+**Filter:** `min_pressure_balls` (default 30).
+
+---
+
+## Planned — not yet shipped
+
+- **Net Game Impact (NGI)** — leverage-weighted sum of runs +
+  wickets + fielding events. Needs win-probability model first.
+- **Replacement Delta** — NGI − NGI of a replacement-level domestic
+  player. Cricket WAR.
+- **Wicket Quality** — Σ(opponent OAR) / wickets taken. Needs scout
+  Opposition-Adjusted Ratings.
+- **Phase Dilation / Setting Tax** — batting-first counterpart of
+  Pressure Runs.
+- **Disguise Coefficient** (bowler) — outcome variance for same
+  line / length. Needs CV-derived release-point data.
+
+---
+
+## Output schema
+
+Every metric writes a flat JSON list of records. Columns documented in
+each metric function's docstring and in `cricdex/metrics/README.md`.
+The Streamlit dashboard auto-discovers any
+`data/metrics/<slug>_<collection>.json` file.
