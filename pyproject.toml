@@ -91,6 +91,8 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "tests/*" = ["B"]
+"scripts/*" = ["B008"]
+"src/cricdex/**/cli.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.12"

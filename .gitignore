@@ -38,11 +38,9 @@ poetry.toml
 *.ipynb_checkpoints
 
 # Data (raw + processed — too big for git)
-data/raw/
-data/processed/
-data/interim/
-data/external/
-data/cache/
+data/*
+!data/.gitkeep
+!data/README.md
 *.parquet
 *.duckdb
 *.duckdb.wal
