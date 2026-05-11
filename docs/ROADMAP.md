@@ -5,7 +5,7 @@
 - Cricsheet ETL → DuckDB.
 - Cricinfo Statsguru scraper.
 - Identity resolution v1 (pro tier).
-- Novel metrics v1: Pressure Runs, Intent Curve, Recoverability, Boundary Dependency, Sticky Dot Pressure, Wicket Quality.
+- Novel metrics v1: Pressure Runs ✅; Intent Curve, Recoverability, Boundary Dependency, Sticky Dot Pressure, Wicket Quality (in progress).
 - Public leaderboards.
 - Rulebook PDF ingest (MCC + ICC PCs + IPL + Hundred + BBL + SA20 + ILT20 + MLC + CPL + LPL + WPL + Domestic).
 - Marker PDF parser + clause-hierarchy chunker.
