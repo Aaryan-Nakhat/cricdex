@@ -78,3 +78,6 @@ docker-query:
 
 docker-pressure-runs:
 	docker compose run --rm cricdex uv run python scripts/compute_metrics.py pressure-runs --collection "$${COLLECTION:-recently_played_30_male}" --top-n "$${TOP_N:-50}"
+
+docker-metrics-all:
+	docker compose run --rm cricdex uv run python scripts/compute_metrics.py all --collection "$${COLLECTION:-recently_played_30_male}" --top-n "$${TOP_N:-100}"
