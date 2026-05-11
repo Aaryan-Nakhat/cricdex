@@ -24,12 +24,26 @@ EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 EMBED_DIM = 384
 
 
-def load_clauses(parsed_dir: Path) -> list[dict]:
+def load_clauses(parsed_dir: Path, curated_dir: Path | None = None) -> list[dict]:
+    """Merge auto-parsed JSONL with curated supplementary JSONL.
+
+    Curated JSONL fills publisher gaps where the authoritative rule lives in
+    a non-PDF source (announcement page, separate Player Regulations doc that
+    is not publicly hosted, etc). Curated files follow the same per-line
+    schema as parser output: source_id, edition, page, law_number,
+    parent_chain, title, text.
+    """
     rows: list[dict] = []
     for fp in sorted(parsed_dir.glob("*.jsonl")):
         with open(fp) as f:
             for line in f:
                 rows.append(json.loads(line))
+    curated_dir = curated_dir or (parsed_dir.parent / "curated")
+    if curated_dir.exists():
+        for fp in sorted(curated_dir.glob("*.jsonl")):
+            with open(fp) as f:
+                for line in f:
+                    rows.append(json.loads(line))
     return rows
 
 

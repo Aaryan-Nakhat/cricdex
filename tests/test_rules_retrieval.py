@@ -3,7 +3,7 @@ from cricdex.rules.retrieval import rrf_fuse
 
 
 def test_resolve_formats_known():
-    assert resolve_formats(["ipl"]) == ["ipl_pc_2026"]
+    assert resolve_formats(["ipl"]) == ["ipl_pc_2026", "ipl_impact_player_2025_27"]
     assert resolve_formats(["odi"]) == ["icc_pc_men_odi_2025"]
     assert resolve_formats(["test"]) == [
         "icc_pc_men_test_2025",
@@ -21,6 +21,7 @@ def test_resolve_formats_combined():
     out = resolve_formats(["t20i", "ipl"])
     assert "icc_pc_men_t20i_2025" in out
     assert "ipl_pc_2026" in out
+    assert "ipl_impact_player_2025_27" in out
 
 
 def test_format_map_covers_all_known_sources():

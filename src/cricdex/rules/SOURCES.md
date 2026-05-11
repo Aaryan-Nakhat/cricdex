@@ -5,6 +5,7 @@ Re-verify before each major re-ingest — publishers swap URLs annually.
 
 Legend
 - ✅ verified + downloaded + parsed
+- 📝 curated supplementary clauses (no public PDF — synthesized from authoritative announcements)
 - 🔒 URL known but blocked (SPA gate / TLS mismatch) → needs Playwright
 - ⏳ no public PDF yet → check publisher periodically
 - ↪️ no separate PDF; league explicitly adopts ICC PC
@@ -44,7 +45,8 @@ Legend
 
 | ID | Status | Edition | Notes |
 |---|---|---|---|
-| `ipl_pc_2026` | ✅ | Effective 1 March 2026 | |
+| `ipl_pc_2026` | ✅ | Effective 1 March 2026 | Match Playing Conditions only — does NOT include Impact Player rule. |
+| `ipl_impact_player_2025_27` | 📝 | 2025-2027 cycle | Curated supplementary clauses (10) under `data/rules/curated/`. The underlying TATA IPL Player Regulations 2025-27 is a separate BCCI document not publicly hosted; clauses synthesized from iplt20.com announcement + ESPNcricinfo / Wisden / Olympics.com explainers. |
 | `hundred_pc_2025` | ✅ | 2025 | Single PDF covers men's + women's competitions. |
 | `bbl_pc_2024_25` | ✅ | 2024-25 | Refresh once 2025-26 men's PC is published. |
 | `sa20_pc_2023` | 🔒 | 2023 | URL confirmed; sa20.co.za serves a Next.js shell to non-browser clients. |
