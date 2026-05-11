@@ -21,3 +21,8 @@ MCC Laws + ICC PC (Test/ODI/T20I/Women/U19/WTC) + IPL + The Hundred + BBL + SA20
 - Scenario walk-through
 - Vernacular glossary ("Mankad", "doosra")
 - Multilingual (translate via Gemini)
+
+## Coverage + update flow
+
+- See [SOURCES.md](./SOURCES.md) for the current state of every rulebook source (verified ✅, blocked 🔒, not yet released ⏳, or adopted-from-ICC ↪️).
+- See [docs/UPDATING_RULES.md](../../../docs/UPDATING_RULES.md) for how rule changes flow into the app — versioning model, manual update flow today, planned cron + diff PR automation, and bulletin/addendum handling.
