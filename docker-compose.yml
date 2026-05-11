@@ -45,6 +45,33 @@ services:
       - ./src:/app/src
       - ./scripts:/app/scripts
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cricdex:dev
+    container_name: cricdex-dashboard
+    restart: unless-stopped
+    profiles: ["dashboard"]
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    ports:
+      - "8511:8501"
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src
+    command: >
+      uv run streamlit run src/cricdex/dashboard/app.py
+      --server.address 0.0.0.0
+      --server.port 8501
+      --server.headless true
+      --browser.gatherUsageStats false
+
   # --- placeholders for future modules ---
   # postgres:
   #   image: postgres:17-alpine

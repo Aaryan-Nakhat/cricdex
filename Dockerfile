@@ -27,7 +27,7 @@ WORKDIR /app
 FROM base AS deps
 COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-install-project --no-dev
+    uv sync --no-install-project --no-dev --extra ui --extra bots --extra graph
 
 FROM deps AS app
 COPY src ./src
