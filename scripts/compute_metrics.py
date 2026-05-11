@@ -1,21 +1,30 @@
 """CLI: compute novel CricMetrics over an ingested Cricsheet collection.
 
+Each subcommand writes the leaderboard to
+`data/metrics/<metric>_<collection>.json` and also prints a tabular
+view to stdout.
+
 Examples:
-    uv run python scripts/compute_metrics.py pressure-runs \\
-        --collection recently_played_30_male
-    uv run python scripts/compute_metrics.py pressure-runs \\
-        --collection ipl --top-n 50 --json data/metrics/pressure_runs_ipl.json
+    uv run python scripts/compute_metrics.py pressure-runs --collection ipl
+    uv run python scripts/compute_metrics.py intent-curve --collection ipl
+    uv run python scripts/compute_metrics.py recoverability --collection ipl
+    uv run python scripts/compute_metrics.py counter-attack --collection ipl
+    uv run python scripts/compute_metrics.py boundary-dependency --collection ipl
+    uv run python scripts/compute_metrics.py sticky-dots --collection ipl
+    uv run python scripts/compute_metrics.py all --collection ipl
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import polars as pl
 import typer
 from loguru import logger
 
 from cricdex.config import DATA_DIR
 from cricdex.metrics import batter as batter_metrics
+from cricdex.metrics import bowler as bowler_metrics
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -23,6 +32,16 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 @app.callback()
 def _root() -> None:
     """CricMetrics CLI — novel batter / bowler / composite ratings."""
+
+
+def _emit(df: pl.DataFrame, metric: str, collection: str, out_json: Path | None) -> Path:
+    typer.echo(f"\n=== {metric} — {collection} ({df.height} rows) ===\n")
+    typer.echo(df.to_pandas().to_string(index=False))
+    out_path = out_json or (DATA_DIR / "metrics" / f"{metric}_{collection}.json")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    df.write_json(str(out_path))
+    logger.info(f"wrote {out_path}")
+    return out_path
 
 
 @app.command("pressure-runs")
@@ -33,29 +52,136 @@ def pressure_runs_cmd(
     ),
     min_balls: int = typer.Option(batter_metrics.DEFAULT_MIN_BALLS_FACED, "--min-balls"),
     top_n: int = typer.Option(50, "--top-n"),
-    out_json: Path | None = typer.Option(None, "--json", help="Optional JSON output path"),
-    db_path: Path | None = typer.Option(None, "--db"),
+    out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
     df = batter_metrics.pressure_runs(
         collection=collection,
-        db_path=db_path or batter_metrics.DEFAULT_DB_PATH,
         pressure_multiplier=pressure_multiplier,
         min_balls_faced=min_balls,
         top_n=top_n,
     )
+    _emit(df, "pressure_runs", collection, out_json)
 
-    typer.echo(f"\n=== Pressure Runs — {collection} (top {top_n}) ===\n")
-    typer.echo(df.to_pandas().to_string(index=False))
 
-    if out_json is not None:
-        out_path = out_json
-    else:
-        out_path = DATA_DIR / "metrics" / f"pressure_runs_{collection}.json"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    # polars.write_json handles DuckDB-derived Decimals + nulls cleanly,
-    # unlike stdlib json on raw .to_dicts() output.
-    df.write_json(str(out_path))
-    logger.info(f"wrote {out_path}")
+@app.command("intent-curve")
+def intent_curve_cmd(
+    collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
+    min_balls: int = typer.Option(200, "--min-balls"),
+    top_n: int = typer.Option(300, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    df = batter_metrics.intent_curve(
+        collection=collection,
+        min_balls_in_bucket=min_balls,
+        top_n=top_n,
+    )
+    _emit(df, "intent_curve", collection, out_json)
+
+
+@app.command("recoverability")
+def recoverability_cmd(
+    collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
+    min_dots: int = typer.Option(100, "--min-dots"),
+    top_n: int = typer.Option(50, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    df = batter_metrics.recoverability_index(
+        collection=collection,
+        min_dot_balls=min_dots,
+        top_n=top_n,
+    )
+    _emit(df, "recoverability", collection, out_json)
+
+
+@app.command("counter-attack")
+def counter_attack_cmd(
+    collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
+    min_balls: int = typer.Option(20, "--min-balls"),
+    top_n: int = typer.Option(50, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    df = batter_metrics.counter_attack_coefficient(
+        collection=collection,
+        min_partner_wickets=min_balls,
+        top_n=top_n,
+    )
+    _emit(df, "counter_attack", collection, out_json)
+
+
+@app.command("boundary-dependency")
+def boundary_dependency_cmd(
+    collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
+    min_runs: int = typer.Option(200, "--min-runs"),
+    top_n: int = typer.Option(50, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    df = batter_metrics.boundary_dependency(
+        collection=collection,
+        min_runs=min_runs,
+        top_n=top_n,
+    )
+    _emit(df, "boundary_dependency", collection, out_json)
+
+
+@app.command("sticky-dots")
+def sticky_dots_cmd(
+    collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
+    threshold: int = typer.Option(4, "--threshold"),
+    min_balls: int = typer.Option(30, "--min-balls"),
+    top_n: int = typer.Option(50, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    df = bowler_metrics.sticky_dot_pressure(
+        collection=collection,
+        consecutive_dot_threshold=threshold,
+        min_pressure_balls=min_balls,
+        top_n=top_n,
+    )
+    _emit(df, "sticky_dot_pressure", collection, out_json)
+
+
+@app.command("all")
+def all_cmd(
+    collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
+    top_n: int = typer.Option(100, "--top-n"),
+) -> None:
+    """Compute every metric for a collection and dump all JSON outputs."""
+    _emit(
+        batter_metrics.pressure_runs(collection=collection, top_n=top_n),
+        "pressure_runs",
+        collection,
+        None,
+    )
+    _emit(
+        batter_metrics.intent_curve(collection=collection, top_n=top_n * 6),
+        "intent_curve",
+        collection,
+        None,
+    )
+    _emit(
+        batter_metrics.recoverability_index(collection=collection, top_n=top_n),
+        "recoverability",
+        collection,
+        None,
+    )
+    _emit(
+        batter_metrics.counter_attack_coefficient(collection=collection, top_n=top_n),
+        "counter_attack",
+        collection,
+        None,
+    )
+    _emit(
+        batter_metrics.boundary_dependency(collection=collection, top_n=top_n),
+        "boundary_dependency",
+        collection,
+        None,
+    )
+    _emit(
+        bowler_metrics.sticky_dot_pressure(collection=collection, top_n=top_n),
+        "sticky_dot_pressure",
+        collection,
+        None,
+    )
 
 
 if __name__ == "__main__":
