@@ -31,6 +31,11 @@ class Settings(BaseSettings):
 
     hf_token: str = ""
 
+    # LLM. Replace with LLM_API_KEY
+    # via `litellm` client before public launch.
+    llm_api_base: str = ""
+    llm_api_key: str = ""
+
     qdrant_url: str = ""
     qdrant_api_key: str = ""
 
