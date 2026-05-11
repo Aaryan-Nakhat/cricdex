@@ -41,6 +41,18 @@ Women's data treated as first-class from day 1 across every module. Avoids retro
 
 CricHeroes already does grassroots tournament management. Partner via API instead of competing — they own the user funnel, we own the analytics layer.
 
+## 2026-05-11 — Drop PSL from rules corpus
+
+Pakistan Super League playing conditions excluded from rule-RAG ingest. Re-evaluate only on explicit user request.
+
+## 2026-05-11 — Drop fantasy module
+
+`fantasy/` removed from scope. Dream11-style optimizer not on critical path; revisit only if a clear non-gambling angle emerges.
+
+## 2026-05-11 — Voice-cloned commentary as final feature
+
+`commentary_translate` ships text-only in Phase 6. Voice-cloned target-language TTS (XTTS-v2 / F5-TTS / OpenVoice + AI4Bharat IndicTTS) deferred to year-2 final milestone. Reasons: GPU inference cost, commentator likeness-rights risk, dependency on text-translation quality + audience first. Plan to secure opt-in licensing from retired commentators before launching cloned voices.
+
 ## 2026-05-11 — Sources for scout opposition bridging
 
 Pro tier: Cricsheet ball-by-ball. Semi-pro: BCCI Domestic + state assoc + Ranji/SMAT/Hazare. Grassroots: CricHeroes + CricClubs + state-league YouTube broadcasts (year-2 ScoutVLM). Ratings sharpen with bridge-score; unbridged grassroots stay flagged low-confidence.

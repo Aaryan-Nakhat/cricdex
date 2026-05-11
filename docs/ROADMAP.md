@@ -7,7 +7,7 @@
 - Identity resolution v1 (pro tier).
 - Novel metrics v1: Pressure Runs, Intent Curve, Recoverability, Boundary Dependency, Sticky Dot Pressure, Wicket Quality.
 - Public leaderboards.
-- Rulebook PDF ingest (MCC + ICC PCs + IPL + Hundred + BBL + SA20 + ILT20 + PSL + MLC + CPL + LPL + WPL + Domestic).
+- Rulebook PDF ingest (MCC + ICC PCs + IPL + Hundred + BBL + SA20 + ILT20 + MLC + CPL + LPL + WPL + Domestic).
 - Marker PDF parser + clause-hierarchy chunker.
 - Qdrant index + hybrid retrieval (BM25 + dense + rerank).
 - `/rules` chat UI.
@@ -43,20 +43,19 @@
 - Streamlit war-room UI.
 - Auction-week live marketing blitz.
 
-## Phase 5 (Month 9–10): Live + Fantasy + Venues + Predict Game + Newsletter + DRS Sim
+## Phase 5 (Month 9–10): Live + Venues + Predict Game + Newsletter + DRS Sim
 
 - Live scorecard aggregator (Cricbuzz unofficial JSON).
 - Win-probability model + live-insight tagger.
-- Fantasy optimizer (Dream11 rules) with crowd-contrarian signal.
 - Per-venue pitch + dew + weather archive.
 - Predict-game leaderboard.
 - Newsletter engine (per-team/player subscriptions).
 - DRS scenario simulator + umpire practice game.
 
-## Phase 6 (Month 11–12): Profiles + Commentary translation + Women's first-class + Press tour
+## Phase 6 (Month 11–12): Profiles + Commentary translation (text) + Women's first-class + Press tour
 
 - Public player profiles + claim flow.
-- Multi-language commentary translation (Hindi, Tamil, Bengali, Urdu, Sinhala).
+- Multi-language commentary translation — text only (Hindi, Tamil, Bengali, Urdu, Sinhala).
 - Women's cricket data parity audit (BCCI Women's Domestic, WBBL, Hundred Women's, WPL).
 - IPL franchise outreach + private demos.
 - v1.0 launch press tour.
@@ -69,3 +68,4 @@
 - ScoutVLM — VLM-driven ball-by-ball extraction from YouTube grassroots video.
 - Highlight CV — auto key-moment clip extraction.
 - Tournament management B2B (partner with CricHeroes instead of competing).
+- **Voice-cloned commentary translation — final-feature milestone.** Clone English commentators (XTTS-v2 / F5-TTS / OpenVoice) and synthesise target-language audio in their voice. Ship after text-translation v1 proven + opt-in licensing secured with retired commentators.

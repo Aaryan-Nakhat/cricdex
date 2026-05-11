@@ -4,7 +4,7 @@ Natural-language Q&A over cricket rulebooks.
 
 ## Sources
 
-MCC Laws + ICC PC (Test/ODI/T20I/Women/U19/WTC) + IPL + The Hundred + BBL + SA20 + ILT20 + PSL + MLC + CPL + LPL + WPL + BCCI Domestic + Spirit of Cricket + Code of Conduct + Anti-Corruption.
+MCC Laws + ICC PC (Test/ODI/T20I/Women/U19/WTC) + IPL + The Hundred + BBL + SA20 + ILT20 + MLC + CPL + LPL + WPL + BCCI Domestic + Spirit of Cricket + Code of Conduct + Anti-Corruption.
 
 ## Pipeline
 
