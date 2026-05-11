@@ -66,6 +66,9 @@ docker-ingest-cricsheet:
 docker-ingest-people:
 	docker compose run --rm cricdex uv run python scripts/ingest_people.py
 
+docker-ingest-wikidata:
+	docker compose run --rm cricdex uv run python scripts/ingest_wikidata.py
+
 docker-scout-up:
 	docker compose --profile scout up -d neo4j
 	@echo "Neo4j UI on http://localhost:7474 (user neo4j / pass cricdex_dev)"
