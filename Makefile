@@ -66,6 +66,22 @@ docker-ingest-cricsheet:
 docker-ingest-people:
 	docker compose run --rm cricdex uv run python scripts/ingest_people.py
 
+docker-scout-up:
+	docker compose --profile scout up -d neo4j
+	@echo "Neo4j UI on http://localhost:7474 (user neo4j / pass cricdex_dev)"
+
+docker-scout-down:
+	docker compose --profile scout stop neo4j
+
+docker-scout-bootstrap:
+	docker compose --profile scout run --rm -e NEO4J_URI=bolt://neo4j:7687 -e NEO4J_PASSWORD=cricdex_dev cricdex uv run python scripts/scout_graph.py bootstrap
+
+docker-scout-populate:
+	docker compose --profile scout run --rm -e NEO4J_URI=bolt://neo4j:7687 -e NEO4J_PASSWORD=cricdex_dev cricdex uv run python scripts/scout_graph.py populate --collection "$${COLLECTION:-ipl}"
+
+docker-scout-rate:
+	docker compose run --rm cricdex uv run python scripts/scout_rate.py --collection "$${COLLECTION:-ipl}" --advi-steps "$${STEPS:-12000}"
+
 docker-ingest-rules-download:
 	docker compose run --rm cricdex uv run python scripts/ingest_rules.py download
 
