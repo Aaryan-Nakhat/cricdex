@@ -1,0 +1,46 @@
+# Decisions
+
+Locked design choices and their reasoning. Append new entries with date.
+
+## 2026-05-11 — Name: CricDex
+
+Cricket-prefixed, evokes pokedex-style catalog metaphor — fits scout-first thesis. Unique vs CricInfo / CricViz / CricVision / Cricbuzz.
+
+## 2026-05-11 — License: MIT
+
+Maximises permissive adoption. Compatible with all dependencies in scope. Re-evaluate AGPL only if a commercial fork becomes a real threat.
+
+## 2026-05-11 — Visibility: private repo until v1 launch
+
+Build quietly, ship loud. Flip to public on day-1 of launch week to harvest stars from press hits.
+
+## 2026-05-11 — Stack defaults
+
+- Python 3.12, UV package manager (matches user's other workspace).
+- DuckDB for OLAP (free, in-process, no Postgres dependency for analytics).
+- Postgres (Supabase) for relational + user data.
+- Neo4j Community for player-opponent graph.
+- Qdrant 1 GB free for vectors.
+- FastAPI for service layer.
+- Next.js + Vercel for web (deferred).
+- Gemini Flash as default LLM (1500/day free), Cerebras Llama for sub-second live, Claude/Perplexity for premium fallback.
+
+## 2026-05-11 — Cost philosophy
+
+Ship every module on $0 free tiers until product-market-fit. Domain + sponsorship of optional paid tiers (Supabase Pro, HF Space GPU) only when scale forces it.
+
+## 2026-05-11 — Defer voice + CV modules
+
+Voice analyst and OpenBoundary / ChuckCheck deferred to year 2. They are user's biggest moats but highest build cost. Ship cheaper viral modules first to hit 10k stars, then leverage that audience for the heavy modules.
+
+## 2026-05-11 — Women's cricket first-class
+
+Women's data treated as first-class from day 1 across every module. Avoids retrofitting later and creates a press/PR angle.
+
+## 2026-05-11 — Do not build a tournament management product
+
+CricHeroes already does grassroots tournament management. Partner via API instead of competing — they own the user funnel, we own the analytics layer.
+
+## 2026-05-11 — Sources for scout opposition bridging
+
+Pro tier: Cricsheet ball-by-ball. Semi-pro: BCCI Domestic + state assoc + Ranji/SMAT/Hazare. Grassroots: CricHeroes + CricClubs + state-league YouTube broadcasts (year-2 ScoutVLM). Ratings sharpen with bridge-score; unbridged grassroots stay flagged low-confidence.
