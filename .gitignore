@@ -41,6 +41,9 @@ poetry.toml
 data/*
 !data/.gitkeep
 !data/README.md
+!data/rules/
+data/rules/*
+!data/rules/curated/
 *.parquet
 *.duckdb
 *.duckdb.wal
