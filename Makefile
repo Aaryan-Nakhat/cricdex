@@ -61,7 +61,10 @@ docker-test:
 	docker compose run --rm cricdex uv run pytest -q
 
 docker-ingest-cricsheet:
-	docker compose run --rm cricdex uv run python scripts/ingest_cricsheet.py --collection recently_played_30_male
+	docker compose run --rm cricdex uv run python scripts/ingest_cricsheet.py --collection "$${COLLECTION:-recently_played_30_male}"
+
+docker-ingest-people:
+	docker compose run --rm cricdex uv run python scripts/ingest_people.py
 
 docker-ingest-rules-download:
 	docker compose run --rm cricdex uv run python scripts/ingest_rules.py download
