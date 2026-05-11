@@ -13,11 +13,18 @@ cd cricdex
 cp .env.example .env
 # (Optional) edit .env to wire up Gemini proxy / HF token / etc.
 
-make docker-up                       # boots Qdrant + the app on :8080
-make docker-ingest-rules-download    # 21 rulebook PDFs → data/rules/raw/
-make docker-ingest-rules-parse       # → ~11k clause JSONL
-make docker-embed-rules              # → Qdrant collection
-make docker-query Q="what is the impact player rule in IPL" FORMATS=ipl
+make docker-up                                # Qdrant + API on :8080
+# --- Rules ---
+make docker-ingest-rules-download             # 21 rulebook PDFs
+make docker-ingest-rules-parse                # → ~11k clauses
+make docker-embed-rules                       # → Qdrant collection
+make docker-query Q="impact player rule" FORMATS=ipl
+# --- Metrics + identity ---
+make docker-ingest-cricsheet COLLECTION=ipl   # IPL ball-by-ball → DuckDB
+make docker-ingest-people                     # cross-ID register
+make docker-metrics-all COLLECTION=ipl        # 6 novel metrics → JSON
+# --- Dashboard ---
+make docker-dashboard-up                      # Streamlit on :8511
 ```
 
 See [`docs/RUNNING.md`](docs/RUNNING.md) for the local `uv` path and the

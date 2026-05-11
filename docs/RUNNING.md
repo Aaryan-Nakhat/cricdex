@@ -35,6 +35,15 @@ make docker-ingest-rules-download   # fetch verified rulebook PDFs into ./data/r
 make docker-ingest-rules-parse      # pdfplumber → clause JSONL in ./data/rules/parsed/
 make docker-embed-rules             # MiniLM → Qdrant collection 'rules_clauses'
 make docker-ingest-cricsheet        # download a Cricsheet collection → Parquet + DuckDB
+make docker-ingest-people           # Cricsheet People Register (cross-IDs)
+make docker-metrics-all COLLECTION=ipl  # compute every novel metric → data/metrics/
+```
+
+### Browse the leaderboards
+
+```bash
+make docker-dashboard-up   # Streamlit on http://localhost:8511
+make docker-dashboard-down # stop it
 ```
 
 ### Ask a rule question

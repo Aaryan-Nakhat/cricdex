@@ -84,3 +84,14 @@ docker-pressure-runs:
 
 docker-metrics-all:
 	docker compose run --rm cricdex uv run python scripts/compute_metrics.py all --collection "$${COLLECTION:-recently_played_30_male}" --top-n "$${TOP_N:-100}"
+
+docker-dashboard-up:
+	docker compose --profile dashboard up -d dashboard
+	@echo "Streamlit on http://localhost:8511"
+
+docker-dashboard-down:
+	docker compose --profile dashboard stop dashboard
+	docker compose --profile dashboard rm -f dashboard
+
+dashboard:
+	uv run streamlit run src/cricdex/dashboard/app.py
