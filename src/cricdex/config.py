@@ -31,6 +31,11 @@ class Settings(BaseSettings):
 
     hf_token: str = ""
 
+    # Temporary Gemini proxy (work-hosted). Replace with personal GEMINI_API_KEY
+    # via `google-genai` client before public launch.
+    gemini_tmp_url: str = ""
+    gemini_tmp_api_key: str = ""
+
     qdrant_url: str = ""
     qdrant_api_key: str = ""
 

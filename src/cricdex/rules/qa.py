@@ -1,7 +1,12 @@
-"""LLM Q&A over rule clauses with citation discipline."""
+"""LLM Q&A over rule clauses with citation discipline.
+
+Uses `cricdex.common.llm.generate` (HTTP proxy) so swapping the underlying
+LLM provider later is one-file change.
+"""
 
 from __future__ import annotations
 
+from cricdex.common import llm
 from cricdex.config import settings
 from cricdex.rules.retrieval import hybrid_search
 
@@ -68,27 +73,29 @@ def answer(
     query: str,
     formats: list[str] | None = None,
     top_k: int = 8,
+    model: str = llm.DEFAULT_TEXT_MODEL,
 ) -> dict:
     source_ids = resolve_formats(formats)
     hits = hybrid_search(query, top_k=top_k, source_ids=source_ids)
     passages_str = format_passages(hits)
 
-    if not settings.gemini_api_key:
+    if not settings.gemini_tmp_url:
         return {
-            "answer": ("(GEMINI_API_KEY not set — returning passages only)\n\n" + passages_str),
+            "answer": ("(GEMINI_TMP_URL not set — returning passages only)\n\n" + passages_str),
             "passages": [p for _, p in hits],
             "citations": [(p["source_id"], p["law_number"]) for _, p in hits],
             "llm_used": None,
         }
 
-    from google import genai
-
-    client = genai.Client(api_key=settings.gemini_api_key)
-    prompt = f"{SYSTEM_PROMPT}\n\nPASSAGES:\n{passages_str}\n\nQUESTION: {query}\n\nANSWER:"
-    resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    user_prompt = f"PASSAGES:\n{passages_str}\n\nQUESTION: {query}\n\nANSWER:"
+    text = llm.generate(
+        system_prompt=SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        model=model,
+    )
     return {
-        "answer": resp.text,
+        "answer": text,
         "passages": [p for _, p in hits],
         "citations": [(p["source_id"], p["law_number"]) for _, p in hits],
-        "llm_used": "gemini-2.5-flash",
+        "llm_used": model,
     }
