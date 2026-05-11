@@ -13,10 +13,10 @@ import json
 from pathlib import Path
 
 from loguru import logger
-from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 from sentence_transformers import SentenceTransformer
 
+from cricdex.common.qdrant import get_qdrant_client
 from cricdex.config import DATA_DIR
 
 COLLECTION = "rules_clauses"
@@ -49,9 +49,6 @@ def load_clauses(parsed_dir: Path, curated_dir: Path | None = None) -> list[dict
 
 def embed_all(parsed_dir: Path | None = None, qdrant_path: Path | None = None) -> int:
     parsed_dir = parsed_dir or (DATA_DIR / "rules" / "parsed")
-    qdrant_path = qdrant_path or (DATA_DIR / "rules" / "qdrant")
-    qdrant_path.mkdir(parents=True, exist_ok=True)
-
     clauses = load_clauses(parsed_dir)
     if not clauses:
         logger.warning(f"no clause files in {parsed_dir}")
@@ -59,7 +56,7 @@ def embed_all(parsed_dir: Path | None = None, qdrant_path: Path | None = None) -
     logger.info(f"embedding {len(clauses)} clauses with {EMBED_MODEL}")
 
     model = SentenceTransformer(EMBED_MODEL)
-    client = QdrantClient(path=str(qdrant_path))
+    client = get_qdrant_client(local_path=qdrant_path)
 
     if client.collection_exists(COLLECTION):
         client.delete_collection(COLLECTION)
@@ -79,6 +76,11 @@ def embed_all(parsed_dir: Path | None = None, qdrant_path: Path | None = None) -
     points = [
         PointStruct(id=i, vector=vec.tolist(), payload=clauses[i]) for i, vec in enumerate(vectors)
     ]
-    client.upsert(collection_name=COLLECTION, points=points)
-    logger.info(f"upserted {len(points)} → {COLLECTION} at {qdrant_path}")
+    # Chunked upsert so we never hold a single multi-MB request open longer
+    # than the server's idle window, especially under the Compose bridge.
+    batch_size = 1024
+    for start in range(0, len(points), batch_size):
+        chunk = points[start : start + batch_size]
+        client.upsert(collection_name=COLLECTION, points=chunk, wait=True)
+    logger.info(f"upserted {len(points)} → {COLLECTION}")
     return len(points)

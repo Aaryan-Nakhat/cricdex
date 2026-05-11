@@ -13,6 +13,7 @@ from qdrant_client.models import FieldCondition, Filter, MatchAny
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
+from cricdex.common.qdrant import get_qdrant_client
 from cricdex.config import DATA_DIR
 from cricdex.rules.embed import COLLECTION, EMBED_MODEL, load_clauses
 
@@ -32,8 +33,7 @@ def _get_model() -> SentenceTransformer:
 def _get_client(path: Path | None = None) -> QdrantClient:
     global _client
     if _client is None:
-        path = path or (DATA_DIR / "rules" / "qdrant")
-        _client = QdrantClient(path=str(path))
+        _client = get_qdrant_client(local_path=path)
     return _client
 
 

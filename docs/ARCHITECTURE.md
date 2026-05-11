@@ -28,6 +28,16 @@
 - **Training:** Colab T4 + Kaggle T4×2 (free tiers).
 - **GPU inference (later):** HF Space + Modal free credits.
 
+## Deployment
+
+All services are shipped via Docker. Local dev = `make docker-up`; the
+same image is the artefact pushed to production. The Compose file
+brings up the minimum set of services (Qdrant + app) by default;
+Postgres / Redis / Neo4j are placeholders that come online with their
+respective modules. See [`DOCKER.md`](DOCKER.md) for the image strategy
+and Compose layout, and [`RUNNING.md`](RUNNING.md) for the
+contributor-facing quickstart.
+
 ## Data pipeline cadence
 
 - Cricsheet → nightly via GitHub Actions cron.
