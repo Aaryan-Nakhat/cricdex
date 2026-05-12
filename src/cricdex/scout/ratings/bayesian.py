@@ -17,9 +17,16 @@ a journeyman.
 
 Fit
 ---
-ADVI mean-field — single-CPU, ~1-3 min on the full IPL collection
-(~30k edges). Switch to NUTS for the final v2 once we are happy with
-the model shape.
+Two samplers are wired:
+
+- `advi` (default) — mean-field variational. ~1-3 min on the full
+  IPL collection (~30k edges). Posterior variance is
+  under-estimated, so `skill_sd` is directional rather than
+  calibrated. Good for development and weekly refresh cycles.
+- `nuts` — full No-U-Turn HMC, 2 chains × 1000 draws + 500 tune.
+  ~20-30 min on the same IPL corpus. Produces a properly calibrated
+  posterior — use this when the consumer cares about confidence
+  intervals (player-profile uncertainty bars, wager-grade analytics).
 
 Output
 ------
@@ -89,9 +96,21 @@ def fit(
     min_balls: int = 6,
     advi_steps: int = 12000,
     seed: int = 42,
+    sampler: str = "advi",
+    nuts_draws: int = 1000,
+    nuts_chains: int = 2,
+    nuts_tune: int = 500,
+    nuts_target_accept: float = 0.9,
 ) -> pl.DataFrame:
-    """Fit the model and return one row per (cricsheet_id, role)."""
+    """Fit the model and return one row per (cricsheet_id, role).
+
+    `sampler` ∈ {"advi", "nuts"}. ADVI is fast and approximate, NUTS
+    is the calibrated full-Bayes run.
+    """
     import pymc as pm  # heavy import — keep lazy
+
+    if sampler not in ("advi", "nuts"):
+        raise ValueError(f"sampler must be 'advi' or 'nuts', got {sampler!r}")
 
     edges, batter_idx, bowler_idx = _load_edges(db_path, collection, min_balls)
     if edges.is_empty():
@@ -118,8 +137,19 @@ def fit(
         mu = pm.math.exp(log_mu) * balls
         pm.NegativeBinomial("y", mu=mu, alpha=alpha, observed=runs)
 
-        approx = pm.fit(n=advi_steps, method="advi", progressbar=False, random_seed=seed)
-        trace = approx.sample(500, random_seed=seed)
+        if sampler == "advi":
+            approx = pm.fit(n=advi_steps, method="advi", progressbar=False, random_seed=seed)
+            trace = approx.sample(500, random_seed=seed)
+        else:
+            trace = pm.sample(
+                draws=nuts_draws,
+                tune=nuts_tune,
+                chains=nuts_chains,
+                target_accept=nuts_target_accept,
+                random_seed=seed,
+                progressbar=False,
+                compute_convergence_checks=False,
+            )
 
     b_mean = np.asarray(trace.posterior["b_skill"]).reshape(-1, n_batters).mean(axis=0)
     b_sd = np.asarray(trace.posterior["b_skill"]).reshape(-1, n_batters).std(axis=0)
