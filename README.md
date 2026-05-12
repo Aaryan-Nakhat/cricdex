@@ -34,24 +34,28 @@ for the cross-module data flow.
 
 ## Modules
 
-| Module | Status | What |
-|---|---|---|
-| `scout` | planned P0 | Player graph + opposition-bridged ratings spanning pro → semi-pro → grassroots (Cricsheet + Cricinfo + Cricbuzz + BCCI Domestic + CricHeroes). |
-| `metrics` | planned P0 | Novel context-adjusted ratings (Pressure Runs, Intent Curve, Recoverability, Sticky Dot Pressure, Wicket Quality, NGI/WAR-cricket, etc). |
-| `rules` | shipped v0 | Natural-language Q&A over cricket rulebooks (MCC Laws + ICC PCs men/women/U19 + IPL + WPL + Hundred + BBL + WBBL + SA20 + ILT20 + MLC + CPL + LPL + Cricket Australia domestic + ICC Codes + Anti-Corruption). 21 PDFs verified, 11k+ clauses indexed in Qdrant. Curated supplementary clauses cover gaps where the rule lives in a non-public BCCI doc (e.g. IPL Impact Player Regulations 2025-27). |
-| `pulse` | planned P1 | Social trend analysis across Reddit + Bluesky + YouTube + Telegram + Twitter. Sentiment, rumour detection, hype-reality gap. |
-| `auction` | planned P1 | Multi-agent RL auction simulator with per-franchise personality priors. |
-| `drs` | planned P1 | DRS scenario simulator + umpire/scorer practice gamification. |
-| `records` | planned P1 | Searchable records DB + On-This-Day digest. |
-| `reports` | planned P1 | Auto-generated post-match reports. |
-| `predict` | planned P1 | Daily prediction game (no money). |
-| `live` | planned P1 | Live match insights surfacer. |
-| `venues` | planned P1 | Pitch + conditions archive per venue. |
-| `profiles` | planned P1 | Public claimable player profiles. |
-| `comparator` | planned P1 | Visual career side-by-side. |
-| `newsletter` | planned P1 | Per-user/team digest engine. |
-| `commentary_translate` | planned P1, voice-clone P3 | Live commentary translation into IN regional languages; voice-cloned target-language audio is the final-feature milestone. |
-| `api` | shipped v0 (`/health`) | Public REST surface. |
+All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
+⏸ / ⏳ status of every subsidiary feature.
+
+| Module | What |
+|---|---|
+| `scout` | Player graph (Neo4j) + Bayesian opponent-adjusted ratings (PyMC ADVI) + style-twin k-NN. Pro tier ingested; grassroots / CricHeroes tier planned. |
+| `metrics` | Six novel context-adjusted ratings: Pressure Runs, Intent Curve, Recoverability, Counter-Attack, Boundary Dependency, Sticky Dot Pressure. |
+| `rules` | Natural-language Q&A over 21 verified rulebook PDFs (MCC Laws + ICC PCs + IPL + Hundred + BBL/WBBL + SA20 + Cricket Australia domestic + ICC Codes + Anti-Corruption). 11k+ clauses indexed in Qdrant. Curated supplementary clauses cover gaps such as the IPL Impact Player rule. |
+| `pulse` | Reddit fetcher + Gemini sentiment extractor. Data load blocked from datacenter IPs. |
+| `auction` | MILP squad optimiser via `scipy.optimize.milp` (CLI + dashboard war-room). Multi-agent RL self-play remains the auction-v2 milestone. |
+| `drs` | 20-scenario umpire-decision practice game with MCC / ICC citations. |
+| `records` | 9 record SQL queries + On-This-Day digest. |
+| `reports` | LLM-written match reports grounded in Cricsheet facts, no hallucinations. |
+| `predict` | Deferred — needs the `live` feed first. |
+| `live` | Cricbuzz live-score fetcher. Pipeline correct; data load blocked from datacenter IPs. |
+| `venues` | Per-venue innings totals + chase/set winrate + phase rates + dismissal mix. |
+| `profiles` | Per-player profile assembler aggregating every source CricDex has. |
+| `comparator` | Plotly-radar + transposed table side-by-side. |
+| `newsletter` | Markdown digest compiler (On-This-Day + headlines + auto match report). |
+| `commentary_translate` | English → Hindi / Tamil / Bengali / Urdu / Sinhala / Marathi / Telugu / Kannada (text-only). Voice-cloned audio deferred to year 2. |
+| `api` | FastAPI public REST surface (12 endpoints + OpenAPI at `/docs`). See [`docs/API.md`](docs/API.md). |
+| `dashboard` | 11-page Streamlit app: Home, Leaderboards, Rules Chat, Records, Match Reports, Compare, Venues, DRS Practice, Auction, Player Profile, Translate Commentary. |
 
 Deferred to year 2: OpenBoundary (Hawk-Eye OSS), ChuckCheck (elbow flex
 biomechanics), Voice analyst, ScoutVLM (video → ball-by-ball), Highlight

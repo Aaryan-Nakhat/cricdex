@@ -1,66 +1,52 @@
 # Roadmap
 
-## Phase 1 (Month 1–2): Foundations + CricMetrics + CricRules
+## Phase 1 (Foundations + CricMetrics + CricRules) — ✅ shipped
 
-- Cricsheet ETL → DuckDB.
-- Cricinfo Statsguru scraper.
-- Identity resolution v1 (pro tier).
-- Novel metrics v1: Pressure Runs ✅, Intent Curve ✅, Recoverability ✅, Counter-Attack ✅, Boundary Dependency ✅, Sticky Dot Pressure ✅. (Wicket Quality deferred — needs scout OAR ratings.)
-- Identity resolution v1 ✅ — via Cricsheet People Register cross-ID load.
-- Public leaderboard ✅ — Streamlit dashboard on :8511 with per-metric tabs.
-- Public leaderboards.
-- Rulebook PDF ingest (MCC + ICC PCs + IPL + Hundred + BBL + SA20 + ILT20 + MLC + CPL + LPL + WPL + Domestic).
-- Marker PDF parser + clause-hierarchy chunker.
-- Qdrant index + hybrid retrieval (BM25 + dense + rerank).
-- `/rules` chat UI.
+- Cricsheet ETL → DuckDB. Phase tagging respects match_type.
+- Cricsheet People Register identity bridge (17,981 players, 99.8 % Cricinfo coverage).
+- Wikidata enrichment pipeline. Code shipped; data load deferred (WDQS hard rate-limits our datacenter IP).
+- Novel metrics v1: Pressure Runs, Intent Curve, Recoverability, Counter-Attack, Boundary Dependency, Sticky Dot Pressure.
+- Public leaderboard surface (Streamlit dashboard + per-metric JSON).
+- Rulebook PDF ingest. 21 verified PDFs from MCC / ICC / IPL / Hundred / BBL / WBBL / SA20 / Cricket Australia domestic / ICC Codes / Anti-Corruption.
+- pdfplumber clause-hierarchy parser → ~11 k clauses.
+- Qdrant + hybrid retrieval (dense MiniLM + BM25 + RRF fusion) + Gemini-proxy QA with citation discipline.
+- Curated supplementary clauses for the IPL Impact Player rule (since BCCI's Player Regulations PDF isn't public).
+- `/rules` chat UI (Streamlit page).
 
-## Phase 2 (Month 3–4): Scout v1
+## Phase 2 (Scout v1) — ✅ shipped (with documented coverage notes)
 
-- BCCI Domestic scrapers — partial: Syed Mushtaq Ali Trophy ✅ via Cricsheet state-team aggregator (689 matches). Ranji Trophy + Vijay Hazare + age-group ⏳ (Cricsheet doesn't publish them; need BCCI scrape or Cricinfo scrape, both behind anti-bot walls).
-- CricHeroes scraper (slow respectful) + partner-API outreach.
-- Photo CLIP embeds for identity resolution.
-- Neo4j graph populated for pro + semi-pro tiers ✅ for IPL; SMAT pending populate.
-- Bayesian rating with opponent bridging ✅ for IPL.
-- `/scout` filter UI + player cards.
-- Style-twin search (k-NN in metric space) ✅.
+- BCCI Domestic: Syed Mushtaq Ali Trophy ✅ via the Cricsheet state-team aggregator (689 matches, 157,514 deliveries). Ranji Trophy + Vijay Hazare ⏳ — Cricsheet doesn't publish those for India; needs BCCI / Cricinfo scrape both blocked from datacenter IPs.
+- CricHeroes scraper ⏳ — Phase 2 follow-on.
+- Photo CLIP embeds ⏳ — needed only for hard identity ambiguity; punt until BCCI / CricHeroes layers land.
+- Neo4j graph populated for the pro tier ✅ (799 IPL players, 1,219 matches, 30,774 FACED edges).
+- Bayesian opponent-adjusted ratings ✅ (PyMC ADVI, 1,043 player-roles fit).
+- Style-twin k-NN search ✅ (cosine over a 9-axis feature vector + Bayes skill).
+- `/scout` filter UI ✅ via the Player Profile + Compare pages on the dashboard.
 
-## Phase 3 (Month 5–6): Social Pulse + records + comparator + reports
+## Phase 3 (Pulse + Auction) — partial
 
-- Reddit + Bluesky + YouTube comments + Telegram public channel ingest.
-- Twitter via Apify spot-scrape.
-- Sentiment + emotion + claim extraction (Gemini Flash).
-- Hype-Reality gap weekly post.
-- Rumor cluster detection.
-- Records search + On-This-Day digest.
-- Career comparator UI.
-- Auto match-report generator.
+- `pulse` social-trend pipeline ✅ (Reddit JSON fetcher + Gemini sentiment + per-player aggregate). Data fetch blocked from datacenter IPs.
+- `auction` MILP squad optimiser ✅ (scipy.optimize.milp; CLI + dashboard war-room + CSV upload). Multi-agent RL self-play remains the heavier auction-v2 milestone.
 
-## Phase 4 (Month 7–8): AuctionGT (pre-Nov-2026 auction)
+## Phase 4 (Live + Predict + Venues + Newsletter + DRS) — ✅ partial
 
-- Auction history scrape (iplt20.com + Wikipedia).
-- Player price predictor (XGBoost).
-- Per-franchise personality YAMLs (LLM-extracted).
-- PettingZoo + SB3 multi-agent self-play.
-- OR-Tools constraint solver for purse/slot/overseas caps.
-- Streamlit war-room UI.
-- Auction-week live marketing blitz.
+- `live` Cricbuzz live-score fetcher ✅ (datacenter-IP blocked; pipeline correct).
+- `predict` daily-prediction game ⏸ — needs upcoming-match metadata that only lands when the live feed is wired from a non-datacenter network.
+- `venues` pitch + conditions archive ✅ (5 SQL views; dashboard page).
+- `newsletter` digest engine ✅ (Markdown compiler; on-this-day + headlines + auto match report).
+- `drs` scenario simulator ✅ (20 hand-curated scenarios; dashboard practice game).
 
-## Phase 5 (Month 9–10): Live + Venues + Predict Game + Newsletter + DRS Sim
+## Phase 5 (Profiles + Commentary translation + Comparator) — ✅ shipped
 
-- Live scorecard aggregator (Cricbuzz unofficial JSON).
-- Win-probability model + live-insight tagger.
-- Per-venue pitch + dew + weather archive.
-- Predict-game leaderboard.
-- Newsletter engine (per-team/player subscriptions).
-- DRS scenario simulator + umpire practice game.
+- `profiles` per-player profile builder ✅ — aggregates People Register IDs + Wikidata + career totals + every novel metric + Bayes skill + style twins.
+- `commentary_translate` text-only translator ✅ (Hindi / Tamil / Bengali / Urdu / Sinhala / Marathi / Telugu / Kannada). Voice-cloned target-language audio is the deferred year-2 final feature.
+- `comparator` visual side-by-side ✅ (Plotly radar + transposed table).
 
-## Phase 6 (Month 11–12): Profiles + Commentary translation (text) + Women's first-class + Press tour
+## Phase 6 (API + Records + Match Reports) — ✅ shipped
 
-- Public player profiles + claim flow.
-- Multi-language commentary translation — text only (Hindi, Tamil, Bengali, Urdu, Sinhala).
-- Women's cricket data parity audit (BCCI Women's Domestic, WBBL, Hundred Women's, WPL).
-- IPL franchise outreach + private demos.
-- v1.0 launch press tour.
+- `records` searchable records + On-This-Day ✅ (9 record queries).
+- `reports` auto match-report generator ✅ (LLM with no-hallucination guard; cached Markdown per match).
+- `api` public REST surface ✅ — FastAPI with 12 endpoints across records / venues / players / compare / rules QA / match reports / translate / auction. OpenAPI at `/docs`.
 
 ## Deferred (year 2+)
 
@@ -70,4 +56,7 @@
 - ScoutVLM — VLM-driven ball-by-ball extraction from YouTube grassroots video.
 - Highlight CV — auto key-moment clip extraction.
 - Tournament management B2B (partner with CricHeroes instead of competing).
-- **Voice-cloned commentary translation — final-feature milestone.** Clone English commentators (XTTS-v2 / F5-TTS / OpenVoice) and synthesise target-language audio in their voice. Ship after text-translation v1 proven + opt-in licensing secured with retired commentators.
+- **Voice-cloned commentary translation** — final-feature milestone. Clone English commentators with XTTS-v2 / F5-TTS / OpenVoice and synthesise target-language audio in their voice. Ships after text-translation v1 (✅) plus opt-in licensing with retired commentators.
+- Multi-agent RL auction simulator (auction-v2) on top of the MILP solver.
+- Predict game once live-feed is unblocked.
+- BCCI / CricHeroes / Cricinfo scrapers via Playwright + residential proxies, so the datacenter-blocked feeds finally populate.
