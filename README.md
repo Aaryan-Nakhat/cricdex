@@ -30,7 +30,8 @@ make docker-dashboard-up                      # Streamlit on :8511
 See [`docs/RUNNING.md`](docs/RUNNING.md) for the local `uv` path and the
 full pipeline catalogue. See [`docs/DOCKER.md`](docs/DOCKER.md) for image
 + compose design notes. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-for the cross-module data flow.
+for the cross-module data flow. See [`docs/DEFERRED.md`](docs/DEFERRED.md)
+for every known gap + the concrete fix path for each.
 
 ## Modules
 
