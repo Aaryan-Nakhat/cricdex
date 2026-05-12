@@ -43,6 +43,9 @@ data/*
 !data/rules/
 data/rules/*
 !data/rules/curated/
+!data/drs/
+data/drs/*
+!data/drs/scenarios.jsonl
 *.parquet
 *.duckdb
 *.duckdb.wal
