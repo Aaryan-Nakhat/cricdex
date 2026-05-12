@@ -29,12 +29,21 @@ dominates only journeymen is shrunk back.
 
 ## Fit
 
-ADVI mean-field, single-threaded. ~1-3 min on IPL all-time (~30k edges
-with `min_balls=6`). Switch to NUTS for the final v2 release.
+Two samplers wired behind a flag:
+
+- `advi` (default) — mean-field variational. ~1-3 min on IPL.
+  Under-estimates posterior variance, so `skill_sd` is directional.
+  Use for routine refreshes.
+- `nuts` — full Hamiltonian. 2 chains × 1000 draws + 500 tune by
+  default. ~20-30 min on IPL. Produces a properly calibrated
+  posterior — use this when downstream consumers actually plot
+  confidence bars (player-profile uncertainty, wager-grade
+  analytics).
 
 ```bash
-make docker-scout-rate                       # COLLECTION=ipl, 12k ADVI steps
-COLLECTION=ipl STEPS=20000 make docker-scout-rate
+make docker-scout-rate                                    # advi, fast default
+make docker-scout-rate SAMPLER=nuts                       # nuts, calibrated
+make docker-scout-rate-nuts DRAWS=2000 CHAINS=4 COLLECTION=ipl
 ```
 
 Output: `data/metrics/scout_ratings_<collection>.json` with columns

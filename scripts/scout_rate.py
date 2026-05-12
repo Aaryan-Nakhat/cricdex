@@ -37,6 +37,10 @@ def fit(
     min_balls: int = typer.Option(6, "--min-balls"),
     advi_steps: int = typer.Option(12000, "--advi-steps"),
     seed: int = typer.Option(42, "--seed"),
+    sampler: str = typer.Option("advi", "--sampler", help="advi|nuts"),
+    nuts_draws: int = typer.Option(1000, "--nuts-draws"),
+    nuts_chains: int = typer.Option(2, "--nuts-chains"),
+    nuts_tune: int = typer.Option(500, "--nuts-tune"),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
     df = bayesian.fit(
@@ -44,6 +48,10 @@ def fit(
         min_balls=min_balls,
         advi_steps=advi_steps,
         seed=seed,
+        sampler=sampler,
+        nuts_draws=nuts_draws,
+        nuts_chains=nuts_chains,
+        nuts_tune=nuts_tune,
     )
     if df.is_empty():
         logger.warning("no edges met the min_balls filter — nothing to fit")
