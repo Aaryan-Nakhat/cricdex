@@ -20,7 +20,6 @@ venv/
 ENV/
 
 # UV / Poetry
-uv.lock
 .uv/
 poetry.lock
 poetry.toml
