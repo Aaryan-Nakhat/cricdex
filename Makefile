@@ -9,6 +9,10 @@ install:
 dev:
 	uv sync --all-extras --group dev
 	uv run playwright install chromium
+	uv run pre-commit install
+
+precommit:
+	uv run pre-commit run --all-files
 
 lint:
 	uv run ruff check .
