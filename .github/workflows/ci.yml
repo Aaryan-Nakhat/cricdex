@@ -16,6 +16,5 @@ jobs:
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --group dev
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
+      - run: uv run pre-commit run --all-files --show-diff-on-failure
       - run: uv run pytest
