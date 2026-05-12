@@ -109,9 +109,7 @@ def player_style_twins(
     try:
         return st.style_twin(name, role=role, k=k, collection=collection).to_dicts()
     except KeyError as e:
-        raise HTTPException(
-            status_code=404, detail=f"{name!r} not found in feature table"
-        ) from e
+        raise HTTPException(status_code=404, detail=f"{name!r} not found in feature table") from e
 
 
 class CompareReq(BaseModel):

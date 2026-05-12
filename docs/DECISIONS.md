@@ -83,6 +83,28 @@ unusable for the most common IPL question.
 
 Re-curate whenever BCCI publishes a public PDF.
 
+## 2026-05-12 — Phase 1-6 v1 ship complete
+
+Every module in the roadmap is at least at "skeleton shipped" by the
+end of this session, with the major modules (Cricsheet ingest, People
+Register, novel metrics, scout graph + ratings, rules RAG QA, records,
+match reports, dashboard, REST API) at production-functional v1.
+
+Three modules ship as "pipeline correct, data fetch blocked" because
+their underlying feed (Wikidata SPARQL, Reddit JSON, Cricbuzz mobile
+API) hard-rate-limits or 403s GCP / AWS datacenter IPs. The code is
+correct end-to-end; the next step is to populate from a residential
+network, a VPN, or wire the official partner-API path for each
+source. Documented in each module's README + in `scout/ingest/README.md`.
+
+Two modules deferred outright: `predict` (needs the unblocked
+`live` feed first) and the voice-cloned half of `commentary_translate`
+(year-2 final-feature milestone per the scope cut earlier).
+
+Stack now: docker-compose with `qdrant`, `cricdex` (API), `dashboard`
+(11 Streamlit pages), and an optional `neo4j` profile for scout.
+~70 source files, ~16 docs, ~14 tests, CI green.
+
 ## 2026-05-11 — Sources for scout opposition bridging
 
 Pro tier: Cricsheet ball-by-ball. Semi-pro: BCCI Domestic + state assoc + Ranji/SMAT/Hazare. Grassroots: CricHeroes + CricClubs + state-league YouTube broadcasts (year-2 ScoutVLM). Ratings sharpen with bridge-score; unbridged grassroots stay flagged low-confidence.
