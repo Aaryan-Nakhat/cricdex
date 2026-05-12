@@ -17,6 +17,51 @@ from tqdm import tqdm
 
 CRICSHEET_BASE = "https://cricsheet.org/downloads"
 
+# 35 Indian state teams whose Cricsheet zip files together cover every
+# Ranji Trophy, Vijay Hazare, and Syed Mushtaq Ali match that Cricsheet
+# tracks. Each match is in multiple state-team zips (one per side), so the
+# aggregator must de-dup by file name (= cricsheet match_id).
+INDIAN_STATE_TEAMS: list[str] = [
+    "andhra_male_json.zip",
+    "arunachal_pradesh_male_json.zip",
+    "assam_male_json.zip",
+    "baroda_male_json.zip",
+    "bengal_male_json.zip",
+    "bihar_male_json.zip",
+    "chandigarh_male_json.zip",
+    "chhattisgarh_male_json.zip",
+    "delhi_male_json.zip",
+    "goa_male_json.zip",
+    "gujarat_male_json.zip",
+    "haryana_male_json.zip",
+    "himachal_pradesh_male_json.zip",
+    "hyderabad_(india)_male_json.zip",
+    "jammu_and_kashmir_male_json.zip",
+    "jharkhand_male_json.zip",
+    "karnataka_male_json.zip",
+    "kerala_male_json.zip",
+    "madhya_pradesh_male_json.zip",
+    "maharashtra_male_json.zip",
+    "manipur_male_json.zip",
+    "meghalaya_male_json.zip",
+    "mizoram_male_json.zip",
+    "mumbai_male_json.zip",
+    "nagaland_male_json.zip",
+    "odisha_male_json.zip",
+    "puducherry_male_json.zip",
+    "punjab_(india)_male_json.zip",
+    "railways_male_json.zip",
+    "rajasthan_male_json.zip",
+    "saurashtra_male_json.zip",
+    "services_male_json.zip",
+    "sikkim_male_json.zip",
+    "tamil_nadu_male_json.zip",
+    "tripura_male_json.zip",
+    "uttarakhand_male_json.zip",
+    "uttar_pradesh_male_json.zip",
+    "vidarbha_male_json.zip",
+]
+
 COLLECTIONS: dict[str, str] = {
     "recently_played_30_male": "recently_played_30_male_json.zip",
     "recently_played_30_female": "recently_played_30_female_json.zip",
@@ -189,7 +234,65 @@ def parse_collection(extracted_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
             continue
         match_rows.append(m)
         ball_rows.extend(b)
-    return pl.DataFrame(match_rows), pl.DataFrame(ball_rows)
+    # infer_schema_length=None forces polars to scan every row when
+    # guessing column dtypes. Necessary for heterogeneous collections like
+    # the indian-domestic merge where early rows can have NULL city and
+    # later rows pull in proper city names (e.g. "Jaipur"), which the
+    # default 100-row inference misclassifies.
+    return (
+        pl.DataFrame(match_rows, infer_schema_length=None),
+        pl.DataFrame(ball_rows, infer_schema_length=None),
+    )
+
+
+def _download_url(url: str, dest_dir: Path, force: bool = False) -> Path:
+    """Download an arbitrary cricsheet zip by full URL — used by the
+    Indian-domestic aggregator which does not go through `COLLECTIONS`."""
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = dest_dir / Path(url).name
+    if zip_path.exists() and not force:
+        logger.info(f"cached: {zip_path}")
+        return zip_path
+    logger.info(f"downloading {url}")
+    with httpx.stream("GET", url, timeout=300.0, follow_redirects=True) as r:
+        r.raise_for_status()
+        total = int(r.headers.get("content-length", 0))
+        with open(zip_path, "wb") as f, tqdm(total=total, unit="B", unit_scale=True) as bar:
+            for chunk in r.iter_bytes(chunk_size=1 << 16):
+                f.write(chunk)
+                bar.update(len(chunk))
+    return zip_path
+
+
+def aggregate_indian_domestic(raw_dir: Path, extracted_dir: Path) -> Path:
+    """Download all 35 Indian state-team zips and merge match JSONs into
+    a single deduped directory keyed by match_id (= filename)."""
+    merged_dir = extracted_dir / "indian_domestic_male"
+    merged_dir.mkdir(parents=True, exist_ok=True)
+    seen: set[str] = {p.name for p in merged_dir.glob("*.json")}
+    for zip_name in INDIAN_STATE_TEAMS:
+        zip_url = f"{CRICSHEET_BASE}/{zip_name}"
+        try:
+            zip_path = _download_url(zip_url, raw_dir)
+        except httpx.HTTPError as e:
+            logger.warning(f"skip {zip_name}: {e}")
+            continue
+        team_dir = extracted_dir / zip_path.stem
+        if not team_dir.exists() or not any(team_dir.iterdir()):
+            team_dir.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(zip_path) as z:
+                z.extractall(team_dir)
+        new = 0
+        for fp in team_dir.glob("*.json"):
+            if fp.name in seen:
+                continue
+            target = merged_dir / fp.name
+            if not target.exists():
+                target.write_bytes(fp.read_bytes())
+            seen.add(fp.name)
+            new += 1
+        logger.info(f"{zip_path.name}: +{new} new matches (total unique {len(seen)})")
+    return merged_dir
 
 
 def write_parquet(
