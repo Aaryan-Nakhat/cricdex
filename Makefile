@@ -92,6 +92,12 @@ docker-style-twin:
 	@if [ -z "$$NAME" ]; then echo 'usage: make docker-style-twin NAME="MS Dhoni" [ROLE=batter|bowler] [K=10] [COLLECTION=ipl]'; exit 2; fi
 	docker compose run --rm cricdex uv run python scripts/style_twin.py "$$NAME" --role "$${ROLE:-batter}" -k "$${K:-10}" --collection "$${COLLECTION:-ipl}"
 
+docker-records-all:
+	docker compose run --rm cricdex uv run python scripts/records.py all --collection "$${COLLECTION:-ipl}" --top-n "$${TOP_N:-25}"
+
+docker-records-today:
+	docker compose run --rm cricdex uv run python scripts/records.py today --collection "$${COLLECTION:-ipl}"
+
 docker-ingest-rules-download:
 	docker compose run --rm cricdex uv run python scripts/ingest_rules.py download
 
