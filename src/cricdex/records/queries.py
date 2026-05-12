@@ -265,14 +265,16 @@ def on_this_day(
     same calendar day (month + day, ignoring year) across the
     collection's history."""
     safe = collection.replace("-", "_")
+    # match_date may land in DuckDB as either DATE or VARCHAR depending on
+    # how polars inferred the parquet column. TRY_CAST keeps both paths.
     sql = f"""
     WITH same_day AS (
         SELECT
             batter, bowler, match_id, match_date, venue,
             runs_batter, wicket_kind, extras_type
         FROM balls_{safe}
-        WHERE EXTRACT(month FROM match_date) = {month}
-          AND EXTRACT(day FROM match_date) = {day}
+        WHERE EXTRACT(month FROM TRY_CAST(match_date AS DATE)) = {month}
+          AND EXTRACT(day FROM TRY_CAST(match_date AS DATE)) = {day}
     ),
     bat AS (
         SELECT match_date, batter AS player,
