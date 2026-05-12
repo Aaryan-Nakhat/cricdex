@@ -105,6 +105,12 @@ docker-match-report:
 docker-newsletter:
 	docker compose run --rm cricdex uv run python scripts/newsletter.py --collection "$${COLLECTION:-ipl}"
 
+docker-pulse-fetch:
+	docker compose run --rm cricdex uv run python scripts/pulse.py fetch --period "$${PERIOD:-week}" --limit "$${LIMIT:-50}"
+
+docker-pulse-run:
+	docker compose run --rm cricdex uv run python scripts/pulse.py run --period "$${PERIOD:-week}" --limit "$${LIMIT:-50}"
+
 docker-ingest-rules-download:
 	docker compose run --rm cricdex uv run python scripts/ingest_rules.py download
 
