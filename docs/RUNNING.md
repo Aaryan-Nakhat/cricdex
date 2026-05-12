@@ -64,6 +64,20 @@ make docker-test    # run pytest inside the container
 make docker-down    # stop everything
 ```
 
+### Skip the local build — pull from GHCR
+
+After every push to `main` the CI builds `ghcr.io/aaryan-nakhat/cricdex:latest`
+and publishes it. To bring the stack up against the pre-built image
+(no ~10-min local build):
+
+```bash
+make docker-up-prod
+```
+
+This composes `docker-compose.yml` + `docker-compose.prod.yml` — the
+prod overlay drops the dev `./src` / `./scripts` bind-mounts so the
+running container matches what CI produced.
+
 ### Volume layout
 
 - `qdrant_data` (named volume) — vector index persistence.

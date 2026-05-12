@@ -48,6 +48,9 @@ docker-build:
 docker-up:
 	docker compose up -d
 
+docker-up-prod:
+	docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
 docker-down:
 	docker compose down
 

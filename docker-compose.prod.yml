@@ -1,0 +1,20 @@
+# Overlay that pulls the pre-built image from GHCR instead of building
+# locally. Use with:
+#     docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# or set COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml in your env.
+#
+# Drop the dev source bind-mounts so the image is frozen, and pin to a
+# specific GHCR digest for reproducibility once we tag releases.
+
+services:
+  cricdex:
+    build: !reset null
+    image: ghcr.io/aaryan-nakhat/cricdex:latest
+    volumes:
+      - ./data:/app/data
+
+  dashboard:
+    build: !reset null
+    image: ghcr.io/aaryan-nakhat/cricdex:latest
+    volumes:
+      - ./data:/app/data
