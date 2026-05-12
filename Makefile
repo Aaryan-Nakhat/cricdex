@@ -126,6 +126,10 @@ docker-ingest-rules-parse:
 docker-embed-rules:
 	docker compose run --rm cricdex uv run python scripts/embed_rules.py embed
 
+docker-translate:
+	@if [ -z "$$TEXT" ]; then echo 'usage: make docker-translate TEXT="..." [TARGET=hi|ta|bn|ur|si|mr|te|kn]'; exit 2; fi
+	docker compose run --rm cricdex uv run python scripts/translate.py "$$TEXT" --target "$${TARGET:-hi}"
+
 docker-query:
 	@if [ -z "$$Q" ]; then echo 'usage: make docker-query Q="<your question>" [FORMATS=ipl,t20i]'; exit 2; fi
 	docker compose run --rm cricdex uv run python scripts/embed_rules.py query "$$Q" --formats "$${FORMATS:-}"
