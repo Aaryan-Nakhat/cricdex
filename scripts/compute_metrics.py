@@ -124,6 +124,36 @@ def boundary_dependency_cmd(
     _emit(df, "boundary_dependency", collection, out_json)
 
 
+@app.command("phase-dilation")
+def phase_dilation_cmd(
+    collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
+    min_dismissals: int = typer.Option(10, "--min-dismissals"),
+    top_n: int = typer.Option(50, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    df = batter_metrics.phase_dilation(
+        collection=collection, min_dismissals=min_dismissals, top_n=top_n
+    )
+    _emit(df, "phase_dilation", collection, out_json)
+
+
+@app.command("setting-tax")
+def setting_tax_cmd(
+    collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
+    min_career_balls: int = typer.Option(200, "--min-career-balls"),
+    min_setting_balls: int = typer.Option(50, "--min-setting-balls"),
+    top_n: int = typer.Option(50, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    df = batter_metrics.setting_tax(
+        collection=collection,
+        min_career_balls=min_career_balls,
+        min_setting_balls=min_setting_balls,
+        top_n=top_n,
+    )
+    _emit(df, "setting_tax", collection, out_json)
+
+
 @app.command("wicket-quality")
 def wicket_quality_cmd(
     collection: str = typer.Option("ipl", "--collection", "-c"),
@@ -201,6 +231,18 @@ def all_cmd(
     _emit(
         bowler_wicket_quality.wicket_quality(collection=collection, top_n=top_n),
         "wicket_quality",
+        collection,
+        None,
+    )
+    _emit(
+        batter_metrics.phase_dilation(collection=collection, top_n=top_n),
+        "phase_dilation",
+        collection,
+        None,
+    )
+    _emit(
+        batter_metrics.setting_tax(collection=collection, top_n=top_n),
+        "setting_tax",
         collection,
         None,
     )
