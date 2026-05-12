@@ -102,6 +102,9 @@ docker-match-report:
 	@if [ -z "$$MATCH_ID" ]; then echo 'usage: make docker-match-report MATCH_ID=1473489 [COLLECTION=ipl]'; exit 2; fi
 	docker compose run --rm cricdex uv run python scripts/match_report.py "$$MATCH_ID" --collection "$${COLLECTION:-ipl}"
 
+docker-newsletter:
+	docker compose run --rm cricdex uv run python scripts/newsletter.py --collection "$${COLLECTION:-ipl}"
+
 docker-ingest-rules-download:
 	docker compose run --rm cricdex uv run python scripts/ingest_rules.py download
 
