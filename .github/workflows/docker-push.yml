@@ -16,6 +16,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # GitHub-hosted runners ship with ~14 GB free and our final
+      # image is ~9.8 GB once pymc + torch + xgboost + transformers +
+      # pre-baked MiniLM are bundled. The .NET / Android / Haskell
+      # toolchains we never use eat the other 30 GB, so nuke them
+      # before the buildx run to reclaim disk.
+      - name: Free runner disk
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: true
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
