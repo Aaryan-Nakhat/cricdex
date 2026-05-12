@@ -85,6 +85,10 @@ docker-scout-populate:
 docker-scout-rate:
 	docker compose run --rm cricdex uv run python scripts/scout_rate.py --collection "$${COLLECTION:-ipl}" --advi-steps "$${STEPS:-12000}"
 
+docker-style-twin:
+	@if [ -z "$$NAME" ]; then echo 'usage: make docker-style-twin NAME="MS Dhoni" [ROLE=batter|bowler] [K=10] [COLLECTION=ipl]'; exit 2; fi
+	docker compose run --rm cricdex uv run python scripts/style_twin.py "$$NAME" --role "$${ROLE:-batter}" -k "$${K:-10}" --collection "$${COLLECTION:-ipl}"
+
 docker-ingest-rules-download:
 	docker compose run --rm cricdex uv run python scripts/ingest_rules.py download
 

@@ -6,7 +6,7 @@ Source-specific loaders that feed the scout pipeline.
 |---|---|---|---|
 | `cricsheet.py` | cricsheet.org JSON match archives | ✅ shipped | Ball-by-ball into DuckDB `balls_<collection>` + `matches_<collection>`. |
 | `people_register.py` | cricsheet.org/register/{people,names}.csv | ✅ shipped | Cross-ID bridge (Cricsheet ↔ Cricinfo ↔ Cricbuzz ↔ CricHeroes ↔ 8 more). See [`docs/IDENTITY.md`](../../../docs/IDENTITY.md). |
-| `wikidata.py` | Wikidata SPARQL (P2697 = Cricinfo player ID) | 🟡 module ready, data pending | DOB / country / birthplace / gender enrichment in batches. Resumable via JSONL checkpoint under `data/register/`. The public WDQS endpoint aggressively rate-limits anonymous IPs — run from a less-throttled environment if you need the full 18k-row pull in one go. |
+| `wikidata.py` | Wikidata SPARQL (P2697 = Cricinfo player ID) | 🟡 module ready, data pending | DOB / country / gender enrichment in 50-id batches. Resumable JSONL checkpoint under `data/register/`. **WDQS hard-throttles our GCP datacenter IP to "1 req / min"** even after a multi-hour cooldown, so the full 18k pull takes ~6 hours. Run from a residential IP / VPN / a different host, or accept the slow grind. The Cricsheet People Register already gives a 99.8% Cricinfo bridge — Wikidata is pure enrichment, not on the critical path. |
 | Cricinfo profile scraper | espncricinfo.com | ⏸ blocked (Akamai-walled, returns 403 to non-browser clients) | Pivoted to Wikidata + Wikipedia REST API as the structured-metadata source. |
 | Cricbuzz player profile scraper | cricbuzz.com | planned Phase 2 | Live-feed alignment + bowling/batting style. |
 | BCCI Domestic scrapers | bcci.tv/domestic | planned Phase 2 | Ranji / SMAT / Hazare / U19. |
