@@ -162,10 +162,19 @@ def render() -> None:
             st.subheader(metric_name)
             st.markdown(cfg["description"])
             df = load_metric(cfg["slug"], collection)
+            json_path = METRIC_DIR / f"{cfg['slug']}_{collection}.json"
             if df.empty:
-                st.warning(
-                    f"No `{cfg['slug']}_{collection}.json` found. Run the metrics pipeline first."
-                )
+                if json_path.exists():
+                    st.info(
+                        f"`{cfg['slug']}_{collection}.json` exists but the metric "
+                        "returned no rows for this corpus (filter thresholds may be "
+                        "too strict for a small dataset)."
+                    )
+                else:
+                    st.warning(
+                        f"No `{cfg['slug']}_{collection}.json` found. "
+                        "Run `make docker-metrics-all COLLECTION=<name>` first."
+                    )
                 continue
 
             primary_key = cfg.get("primary_key", "batter")
