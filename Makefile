@@ -114,6 +114,9 @@ docker-pulse-run:
 docker-live-snapshot:
 	docker compose run --rm cricdex uv run python scripts/live.py snapshot
 
+docker-auction-demo:
+	docker compose run --rm cricdex uv run python scripts/auction.py demo
+
 docker-ingest-rules-download:
 	docker compose run --rm cricdex uv run python scripts/ingest_rules.py download
 
