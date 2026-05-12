@@ -16,13 +16,13 @@
 
 ## Phase 2 (Month 3–4): Scout v1
 
-- BCCI Domestic scrapers (Ranji, SMAT, Hazare, U19, U23, U16, Women's).
+- BCCI Domestic scrapers — partial: Syed Mushtaq Ali Trophy ✅ via Cricsheet state-team aggregator (689 matches). Ranji Trophy + Vijay Hazare + age-group ⏳ (Cricsheet doesn't publish them; need BCCI scrape or Cricinfo scrape, both behind anti-bot walls).
 - CricHeroes scraper (slow respectful) + partner-API outreach.
 - Photo CLIP embeds for identity resolution.
-- Neo4j graph populated for pro + semi-pro tiers.
-- Bayesian rating with opponent bridging.
+- Neo4j graph populated for pro + semi-pro tiers ✅ for IPL; SMAT pending populate.
+- Bayesian rating with opponent bridging ✅ for IPL.
 - `/scout` filter UI + player cards.
-- Style-twin search (k-NN in metric space).
+- Style-twin search (k-NN in metric space) ✅.
 
 ## Phase 3 (Month 5–6): Social Pulse + records + comparator + reports
 
