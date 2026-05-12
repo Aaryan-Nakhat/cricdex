@@ -25,6 +25,7 @@ from loguru import logger
 from cricdex.config import DATA_DIR
 from cricdex.metrics import batter as batter_metrics
 from cricdex.metrics import bowler as bowler_metrics
+from cricdex.metrics import bowler_wicket_quality
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -123,6 +124,21 @@ def boundary_dependency_cmd(
     _emit(df, "boundary_dependency", collection, out_json)
 
 
+@app.command("wicket-quality")
+def wicket_quality_cmd(
+    collection: str = typer.Option("ipl", "--collection", "-c"),
+    min_wickets: int = typer.Option(15, "--min-wickets"),
+    top_n: int = typer.Option(50, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    df = bowler_wicket_quality.wicket_quality(
+        collection=collection,
+        min_wickets=min_wickets,
+        top_n=top_n,
+    )
+    _emit(df, "wicket_quality", collection, out_json)
+
+
 @app.command("sticky-dots")
 def sticky_dots_cmd(
     collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
@@ -179,6 +195,12 @@ def all_cmd(
     _emit(
         bowler_metrics.sticky_dot_pressure(collection=collection, top_n=top_n),
         "sticky_dot_pressure",
+        collection,
+        None,
+    )
+    _emit(
+        bowler_wicket_quality.wicket_quality(collection=collection, top_n=top_n),
+        "wicket_quality",
         collection,
         None,
     )
