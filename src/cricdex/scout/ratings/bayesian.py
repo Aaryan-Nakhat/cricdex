@@ -15,18 +15,21 @@ on the log scale). This is the "opponent bridging" effect — playing a
 known-strong bowler raises the inferred batter skill more than playing
 a journeyman.
 
-Fit
----
-Two samplers are wired:
+Engine
+------
+NumPyro (JAX backend). 10-50x faster than the previous PyMC + PyTensor
+implementation on the same model thanks to JIT-compiled gradients and
+vectorised NUTS. Two samplers are wired:
 
-- `advi` (default) — mean-field variational. ~1-3 min on the full
-  IPL collection (~30k edges). Posterior variance is
-  under-estimated, so `skill_sd` is directional rather than
-  calibrated. Good for development and weekly refresh cycles.
-- `nuts` — full No-U-Turn HMC, 2 chains × 1000 draws + 500 tune.
-  ~20-30 min on the same IPL corpus. Produces a properly calibrated
-  posterior — use this when the consumer cares about confidence
-  intervals (player-profile uncertainty bars, wager-grade analytics).
+- `advi` (default) — mean-field stochastic VI via `AutoNormal` guide
+  + `Trace_ELBO`. ~10-30 s on the full IPL collection (~30k edges).
+  Posterior variance is under-estimated, so `skill_sd` is directional
+  rather than calibrated. Good for development and weekly refresh.
+- `nuts` — full No-U-Turn HMC, 2 chains × 1000 draws + 500 warmup.
+  ~1-3 min on the same IPL corpus (down from ~20-30 min on PyMC).
+  Produces a properly calibrated posterior — use this when the
+  consumer cares about confidence intervals (player-profile
+  uncertainty bars, wager-grade analytics).
 
 Output
 ------
@@ -90,6 +93,103 @@ def _load_edges(
     return df, batter_idx, bowler_idx
 
 
+def _model(bi, ki, balls, runs, n_batters: int, n_bowlers: int):
+    """NumPyro model — hierarchical NegBin GLM on (batter, bowler) edges."""
+    import jax.numpy as jnp
+    import numpyro
+    import numpyro.distributions as dist
+
+    sigma_b = numpyro.sample("sigma_b", dist.HalfNormal(1.0))
+    sigma_k = numpyro.sample("sigma_k", dist.HalfNormal(1.0))
+    with numpyro.plate("batters", n_batters):
+        b_skill = numpyro.sample("b_skill", dist.Normal(0.0, sigma_b))
+    with numpyro.plate("bowlers", n_bowlers):
+        k_skill = numpyro.sample("k_skill", dist.Normal(0.0, sigma_k))
+    intercept = numpyro.sample("intercept", dist.Normal(0.0, 3.0))
+    alpha = numpyro.sample("alpha", dist.HalfNormal(5.0))
+
+    log_mu = intercept + b_skill[bi] - k_skill[ki]
+    mu = jnp.exp(log_mu) * balls
+    numpyro.sample("y", dist.NegativeBinomial2(mean=mu, concentration=alpha), obs=runs)
+
+
+def _run_nuts(
+    bi,
+    ki,
+    balls,
+    runs,
+    n_batters,
+    n_bowlers,
+    draws: int,
+    chains: int,
+    tune: int,
+    target_accept: float,
+    seed: int,
+):
+    import jax
+    from numpyro.infer import MCMC, NUTS
+
+    kernel = NUTS(_model, target_accept_prob=target_accept)
+    mcmc = MCMC(
+        kernel,
+        num_warmup=tune,
+        num_samples=draws,
+        num_chains=chains,
+        progress_bar=False,
+        chain_method="sequential",
+    )
+    mcmc.run(
+        jax.random.PRNGKey(seed),
+        bi=bi,
+        ki=ki,
+        balls=balls,
+        runs=runs,
+        n_batters=n_batters,
+        n_bowlers=n_bowlers,
+    )
+    return mcmc.get_samples()
+
+
+def _run_advi(
+    bi,
+    ki,
+    balls,
+    runs,
+    n_batters,
+    n_bowlers,
+    steps: int,
+    seed: int,
+    post_samples: int = 500,
+):
+    import jax
+    from numpyro.infer import SVI, Predictive, Trace_ELBO, autoguide
+    from numpyro.optim import Adam
+
+    guide = autoguide.AutoNormal(_model)
+    svi = SVI(_model, guide, Adam(0.01), Trace_ELBO())
+    svi_result = svi.run(
+        jax.random.PRNGKey(seed),
+        steps,
+        bi=bi,
+        ki=ki,
+        balls=balls,
+        runs=runs,
+        n_batters=n_batters,
+        n_bowlers=n_bowlers,
+        progress_bar=False,
+    )
+    predictive = Predictive(guide, params=svi_result.params, num_samples=post_samples)
+    return predictive(
+        jax.random.PRNGKey(seed + 1),
+        bi=bi,
+        ki=ki,
+        balls=balls,
+        runs=runs,
+        n_batters=n_batters,
+        n_bowlers=n_bowlers,
+    )
+
+
 def fit(
     collection: str = "ipl",
     db_path: Path | str = DEFAULT_DB_PATH,
@@ -105,9 +205,9 @@ def fit(
     """Fit the model and return one row per (cricsheet_id, role).
 
     `sampler` ∈ {"advi", "nuts"}. ADVI is fast and approximate, NUTS
-    is the calibrated full-Bayes run.
+    is the calibrated full-Bayes run. Both run through NumPyro / JAX.
     """
-    import pymc as pm  # heavy import — keep lazy
+    import jax.numpy as jnp
 
     if sampler not in ("advi", "nuts"):
         raise ValueError(f"sampler must be 'advi' or 'nuts', got {sampler!r}")
@@ -119,42 +219,43 @@ def fit(
     n_batters = len(batter_idx)
     n_bowlers = len(bowler_idx)
 
-    # DuckDB returns sum() as Decimal; cast so PyTensor accepts the arrays.
-    bi = edges["bi"].cast(pl.Int64).to_numpy()
-    ki = edges["ki"].cast(pl.Int64).to_numpy()
-    balls = edges["balls"].cast(pl.Int64).to_numpy()
-    runs = edges["runs"].cast(pl.Int64).to_numpy()
+    bi = jnp.asarray(edges["bi"].cast(pl.Int32).to_numpy())
+    ki = jnp.asarray(edges["ki"].cast(pl.Int32).to_numpy())
+    balls = jnp.asarray(edges["balls"].cast(pl.Float32).to_numpy())
+    runs = jnp.asarray(edges["runs"].cast(pl.Int32).to_numpy())
 
-    with pm.Model():
-        sigma_b = pm.HalfNormal("sigma_b", 1.0)
-        sigma_k = pm.HalfNormal("sigma_k", 1.0)
-        b_skill = pm.Normal("b_skill", mu=0.0, sigma=sigma_b, shape=n_batters)
-        k_skill = pm.Normal("k_skill", mu=0.0, sigma=sigma_k, shape=n_bowlers)
-        intercept = pm.Normal("intercept", mu=0.0, sigma=3.0)
-        alpha = pm.HalfNormal("alpha", 5.0)
+    if sampler == "nuts":
+        samples = _run_nuts(
+            bi,
+            ki,
+            balls,
+            runs,
+            n_batters,
+            n_bowlers,
+            draws=nuts_draws,
+            chains=nuts_chains,
+            tune=nuts_tune,
+            target_accept=nuts_target_accept,
+            seed=seed,
+        )
+    else:
+        samples = _run_advi(
+            bi,
+            ki,
+            balls,
+            runs,
+            n_batters,
+            n_bowlers,
+            steps=advi_steps,
+            seed=seed,
+        )
 
-        log_mu = intercept + b_skill[bi] - k_skill[ki]
-        mu = pm.math.exp(log_mu) * balls
-        pm.NegativeBinomial("y", mu=mu, alpha=alpha, observed=runs)
-
-        if sampler == "advi":
-            approx = pm.fit(n=advi_steps, method="advi", progressbar=False, random_seed=seed)
-            trace = approx.sample(500, random_seed=seed)
-        else:
-            trace = pm.sample(
-                draws=nuts_draws,
-                tune=nuts_tune,
-                chains=nuts_chains,
-                target_accept=nuts_target_accept,
-                random_seed=seed,
-                progressbar=False,
-                compute_convergence_checks=False,
-            )
-
-    b_mean = np.asarray(trace.posterior["b_skill"]).reshape(-1, n_batters).mean(axis=0)
-    b_sd = np.asarray(trace.posterior["b_skill"]).reshape(-1, n_batters).std(axis=0)
-    k_mean = np.asarray(trace.posterior["k_skill"]).reshape(-1, n_bowlers).mean(axis=0)
-    k_sd = np.asarray(trace.posterior["k_skill"]).reshape(-1, n_bowlers).std(axis=0)
+    b_arr = np.asarray(samples["b_skill"]).reshape(-1, n_batters)
+    k_arr = np.asarray(samples["k_skill"]).reshape(-1, n_bowlers)
+    b_mean = b_arr.mean(axis=0)
+    b_sd = b_arr.std(axis=0)
+    k_mean = k_arr.mean(axis=0)
+    k_sd = k_arr.std(axis=0)
 
     batter_totals = (
         (
