@@ -303,6 +303,139 @@ def counter_attack_coefficient(
         return con.execute(sql).pl()
 
 
+def phase_dilation(
+    collection: str = "recently_played_30_male",
+    db_path: Path | str = DEFAULT_DB_PATH,
+    min_dismissals: int = 10,
+    top_n: int | None = 200,
+) -> pl.DataFrame:
+    """How long a batter survives at the crease vs the cohort average.
+
+    For each batter we compute `avg_balls_per_dismissal` over their
+    completed innings, then divide by the cohort mean. A
+    `dilation_index > 1` means the batter draws innings out longer
+    than the typical qualifying batter; `< 1` means shorter,
+    higher-tempo innings (or just thinner accumulation).
+    """
+    safe = collection.replace("-", "_")
+    sql = f"""
+    WITH innings_lengths AS (
+        SELECT
+            batter, match_id, innings_idx,
+            COUNT(*) FILTER (WHERE COALESCE(extras_type, '') NOT IN ('wides')) AS balls,
+            MAX(CASE WHEN wicket_kind IS NOT NULL
+                      AND player_out = batter
+                     THEN 1 ELSE 0 END) AS dismissed
+        FROM balls_{safe}
+        WHERE batter IS NOT NULL
+        GROUP BY 1, 2, 3
+    ),
+    per_batter AS (
+        SELECT
+            batter,
+            SUM(balls) AS total_balls,
+            SUM(dismissed) AS dismissals,
+            COUNT(*) AS innings_count,
+            CAST(SUM(balls) AS DOUBLE) / NULLIF(SUM(dismissed), 0) AS avg_balls_per_dismissal
+        FROM innings_lengths
+        GROUP BY batter
+    ),
+    cohort AS (
+        SELECT AVG(avg_balls_per_dismissal) AS cohort_avg
+        FROM per_batter
+        WHERE dismissals >= 5 AND avg_balls_per_dismissal IS NOT NULL
+    )
+    SELECT
+        pb.batter,
+        pb.total_balls,
+        pb.dismissals,
+        pb.innings_count,
+        CAST(ROUND(pb.avg_balls_per_dismissal, 2) AS DOUBLE) AS avg_balls_per_dismissal,
+        CAST(ROUND(c.cohort_avg, 2) AS DOUBLE) AS cohort_avg,
+        CAST(ROUND(pb.avg_balls_per_dismissal / NULLIF(c.cohort_avg, 0), 3) AS DOUBLE) AS dilation_index
+    FROM per_batter pb, cohort c
+    WHERE pb.dismissals >= {min_dismissals}
+      AND pb.avg_balls_per_dismissal IS NOT NULL
+    ORDER BY dilation_index DESC
+    """
+    if top_n is not None:
+        sql += f"\nLIMIT {top_n}"
+    with _connect(db_path) as con:
+        return con.execute(sql).pl()
+
+
+def setting_tax(
+    collection: str = "recently_played_30_male",
+    db_path: Path | str = DEFAULT_DB_PATH,
+    min_career_balls: int = 200,
+    min_setting_balls: int = 50,
+    top_n: int | None = 200,
+) -> pl.DataFrame:
+    """Difference between career SR and SR during the first 20 balls
+    of an innings.
+
+    Positive value → the batter is slower while "setting" than over
+    their career as a whole, i.e. their slow starts cost runs.
+    Negative → they're already aggressive from ball one.
+    """
+    safe = collection.replace("-", "_")
+    sql = f"""
+    WITH numbered AS (
+        SELECT
+            match_id, innings_idx, batter, runs_batter,
+            CASE WHEN extras_type IN ('wides') THEN 0 ELSE 1 END AS legal_ball,
+            SUM(CASE WHEN extras_type IN ('wides') THEN 0 ELSE 1 END) OVER (
+                PARTITION BY match_id, innings_idx, batter
+                ORDER BY over, ball_in_over
+            ) AS balls_faced_to_date
+        FROM balls_{safe}
+        WHERE batter IS NOT NULL
+    ),
+    career AS (
+        SELECT
+            batter,
+            SUM(runs_batter) AS career_runs,
+            SUM(legal_ball) AS career_balls
+        FROM numbered
+        WHERE legal_ball = 1
+        GROUP BY batter
+    ),
+    setting AS (
+        SELECT
+            batter,
+            SUM(runs_batter) AS setting_runs,
+            SUM(legal_ball) AS setting_balls
+        FROM numbered
+        WHERE legal_ball = 1 AND balls_faced_to_date <= 20
+        GROUP BY batter
+    )
+    SELECT
+        c.batter,
+        c.career_runs,
+        c.career_balls,
+        s.setting_runs,
+        s.setting_balls,
+        CAST(ROUND(100.0 * c.career_runs / NULLIF(c.career_balls, 0), 2) AS DOUBLE) AS career_sr,
+        CAST(ROUND(100.0 * s.setting_runs / NULLIF(s.setting_balls, 0), 2) AS DOUBLE) AS setting_sr,
+        CAST(
+            ROUND(
+                100.0 * c.career_runs / NULLIF(c.career_balls, 0)
+                - 100.0 * s.setting_runs / NULLIF(s.setting_balls, 0),
+                2
+            ) AS DOUBLE
+        ) AS setting_tax
+    FROM career c
+    JOIN setting s USING (batter)
+    WHERE c.career_balls >= {min_career_balls}
+      AND s.setting_balls >= {min_setting_balls}
+    ORDER BY setting_tax DESC
+    """
+    if top_n is not None:
+        sql += f"\nLIMIT {top_n}"
+    with _connect(db_path) as con:
+        return con.execute(sql).pl()
+
+
 def boundary_dependency(
     collection: str = "recently_played_30_male",
     db_path: Path | str = DEFAULT_DB_PATH,

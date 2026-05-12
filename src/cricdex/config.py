@@ -59,6 +59,9 @@ class Settings(BaseSettings):
 
     telegram_bot_token: str = ""
 
+    resend_api_key: str = ""
+    resend_from: str = "CricDex Digest <onboarding@resend.dev>"
+
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
     langfuse_host: str = "https://cloud.langfuse.com"
