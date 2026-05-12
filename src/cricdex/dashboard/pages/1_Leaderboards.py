@@ -83,6 +83,19 @@ METRICS: dict[str, dict] = {
         ),
         "primary_key": "bowler",
     },
+    "Wicket Quality": {
+        "slug": "wicket_quality",
+        "sort_col": "wicket_quality",
+        "bar_col": "wicket_quality",
+        "extras": ["wickets", "opponents_seen"],
+        "description": (
+            "Average Bayesian scout-rating skill of the batters dismissed. A bowler "
+            "picking up Kohli + Rohit + Buttler scores higher than one whose wickets "
+            "are tail-enders. Needs scout_ratings_<collection>.json — run "
+            "`make docker-scout-rate COLLECTION=<name>` first."
+        ),
+        "primary_key": "bowler",
+    },
 }
 
 
