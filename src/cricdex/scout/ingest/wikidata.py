@@ -35,22 +35,26 @@ DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 
 SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
 USER_AGENT = "cricdex/0.1 (https://github.com/Aaryan-Nakhat/cricdex)"
-BATCH_SIZE = 200
-SLEEP_BETWEEN_BATCHES_S = 3.0
+# WDQS rate-limits broad queries from datacenter IPs aggressively.
+# 50-id batches with 3 OPTIONALs reliably get HTTP 200; 200-id with 4
+# OPTIONALs gets 429 immediately.
+BATCH_SIZE = 50
+SLEEP_BETWEEN_BATCHES_S = 2.0
 CHECKPOINT_FILENAME = "wikidata_checkpoint.jsonl"
 
 
 def _query_template(values_block: str) -> str:
+    # Trimmed to 3 OPTIONALs to keep WDQS happy from datacenter IPs.
+    # Birthplace label dropped — re-fetch later per-Q-id if needed.
     return f"""
     SELECT
         ?cricinfo_id ?player ?dob
-        ?countryLabel ?birthplaceLabel ?genderLabel
+        ?countryLabel ?genderLabel
     WHERE {{
         VALUES ?cricinfo_id {{ {values_block} }}
         ?player wdt:P2697 ?cricinfo_id .
         OPTIONAL {{ ?player wdt:P569 ?dob }}
         OPTIONAL {{ ?player wdt:P27 ?country }}
-        OPTIONAL {{ ?player wdt:P19 ?birthplace }}
         OPTIONAL {{ ?player wdt:P21 ?gender }}
         SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
     }}
@@ -86,14 +90,12 @@ def _query_batch(ids: list[str], cx: httpx.Client) -> list[dict]:
                 "wikidata_id": b["player"]["value"].rsplit("/", 1)[-1],
                 "dob": None,
                 "country": None,
-                "birthplace": None,
                 "gender": None,
             },
         )
         for key, sparql_key in [
             ("dob", "dob"),
             ("country", "countryLabel"),
-            ("birthplace", "birthplaceLabel"),
             ("gender", "genderLabel"),
         ]:
             if row[key] is None and sparql_key in b:
