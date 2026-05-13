@@ -48,6 +48,17 @@ STATE_DIM = 16
 ROLES = ("batter", "bowler", "all_rounder", "keeper")
 ROLE_IDX = {r: i for i, r in enumerate(ROLES)}
 
+# Terminal-reward coefficients. The per-round shaped reward
+# (projected_value - sale) optimises a single bid in isolation; without
+# a terminal bonus the agent can rationally pass on most players and
+# still hit ~0 reward, never learning to build a full squad. The
+# coefficients below grade the *final* XI:
+#
+#   + TERMINAL_VALUE_COEF * Σ projected_value of acquired players
+#   - ROLE_UNFILL_PENALTY * (number of unmet role minima)
+TERMINAL_VALUE_COEF = 0.5
+ROLE_UNFILL_PENALTY = 5.0
+
 
 @dataclass
 class FranchiseState:
@@ -59,6 +70,7 @@ class FranchiseState:
     aggression: float
     risk: float
     roster: list = field(default_factory=list)
+    acquired_value: float = 0.0
 
 
 class AuctionEnv:
@@ -198,6 +210,7 @@ class AuctionEnv:
             me.purse -= sale
             me.slots_left -= 1
             me.roster.append(p["name"])
+            me.acquired_value += float(p["projected_value"])
             if p["is_overseas"]:
                 me.overseas_left -= 1
             if me.need.get(p["role"], 0) > 0:
@@ -220,4 +233,10 @@ class AuctionEnv:
 
         self.state_idx += 1
         done = self.state_idx >= len(self.players)
-        return self._obs(), reward, done, {}
+        if done:
+            unfilled = sum(max(0, n) for n in me.need.values())
+            terminal_bonus = (
+                TERMINAL_VALUE_COEF * me.acquired_value - ROLE_UNFILL_PENALTY * unfilled
+            )
+            reward += terminal_bonus
+        return self._obs(), reward, done, {"terminal_bonus_applied": done}
