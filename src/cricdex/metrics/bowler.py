@@ -24,8 +24,9 @@ def sticky_dot_pressure(
     collection: str = "recently_played_30_male",
     db_path: Path | str = DEFAULT_DB_PATH,
     consecutive_dot_threshold: int = 4,
-    min_pressure_balls: int = 30,
+    min_pressure_balls: int | None = None,
     top_n: int | None = 200,
+    auto_threshold: bool = True,
 ) -> pl.DataFrame:
     """Wicket rate on the next ball after `consecutive_dot_threshold` or more
     consecutive dot balls bowled by the same bowler in the same over.
@@ -34,9 +35,18 @@ def sticky_dot_pressure(
     into a dismissal. Different from raw economy: a tight 4-dot bowler
     who never breaks the partnership scores lower here than one who finishes
     the pressure with a wicket.
+
+    `min_pressure_balls` rules:
+    - If explicitly passed, that value wins.
+    - If `None` and `auto_threshold` is True (default), pick
+      `max(5, round(0.5 * 75th-percentile pressure_balls))` for this
+      collection so small corpora (e.g., 689-match SMAT) don't get
+      filtered to 0 rows by a hard-coded 30-ball floor.
+    - Else default to 30 (the v1 IPL-tuned floor).
     """
     safe = collection.replace("-", "_")
-    sql = f"""
+    # Aggregated table (before applying min_pressure_balls).
+    agg_sql = f"""
     WITH numbered AS (
         SELECT
             match_id, innings_idx, bowler, over,
@@ -50,7 +60,6 @@ def sticky_dot_pressure(
     dot_streaks AS (
         SELECT
             *,
-            -- A dot-streak length per over: count consecutive dots ending at this ball.
             CASE WHEN is_dot
                  THEN ball_in_over_seq -
                       MAX(CASE WHEN NOT is_dot THEN ball_in_over_seq ELSE 0 END)
@@ -61,31 +70,39 @@ def sticky_dot_pressure(
         FROM numbered
     ),
     after_streak AS (
-        -- Look at the NEXT delivery in the same over after a streak hits threshold.
         SELECT
             ds.bowler,
             LEAD(ds.is_wicket) OVER (PARTITION BY ds.match_id, ds.innings_idx, ds.bowler, ds.over
                                       ORDER BY ds.ball_in_over_seq) AS next_is_wicket,
             ds.streak_len
         FROM dot_streaks ds
-    ),
-    agg AS (
-        SELECT
-            bowler,
-            COUNT(*) AS pressure_balls,
-            SUM(CASE WHEN next_is_wicket THEN 1 ELSE 0 END) AS wickets_after_pressure,
-            CAST(ROUND(100.0 * SUM(CASE WHEN next_is_wicket THEN 1 ELSE 0 END)
-                       / NULLIF(COUNT(*), 0), 2) AS DOUBLE) AS wicket_rate_pct
-        FROM after_streak
-        WHERE streak_len >= {consecutive_dot_threshold} AND next_is_wicket IS NOT NULL
-        GROUP BY 1
     )
-    SELECT *
-    FROM agg
-    WHERE pressure_balls >= {min_pressure_balls}
-    ORDER BY wicket_rate_pct DESC, pressure_balls DESC
+    SELECT
+        bowler,
+        COUNT(*) AS pressure_balls,
+        SUM(CASE WHEN next_is_wicket THEN 1 ELSE 0 END) AS wickets_after_pressure,
+        CAST(ROUND(100.0 * SUM(CASE WHEN next_is_wicket THEN 1 ELSE 0 END)
+                   / NULLIF(COUNT(*), 0), 2) AS DOUBLE) AS wicket_rate_pct
+    FROM after_streak
+    WHERE streak_len >= {consecutive_dot_threshold} AND next_is_wicket IS NOT NULL
+    GROUP BY 1
     """
-    if top_n is not None:
-        sql += f"\nLIMIT {top_n}"
     with _connect(db_path) as con:
-        return con.execute(sql).pl()
+        agg = con.execute(agg_sql).pl()
+
+    if agg.is_empty():
+        return agg
+
+    if min_pressure_balls is None:
+        if auto_threshold:
+            p75 = float(agg["pressure_balls"].quantile(0.75) or 0)
+            min_pressure_balls = max(5, int(round(0.5 * p75)))
+        else:
+            min_pressure_balls = 30
+
+    out = agg.filter(pl.col("pressure_balls") >= min_pressure_balls).sort(
+        ["wicket_rate_pct", "pressure_balls"], descending=[True, True]
+    )
+    if top_n is not None:
+        out = out.head(top_n)
+    return out

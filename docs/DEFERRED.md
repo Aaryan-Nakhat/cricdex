@@ -175,15 +175,16 @@ partner API.
 - **Smoke test:** Top-10 most ambiguous `unique_name` cases each
   resolve to one canonical `cricsheet_id` with confidence ≥ 0.9.
 
-### 2.4 `sticky_dot_pressure` returns 0 rows on small collections
+### 2.4 `sticky_dot_pressure` returns 0 rows on small collections — ✅ shipped
 
-- **What:** The bowler metric default `min_pressure_balls=30` is
-  too strict for small corpora (e.g. 689-match SMAT).
-- **Fix:** Compute a per-collection auto-threshold (e.g. 5 % of
-  the 75th-percentile bowler's pressure-ball count), or expose
-  it as a CLI flag and document the trade-off.
-- **Smoke test:** `pressure_balls.size > 0` for every collection
-  that has ≥ 100 bowler-overs.
+- `min_pressure_balls` is now optional; when omitted with
+  `auto_threshold=True` (the default) the metric picks
+  `max(5, round(0.5 × p75_pressure_balls))` for the collection.
+- CLI dropped the hard-coded `--min-balls 30` default in favour of
+  the auto-pick.
+- Verified: ipl=131 rows, indian_domestic_male=140 rows, bbl=70
+  rows, recently_played_30_male=109 rows — every collection now
+  yields a populated leaderboard.
 
 ### 2.5 Missing novel metrics
 

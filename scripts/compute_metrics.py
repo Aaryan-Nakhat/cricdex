@@ -192,7 +192,11 @@ def ngi_cmd(
 def sticky_dots_cmd(
     collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
     threshold: int = typer.Option(4, "--threshold"),
-    min_balls: int = typer.Option(30, "--min-balls"),
+    min_balls: int | None = typer.Option(
+        None,
+        "--min-balls",
+        help="Min pressure-balls. Omit to auto-pick from collection's p75 (works on small corpora).",
+    ),
     top_n: int = typer.Option(50, "--top-n"),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
