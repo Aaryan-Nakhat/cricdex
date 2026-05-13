@@ -185,7 +185,12 @@ def ngi_cmd(
         raise typer.Exit(code=1)
     df = df.filter(__import__("polars").col("matches") >= min_matches).head(top_n)
     _emit(df, "ngi", collection, out_json)
-    typer.echo(f"WP model val accuracy: {res['val_acc']:.3f} on {res['n_balls']:,} balls")
+    typer.echo(
+        f"WP model — val_acc={res['val_acc']:.3f}  brier={res['brier']:.4f}  "
+        f"log_loss={res['log_loss']:.4f}  on {res['n_val_balls']:,} balls "
+        f"from {res['n_val_matches']} held-out matches "
+        f"({res['n_train_matches']} train matches, {res['n_balls']:,} total balls)"
+    )
 
 
 @app.command("sticky-dots")
