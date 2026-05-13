@@ -69,12 +69,16 @@ class AuctionEnv:
         learner_slot: int = 0,
         purse: float = 90.0,
         seed: int = 0,
+        franchises: list[dict] | None = None,
     ) -> None:
         self.pool = pool
         self.n_franchises = n_franchises
         self.learner_slot = learner_slot
         self.purse = purse
         self.rng = random.Random(seed)
+        # Per-slot franchise specs override the uniform DEFAULT_FRANCHISES
+        # so callers (real-data trainer, dashboard) can mix archetypes.
+        self.franchise_specs = franchises
 
     def reset(self) -> np.ndarray:
         self.players = self.pool.to_dicts()
@@ -82,16 +86,19 @@ class AuctionEnv:
         self.state_idx = 0
         self.franchises: list[FranchiseState] = []
         for i in range(self.n_franchises):
-            base = DEFAULT_FRANCHISES[i % len(DEFAULT_FRANCHISES)]
+            if self.franchise_specs is not None and i < len(self.franchise_specs):
+                base = self.franchise_specs[i]
+            else:
+                base = DEFAULT_FRANCHISES[i % len(DEFAULT_FRANCHISES)]
             self.franchises.append(
                 FranchiseState(
-                    id=f"F{i + 1}",
-                    purse=self.purse,
-                    slots_left=11,
-                    need=dict(_default_role_mins()),
-                    overseas_left=8,
-                    aggression=base["aggression"],
-                    risk=base["risk"],
+                    id=base.get("id", f"F{i + 1}"),
+                    purse=base.get("purse", self.purse),
+                    slots_left=base.get("slots_left", 11),
+                    need=dict(base.get("role_mins") or _default_role_mins()),
+                    overseas_left=base.get("overseas_left", 8),
+                    aggression=base.get("aggression", 1.0),
+                    risk=base.get("risk", 0.15),
                 )
             )
         return self._obs()
