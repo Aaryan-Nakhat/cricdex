@@ -141,6 +141,23 @@ list). The most important ones:
 | `GEMINI_TMP_API_KEY` | optional | Sent as `x-api-key` if the proxy needs auth. |
 | `QDRANT_URL` | for server-mode Qdrant | When unset the code falls back to embedded on-disk storage under `data/rules/qdrant/`. The Docker Compose stack auto-sets it to `http://qdrant:6333`. |
 | `DATABASE_URL` / `REDIS_URL` / `NEO4J_*` | wait for those modules | Documented but unused until scout / cache / graph land. |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | for `make backup` | Cloudflare R2 backup target. Always-free 10 GB / zero egress. Create a bucket + API token at `dash.cloudflare.com → R2 → Manage R2 API Tokens`. Without these, the local `data/` directory is the only copy of indexes that took 43 min to build. |
+
+### Off-VM persistence
+
+`data/` is `.gitignore`d and the local Qdrant index, Cricsheet DuckDB,
+and computed metrics are the only copies on disk. To survive a VM
+rebuild, push them to Cloudflare R2 (private bucket, 10 GB free
+forever, zero egress):
+
+```bash
+# one-time R2 setup: create a bucket, mint an API token, paste creds into .env
+make backup WHAT=all                  # tarball + upload data/rules + metrics + cricsheet
+make backup WHAT=rules                # narrower; just the 57 MB Qdrant + parsed JSONL
+make backup-list                      # show all stamps in the bucket
+make restore WHAT=rules               # pull the latest 'rules' tarball back over data/
+make restore WHAT=rules STAMP=20260513-164100   # pin a specific timestamp
+```
 
 ## Troubleshooting
 
