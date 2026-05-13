@@ -53,22 +53,57 @@ def _write_players(
     con: duckdb.DuckDBPyConnection,
     collection: str,
 ) -> int:
+    """Player nodes carry a heuristic `role` derived from balls_faced
+    vs balls_bowled in the collection, plus the raw counts and the
+    last match date. DOB / handedness / bowling style remain DEFERRED
+    pending an unblocked external feed (Cricinfo / Wikidata).
+    """
     safe = collection.replace("-", "_")
     rows = con.execute(
         f"""
-        WITH names AS (
-            SELECT DISTINCT batter AS name FROM balls_{safe} WHERE batter IS NOT NULL
-            UNION
-            SELECT DISTINCT bowler FROM balls_{safe} WHERE bowler IS NOT NULL
+        WITH batting AS (
+            SELECT batter AS name,
+                   SUM(CASE WHEN extras_type IN ('wides') THEN 0 ELSE 1 END) AS balls_faced,
+                   MAX(match_date) AS last_match_date
+            FROM balls_{safe}
+            WHERE batter IS NOT NULL
+            GROUP BY batter
+        ),
+        bowling AS (
+            SELECT bowler AS name,
+                   SUM(CASE WHEN extras_type IN ('wides') THEN 0 ELSE 1 END) AS balls_bowled,
+                   MAX(match_date) AS last_match_date
+            FROM balls_{safe}
+            WHERE bowler IS NOT NULL
+            GROUP BY bowler
+        ),
+        merged AS (
+            SELECT COALESCE(b.name, k.name) AS name,
+                   COALESCE(b.balls_faced, 0) AS balls_faced,
+                   COALESCE(k.balls_bowled, 0) AS balls_bowled,
+                   GREATEST(
+                       COALESCE(b.last_match_date, ''),
+                       COALESCE(k.last_match_date, '')
+                   ) AS last_match_date
+            FROM batting b
+            FULL OUTER JOIN bowling k ON b.name = k.name
         )
         SELECT
-            n.name,
-            COALESCE(r.cricsheet_id, 'unresolved:' || n.name) AS cricsheet_id,
+            m.name,
+            COALESCE(r.cricsheet_id, 'unresolved:' || m.name) AS cricsheet_id,
             r.cricinfo_id,
             r.cricbuzz_id,
-            (r.cricsheet_id IS NULL) AS unresolved
-        FROM names n
-        LEFT JOIN _resolved_names r ON r.name = n.name
+            (r.cricsheet_id IS NULL) AS unresolved,
+            CAST(m.balls_faced AS BIGINT)   AS balls_faced,
+            CAST(m.balls_bowled AS BIGINT)  AS balls_bowled,
+            m.last_match_date,
+            CASE
+                WHEN m.balls_bowled >= 60 AND m.balls_faced >= 60 THEN 'all_rounder'
+                WHEN m.balls_bowled >= m.balls_faced THEN 'bowler'
+                ELSE 'batter'
+            END AS role
+        FROM merged m
+        LEFT JOIN _resolved_names r ON r.name = m.name
         """
     ).fetchall()
 
@@ -77,10 +112,14 @@ def _write_players(
             """
             UNWIND $rows AS r
             MERGE (p:Player {cricsheet_id: r.cricsheet_id})
-            SET p.unique_name = r.name,
-                p.key_cricinfo = r.cricinfo_id,
-                p.key_cricbuzz = r.cricbuzz_id,
-                p.unresolved = r.unresolved
+            SET p.unique_name     = r.name,
+                p.key_cricinfo    = r.cricinfo_id,
+                p.key_cricbuzz    = r.cricbuzz_id,
+                p.unresolved      = r.unresolved,
+                p.balls_faced     = r.balls_faced,
+                p.balls_bowled    = r.balls_bowled,
+                p.last_match_date = r.last_match_date,
+                p.role            = r.role
             """,
             rows=[
                 {
@@ -89,6 +128,10 @@ def _write_players(
                     "cricinfo_id": r[2],
                     "cricbuzz_id": r[3],
                     "unresolved": r[4],
+                    "balls_faced": r[5],
+                    "balls_bowled": r[6],
+                    "last_match_date": r[7],
+                    "role": r[8],
                 }
                 for r in rows
             ],
