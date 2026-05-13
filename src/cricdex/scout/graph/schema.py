@@ -6,8 +6,9 @@ and indexes the graph writers rely on:
     (Player {cricsheet_id})              UNIQUE constraint
     (Match  {match_id})                   UNIQUE constraint
     (Venue  {name})                       UNIQUE constraint
-    (Player)-[FACED  {match_id, runs, balls, dismissals}]->(Player)
-    (Player)-[PLAYED_AT {match_id}]->(Venue)
+    (Player)-[FACED        {runs, balls, dismissals}]->(Player)
+    (Player)-[TEAMMATE_OF  {matches_together}]->(Player)   undirected pair
+    (Player)-[PLAYED_IN    {team}]->(Match)
     (Match)-[AT]->(Venue)
 """
 

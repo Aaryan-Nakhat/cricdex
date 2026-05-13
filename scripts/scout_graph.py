@@ -1,8 +1,10 @@
-"""CLI: bootstrap + populate the scout Neo4j graph.
+"""CLI: bootstrap + populate + query the scout Neo4j graph.
 
 Examples:
     uv run python scripts/scout_graph.py bootstrap
     uv run python scripts/scout_graph.py populate --collection ipl
+    uv run python scripts/scout_graph.py co-faced "V Kohli" -k 10
+    uv run python scripts/scout_graph.py teammates "MS Dhoni" -k 10
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from pathlib import Path
 import typer
 from loguru import logger
 
-from cricdex.scout.graph import schema, writer
+from cricdex.scout.graph import schema, similar, writer
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -38,6 +40,34 @@ def populate_cmd(
         db_path=db_path or writer.DEFAULT_DB_PATH,
     )
     logger.info(f"done: {summary}")
+
+
+@app.command("co-faced")
+def co_faced_cmd(
+    name: str = typer.Argument(..., help="unique_name as stored on Player nodes"),
+    top_k: int = typer.Option(10, "-k", "--top-k"),
+) -> None:
+    rows = similar.co_faced_bowlers(name, top_k=top_k)
+    if not rows:
+        typer.echo("no neighbours — verify the unique_name (case sensitive)")
+        raise typer.Exit(code=1)
+    typer.echo(f"Top-{top_k} players sharing FACED bowlers with {name}:")
+    for r in rows:
+        typer.echo(f"  {r['shared_bowlers']:4d}  {r['name']}  ({r['cricsheet_id']})")
+
+
+@app.command("teammates")
+def teammates_cmd(
+    name: str = typer.Argument(..., help="unique_name as stored on Player nodes"),
+    top_k: int = typer.Option(10, "-k", "--top-k"),
+) -> None:
+    rows = similar.teammate_overlap(name, top_k=top_k)
+    if not rows:
+        typer.echo("no neighbours — verify the unique_name (case sensitive)")
+        raise typer.Exit(code=1)
+    typer.echo(f"Top-{top_k} players sharing teammates with {name}:")
+    for r in rows:
+        typer.echo(f"  shared={r['shared_teammates']:3d}  weight={r['weight']:5d}  {r['name']}")
 
 
 if __name__ == "__main__":

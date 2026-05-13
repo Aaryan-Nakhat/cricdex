@@ -206,6 +206,15 @@ opponent OAR (Wicket Quality), or CV-derived release data
   - ✅ `cricdex.auction.grpo` — GRPO (DeepSeek 2024) trainer, no
     value head, group-relative advantage. Produces a `policy.zip`
     that `dashboard/pages/B_Auction_Simulator.py` can load.
+  - ⚠️ Convergence is weak today: 200 epochs × 8 group on a 40-player
+    synthetic pool moves entropy only from 2.39 → 2.35 (max entropy
+    on 11 actions = log(11) ≈ 2.40), so the policy is still nearly
+    uniform. Reward signal is too sparse (most bids end with the
+    learner losing the player and getting reward 0). Real
+    convergence likely needs (a) 5-10k epochs, (b) reward reshape —
+    small negative reward per missed affordable player, (c) lower
+    learning rate or warmup. Treat current `policy.zip` as a smoke
+    artifact, not a competitive bidder.
   - ⏳ Multi-agent PettingZoo self-play, opponent diversification
     via personality YAML extracted from 10 yr bid history.
   - ⏳ Real bid-history-trained personality priors (currently uniform
@@ -313,6 +322,24 @@ shipping cloned voices publicly.
 - **Fix:** GitHub Actions step that pushes `cricdex:dev` to
   `ghcr.io/aaryan-nakhat/cricdex:latest` on every main push.
   Docker compose pulls instead of builds.
+
+### 4.4 R2 backup activation
+
+- **Why:** Backup CLI + Makefile targets shipped (`make backup`,
+  `make restore`, `make backup-list`) but the bucket itself doesn't
+  exist yet so no off-VM copy of the 43-min Qdrant reindex or the
+  599 MB Cricsheet DuckDB has been pushed. VM dies → that work is
+  redone from scratch.
+- **Fix (5 min, browser-side):**
+  1. `dash.cloudflare.com → R2 → Create bucket "cricdex-backups"`.
+  2. R2 → "Manage R2 API Tokens" → Create token, Object Read & Write,
+     scoped to the bucket.
+  3. Paste `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
+     `R2_BUCKET=cricdex-backups` into `.env`.
+  4. `make backup WHAT=all` — uploads ~700 MB tarball, takes a couple
+     of minutes on a domestic uplink, free.
+- **Smoke test:** `make backup-list` shows the timestamped object;
+  `make restore WHAT=rules` on a fresh checkout pulls it back.
 
 ---
 
