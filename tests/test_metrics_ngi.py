@@ -24,6 +24,8 @@ def test_features_list_keys():
         "runs_needed",
         "required_rr",
         "current_rr",
+        "innings1_total",
+        "current_rr_minus_venue",
     }
     assert set(ngi.FEATURES) == expected
 
@@ -35,17 +37,30 @@ def test_train_wp_returns_calibrated_model():
     n = 2000
     X = rng.random((n, len(ngi.FEATURES))).astype(np.float32)
     y = (X[:, 3] > 0.5).astype(np.int8)  # score_before > 0.5 → batting wins
-    model, val_acc = ngi._train_wp(X, y, seed=0)
-    assert val_acc >= 0.8, f"toy task should be easy, got {val_acc:.3f}"
+    # Synthetic match ids — half the rows in 50 fake matches.
+    match_ids = (np.arange(n) // (n // 50)).astype(str)
+    model, metrics = ngi._train_wp(X, y, match_ids=match_ids, seed=0)
+    assert metrics["val_acc"] >= 0.7, f"toy task should be easy, got {metrics['val_acc']:.3f}"
     # Predictions are probabilities in [0, 1].
     p = model.predict_proba(X[:50])[:, 1]
     assert (p >= 0).all() and (p <= 1).all()
+    # Calibration metrics present.
+    assert 0 <= metrics["brier"] <= 1
+    assert metrics["log_loss"] > 0
+    assert len(metrics["reliability"]) > 0
 
 
 @needs_data
 def test_compute_ipl_returns_sane_table():
     res = ngi.compute(collection="ipl")
-    assert res["val_acc"] >= 0.55, f"WP model val_acc too low: {res['val_acc']}"
+    assert res["val_acc"] >= 0.65, f"WP model val_acc too low: {res['val_acc']}"
+    assert res["brier"] < 0.22, f"Brier score too high: {res['brier']}"
+    assert res["log_loss"] < 0.7, f"log loss too high: {res['log_loss']}"
+    assert len(res["reliability"]) >= 5, "expected at least 5 reliability buckets"
+    # Calibration sanity: in every bucket, |mean_predicted - mean_actual| <= 0.05.
+    for b in res["reliability"]:
+        diff = abs(b["mean_predicted"] - b["mean_actual"])
+        assert diff <= 0.05, f"poor calibration in bucket {b['bucket']}: diff={diff:.3f}"
     assert res["n_balls"] > 50_000, "expected >50k IPL balls"
     df = res["career"]
     assert df.height > 100
