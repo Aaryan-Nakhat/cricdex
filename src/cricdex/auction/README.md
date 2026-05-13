@@ -11,14 +11,24 @@ synthetic player pool generator (`solver.sample_pool`):
    a parameterised agent (purse, aggression, risk-jitter). Emits the
    realised-price distribution per player (min / p25 / median / p75 /
    max / sold-pct) plus a bid-probability sweep.
-3. `rl_env.py` — single-agent Gym-style env where slot 0 is the RL
-   learner and the other N-1 franchises are MC opponents. 16-dim
-   state, 11 discrete bid buckets.
-4. `grpo.py` — GRPO (Group Relative Policy Optimization, DeepSeek
+3. `real_pool.py` — real 429-player IPL pool (Bayes-skill projected
+   value, normalised country codes, role from balls + ratings, manual
+   collision overrides) + 6 `FRANCHISE_ARCHETYPES`.
+4. `rl_env.py` — single-agent Gym-style env where slot 0 is the RL
+   learner and the other N-1 franchises are MC opponents or one of
+   the real-pool archetypes. 16-dim state, 11 discrete bid buckets,
+   per-round shaped reward + terminal squad-quality bonus
+   (`TERMINAL_VALUE_COEF * sum(projected_value)` minus
+   `ROLE_UNFILL_PENALTY * unmet role minima`).
+5. `grpo.py` — GRPO (Group Relative Policy Optimization, DeepSeek
    2024) trainer. No value head — group-relative advantage is the
    z-scored episode return across G rollouts from the same starting
    state. Saves a `policy.zip` (state-dict + meta), reloadable on CPU.
-5. `scripts/train_auction_grpo.py` — typer CLI.
+6. `advisor.py` — war-room substitute advisor. Joins graph
+   `find_replacement` cohort onto the real_pool, filters by budget
+   and role, scores composite of `shared_norm` + `value_norm`.
+7. `scripts/train_auction_grpo.py` + `scripts/auction_advisor.py` —
+   CLI fronts.
 
 ## Ship window
 

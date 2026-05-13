@@ -55,6 +55,39 @@ make docker-query Q="what is the impact player rule in IPL" FORMATS=ipl
 Or via the HTTP API once it exposes a `/rules/ask` endpoint (todo). For
 now query via the CLI through `docker compose run --rm cricdex`.
 
+### Find a replacement / scout twin
+
+Graph similarity over the populated scout Neo4j (FACED, TEAMMATE_OF,
+PLAYED_IN edges).
+
+```bash
+# Bowlers in the same FACED-batter cohort as Bumrah, balls < 2000,
+# active after 2023-01-01:
+uv run python scripts/scout_graph.py find-replacement "JJ Bumrah" \
+    --role bowler --max-balls-bowled 2000 --min-last-match 2023-01-01 -k 10
+
+# Players sharing FACED bowlers with Kohli:
+uv run python scripts/scout_graph.py co-faced "V Kohli" -k 10
+
+# Players sharing teammates with Dhoni:
+uv run python scripts/scout_graph.py teammates "MS Dhoni" -k 10
+```
+
+UI: dashboard page **Player Twins** (`C_Player_Twins.py`).
+
+### War-room auction substitute advisor
+
+Combines the graph cohort + Bayes-driven projected value + your
+remaining purse + role constraint into a single composite-scored
+table.
+
+```bash
+uv run python scripts/auction_advisor.py "JJ Bumrah" --budget 8 --role bowler -n 5
+```
+
+UI: dashboard page **Auction** → "War-room advisor" section below the
+MILP squad picker.
+
 ### Other useful targets
 
 ```bash
