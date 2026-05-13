@@ -169,6 +169,25 @@ def wicket_quality_cmd(
     _emit(df, "wicket_quality", collection, out_json)
 
 
+@app.command("ngi")
+def ngi_cmd(
+    collection: str = typer.Option("ipl", "--collection", "-c"),
+    min_matches: int = typer.Option(20, "--min-matches"),
+    top_n: int = typer.Option(100, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    from cricdex.metrics import ngi
+
+    res = ngi.compute(collection=collection)
+    df = res["career"]
+    if df.is_empty():
+        typer.echo("no usable balls for this collection")
+        raise typer.Exit(code=1)
+    df = df.filter(__import__("polars").col("matches") >= min_matches).head(top_n)
+    _emit(df, "ngi", collection, out_json)
+    typer.echo(f"WP model val accuracy: {res['val_acc']:.3f} on {res['n_balls']:,} balls")
+
+
 @app.command("sticky-dots")
 def sticky_dots_cmd(
     collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
@@ -225,6 +244,14 @@ def all_cmd(
     _emit(
         bowler_metrics.sticky_dot_pressure(collection=collection, top_n=top_n),
         "sticky_dot_pressure",
+        collection,
+        None,
+    )
+    from cricdex.metrics import ngi as _ngi
+
+    _emit(
+        _ngi.compute(collection=collection)["career"].head(top_n),
+        "ngi",
         collection,
         None,
     )

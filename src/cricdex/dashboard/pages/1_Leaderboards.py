@@ -96,6 +96,20 @@ METRICS: dict[str, dict] = {
         ),
         "primary_key": "bowler",
     },
+    "NGI (Net Game Impact)": {
+        "slug": "ngi",
+        "sort_col": "ngi_per_match",
+        "bar_col": "ngi_per_match",
+        "extras": ["matches", "ngi_total", "ngi_batting", "ngi_bowling"],
+        "description": (
+            "WPA-style impact: each ball's win-probability swing (XGBoost WP model "
+            "fit on Cricsheet ball-by-ball, ~70% val accuracy) credited to the batter "
+            "or bowler involved. Higher = changed the game more on average. Treats "
+            "batters and bowlers on one currency. Run `make docker-metrics-all` or "
+            "`compute_metrics.py ngi --collection <name>` to populate."
+        ),
+        "primary_key": "name",
+    },
 }
 
 
