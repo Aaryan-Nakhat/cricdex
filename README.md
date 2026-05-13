@@ -44,7 +44,7 @@ All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
 | `metrics` | Six novel context-adjusted ratings: Pressure Runs, Intent Curve, Recoverability, Counter-Attack, Boundary Dependency, Sticky Dot Pressure. |
 | `rules` | Natural-language Q&A over 21 verified rulebook PDFs (MCC Laws + ICC PCs + IPL + Hundred + BBL/WBBL + SA20 + Cricket Australia domestic + ICC Codes + Anti-Corruption). 11k+ clauses indexed in Qdrant. Curated supplementary clauses cover gaps such as the IPL Impact Player rule. |
 | `pulse` | Reddit fetcher + Gemini sentiment extractor. Data load blocked from datacenter IPs. |
-| `auction` | MILP squad optimiser via `scipy.optimize.milp` + Monte-Carlo price-band simulator + GRPO RL self-play scaffold (`scripts/train_auction_grpo.py`). CLI + dashboard war-room. |
+| `auction` | MILP squad optimiser via `scipy.optimize.milp` + Monte-Carlo price-band simulator + GRPO RL self-play (`scripts/train_auction_grpo.py`, real 429-player IPL pool, 6 franchise archetypes) + war-room substitute advisor (`scripts/auction_advisor.py`, composite of graph similarity + Bayes value + budget). CLI + dashboard war-room. |
 | `drs` | 20-scenario umpire-decision practice game with MCC / ICC citations. |
 | `records` | 9 record SQL queries + On-This-Day digest. |
 | `reports` | LLM-written match reports grounded in Cricsheet facts, no hallucinations. |
@@ -56,7 +56,7 @@ All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
 | `newsletter` | Markdown digest compiler (On-This-Day + headlines + auto match report). |
 | `commentary_translate` | English → Hindi / Tamil / Bengali / Urdu / Sinhala / Marathi / Telugu / Kannada (text-only). Voice-cloned audio deferred to year 2. |
 | `api` | FastAPI public REST surface (12 endpoints + OpenAPI at `/docs`). See [`docs/API.md`](docs/API.md). |
-| `dashboard` | 11-page Streamlit app: Home, Leaderboards, Rules Chat, Records, Match Reports, Compare, Venues, DRS Practice, Auction, Player Profile, Translate Commentary. |
+| `dashboard` | 13-page Streamlit app: Home, Leaderboards, Rules Chat, Records, Match Reports, Compare, Venues, DRS Practice, Auction (MILP + war-room advisor), Player Profile, Translate Commentary, Auction Simulator (Monte-Carlo + GRPO RL), Player Twins (graph similarity). |
 
 Deferred to year 2: OpenBoundary (Hawk-Eye OSS), ChuckCheck (elbow flex
 biomechanics), Voice analyst, ScoutVLM (video → ball-by-ball), Highlight

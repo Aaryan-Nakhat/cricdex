@@ -218,9 +218,11 @@ opponent OAR (Wicket Quality), or CV-derived release data
   - ⏳ Actual GPU training run (8 k epochs × 16 group, ~10-30 min on
     A100 / 4090) — pending user-side GPU. Command + watch signals
     documented in `docs/RUNNING.md`.
-  - ⏳ Squad-quality terminal bonus on top of the per-round
-    `projected_value − sale_price` reward, so the policy is graded
-    on the final XI, not just per-bid arbitrage.
+  - ✅ Squad-quality terminal bonus is shipped — see
+    `TERMINAL_VALUE_COEF` / `ROLE_UNFILL_PENALTY` in `rl_env.py`.
+    meanR shifted from -15..+3 to 0..+30 on the real-pool smoke,
+    so the env now has clean positive signal for assembling a
+    full XI.
   - ⏳ Multi-agent PettingZoo self-play (every slot a policy, not
     just slot 0), with personality YAML extracted via Gemini from
     10 yr of IPL bid history (the real auction-v2 milestone).

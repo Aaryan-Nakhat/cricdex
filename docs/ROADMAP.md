@@ -26,7 +26,7 @@
 ## Phase 3 (Pulse + Auction) — partial
 
 - `pulse` social-trend pipeline ✅ (Reddit JSON fetcher + Gemini sentiment + per-player aggregate). Data fetch blocked from datacenter IPs.
-- `auction` MILP squad optimiser ✅ + Monte-Carlo price-band simulator ✅ + GRPO RL self-play scaffold ✅ (single-agent vs MC opponents, PyTorch, `scripts/train_auction_grpo.py` produces a `policy.zip` that the dashboard page loads). Full PettingZoo multi-agent self-play with personality-extracted franchise YAML remains the year-2 auction-v2 milestone.
+- `auction` MILP squad optimiser ✅ + Monte-Carlo price-band simulator ✅ + GRPO RL self-play scaffold ✅ (real 429-player IPL pool, 6 franchise archetypes, terminal squad-quality bonus) + war-room substitute advisor ✅ (`scripts/auction_advisor.py` + dashboard block — composite of graph FACED-cohort similarity, Bayes-driven projected value, role and budget filters). Full PettingZoo multi-agent self-play with personality-extracted franchise YAML remains the year-2 auction-v2 milestone.
 
 ## Phase 4 (Live + Predict + Venues + Newsletter + DRS) — ✅ partial
 
