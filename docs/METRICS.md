@@ -36,7 +36,7 @@ own historical median normalises that out — "pressure" means hard
 
 **Why chase-only:** required RPB has no clean definition outside a
 chase. Pressure for the team batting first is captured by Phase
-Dilation / Setting Tax (planned).
+Dilation / Setting Tax (✅ shipped — see below).
 
 **CLI:** `make docker-pressure-runs COLLECTION=ipl TOP_N=50`
 
@@ -139,18 +139,30 @@ their economy looks great.
 
 ---
 
-## Planned — not yet shipped
+## Shipped after v1
 
-- **Net Game Impact (NGI)** — leverage-weighted sum of runs +
-  wickets + fielding events. Needs win-probability model first.
+- **NGI (Net Game Impact)** ✅ — WPA-style player impact. XGBoost
+  win-probability model trained on Cricsheet ball-by-ball (~70%
+  val accuracy), per-ball ΔWP credited to batter (+) and bowler
+  (−). Career table at `data/metrics/ngi_<collection>.json`,
+  dashboard tab "NGI (Net Game Impact)".
+- **Wicket Quality** ✅ — Σ(opponent Bayes skill) / wickets taken.
+  Lives in `cricdex.metrics.bowler_wicket_quality`. Needs the
+  scout NumPyro ratings (`scout_ratings_<collection>.json`) — see
+  `docs/SCOUT.md`.
+- **Phase Dilation / Setting Tax** ✅ — batting-first counterpart
+  of Pressure Runs. Lives in `cricdex.metrics.batter`. Dashboard
+  tabs on the Leaderboards page.
+
+## Still planned
+
 - **Replacement Delta** — NGI − NGI of a replacement-level domestic
-  player. Cricket WAR.
-- **Wicket Quality** — Σ(opponent OAR) / wickets taken. Needs scout
-  Opposition-Adjusted Ratings.
-- **Phase Dilation / Setting Tax** — batting-first counterpart of
-  Pressure Runs.
+  player. Cricket WAR. Sits on NGI (✅) plus a domestic-tier
+  baseline; needs the BCCI Domestic ingest to unblock first
+  (`docs/DEFERRED.md` §1.5).
 - **Disguise Coefficient** (bowler) — outcome variance for same
-  line / length. Needs CV-derived release-point data.
+  line / length. Needs CV-derived release-point data (OpenBoundary,
+  `docs/DEFERRED.md` §3.1).
 
 ---
 
