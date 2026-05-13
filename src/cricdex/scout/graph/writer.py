@@ -1,11 +1,16 @@
 """Populate the scout Neo4j graph from DuckDB.
 
 Reads `people` + `balls_<collection>` + `matches_<collection>` and writes:
-    - Player nodes  (one per cricsheet_id)
-    - Match nodes   (one per match_id)
+    - Player nodes        (one per cricsheet_id)
+    - Match nodes         (one per match_id)
     - Venue nodes
-    - FACED edges   batter -[FACED]-> bowler with aggregated balls, runs,
-                    dismissals across the collection.
+    - FACED edges         batter -[FACED]-> bowler, aggregated balls /
+                          runs / dismissals across the collection.
+    - TEAMMATE_OF edges   undirected (we write one direction; queries
+                          should `[r:TEAMMATE_OF]-()` without arrow) —
+                          aggregates `matches_together` per (player_a,
+                          player_b) co-appearing in the same XI.
+    - PLAYED_IN edges     (Player)-[:PLAYED_IN {team}]->(Match).
 
 Resolves player names to Cricsheet IDs via the People Register
 (`people.unique_name → people.identifier`). Names that don't resolve are
@@ -196,6 +201,122 @@ def _write_faced_edges(
     return total
 
 
+def _write_played_in_edges(
+    drv: Driver,
+    con: duckdb.DuckDBPyConnection,
+    collection: str,
+    batch_size: int = 5000,
+) -> int:
+    """One (Player)-[:PLAYED_IN {team}]->(Match) edge per (player, match,
+    team) triple. Aggregated from balls — anyone who batted, faced as
+    non-striker, or bowled in a given innings is on that innings' team.
+    """
+    safe = collection.replace("-", "_")
+    rows = con.execute(
+        f"""
+        WITH appearances AS (
+            SELECT match_id, batting_team AS team, batter AS name
+            FROM balls_{safe} WHERE batter IS NOT NULL
+            UNION
+            SELECT match_id, batting_team AS team, non_striker AS name
+            FROM balls_{safe} WHERE non_striker IS NOT NULL
+            UNION
+            SELECT match_id, bowling_team AS team, bowler AS name
+            FROM balls_{safe} WHERE bowler IS NOT NULL
+        )
+        SELECT DISTINCT
+            a.match_id,
+            a.team,
+            COALESCE(r.cricsheet_id, 'unresolved:' || a.name) AS cricsheet_id
+        FROM appearances a
+        LEFT JOIN _resolved_names r ON r.name = a.name
+        """
+    ).fetchall()
+
+    total = 0
+    with drv.session() as s:
+        for start in range(0, len(rows), batch_size):
+            chunk = rows[start : start + batch_size]
+            s.run(
+                """
+                UNWIND $rows AS r
+                MATCH (p:Player {cricsheet_id: r.cricsheet_id})
+                MATCH (m:Match  {match_id: r.match_id})
+                MERGE (p)-[e:PLAYED_IN]->(m)
+                SET e.team = r.team
+                """,
+                rows=[
+                    {"match_id": row[0], "team": row[1], "cricsheet_id": row[2]} for row in chunk
+                ],
+            )
+            total += len(chunk)
+    return total
+
+
+def _write_teammate_edges(
+    drv: Driver,
+    con: duckdb.DuckDBPyConnection,
+    collection: str,
+    batch_size: int = 5000,
+) -> int:
+    """One (Player)-[:TEAMMATE_OF {matches_together}]->(Player) edge per
+    unordered pair (a < b) that shared a team in any match across the
+    collection. Aggregates the count of shared matches.
+    """
+    safe = collection.replace("-", "_")
+    rows = con.execute(
+        f"""
+        WITH appearances AS (
+            SELECT DISTINCT match_id, batting_team AS team, batter AS name
+            FROM balls_{safe} WHERE batter IS NOT NULL
+            UNION
+            SELECT DISTINCT match_id, batting_team, non_striker
+            FROM balls_{safe} WHERE non_striker IS NOT NULL
+            UNION
+            SELECT DISTINCT match_id, bowling_team, bowler
+            FROM balls_{safe} WHERE bowler IS NOT NULL
+        ),
+        resolved AS (
+            SELECT a.match_id, a.team,
+                   COALESCE(r.cricsheet_id, 'unresolved:' || a.name) AS pid
+            FROM appearances a
+            LEFT JOIN _resolved_names r ON r.name = a.name
+        ),
+        pairs AS (
+            SELECT DISTINCT
+                r1.match_id,
+                LEAST(r1.pid, r2.pid)    AS a,
+                GREATEST(r1.pid, r2.pid) AS b
+            FROM resolved r1
+            JOIN resolved r2
+              ON r1.match_id = r2.match_id
+             AND r1.team = r2.team
+             AND r1.pid < r2.pid
+        )
+        SELECT a, b, COUNT(*) AS matches_together
+        FROM pairs
+        GROUP BY a, b
+        """
+    ).fetchall()
+
+    total = 0
+    with drv.session() as s:
+        for start in range(0, len(rows), batch_size):
+            chunk = rows[start : start + batch_size]
+            s.run(
+                """
+                UNWIND $rows AS r
+                MATCH (a:Player {cricsheet_id: r.a})
+                MATCH (b:Player {cricsheet_id: r.b})
+                MERGE (a)-[e:TEAMMATE_OF]->(b)
+                SET e.matches_together = r.matches_together
+                """,
+                rows=[{"a": row[0], "b": row[1], "matches_together": int(row[2])} for row in chunk],
+            )
+            total += len(chunk)
+    return total
+
+
 def populate(
     collection: str = "ipl",
     db_path: Path | str = DEFAULT_DB_PATH,
@@ -208,12 +329,20 @@ def populate(
             _resolve_people(con)
             n_players = _write_players(drv, con, collection)
             n_matches = _write_matches(drv, con, collection)
-            n_edges = _write_faced_edges(drv, con, collection)
+            n_faced = _write_faced_edges(drv, con, collection)
+            n_played_in = _write_played_in_edges(drv, con, collection)
+            n_teammates = _write_teammate_edges(drv, con, collection)
         finally:
             con.close()
     finally:
         drv.close()
 
-    summary = {"players": n_players, "matches": n_matches, "faced_edges": n_edges}
+    summary = {
+        "players": n_players,
+        "matches": n_matches,
+        "faced_edges": n_faced,
+        "played_in_edges": n_played_in,
+        "teammate_edges": n_teammates,
+    }
     logger.info(f"populated scout graph from {collection}: {summary}")
     return summary
