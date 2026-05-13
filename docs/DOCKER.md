@@ -14,9 +14,11 @@ Single Python image built in two stages:
    `python:3.12-slim` base, copies `pyproject.toml`, runs `uv sync
    --no-install-project --no-dev` so dependency resolution is cached.
 2. **`app`** — copies `src/` + `scripts/`, then pre-downloads the
-   sentence-transformers MiniLM-L6-v2 weights into `/app/hf-cache`. This
-   makes the first `embed_rules.py` call inside the container instant
-   instead of waiting on a 90 MB download.
+   `Snowflake/snowflake-arctic-embed-l-v2.0` weights into `/app/hf-cache`.
+   Makes the first `embed_rules.py` call inside the container instant
+   instead of waiting on a ~2 GB download. (The Matryoshka truncation
+   to 384-dim happens at index/query time, not at download time, so the
+   cached weights are full-size.)
 
 The build sets `HF_HUB_DISABLE_IMPLICIT_TOKEN=1` so the model download
 runs anonymously even if the build context inherits any token from the
