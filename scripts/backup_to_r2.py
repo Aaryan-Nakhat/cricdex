@@ -40,7 +40,7 @@ from cricdex.config import ROOT, settings
 
 BUNDLES: dict[str, list[str]] = {
     "rules": ["data/rules/qdrant", "data/rules/parsed", "data/rules/curated"],
-    "metrics": ["data/metrics", "data/register"],
+    "metrics": ["data/metrics", "data/register", "data/auction"],
     "cricsheet": ["data/cricsheet"],
 }
 
