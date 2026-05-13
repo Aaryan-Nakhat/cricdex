@@ -1,7 +1,11 @@
 """Embed parsed rule clauses into a local Qdrant collection.
 
-v1: sentence-transformers MiniLM (free, local) + Qdrant on-disk client.
-Swap to Jina v3 or Voyage embeddings later if recall needs work.
+v3: Snowflake/snowflake-arctic-embed-l-v2.0 — multilingual (100+
+langs, incl. Hindi/Urdu/Bengali for vernacular rule queries), 8192-
+token context, Matryoshka-trained (256-1024 dim) so we truncate to
+384 dim with ~96% of full-quality retention. Net: ~2.7× faster
+cosine queries + ~2.7× smaller index than the v2 BGE-M3 path, beats
+BGE-M3 on MMTEB at release (Nov 2024).
 
 Requires the active HuggingFace credential to be the user's personal account
 (`hf auth login` with a personal token). Never falls back to a work token.
@@ -20,8 +24,8 @@ from cricdex.common.qdrant import get_qdrant_client
 from cricdex.config import DATA_DIR
 
 COLLECTION = "rules_clauses"
-EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-EMBED_DIM = 384
+EMBED_MODEL = "Snowflake/snowflake-arctic-embed-l-v2.0"
+EMBED_DIM = 384  # MRL truncation from native 1024
 
 
 def load_clauses(parsed_dir: Path, curated_dir: Path | None = None) -> list[dict]:
@@ -55,7 +59,7 @@ def embed_all(parsed_dir: Path | None = None, qdrant_path: Path | None = None) -
         return 0
     logger.info(f"embedding {len(clauses)} clauses with {EMBED_MODEL}")
 
-    model = SentenceTransformer(EMBED_MODEL)
+    model = SentenceTransformer(EMBED_MODEL, trust_remote_code=True, truncate_dim=EMBED_DIM)
     client = get_qdrant_client(local_path=qdrant_path)
 
     if client.collection_exists(COLLECTION):

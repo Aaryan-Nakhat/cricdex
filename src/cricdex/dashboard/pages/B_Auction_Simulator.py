@@ -1,12 +1,15 @@
-"""Streamlit page: Monte-Carlo IPL auction simulator."""
+"""Streamlit page: Monte-Carlo IPL auction simulator + optional RL agent."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pandas as pd
 import polars as pl
 import streamlit as st
 
 from cricdex.auction import simulator, solver
+from cricdex.config import DATA_DIR
 
 st.set_page_config(page_title="CricDex Auction Sim", page_icon="🎲", layout="wide")
 st.title("🎲 CricDex — auction Monte-Carlo simulator")
@@ -52,3 +55,32 @@ if st.button("Run simulation"):
         pool, target_player=target, your_bid=your_bid, franchises=franchises, n_sims=n_sims
     )
     st.metric(f"P(win {target} at ≤ {your_bid} cr)", f"{p:.0%}")
+
+st.divider()
+st.subheader("🤖 GRPO RL agent (optional)")
+st.caption(
+    "Load a trained `policy.zip` (see `scripts/train_auction_grpo.py`) to "
+    "watch the RL franchise bid against MC opponents on the same pool."
+)
+policy_path = Path(st.text_input("Policy path", str(DATA_DIR / "auction" / "policy.zip")))
+if st.button("Run one RL auction"):
+    if not policy_path.exists():
+        st.error(f"policy not found at {policy_path}. Train one first.")
+    else:
+        from cricdex.auction import grpo
+        from cricdex.auction.rl_env import AuctionEnv
+
+        policy = grpo.load_policy(policy_path)
+        env = AuctionEnv(pool, n_franchises=n_franchises, purse=purse, seed=0)
+        obs = env.reset()
+        done = False
+        total_reward = 0.0
+        while not done:
+            a = policy.act(obs, greedy=True)
+            obs, r, done, _ = env.step(a)
+            total_reward += r
+        learner = env.franchises[env.learner_slot]
+        st.metric("Episode shaped reward", f"{total_reward:.2f}")
+        st.metric("Purse left (cr)", f"{learner.purse:.2f}")
+        st.metric("Roster size", len(learner.roster))
+        st.write("Roster:", learner.roster)

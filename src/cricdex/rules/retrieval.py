@@ -31,7 +31,9 @@ _clauses: list[dict] | None = None
 def _get_model() -> SentenceTransformer:
     global _model
     if _model is None:
-        _model = SentenceTransformer(EMBED_MODEL)
+        from cricdex.rules.embed import EMBED_DIM
+
+        _model = SentenceTransformer(EMBED_MODEL, trust_remote_code=True, truncate_dim=EMBED_DIM)
     return _model
 
 
