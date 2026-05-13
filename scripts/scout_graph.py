@@ -70,5 +70,36 @@ def teammates_cmd(
         typer.echo(f"  shared={r['shared_teammates']:3d}  weight={r['weight']:5d}  {r['name']}")
 
 
+@app.command("find-replacement")
+def find_replacement_cmd(
+    name: str = typer.Argument(..., help="target player (e.g., 'JJ Bumrah')"),
+    top_k: int = typer.Option(10, "-k", "--top-k"),
+    role: str | None = typer.Option(None, "--role", help="bowler|batter|all_rounder"),
+    max_balls_bowled: int | None = typer.Option(None, "--max-balls-bowled"),
+    max_balls_faced: int | None = typer.Option(None, "--max-balls-faced"),
+    min_last_match: str | None = typer.Option(
+        None, "--min-last-match", help="YYYY-MM-DD — keep only candidates active after this"
+    ),
+) -> None:
+    rows = similar.find_replacement(
+        name,
+        top_k=top_k,
+        role=role,
+        max_balls_bowled=max_balls_bowled,
+        max_balls_faced=max_balls_faced,
+        min_last_match_date=min_last_match,
+    )
+    if not rows:
+        typer.echo("no candidates — relax filters or verify target name")
+        raise typer.Exit(code=1)
+    typer.echo(f"Replacement candidates for {name}:")
+    for r in rows:
+        typer.echo(
+            f"  shared={r['shared']:4d}  role={r['role']:<11}  "
+            f"bw={r['balls_bowled']:6d}  bt={r['balls_faced']:6d}  "
+            f"last={r['last_match_date']}  {r['name']}"
+        )
+
+
 if __name__ == "__main__":
     app()
