@@ -201,24 +201,44 @@ opponent OAR (Wicket Quality), or CV-derived release data
 - **Status today:**
   - ✅ `cricdex.auction.rl_env.AuctionEnv` — single-agent Gym-style
     env (16-dim state, 11 discrete bid buckets, shaped per-round
-    reward), learner vs N-1 Monte-Carlo opponents from
-    `simulator.DEFAULT_FRANCHISES`.
+    reward), learner vs N-1 opponents.
   - ✅ `cricdex.auction.grpo` — GRPO (DeepSeek 2024) trainer, no
     value head, group-relative advantage. Produces a `policy.zip`
     that `dashboard/pages/B_Auction_Simulator.py` can load.
-  - ⚠️ Convergence is weak today: 200 epochs × 8 group on a 40-player
-    synthetic pool moves entropy only from 2.39 → 2.35 (max entropy
-    on 11 actions = log(11) ≈ 2.40), so the policy is still nearly
-    uniform. Reward signal is too sparse (most bids end with the
-    learner losing the player and getting reward 0). Real
-    convergence likely needs (a) 5-10k epochs, (b) reward reshape —
-    small negative reward per missed affordable player, (c) lower
-    learning rate or warmup. Treat current `policy.zip` as a smoke
-    artifact, not a competitive bidder.
-  - ⏳ Multi-agent PettingZoo self-play, opponent diversification
-    via personality YAML extracted from 10 yr bid history.
-  - ⏳ Real bid-history-trained personality priors (currently uniform
-    mid-aggression / mid-risk opponents).
+  - ✅ `cricdex.auction.real_pool` — real 429-player IPL pool driven
+    by NumPyro Bayes skills (skill → projected_value, T20I dominant
+    team → nationality, IPL career balls → role + recency) plus 6
+    hand-authored franchise archetypes (`FRANCHISE_ARCHETYPES`).
+  - ✅ `scripts/train_auction_grpo.py` accepts `--pool real
+    --diverse-franchises` to train against the real pool with mixed
+    opponent personalities. CPU smoke (30 epochs × 4 group, real
+    pool, 6 archetypes) lands in -15..+3 reward (vs -40..-30 on the
+    synthetic random pool), trending positive — the env now carries
+    learnable signal.
+  - ⏳ Actual GPU training run (8 k epochs × 16 group, ~10-30 min on
+    A100 / 4090) — pending user-side GPU. Command + watch signals
+    documented in `docs/RUNNING.md`.
+  - ⏳ Squad-quality terminal bonus on top of the per-round
+    `projected_value − sale_price` reward, so the policy is graded
+    on the final XI, not just per-bid arbitrage.
+  - ⏳ Multi-agent PettingZoo self-play (every slot a policy, not
+    just slot 0), with personality YAML extracted via Gemini from
+    10 yr of IPL bid history (the real auction-v2 milestone).
+- **Known training-data limits to fix before the policy is
+  trustworthy:**
+  - **People Register name collisions** — e.g., Rashid Khan resolves
+    to country = `Nepal` because two players share the unique_name.
+    Cheap fix is a manual override map keyed on cricsheet_id.
+  - **`value_scale` is hand-calibrated**, not fit to historical IPL
+    auction prices. iplt20.com / espncricinfo auction-history pages
+    are datacenter-IP-blocked (§1) — once that scrape unblocks, fit
+    `value_scale` (and per-role floors) to real sold-price residuals.
+  - **No handedness / bowling-style on Player nodes.** Filters like
+    "left-arm pace replacement" can't be expressed yet. Same
+    Wikidata / Cricinfo scrape unblock as §1 covers this.
+  - **Franchise archetypes are guesses**, not bid-history-mined.
+    Improve by extracting per-team per-year aggression / role-bias
+    YAMLs (Gemini on the unblocked auction-ledger PDFs).
 - **Why the v2 leg stays deferred:** Full multi-agent self-play on
   10 agents needs hours of GPU compute; current scaffold runs on CPU
   in minutes which is sufficient for the practitioner-facing

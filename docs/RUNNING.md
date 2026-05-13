@@ -64,6 +64,82 @@ make docker-test    # run pytest inside the container
 make docker-down    # stop everything
 ```
 
+### Train the GRPO auction policy
+
+#### Smoke (CPU, ~2 min)
+
+```bash
+uv run python scripts/train_auction_grpo.py --epochs 200 --group-size 8
+```
+
+Synthetic 40-player pool, uniform MC opponents. Verifies the env / trainer
+plumbing — not a competitive bidder.
+
+#### Real run (GPU, ~10-30 min on A100 / 4090)
+
+```bash
+uv run python scripts/train_auction_grpo.py \
+    --pool real \
+    --epochs 8000 \
+    --group-size 16 \
+    --n-franchises 6 \
+    --diverse-franchises \
+    --out data/auction/policy_real.zip
+```
+
+What "real" pulls in:
+
+- **Pool** — `src/cricdex/auction/real_pool.py:build_pool` reads
+  `data/metrics/scout_ratings_ipl.json` (NumPyro Bayes skills, fit via
+  `make docker-scout-rate`) + `data/cricsheet/cricsheet.duckdb`
+  (`balls_ipl` for career balls, `balls_t20s_male` for nationality).
+  Yields 429 IPL players keyed by cricsheet_id with skill-driven
+  projected_value (0.5–12 cr) and real base-price tiers.
+- **Franchises** — `real_pool.FRANCHISE_ARCHETYPES` — 6 hand-authored
+  bidder personalities (`MarqueeChaser`, `ValueHunter`, `OverseasHeavy`,
+  `IndianFocus`, `AllRounderStack`, `Balanced`) so the policy sees
+  varied opponent behaviour rather than 10 uniform MC agents.
+- **Output** — `data/auction/policy_real.zip` (state-dict + meta).
+  Dashboard's Auction Simulator page loads it via the "GRPO RL agent"
+  block.
+
+Watch the training log for two convergence signals:
+
+- **Entropy** — should fall from ~2.39 (uniform over 11 bid buckets)
+  toward 1.0-1.5 (decided policy).
+- **Mean episode return** — should rise above 0 once the policy
+  identifies affordable Indian high-skill players.
+
+#### Known limits (run them with eyes open)
+
+- Rashid Khan resolves to country = "Nepal" because the People Register
+  has two players with the same `unique_name` — there's a manual
+  override map on the todo list.
+- `value_scale` is hand-calibrated against intuition, not against real
+  historical IPL auction prices. The pages on `iplt20.com` /
+  `espncricinfo.com` that hold those prices are datacenter-IP-blocked
+  today (`docs/DEFERRED.md` §1). Train-time signal is therefore
+  internally consistent but slightly mis-anchored to reality.
+- No bowling-style metadata (left vs right arm, pace vs spin, action
+  type) on Player nodes — also blocked on Wikidata / Cricinfo. The
+  policy bids on `role + country + skill + balls_*`, not on action
+  archetype.
+- 6 franchise archetypes is hand-authored, not extracted from 10 yr
+  of IPL bid history. Personality YAML extraction via Gemini is the
+  v2 unlock (DEFERRED §2.6).
+- Per-round reward is `projected_value − sale_price`. Squad-quality
+  terminal bonus (e.g., sum of acquired Bayesian skill) isn't wired
+  yet — useful next refinement before declaring convergence.
+
+#### After training — back up the policy
+
+```bash
+make backup WHAT=metrics    # data/metrics + data/register + data/auction
+```
+
+(Once R2 is provisioned per DEFERRED §4.4. Until then `policy_real.zip`
+is local-only on the training VM.)
+
 ### Skip the local build — pull from GHCR
 
 After every push to `main` the CI builds `ghcr.io/aaryan-nakhat/cricdex:latest`
