@@ -192,6 +192,27 @@ def build_pool(
         career = _ipl_career_balls(con)
         name_of = _name_map(con)
 
+    # Normalise cricsheet's free-form team strings to short codes so the
+    # downstream MILP `is_overseas` flag is consistent regardless of
+    # whether a player resolved via the t20s_male nationality scan.
+    country_codes = {
+        "India": "IN",
+        "Australia": "AU",
+        "New Zealand": "NZ",
+        "South Africa": "SA",
+        "England": "EN",
+        "Pakistan": "PK",
+        "West Indies": "WI",
+        "Sri Lanka": "SL",
+        "Bangladesh": "BD",
+        "Afghanistan": "AF",
+        "Nepal": "NP",
+        "Zimbabwe": "ZW",
+        "Ireland": "IE",
+        "Scotland": "SC",
+        "Netherlands": "NL",
+    }
+
     rows = []
     for r in primary.iter_rows(named=True):
         cid = r["cricsheet_id"]
@@ -201,7 +222,8 @@ def build_pool(
         if c["balls_faced"] + c["balls_bowled"] < min_balls:
             continue
         role = _role_of(c, r["role"])
-        country = nat.get(cid) or "IN"
+        raw_country = nat.get(cid) or "India"
+        country = country_codes.get(raw_country, raw_country)
         value = _project_value(r["skill"], role, value_scale=value_scale)
         base_price = _base_price(value)
         rows.append(
