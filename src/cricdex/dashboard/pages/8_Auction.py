@@ -101,3 +101,41 @@ if st.button("Solve"):
             file_name="cricdex_squad.csv",
             mime="text/csv",
         )
+
+
+st.divider()
+st.subheader("🎯 War-room advisor — find a substitute")
+st.caption(
+    "Target player went above your budget? Plug their name + remaining purse "
+    "below. The advisor ranks pool players by composite of graph similarity "
+    "(co-faced cohort) and Bayes-driven projected value, filtered to your "
+    "budget and role. Requires Neo4j up + populated."
+)
+adv_target = st.text_input("Unavailable target (unique_name)", "JJ Bumrah")
+col1, col2, col3 = st.columns(3)
+with col1:
+    adv_budget = st.number_input("Remaining purse (cr)", value=8.0, step=0.5, min_value=0.0)
+with col2:
+    adv_role = st.selectbox("Role", ["", "bowler", "batter", "all_rounder"], index=1)
+with col3:
+    adv_n = st.slider("Top-N substitutes", 3, 15, 5)
+if st.button("Recommend substitutes"):
+    try:
+        from cricdex.auction import advisor as _advisor
+
+        rec = _advisor.recommend_substitutes(
+            adv_target,
+            budget=adv_budget,
+            role=adv_role or None,
+            n=adv_n,
+            pool=pool,
+        )
+        if rec.is_empty():
+            st.warning(
+                "No affordable graph-similar candidates. Try a higher budget, "
+                "wider role filter, or check the target's unique_name."
+            )
+        else:
+            st.dataframe(rec.to_pandas(), use_container_width=True, hide_index=True)
+    except ImportError as e:
+        st.error(f"`neo4j` extra not installed ({e}). Run `uv sync --extra graph`.")
