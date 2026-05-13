@@ -63,6 +63,21 @@ PRICE_TIERS = [0.30, 0.50, 0.75, 1.0, 1.5, 2.0]
 
 ROLE_FLOOR = {"batter": 0.5, "bowler": 0.5, "all_rounder": 0.8}
 
+# Manual nationality overrides for People-Register name collisions.
+# Cricsheet's IPL ball-by-ball uses bare unique_names; the JOIN against
+# `people` picks whichever identifier comes first, which mis-attributes
+# IPL balls to namesakes who actually represent another country in
+# men's T20Is. Until a per-match registry lookup is wired, override by
+# unique_name. Keep this list short and well-reasoned — every entry
+# overrides the data flow.
+NATIONALITY_OVERRIDES: dict[str, str] = {
+    # Afghan leg-spinner (GT, SRH); JOIN picks the Nepali namesake.
+    "Rashid Khan": "AF",
+    # Pakistani-origin LSG pacer; t20s_male top team is the Hong Kong
+    # namesake.
+    "Mohsin Khan": "PK",
+}
+
 
 def _load_ratings(path: Path | str = DEFAULT_RATINGS_PATH) -> pl.DataFrame:
     rows = json.loads(Path(path).read_text())
@@ -222,13 +237,17 @@ def build_pool(
         if c["balls_faced"] + c["balls_bowled"] < min_balls:
             continue
         role = _role_of(c, r["role"])
-        raw_country = nat.get(cid) or "India"
-        country = country_codes.get(raw_country, raw_country)
+        name = name_of.get(cid, cid)
+        if name in NATIONALITY_OVERRIDES:
+            country = NATIONALITY_OVERRIDES[name]
+        else:
+            raw_country = nat.get(cid) or "India"
+            country = country_codes.get(raw_country, raw_country)
         value = _project_value(r["skill"], role, value_scale=value_scale)
         base_price = _base_price(value)
         rows.append(
             {
-                "name": name_of.get(cid, cid),
+                "name": name,
                 "cricsheet_id": cid,
                 "role": role,
                 "country": country,
