@@ -100,6 +100,7 @@ def train(
     purse: float = 90.0,
     out_path: Path | str = "auction_policy.pt",
     verbose: bool = True,
+    franchises: list[dict] | None = None,
 ) -> dict:
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -108,7 +109,13 @@ def train(
 
     history: list[dict] = []
     for epoch in range(epochs):
-        env = AuctionEnv(pool, n_franchises=n_franchises, purse=purse, seed=seed + epoch)
+        env = AuctionEnv(
+            pool,
+            n_franchises=n_franchises,
+            purse=purse,
+            seed=seed + epoch,
+            franchises=franchises,
+        )
         group_obs, group_act, group_logp, group_R = [], [], [], []
         for _ in range(group_size):
             obs, act, logp, rew = _rollout(env, policy)
