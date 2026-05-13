@@ -1,0 +1,128 @@
+"""Streamlit page: graph-traversal Player Twins / replacement finder.
+
+Three views over the scout Neo4j graph:
+
+- **Co-faced bowlers** — players who FACED the most distinct bowlers
+  in common with the target. Best for batter affinity.
+- **Teammate overlap** — players sharing the most distinct teammates,
+  weighted by `matches_together`. Best for "same competitive cohort".
+- **Find replacement** — auto-flips the FACED traversal direction
+  based on the target's `role`, applies recency + balls + role
+  filters, returns the candidate cohort. Best for "next Bumrah" /
+  "next Kohli" workflows.
+
+Requires a populated Neo4j (`make docker-scout-up && make
+docker-scout-populate COLLECTION=ipl`) and the `scout` extras
+installed (`uv sync --extra graph`).
+"""
+
+from __future__ import annotations
+
+import streamlit as st
+
+st.set_page_config(page_title="CricDex Player Twins", page_icon="🔗", layout="wide")
+st.title("🔗 CricDex — player twins & replacement finder")
+st.caption(
+    "Graph-traversal similarity over the scout Neo4j (FACED + TEAMMATE_OF + "
+    "PLAYED_IN edges). Use this when you want a relational signal — 'same "
+    "competitive neighbourhood as X' — instead of a feature-vector cosine."
+)
+
+
+try:
+    from cricdex.scout.graph import similar
+except ImportError as e:
+    st.error(f"`neo4j` extra not installed ({e}). Run `uv sync --extra graph` " "and retry.")
+    st.stop()
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _co_faced(name: str, k: int):
+    return similar.co_faced_bowlers(name, top_k=k)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _teammates(name: str, k: int):
+    return similar.teammate_overlap(name, top_k=k)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _replacement(name, k, role, max_bw, max_bt, min_last):
+    return similar.find_replacement(
+        name,
+        top_k=k,
+        role=role or None,
+        max_balls_bowled=max_bw,
+        max_balls_faced=max_bt,
+        min_last_match_date=min_last or None,
+    )
+
+
+with st.sidebar:
+    mode = st.radio(
+        "Query",
+        ["Find replacement", "Co-faced bowlers", "Teammate overlap"],
+        index=0,
+    )
+    name = st.text_input("Target player (unique_name)", "JJ Bumrah")
+    top_k = st.slider("Top-K", 5, 25, 10)
+    role = ""
+    max_balls_bowled: int | None = None
+    max_balls_faced: int | None = None
+    min_last_match: str = ""
+    if mode == "Find replacement":
+        role = st.selectbox(
+            "Role filter",
+            ["", "bowler", "batter", "all_rounder"],
+            index=0,
+            help="Empty = no filter; otherwise restricts to the candidate role.",
+        )
+        max_balls_bowled = st.number_input(
+            "Max balls bowled (career)", value=2000, step=100, min_value=0
+        )
+        max_balls_faced = st.number_input(
+            "Max balls faced (career)", value=10000, step=500, min_value=0
+        )
+        min_last_match = st.text_input("Min last-match date (YYYY-MM-DD)", value="2023-01-01")
+
+
+if not name.strip():
+    st.info("Type a player's `unique_name` (case sensitive) in the sidebar.")
+    st.stop()
+
+
+with st.spinner(f"querying graph for {name!r} …"):
+    if mode == "Co-faced bowlers":
+        rows = _co_faced(name, top_k)
+        st.subheader(f"Top-{top_k} players sharing FACED bowlers with {name}")
+    elif mode == "Teammate overlap":
+        rows = _teammates(name, top_k)
+        st.subheader(f"Top-{top_k} players sharing teammates with {name}")
+    else:
+        rows = _replacement(
+            name,
+            top_k,
+            role,
+            int(max_balls_bowled) if max_balls_bowled is not None else None,
+            int(max_balls_faced) if max_balls_faced is not None else None,
+            min_last_match,
+        )
+        st.subheader(f"Replacement candidates for {name}")
+
+
+if not rows:
+    st.warning(
+        "No candidates returned. Common causes: name typo (case sensitive), "
+        "filters too tight, or scout graph not populated for this collection."
+    )
+    st.stop()
+
+
+import pandas as pd  # noqa: E402
+
+df = pd.DataFrame(rows)
+st.dataframe(df, use_container_width=True, hide_index=True)
+st.caption(
+    "Tip: re-run `make docker-scout-populate COLLECTION=ipl` after each "
+    "Cricsheet ingest so the graph reflects the latest balls."
+)
