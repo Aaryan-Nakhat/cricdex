@@ -10,7 +10,7 @@ MCC Laws + ICC PC (Test/ODI/T20I/Women/U19/WTC) + IPL + The Hundred + BBL + SA20
 
 1. `ingest.py` — download versioned PDFs (manifest of URL + edition + effective_date).
 2. `parse.py` — Marker → Markdown → clause-hierarchy chunker (preserve Law/Clause numbering).
-3. `retrieval.py` — Jina dense + BM25 + RRF fusion + Jina rerank.
+3. `retrieval.py` — dense (`Snowflake/snowflake-arctic-embed-l-v2.0`, multilingual, 100+ langs, Matryoshka-truncated to 384-dim) + BM25 + RRF fusion + Jina rerank.
 4. `qa.py` — Gemini Flash with citation discipline (cite source-id + clause).
 
 ## Modes

@@ -194,32 +194,39 @@ Coefficient. Each needs either a win-probability model (NGI),
 opponent OAR (Wicket Quality), or CV-derived release data
 (Disguise).
 
-### 2.6 Auction RL self-play
+### 2.6 Auction RL self-play (partially landed)
 
-- **What:** PettingZoo + Stable-Baselines3 multi-agent self-play
-  where each franchise is an agent with its own personality
-  prior, simulating thousands of auction trajectories.
-- **Why deferred:** MILP solver (already shipped) answers
-  "build the best squad given a pool" — the harder question of
-  "what should I bid for player X given how the other franchises
-  will react" needs the RL stack and 6 hr of Colab T4 compute to
-  train. Auction-v2 milestone.
-- **Fix:** Build the env in `cricdex.auction.env`, train via
-  `scripts/auction_train.py`, ship a Streamlit war-room that
-  runs N simulated auctions and reports the bid-strategy
-  distribution.
+- **What:** End-state goal is PettingZoo + per-franchise personality
+  multi-agent self-play across thousands of auction trajectories.
+- **Status today:**
+  - ✅ `cricdex.auction.rl_env.AuctionEnv` — single-agent Gym-style
+    env (16-dim state, 11 discrete bid buckets, shaped per-round
+    reward), learner vs N-1 Monte-Carlo opponents from
+    `simulator.DEFAULT_FRANCHISES`.
+  - ✅ `cricdex.auction.grpo` — GRPO (DeepSeek 2024) trainer, no
+    value head, group-relative advantage. Produces a `policy.zip`
+    that `dashboard/pages/B_Auction_Simulator.py` can load.
+  - ⏳ Multi-agent PettingZoo self-play, opponent diversification
+    via personality YAML extracted from 10 yr bid history.
+  - ⏳ Real bid-history-trained personality priors (currently uniform
+    mid-aggression / mid-risk opponents).
+- **Why the v2 leg stays deferred:** Full multi-agent self-play on
+  10 agents needs hours of GPU compute; current scaffold runs on CPU
+  in minutes which is sufficient for the practitioner-facing
+  "realistic price band + AI bidder vs MC opponents" demo.
+- **Fix path:** Wrap `AuctionEnv` in a PettingZoo AECEnv, lift the
+  learner from slot 0 to all slots, train each franchise's policy
+  with personality-conditioned priors. Re-use `grpo.PolicyMLP` per
+  agent.
 
-### 2.7 Rules retrieval reranker
+### 2.7 Rules retrieval reranker — ✅ shipped
 
-- **What:** Hybrid retrieval today is dense + BM25 + RRF fusion.
-  A Cohere / Jina cross-encoder rerank on the fused top-K would
-  meaningfully improve precision for ambiguous queries.
-- **Fix:** Add `cricdex.rules.retrieval.rerank` calling Jina
-  reranker (free tier 1M tokens) over the top-30, returning the
-  top-10. Wire into `hybrid_search` behind a `rerank=True` flag.
-- **Smoke test:** Eval set of 50 hand-built (query, expected
-  source_id+clause) pairs scores higher top-1 accuracy with
-  reranker on.
+- Hybrid retrieval is dense (`Snowflake/snowflake-arctic-embed-l-v2.0`,
+  multilingual, MRL-truncated to 384-dim) + BM25 + RRF fusion + Jina
+  cross-encoder rerank (`jina-reranker-v2-base-multilingual`) on the
+  fused top-K. Falls back to RRF order when `JINA_API_KEY` is unset.
+- Open follow-on: build a 50-query hand-labelled eval set to track
+  top-1 accuracy across model swaps. Not blocking.
 
 ### 2.8 Live → dashboard web socket
 

@@ -12,9 +12,9 @@
    - Redis (Upstash) — cache + streams.
    - Cloudflare R2 — raw PDFs, model artifacts, exports.
 4. **Modeling**
-   - Bayesian hierarchical ratings (PyMC) with opponent-strength bridging — propagates pro-tier opponent strength into grassroots ratings.
+   - Bayesian hierarchical ratings (NumPyro / JAX, ADVI + NUTS) with opponent-strength bridging — propagates pro-tier opponent strength into grassroots ratings.
    - XGBoost auction price predictor.
-   - Multi-agent RL (PettingZoo + SB3) for auction sim.
+   - GRPO single-agent RL (PyTorch) for the auction simulator; full PettingZoo + SB3 multi-agent self-play deferred to year 2.
    - LLM-based rule QA, social sentiment, match reports, commentary translation.
 5. **Serve**
    - FastAPI app (`cricdex.api.main`) on Oracle ARM free VM.

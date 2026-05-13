@@ -40,11 +40,11 @@ All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
 
 | Module | What |
 |---|---|
-| `scout` | Player graph (Neo4j) + Bayesian opponent-adjusted ratings (PyMC ADVI) + style-twin k-NN. Pro tier ingested; grassroots / CricHeroes tier planned. |
+| `scout` | Player graph (Neo4j) + Bayesian opponent-adjusted ratings (NumPyro/JAX, ADVI + NUTS) + style-twin k-NN. Pro tier ingested; grassroots / CricHeroes tier planned. |
 | `metrics` | Six novel context-adjusted ratings: Pressure Runs, Intent Curve, Recoverability, Counter-Attack, Boundary Dependency, Sticky Dot Pressure. |
 | `rules` | Natural-language Q&A over 21 verified rulebook PDFs (MCC Laws + ICC PCs + IPL + Hundred + BBL/WBBL + SA20 + Cricket Australia domestic + ICC Codes + Anti-Corruption). 11k+ clauses indexed in Qdrant. Curated supplementary clauses cover gaps such as the IPL Impact Player rule. |
 | `pulse` | Reddit fetcher + Gemini sentiment extractor. Data load blocked from datacenter IPs. |
-| `auction` | MILP squad optimiser via `scipy.optimize.milp` (CLI + dashboard war-room). Multi-agent RL self-play remains the auction-v2 milestone. |
+| `auction` | MILP squad optimiser via `scipy.optimize.milp` + Monte-Carlo price-band simulator + GRPO RL self-play scaffold (`scripts/train_auction_grpo.py`). CLI + dashboard war-room. |
 | `drs` | 20-scenario umpire-decision practice game with MCC / ICC citations. |
 | `records` | 9 record SQL queries + On-This-Day digest. |
 | `reports` | LLM-written match reports grounded in Cricsheet facts, no hallucinations. |
@@ -65,7 +65,7 @@ CV, Tournament B2B.
 ## Stack
 
 - Python 3.12, `uv` package manager
-- DuckDB (analytics) · PyMC (ratings) · Qdrant (vectors) · sentence-transformers MiniLM (embeddings)
+- DuckDB (analytics) · NumPyro / JAX (Bayesian ratings) · Qdrant (vectors) · Snowflake-arctic-embed-l-v2 (multilingual, Matryoshka-truncated to 384-dim) · PyTorch (GRPO auction agent)
 - FastAPI + Uvicorn (service layer)
 - Postgres + Redis + Neo4j (planned as scout / cache / graph come online)
 - Docker + Docker Compose (deployment)

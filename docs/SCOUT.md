@@ -20,7 +20,7 @@ Phase 2 follow-ups.
 | Pro (intl + IPL + major T20) | Cricsheet ball-by-ball | ✅ ingested |
 | Identity bridge | Cricsheet People Register (17,981 players, 99.8% Cricinfo coverage) | ✅ — see [IDENTITY.md](IDENTITY.md) |
 | Player graph | Neo4j — Player / Match / Venue + FACED edges | ✅ |
-| Bayesian opponent-adjusted ratings | PyMC ADVI | ✅ — first cut |
+| Bayesian opponent-adjusted ratings | NumPyro / JAX (ADVI default, NUTS available) | ✅ — first cut |
 | Cricinfo player profile (DOB, role, style) | Cricinfo scrape | planned |
 | Semi-pro (Ranji / SMAT / Hazare) | BCCI Domestic scrape | planned |
 | Grassroots (CricHeroes) | CricHeroes scrape / partner API | planned |

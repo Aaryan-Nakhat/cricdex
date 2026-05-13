@@ -9,7 +9,7 @@
 - Public leaderboard surface (Streamlit dashboard + per-metric JSON).
 - Rulebook PDF ingest. 21 verified PDFs from MCC / ICC / IPL / Hundred / BBL / WBBL / SA20 / Cricket Australia domestic / ICC Codes / Anti-Corruption.
 - pdfplumber clause-hierarchy parser → ~11 k clauses.
-- Qdrant + hybrid retrieval (dense MiniLM + BM25 + RRF fusion) + Gemini-proxy QA with citation discipline.
+- Qdrant + hybrid retrieval (dense `Snowflake/snowflake-arctic-embed-l-v2.0`, multilingual, Matryoshka-truncated to 384-dim + BM25 + RRF fusion + Jina rerank) + Gemini-proxy QA with citation discipline.
 - Curated supplementary clauses for the IPL Impact Player rule (since BCCI's Player Regulations PDF isn't public).
 - `/rules` chat UI (Streamlit page).
 
@@ -19,14 +19,14 @@
 - CricHeroes scraper ⏳ — Phase 2 follow-on.
 - Photo CLIP embeds ⏳ — needed only for hard identity ambiguity; punt until BCCI / CricHeroes layers land.
 - Neo4j graph populated for the pro tier ✅ (799 IPL players, 1,219 matches, 30,774 FACED edges).
-- Bayesian opponent-adjusted ratings ✅ (PyMC ADVI, 1,043 player-roles fit).
+- Bayesian opponent-adjusted ratings ✅ (NumPyro / JAX, ADVI default + NUTS available, 1,043 player-roles fit; 10-50× faster than the prior PyMC implementation).
 - Style-twin k-NN search ✅ (cosine over a 9-axis feature vector + Bayes skill).
 - `/scout` filter UI ✅ via the Player Profile + Compare pages on the dashboard.
 
 ## Phase 3 (Pulse + Auction) — partial
 
 - `pulse` social-trend pipeline ✅ (Reddit JSON fetcher + Gemini sentiment + per-player aggregate). Data fetch blocked from datacenter IPs.
-- `auction` MILP squad optimiser ✅ (scipy.optimize.milp; CLI + dashboard war-room + CSV upload). Multi-agent RL self-play remains the heavier auction-v2 milestone.
+- `auction` MILP squad optimiser ✅ + Monte-Carlo price-band simulator ✅ + GRPO RL self-play scaffold ✅ (single-agent vs MC opponents, PyTorch, `scripts/train_auction_grpo.py` produces a `policy.zip` that the dashboard page loads). Full PettingZoo multi-agent self-play with personality-extracted franchise YAML remains the year-2 auction-v2 milestone.
 
 ## Phase 4 (Live + Predict + Venues + Newsletter + DRS) — ✅ partial
 
@@ -57,6 +57,6 @@
 - Highlight CV — auto key-moment clip extraction.
 - Tournament management B2B (partner with CricHeroes instead of competing).
 - **Voice-cloned commentary translation** — final-feature milestone. Clone English commentators with XTTS-v2 / F5-TTS / OpenVoice and synthesise target-language audio in their voice. Ships after text-translation v1 (✅) plus opt-in licensing with retired commentators.
-- Multi-agent RL auction simulator (auction-v2) on top of the MILP solver.
+- Multi-agent RL auction-v2 — PettingZoo + per-franchise personality YAML (extracted from 10 yr bid history via Gemini) on top of today's GRPO single-agent scaffold.
 - Predict game once live-feed is unblocked.
 - BCCI / CricHeroes / Cricinfo scrapers via Playwright + residential proxies, so the datacenter-blocked feeds finally populate.

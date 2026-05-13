@@ -33,7 +33,7 @@ This brings up two services:
 ```bash
 make docker-ingest-rules-download   # fetch verified rulebook PDFs into ./data/rules/raw/
 make docker-ingest-rules-parse      # pdfplumber → clause JSONL in ./data/rules/parsed/
-make docker-embed-rules             # MiniLM → Qdrant collection 'rules_clauses'
+make docker-embed-rules             # snowflake-arctic-embed-l-v2 (truncate_dim=384) → Qdrant 'rules_clauses'
 make docker-ingest-cricsheet        # download a Cricsheet collection → Parquet + DuckDB
 make docker-ingest-people           # Cricsheet People Register (cross-IDs)
 make docker-metrics-all COLLECTION=ipl  # compute every novel metric → data/metrics/
@@ -102,7 +102,7 @@ git clone https://github.com/Aaryan-Nakhat/cricdex.git
 cd cricdex
 uv sync --group dev
 cp .env.example .env
-# Fill in HF_TOKEN (personal, for first-time MiniLM download),
+# Fill in HF_TOKEN (personal, for first-time snowflake-arctic-embed-l-v2 download),
 # GEMINI_TMP_URL (+ GEMINI_TMP_API_KEY) for LLM answers, etc.
 ```
 
@@ -136,7 +136,7 @@ list). The most important ones:
 
 | Variable | Required? | Notes |
 |---|---|---|
-| `HF_TOKEN` | for first-time local model download | Use a personal read token; never a work one. The Docker image pre-bakes the MiniLM model so this is irrelevant inside the container. |
+| `HF_TOKEN` | for first-time local model download | Use a personal read token; never a work one. The Docker image pre-bakes the snowflake-arctic-embed-l-v2 weights so this is irrelevant inside the container. |
 | `GEMINI_TMP_URL` | for LLM-synthesised answers | Stop-gap proxy endpoint (`/generate`, `/generate_json`). Replace with personal `GEMINI_API_KEY` + `google-genai` before public launch. |
 | `GEMINI_TMP_API_KEY` | optional | Sent as `x-api-key` if the proxy needs auth. |
 | `QDRANT_URL` | for server-mode Qdrant | When unset the code falls back to embedded on-disk storage under `data/rules/qdrant/`. The Docker Compose stack auto-sets it to `http://qdrant:6333`. |
@@ -158,5 +158,6 @@ list). The most important ones:
   so re-running resumes from the cached zip.
 
 - **Docker build very slow first time**: the build pre-downloads the
-  MiniLM model (~90 MB) and `uv sync` (~1.5 GB of wheels). Subsequent
-  builds reuse those layers and finish in seconds.
+  snowflake-arctic-embed-l-v2 weights (~2 GB) and `uv sync` (~2 GB of
+  wheels — torch + jax dominate). Subsequent builds reuse those layers
+  and finish in seconds.
