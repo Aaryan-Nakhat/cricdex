@@ -217,7 +217,11 @@ def sticky_dots_cmd(
 @app.command("all")
 def all_cmd(
     collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
-    top_n: int = typer.Option(100, "--top-n"),
+    top_n: int = typer.Option(
+        500,
+        "--top-n",
+        help="Per-metric row cap. Default 500 — keeps the JSON files small but big enough that Profile/Compare lookups for any reasonably-active player succeed.",
+    ),
 ) -> None:
     """Compute every metric for a collection and dump all JSON outputs."""
     _emit(

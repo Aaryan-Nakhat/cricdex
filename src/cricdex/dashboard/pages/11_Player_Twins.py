@@ -93,11 +93,30 @@ with st.sidebar:
     max_balls_faced: int | None = None
     min_last_match: str = ""
     if mode == "Find replacement":
+        # Auto-detect the target's role so the default is sensible —
+        # a Bumrah replacement should return bowlers, not batters.
+        from cricdex.scout.graph.schema import driver as _drv
+
+        _target_role = "bowler"
+        try:
+            _d = _drv()
+            with _d.session() as _s:
+                _row = _s.run(
+                    "MATCH (p:Player {unique_name:$n}) RETURN p.role AS role",
+                    n=name,
+                ).single()
+                if _row and _row["role"]:
+                    _target_role = _row["role"]
+            _d.close()
+        except Exception:
+            pass
+        _role_options = ["bowler", "batter", "all_rounder", ""]
+        _default_idx = _role_options.index(_target_role) if _target_role in _role_options else 0
         role = st.selectbox(
             "Role filter",
-            ["", "bowler", "batter", "all_rounder"],
-            index=0,
-            help="Empty = no filter; otherwise restricts to the candidate role.",
+            _role_options,
+            index=_default_idx,
+            help=(f"Default = the target's own role (here: {_target_role}). " "Empty = no filter."),
         )
         style = st.selectbox(
             "Bowling style (bowler replacements only)",
