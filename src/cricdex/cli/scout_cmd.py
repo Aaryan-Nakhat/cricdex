@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from cricdex.cli._shared import die, render_table
+from cricdex.cli._shared import die, render_table, resolve_or_die
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -24,11 +24,13 @@ def _similar():
 
 @app.command("twins", help="Graph cohort — co-faced bowlers or teammate overlap.")
 def twins(
-    name: str = typer.Argument(..., help="unique_name (case sensitive)"),
+    name: str = typer.Argument(..., help="player name (fuzzy-matched)"),
     mode: str = typer.Option("co_faced", "--mode", help="co_faced | teammates"),
     top_k: int = typer.Option(10, "-k", "--top-k"),
+    collection: str = typer.Option("ipl", "--collection", "-c"),
 ) -> None:
     s = _similar()
+    name = resolve_or_die(name, collection=collection)
     if mode == "co_faced":
         rows = s.co_faced_bowlers(name, top_k=top_k)
     elif mode == "teammates":
@@ -48,8 +50,10 @@ def find_replacement(
     max_balls_bowled: int | None = typer.Option(None, "--max-balls-bowled"),
     max_balls_faced: int | None = typer.Option(None, "--max-balls-faced"),
     min_last_match: str | None = typer.Option(None, "--min-last-match"),
+    collection: str = typer.Option("ipl", "--collection", "-c"),
 ) -> None:
     s = _similar()
+    name = resolve_or_die(name, collection=collection)
     rows = s.find_replacement(
         name,
         top_k=top_k,

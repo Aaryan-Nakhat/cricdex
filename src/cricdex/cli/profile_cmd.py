@@ -5,15 +5,23 @@ from __future__ import annotations
 
 import typer
 
-from cricdex.cli._shared import EXIT_MISSING_CRED, console, die, render_kv, render_table
+from cricdex.cli._shared import (
+    EXIT_MISSING_CRED,
+    console,
+    die,
+    render_kv,
+    render_table,
+    resolve_or_die,
+)
 
 
 def profile(
-    name: str = typer.Argument(..., help="player unique_name (case sensitive)"),
+    name: str = typer.Argument(..., help="player name (fuzzy-matched against collection)"),
     collection: str = typer.Option("ipl", "--collection", "-c"),
 ) -> None:
     from cricdex.profiles import builder
 
+    name = resolve_or_die(name, collection=collection)
     p = builder.build(name, collection)
     c = console()
     c.print(f"\n[bold cyan]{p.get('name', name)}[/bold cyan]")
@@ -38,6 +46,8 @@ def compare(
 ) -> None:
     from cricdex.comparator import compare as cmp
 
+    a = resolve_or_die(a, collection=collection)
+    b = resolve_or_die(b, collection=collection)
     rows = cmp.side_by_side(a, b, collection=collection)
     render_table(rows, title=f"{a} vs {b}")
 

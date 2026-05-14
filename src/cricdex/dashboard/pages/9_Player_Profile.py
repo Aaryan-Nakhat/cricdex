@@ -1,6 +1,9 @@
 """Streamlit page: per-player profile.
 
-Pulls everything CricDex knows about a player into one card."""
+Pulls everything CricDex knows about a player into one card. Inputs
+go through the fuzzy resolver so typos / partial names are caught
+with a 'did you mean?' confirmation.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +11,7 @@ import duckdb
 import streamlit as st
 
 from cricdex.config import DATA_DIR
+from cricdex.dashboard._widgets import fuzzy_player_input, provenance_banner
 from cricdex.profiles import builder
 
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -16,9 +20,11 @@ st.set_page_config(page_title="CricDex Profile", page_icon="🪪", layout="wide"
 st.title("🪪 CricDex — player profile")
 st.caption(
     "Everything CricDex knows about one player — cross-source IDs, "
-    "Wikidata enrichment, career totals, novel metrics, Bayesian "
-    "scout-rating skills, top style twins."
+    "career totals, novel metrics, Bayesian scout-rating skills, "
+    "top style twins, and the graph cohort. All derived live from "
+    "Cricsheet ball-by-ball + the People Register."
 )
+provenance_banner(source="cricsheet", path=DUCKDB_PATH)
 
 
 @st.cache_data
@@ -50,9 +56,20 @@ with st.sidebar:
     collection = st.text_input("Collection", value="ipl")
     pool = list_players(collection)
     if not pool:
-        st.warning(f"no balls_{collection} — run cricsheet ingest first")
+        st.warning(
+            f"no balls_{collection} — run `cricdex data ingest cricsheet -c {collection}` first"
+        )
         st.stop()
-    name = st.selectbox("Player", pool)
+    st.markdown("Type a player name — fuzzy-matched against the collection.")
+    name = fuzzy_player_input(
+        label="Player",
+        default="V Kohli",
+        collection=collection,
+        key="profile-player",
+    )
+    if not name:
+        st.info("Confirm a player above to load the profile.")
+        st.stop()
 
 profile = builder.build(name, collection)
 
@@ -82,21 +99,75 @@ c4.metric("Wickets", career.get("career_wickets", 0))
 
 st.subheader("Novel metrics")
 metrics = profile.get("metrics") or {}
-left, right = st.columns(2)
-with left:
-    st.markdown("**Pressure Runs**")
-    st.json(metrics.get("pressure_runs") or {"_": "no row"})
-    st.markdown("**Recoverability**")
-    st.json(metrics.get("recoverability") or {"_": "no row"})
-    st.markdown("**Counter-Attack**")
-    st.json(metrics.get("counter_attack") or {"_": "no row"})
-with right:
-    st.markdown("**Boundary Dependency**")
-    st.json(metrics.get("boundary_dependency") or {"_": "no row"})
-    st.markdown("**Sticky Dot Pressure**")
-    st.json(metrics.get("sticky_dot_pressure") or {"_": "no row"})
-    st.markdown("**Bayesian scout-rating**")
-    st.json(profile.get("bayes") or {"_": "no row"})
+METRIC_HINTS = {
+    "pressure_runs": (
+        "Strike rate on balls where the required run rate is ≥ 1.5× the venue "
+        "median (chase only). Higher = better under pressure."
+    ),
+    "recoverability": (
+        "How efficiently this batter recovers after a slow patch. Higher = "
+        "doesn't let one dot ball spiral."
+    ),
+    "counter_attack": (
+        "Strike rate inflation right after a wicket falls. Higher = aggressive "
+        "after partnership-breaking dismissals."
+    ),
+    "boundary_dependency": (
+        "Share of runs from 4s + 6s. Higher = boundary-reliant; lower = strong " "strike-rotator."
+    ),
+    "sticky_dot_pressure": (
+        "Wicket rate on the next ball after a 4+ consecutive dot streak in the "
+        "same over (bowler metric). Higher = turns pressure into dismissals."
+    ),
+}
+
+
+def _metric_to_rows(slug: str, payload) -> list[dict]:
+    if not payload:
+        return [
+            {
+                "value": "—",
+                "note": "no data — below min-balls threshold or not computed for this collection",
+            }
+        ]
+    if isinstance(payload, dict):
+        return [
+            {"field": k, "value": v}
+            for k, v in payload.items()
+            if k not in {"batter", "bowler", "cricsheet_id"} and v is not None
+        ] or [{"value": "—", "note": "all fields empty"}]
+    return [{"value": str(payload)}]
+
+
+for slug, hint in METRIC_HINTS.items():
+    with st.expander(f"**{slug.replace('_', ' ').title()}** — {hint}"):
+        st.table(_metric_to_rows(slug, metrics.get(slug)))
+
+
+st.markdown("### Bayesian scout-rating")
+bayes = profile.get("bayes") or {}
+
+
+def _bayes_sentence(role_key: str, label: str) -> str:
+    skill = bayes.get(f"bayes_skill_{role_key}")
+    sd = bayes.get(f"bayes_skill_sd_{role_key}")
+    balls = bayes.get(f"bayes_balls_{role_key}")
+    if skill is None:
+        return f"{label}: not enough data."
+    confidence = "high" if (sd or 1) < 0.05 else ("medium" if (sd or 1) < 0.10 else "low")
+    return (
+        f"{label}: **{skill:+.3f}** ({confidence} confidence; "
+        f"σ={sd:.3f} on {balls or '?'} balls)."
+    )
+
+
+st.markdown(_bayes_sentence("batter", "Batter skill"))
+st.markdown(_bayes_sentence("bowler", "Bowler skill"))
+st.caption(
+    "Skill is on the natural-log scale of the NumPyro / JAX hierarchical "
+    "Negative-Binomial fit. 0 = league average. +0.30 ≈ marquee; -0.30 ≈ "
+    "replacement-level."
+)
 
 st.subheader("Style twins")
 left, right = st.columns(2)
