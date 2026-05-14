@@ -27,6 +27,12 @@ T20Is for nationality, the Cricsheet People Register for identity)
 and shipped with explicit citations or reproducible code. No
 black-box scorecards.
 
+This Streamlit dashboard is one of two surfaces — the same data is
+queryable from the terminal via the `cricdex` CLI (`uvx --from cricdex
+cricdex --help`). Both read `$CRICDEX_HOME/data/` (default
+`~/.cricdex/data/`) so updates from `cricdex data ingest …` show up
+here without restart.
+
 ### Pages
 
 - **Leaderboards** — nine novel-metric rankings: Pressure Runs,
