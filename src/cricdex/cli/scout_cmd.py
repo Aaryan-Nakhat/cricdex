@@ -75,12 +75,13 @@ def twins(
         f"[dim]·  bowling style:[/dim] [bold]{style}[/bold]"
     )
 
-    if mode == "co_faced":
-        rows = s.co_faced_bowlers(name, top_k=top_k)
-    elif mode == "teammates":
-        rows = s.teammate_overlap(name, top_k=top_k)
-    else:
-        die(f"unknown mode `{mode}` — use co_faced or teammates")
+    with _render.spinner(f"querying graph ({mode})"):
+        if mode == "co_faced":
+            rows = s.co_faced_bowlers(name, top_k=top_k)
+        elif mode == "teammates":
+            rows = s.teammate_overlap(name, top_k=top_k)
+        else:
+            die(f"unknown mode `{mode}` — use co_faced or teammates")
     if not rows:
         die("no cohort returned — graph populated for this collection?")
 
@@ -123,15 +124,16 @@ def find_replacement(
     if role:
         console().print(f"[dim]filter:[/dim] role = [bold]{role}[/bold]")
 
-    rows = s.find_replacement(
-        name,
-        top_k=top_k,
-        role=role,
-        max_balls_bowled=max_balls_bowled,
-        max_balls_faced=max_balls_faced,
-        min_last_match_date=min_last_match,
-        bowling_style=style,
-    )
+    with _render.spinner("searching for replacement candidates"):
+        rows = s.find_replacement(
+            name,
+            top_k=top_k,
+            role=role,
+            max_balls_bowled=max_balls_bowled,
+            max_balls_faced=max_balls_faced,
+            min_last_match_date=min_last_match,
+            bowling_style=style,
+        )
     if not rows:
         die("no candidates — relax filters or check spelling")
 

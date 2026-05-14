@@ -37,7 +37,8 @@ def ask(
     _render.intro_panel(_copy.RULES_INTRO, title="Rules")
 
     fmt_list = [f.strip() for f in formats.split(",") if f.strip()] or None
-    res = answer(question, formats=fmt_list, top_k=top_k)
+    with _render.spinner("retrieving + ranking + answering"):
+        res = answer(question, formats=fmt_list, top_k=top_k)
 
     c = console()
     c.print(f"[bold]Q.[/bold] {question}\n")

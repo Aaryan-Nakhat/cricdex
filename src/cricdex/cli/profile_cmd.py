@@ -24,7 +24,8 @@ def profile(
     from cricdex.profiles import builder
 
     name = resolve_or_die(name, collection=collection)
-    p = builder.build(name, collection)
+    with _render.spinner(f"building profile for {name}"):
+        p = builder.build(name, collection)
 
     _render.header(p.get("name", name), subtitle=f"collection: {collection}")
     _render.intro_panel(_copy.PROFILE_INTRO, title="Profile")
@@ -105,7 +106,8 @@ def profile(
     try:
         from cricdex.scout.graph import similar
 
-        cf_rows = similar.co_faced_bowlers(name, top_k=8)
+        with _render.spinner("traversing scout graph"):
+            cf_rows = similar.co_faced_bowlers(name, top_k=8)
         if cf_rows:
             _render.pretty_table(
                 cf_rows,
@@ -117,7 +119,8 @@ def profile(
                 "no co-faced cohort — populate scout graph "
                 f"(`cricdex data ingest graph -c {collection}`)"
             )
-        tm_rows = similar.teammate_overlap(name, top_k=8)
+        with _render.spinner("loading teammate overlap"):
+            tm_rows = similar.teammate_overlap(name, top_k=8)
         if tm_rows:
             _render.pretty_table(
                 tm_rows,

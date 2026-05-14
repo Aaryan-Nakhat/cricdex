@@ -41,7 +41,11 @@ from cricdex.cli import (
 
 app = typer.Typer(
     add_completion=True,
-    no_args_is_help=True,
+    # `invoke_without_command=True` lets the root callback fire when
+    # the user types just `cricdex` (no subcommand) — we use that to
+    # launch the TUI by default instead of dumping --help.
+    invoke_without_command=True,
+    no_args_is_help=False,
     help="CricDex — open cricket intelligence in your terminal.",
     context_settings={"help_option_names": ["-h", "--help"]},
 )
@@ -55,11 +59,25 @@ def _version_callback(value: bool) -> None:
 
 @app.callback()
 def root(
+    ctx: typer.Context,
     version: bool = typer.Option(  # noqa: B008
         False, "--version", "-V", callback=_version_callback, is_eager=True
     ),
 ) -> None:
-    """CricDex root callback — version flag handled here."""
+    """CricDex root callback — `cricdex` with no subcommand launches
+    the TUI; `cricdex --help` lists every subcommand."""
+    if ctx.invoked_subcommand is not None:
+        return
+    # No subcommand → launch the Textual TUI.
+    try:
+        from cricdex.cli.tui import run_tui
+    except ImportError as e:
+        typer.echo(
+            f"TUI requires the `cli` extra (`uv sync --extra cli`). ({e})\n"
+            f"Run `cricdex --help` for the full command list."
+        )
+        raise typer.Exit(code=1) from e
+    run_tui()
 
 
 # Subcommands mounted as sub-apps.

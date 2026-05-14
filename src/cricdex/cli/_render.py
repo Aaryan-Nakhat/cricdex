@@ -57,6 +57,39 @@ def hint(text: str) -> None:
     console().print(f"[dim]tip: {text}[/dim]")
 
 
+# ---------- progress + sparklines --------------------------------------
+
+
+def spinner(message: str):
+    """Context manager: shows an animated dot-clock while a slow operation
+    runs, then clears on exit. Use for compute / network steps that block
+    for >1s — e.g. `with spinner("loading metrics"): ...`."""
+    return console().status(f"[cyan]{message}[/cyan]", spinner="dots")
+
+
+_SPARK_BARS = "▁▂▃▄▅▆▇█"
+
+
+def sparkline(values: list[float]) -> str:
+    """8-glyph Unicode sparkline. Maps len(values) numbers into the 8
+    block characters proportionally; clamps to min/max so a flat line
+    renders as the lowest glyph."""
+    nums = [v for v in values if isinstance(v, int | float)]
+    if not nums:
+        return ""
+    lo = min(nums)
+    hi = max(nums)
+    span = (hi - lo) or 1.0
+    out: list[str] = []
+    for v in values:
+        if not isinstance(v, int | float):
+            out.append(" ")
+            continue
+        idx = int((v - lo) / span * (len(_SPARK_BARS) - 1))
+        out.append(_SPARK_BARS[idx])
+    return "".join(out)
+
+
 # ---------- tables ------------------------------------------------------
 
 
