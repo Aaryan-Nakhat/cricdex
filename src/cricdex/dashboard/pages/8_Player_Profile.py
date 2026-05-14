@@ -213,12 +213,15 @@ bayes = profile.get("bayes") or {}
 
 
 def _bayes_sentence(role_key: str, label: str) -> str:
-    skill = bayes.get(f"bayes_skill_{role_key}")
-    sd = bayes.get(f"bayes_skill_sd_{role_key}")
-    balls = bayes.get(f"bayes_balls_{role_key}")
+    # builder.build returns nested dicts: `bayes.bayes_batter / bayes_bowler`
+    rec = (bayes or {}).get(f"bayes_{role_key}") or {}
+    skill = rec.get("skill")
+    sd = rec.get("skill_sd")
+    balls = rec.get("balls")
     if skill is None:
         return f"{label}: not enough data."
-    confidence = "high" if (sd or 1) < 0.05 else ("medium" if (sd or 1) < 0.10 else "low")
+    sd = sd if sd is not None else 1.0
+    confidence = "high" if sd < 0.05 else ("medium" if sd < 0.10 else "low")
     return (
         f"{label}: **{skill:+.3f}** ({confidence} confidence; "
         f"σ={sd:.3f} on {balls or '?'} balls)."

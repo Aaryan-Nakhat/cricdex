@@ -28,25 +28,78 @@ from cricdex.scout.graph.schema import driver
 
 
 def co_faced_bowlers(unique_name: str, top_k: int = 10) -> list[dict]:
+    """Auto-flip FACED-cohort similarity:
+
+    - Target is a batter: returns OTHER BATTERS who faced the same
+      bowlers (Kohli → RG Sharma, S Dhawan, MS Dhoni, …).
+    - Target is a bowler: returns OTHER BOWLERS who bowled to the same
+      batters (Bumrah → Bhuvneshwar Kumar, Boult, Narine, …).
+
+    The earlier version always assumed batter — for Bumrah it walked
+    out of his rare batting FACED edges and pulled batter cohort,
+    which is nonsense for a "find similar bowler" query.
+    """
     drv = driver()
     try:
         with drv.session() as s:
-            rows = s.run(
-                """
-                MATCH (p:Player {unique_name: $name})-[:FACED]->(b:Player)
-                MATCH (q:Player)-[:FACED]->(b)
-                WHERE q.cricsheet_id <> p.cricsheet_id
-                  AND COALESCE(q.unresolved, false) = false
-                WITH q, COUNT(DISTINCT b) AS shared_bowlers
-                ORDER BY shared_bowlers DESC
-                LIMIT $k
-                RETURN q.unique_name AS name,
-                       q.cricsheet_id AS cricsheet_id,
-                       shared_bowlers
-                """,
+            target_row = s.run(
+                "MATCH (p:Player {unique_name: $name}) "
+                "RETURN p.balls_bowled AS bb, p.balls_faced AS bf, "
+                "p.bowling_style AS bowling_style",
                 name=unique_name,
-                k=top_k,
-            ).data()
+            ).single()
+            target_bb = (target_row or {}).get("bb") or 0
+            target_bf = (target_row or {}).get("bf") or 0
+            # Reliable bowler-vs-batter detection: actual ball volume
+            # ratio (balls_bowled > balls_faced). `role` would mis-tag
+            # Bumrah as all_rounder (lenient 60-ball threshold) and
+            # `bowling_style` mis-tags part-time bowlers like Kohli /
+            # Rohit because they crossed 120 balls in middle overs.
+            target_is_bowler = target_bb > target_bf
+            # Same ratio decides which cohort to surface (q side).
+            cohort_pred = (
+                "q.balls_bowled > q.balls_faced"
+                if target_is_bowler
+                else "q.balls_faced >= q.balls_bowled"
+            )
+            if target_is_bowler:
+                rows = s.run(
+                    f"""
+                    MATCH (p:Player {{unique_name: $name}})<-[:FACED]-(batter:Player)
+                    MATCH (batter)-[:FACED]->(q:Player)
+                    WHERE q.cricsheet_id <> p.cricsheet_id
+                      AND COALESCE(q.unresolved, false) = false
+                      AND {cohort_pred}
+                    WITH q, COUNT(DISTINCT batter) AS shared
+                    ORDER BY shared DESC
+                    LIMIT $k
+                    RETURN q.unique_name AS name,
+                           q.cricsheet_id AS cricsheet_id,
+                           q.bowling_style AS bowling_style,
+                           shared AS shared_batters
+                    """,
+                    name=unique_name,
+                    k=top_k,
+                ).data()
+            else:
+                rows = s.run(
+                    f"""
+                    MATCH (p:Player {{unique_name: $name}})-[:FACED]->(b:Player)
+                    MATCH (q:Player)-[:FACED]->(b)
+                    WHERE q.cricsheet_id <> p.cricsheet_id
+                      AND COALESCE(q.unresolved, false) = false
+                      AND {cohort_pred}
+                    WITH q, COUNT(DISTINCT b) AS shared
+                    ORDER BY shared DESC
+                    LIMIT $k
+                    RETURN q.unique_name AS name,
+                           q.cricsheet_id AS cricsheet_id,
+                           q.role AS role,
+                           shared AS shared_bowlers
+                    """,
+                    name=unique_name,
+                    k=top_k,
+                ).data()
         return rows
     finally:
         drv.close()
@@ -109,14 +162,29 @@ def find_replacement(
     try:
         with drv.session() as s:
             target = s.run(
-                "MATCH (p:Player {unique_name: $name}) RETURN p.role AS role",
+                "MATCH (p:Player {unique_name: $name}) "
+                "RETURN p.role AS role, p.bowling_style AS bowling_style, "
+                "p.balls_bowled AS bb, p.balls_faced AS bf",
                 name=unique_name,
             ).single()
             if target is None:
                 return []
-            target_role = target["role"]
+            target_bb = target["bb"] or 0
+            target_bf = target["bf"] or 0
 
-            if target_role == "bowler":
+            # Auto-flip on actual ball-volume ratio. `role` mis-tags
+            # Bumrah as all_rounder (lenient 60-ball threshold) and
+            # `bowling_style` mis-tags part-time bowlers like Kohli /
+            # Rohit (they crossed the 120-ball threshold so the
+            # middle-overs heuristic fires). `balls_bowled > balls_faced`
+            # is the simplest unambiguous discriminator.
+            target_is_bowler = target_bb > target_bf
+            cohort_pred = (
+                "q.balls_bowled > q.balls_faced"
+                if target_is_bowler
+                else "q.balls_faced >= q.balls_bowled"
+            )
+            if target_is_bowler:
                 base = """
                 MATCH (p:Player {unique_name: $name})<-[:FACED]-(batter:Player)
                 MATCH (batter)-[:FACED]->(q:Player)
@@ -135,6 +203,9 @@ def find_replacement(
                 "q.cricsheet_id <> p.cricsheet_id",
                 "COALESCE(q.unresolved, false) = false",
             ]
+            # Always restrict q to the same archetype as the target,
+            # via the ball-volume ratio.
+            filters.append(cohort_pred)
             if role:
                 filters.append("q.role = $role")
             if max_balls_bowled is not None:
