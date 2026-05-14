@@ -44,7 +44,6 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "psycopg[binary]>=3.2.0",
     "redis>=5.2.0",
-    "boto3>=1.35.0",  # Cloudflare R2 backup / restore (S3-compatible)
     # Utils
     "loguru>=0.7.0",
     "tqdm>=4.67.0",
@@ -56,7 +55,7 @@ dependencies = [
 [project.optional-dependencies]
 graph = ["neo4j>=5.27.0"]
 ui = ["streamlit>=1.41.0", "plotly>=5.24.0", "altair>=5.5.0"]
-bots = ["python-telegram-bot>=21.9.0", "praw>=7.8.0"]
+cli = ["rich>=13.9.0", "textual>=0.86.0"]
 
 [dependency-groups]
 dev = [
@@ -69,6 +68,9 @@ dev = [
     "jupyterlab>=4.3.0",
     "pre-commit>=4.0.0",
 ]
+
+[project.scripts]
+cricdex = "cricdex.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -90,6 +92,7 @@ ignore = ["E501"]
 "tests/*" = ["B"]
 "scripts/*" = ["B008"]
 "src/cricdex/**/cli.py" = ["B008"]
+"src/cricdex/cli/*.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -157,14 +157,3 @@ docker-dashboard-down:
 
 dashboard:
 	uv run streamlit run src/cricdex/dashboard/app.py
-
-# ---- R2 backup ----
-backup:
-	uv run python scripts/backup_to_r2.py backup --what "$${WHAT:-all}"
-
-restore:
-	@if [ -z "$$WHAT" ]; then echo 'usage: make restore WHAT=rules|metrics|cricsheet [STAMP=20260513-164100]'; exit 2; fi
-	uv run python scripts/backup_to_r2.py restore $$WHAT --stamp "$${STAMP:-latest}"
-
-backup-list:
-	uv run python scripts/backup_to_r2.py ls "$${WHAT:-all}"

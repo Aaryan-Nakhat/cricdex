@@ -17,12 +17,8 @@ from cricdex.config import DATA_DIR, settings
 
 def get_qdrant_client(local_path: Path | None = None) -> QdrantClient:
     if settings.qdrant_url:
-        # 300 s is a sane ceiling for bulk upserts of ~10k embeddings against
-        # a Qdrant server reached over a Compose network; per-query latency
-        # is still ms-fast so this just lifts the headroom for ETL.
         return QdrantClient(
             url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key or None,
             prefer_grpc=False,
             timeout=300,
         )
