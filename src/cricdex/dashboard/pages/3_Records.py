@@ -6,14 +6,19 @@ import datetime as dt
 
 import streamlit as st
 
+from cricdex.config import DATA_DIR
+from cricdex.dashboard._widgets import provenance_banner
 from cricdex.records import queries
 
 st.set_page_config(page_title="CricDex Records", page_icon="📜", layout="wide")
 st.title("📜 CricDex — records")
 st.caption(
     "Records derived directly from Cricsheet ball-by-ball — every row is "
-    "computed live from the DuckDB table for whichever collection you pick."
+    "computed live from the DuckDB table for whichever collection you pick. "
+    "Pick a record key from the sidebar; switch to On-This-Day for the "
+    "calendar-anniversary digest."
 )
+provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.duckdb")
 
 RECORD_LABELS: dict[str, str] = {
     "highest_individual_innings": "Highest individual innings",

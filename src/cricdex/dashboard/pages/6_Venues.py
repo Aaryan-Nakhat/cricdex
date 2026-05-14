@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from cricdex.config import DATA_DIR
+from cricdex.dashboard._widgets import provenance_banner
 from cricdex.venues import profile
 
 st.set_page_config(page_title="CricDex Venues", page_icon="🏟️", layout="wide")
@@ -13,6 +15,7 @@ st.caption(
     "Useful for pre-match prep, chase vs set decisions, and phase-by-phase "
     "scoring expectations."
 )
+provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.duckdb")
 
 
 with st.sidebar:

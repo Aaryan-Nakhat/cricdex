@@ -20,13 +20,18 @@ from __future__ import annotations
 
 import streamlit as st
 
+from cricdex.config import DATA_DIR
+from cricdex.dashboard._widgets import fuzzy_player_input, provenance_banner
+
 st.set_page_config(page_title="CricDex Player Twins", page_icon="🔗", layout="wide")
 st.title("🔗 CricDex — player twins & replacement finder")
 st.caption(
     "Graph-traversal similarity over the scout Neo4j (FACED + TEAMMATE_OF + "
-    "PLAYED_IN edges). Use this when you want a relational signal — 'same "
-    "competitive neighbourhood as X' — instead of a feature-vector cosine."
+    "PLAYED_IN edges built from Cricsheet ball-by-ball). Use this when you "
+    "want a relational signal — 'same competitive neighbourhood as X' — "
+    "instead of a feature-vector cosine."
 )
+provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.duckdb")
 
 
 try:
@@ -64,8 +69,16 @@ with st.sidebar:
         ["Find replacement", "Co-faced bowlers", "Teammate overlap"],
         index=0,
     )
-    name = st.text_input("Target player (unique_name)", "JJ Bumrah")
+    name = fuzzy_player_input(
+        label="Target player",
+        default="JJ Bumrah",
+        collection="ipl",
+        key="twins-target",
+    )
     top_k = st.slider("Top-K", 5, 25, 10)
+    if not name:
+        st.info("Confirm a player above to query the graph.")
+        st.stop()
     role = ""
     max_balls_bowled: int | None = None
     max_balls_faced: int | None = None
@@ -84,11 +97,6 @@ with st.sidebar:
             "Max balls faced (career)", value=10000, step=500, min_value=0
         )
         min_last_match = st.text_input("Min last-match date (YYYY-MM-DD)", value="2023-01-01")
-
-
-if not name.strip():
-    st.info("Type a player's `unique_name` (case sensitive) in the sidebar.")
-    st.stop()
 
 
 with st.spinner(f"querying graph for {name!r} …"):

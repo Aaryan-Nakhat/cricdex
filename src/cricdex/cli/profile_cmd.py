@@ -48,8 +48,12 @@ def compare(
 
     a = resolve_or_die(a, collection=collection)
     b = resolve_or_die(b, collection=collection)
-    rows = cmp.side_by_side(a, b, collection=collection)
-    render_table(rows, title=f"{a} vs {b}")
+    df = cmp.compare([a, b], collection=collection)
+    if df.is_empty():
+        die("comparator returned no rows")
+    # Transpose so each player is a column for a side-by-side terminal view.
+    pdf = df.to_pandas().set_index("player").T.reset_index().rename(columns={"index": "metric"})
+    render_table(pdf.to_dict(orient="records"), title=f"{a} vs {b}")
 
 
 def records(
@@ -57,16 +61,40 @@ def records(
     collection: str = typer.Option("ipl", "--collection", "-c"),
     top_n: int = typer.Option(25, "--top-n"),
 ) -> None:
+    import datetime as _dt
+
     from cricdex.records import queries
 
     if key == "today":
-        rows = queries.on_this_day(collection=collection)
-        render_table(rows, title=f"on-this-day {collection}")
+        today = _dt.date.today()
+        df = queries.on_this_day(month=today.month, day=today.day, collection=collection)
+        rows = df.to_dicts() if hasattr(df, "to_dicts") else df
+        if not rows:
+            console().print(
+                f"[dim]nothing notable on {today.month:02d}-{today.day:02d} in {collection}.[/dim]"
+            )
+            return
+        render_table(rows, title=f"on-this-day {today.month:02d}-{today.day:02d} ({collection})")
         return
     if key == "list":
-        render_table([{"key": k} for k in queries.RECORD_KEYS], title="record keys")
+        # Try a few naming conventions — `RECORD_KEYS`, `RECORDS`, or fall back
+        # to introspecting `top` callees.
+        keys = (
+            getattr(queries, "RECORD_KEYS", None)
+            or getattr(queries, "RECORDS", None)
+            or sorted(
+                name
+                for name in dir(queries)
+                if not name.startswith("_") and name not in {"on_this_day", "top"}
+            )
+        )
+        render_table([{"key": k} for k in keys], title="record keys")
         return
-    rows = queries.top(record=key, collection=collection, top_n=top_n)
+    fn = getattr(queries, key, None)
+    if not callable(fn):
+        die(f"unknown record key `{key}` — try `cricdex records list`")
+    df = fn(collection=collection, top_n=top_n)
+    rows = df.to_dicts() if hasattr(df, "to_dicts") else df
     render_table(rows, title=f"{key} top-{top_n} ({collection})")
 
 
@@ -76,8 +104,23 @@ def venues(
 ) -> None:
     from cricdex.venues import profile as v
 
-    res = v.venue_profile(venue, collection=collection)
-    render_kv(res, title=f"venue: {venue}")
+    c = console()
+    c.print(f"\n[bold cyan]{venue}[/bold cyan]  ({collection})\n")
+    try:
+        innings = v.innings_totals(venue, collection)
+        if not innings.is_empty():
+            c.print("[bold]Innings totals[/bold]")
+            render_table(innings.to_dicts())
+        phases = v.phase_run_rates(venue, collection)
+        if not phases.is_empty():
+            c.print("\n[bold]Phase run rates[/bold]")
+            render_table(phases.to_dicts())
+        chase = v.chase_vs_set_winrate(venue, collection)
+        if not chase.is_empty():
+            c.print("\n[bold]Chase vs set win rate[/bold]")
+            render_table(chase.to_dicts())
+    except Exception as e:
+        die(f"venue lookup failed: {e}")
 
 
 def match_report(

@@ -10,7 +10,12 @@ st.set_page_config(page_title="CricDex DRS Practice", page_icon="⚖️", layout
 st.title("⚖️ CricDex — DRS / umpire practice")
 st.caption(
     "Decide each scenario yourself, then see whether the umpire would agree — "
-    "with the MCC Law / ICC Playing-Condition citation."
+    "with the MCC Law / ICC Playing-Condition citation. Scenarios are hand-"
+    "curated; the citations dereference into the parsed rulebook corpus."
+)
+st.caption(
+    "**Source:** [MCC Laws / ICC Playing Conditions](https://www.lords.org/mcc/the-laws-of-cricket) "
+    "— hand-curated scenarios + matched clause citations."
 )
 
 pool = scenarios.load_scenarios()

@@ -1,0 +1,105 @@
+# Changelog
+
+All notable changes to CricDex. Format roughly follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); semantic
+versioning starts at v0.1.0.
+
+---
+
+## [0.1.0] — v1 release (pending tag)
+
+The first cut a non-developer can install + browse. Terminal-first
+distribution; Streamlit dashboard kept as a parallel browser surface
+over the same `~/.cricdex/data/`.
+
+### Added
+
+- **CLI** — single `cricdex` console entry point with `init / config
+  / data / leaderboard / profile / compare / records / venues /
+  match-report / translate / rules / scout / auction / dashboard /
+  tui` subcommands. `cricdex init` is a one-shot first-run wizard;
+  every produce-command supports `--force` for opt-in refresh.
+- **Textual TUI** — `cricdex tui` launches an interactive 6-tab
+  app (Leaderboard / Profile / Scout / Auction / Rules / Records).
+- **Streamlit dashboard** — 12 pages over the same `~/.cricdex/data/`:
+  Home, Leaderboards (10 metrics in tabs), Rules Chat, Records,
+  Match Reports, Compare, Venues, DRS Practice, Auction (MILP +
+  war-room advisor), Player Profile, Translate Commentary, Auction
+  Simulator, Player Twins.
+- **Provenance banner** — every data-backed dashboard page shows
+  source + last-refreshed timestamp + a "load latest" pointer.
+- **Fuzzy player resolver** — `rapidfuzz`-backed; CLI prints
+  suggestions and exits 1 on no-exact-match, Streamlit renders a
+  "did you mean?" confirmation button.
+- **Novel metrics** — Pressure Runs, Intent Curve, Recoverability,
+  Counter-Attack, Boundary Dependency, Sticky Dot Pressure, Phase
+  Dilation, Setting Tax, Wicket Quality, **NGI (Net Game Impact)** —
+  the WPA-style flagship.
+- **NGI's WP model v2** — match-id holdout split, venue + innings1
+  features, isotonic calibration, Brier + log-loss + reliability
+  buckets in the output. ~73% val accuracy on the IPL holdout;
+  perfect calibration after isotonic.
+- **Scout** — NumPyro hierarchical Bayes ratings (ADVI default +
+  NUTS available) with opponent-strength bridging; Neo4j scout
+  graph with FACED + TEAMMATE_OF + PLAYED_IN edges + traversal
+  helpers (`co_faced_bowlers`, `teammate_overlap`,
+  `find_replacement`).
+- **Auction** — MILP squad optimiser, Monte-Carlo price-band
+  simulator, GRPO RL self-play scaffold (real-IPL pool + 6
+  franchise archetypes + terminal squad-quality bonus), war-room
+  substitute advisor.
+- **Rules Q&A** — 11k+ parsed clauses from 21 versioned PDFs
+  (MCC, ICC PCs, IPL, Hundred, BBL/WBBL, SA20, Cricket Australia
+  domestic, ICC Codes, Anti-Corruption); dense (snowflake-arctic-
+  embed-l-v2 + Matryoshka-384) + BM25 + RRF fusion + Jina rerank.
+  Cited clauses now render with human-readable titles + URLs.
+- **Identity** — Cricsheet People Register cross-source bridge;
+  manual nationality overrides for known same-name collisions
+  (Rashid Khan, Mohsin Khan).
+- **Test coverage** — 57 unit + integration tests covering metrics,
+  auction, scout, venues, rules, API routes.
+- **Docs** — README rewritten CLI-first; `docs/CLI.md` exhaustive
+  command reference; `docs/FIRST_RUN.md` onboarding; `docs/TODO.md`
+  phase-grouped pending work; `docs/VNEXT.md` items moved out of
+  v1 scope.
+
+### Fixed
+
+- Venues `phase_run_rates` crash on `Eden Gardens` —
+  `JOIN ... USING (match_id)` ambiguity on `match_type`; every
+  column inside the SQL is now alias-qualified.
+- Player Profile no longer dumps raw JSON for novel metrics or
+  Bayes ratings; renders human-readable tables + sentences.
+- Compare empty cells render as `—` with a one-line explanation of
+  which threshold excluded the row.
+- Rules Chat citation strings switched from cryptic
+  `cricket_aus_oneday_cup_2025_26 §24.2.1` to human-readable
+  `Marsh One-Day Cup 2025-26 Playing Conditions, clause 24.2.1` +
+  publisher URL.
+- `cricdex dashboard` auto-picks a free ephemeral port (8501 was
+  colliding on dev VMs).
+
+### Removed / dropped from v1
+
+- Cloudflare R2 backup CLI + `r2_*` config (terminal users own
+  their `~/.cricdex/data/`).
+- Newsletter email send via Resend (BYO mailer if needed; digest
+  remains a Markdown artifact).
+- `python-telegram-bot` + `praw` extras (never wired).
+- Dead config slots: `openai_api_key`, `groq_api_key`,
+  `cerebras_api_key`, `anthropic_api_key`, `cohere_api_key`,
+  `qdrant_api_key`, `reddit_*`, `telegram_bot_token`, `resend_*`,
+  `langfuse_*`, `hf_token`.
+
+### Known caveats (see [`docs/VNEXT.md`](VNEXT.md))
+
+- Datacenter-IP-blocked feeds: Wikidata, Reddit, Cricbuzz live,
+  Cricinfo profiles, BCCI Domestic (Ranji + Hazare), WPL/SA20
+  PDFs. Pipelines work end-to-end from residential IPs.
+- CricHeroes grassroots ingest deferred to year 2.
+- Photo-CLIP identity disambiguation deferred (blocked by
+  CricHeroes).
+- Auction RL multi-agent PettingZoo training deferred (GPU
+  budget).
+- OpenBoundary Hawk-Eye, ChuckCheck elbow-flex, ScoutVLM,
+  Highlight CV, voice-cloned commentary — year 2.

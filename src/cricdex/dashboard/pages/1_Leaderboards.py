@@ -16,6 +16,7 @@ import plotly.express as px
 import streamlit as st
 
 from cricdex.config import DATA_DIR
+from cricdex.dashboard._widgets import provenance_banner
 
 METRIC_DIR = DATA_DIR / "metrics"
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -169,8 +170,11 @@ def render() -> None:
     st.title("🏏 CricDex — novel cricket metrics")
     st.caption(
         "Open cricket intelligence. All metrics derived from Cricsheet ball-by-ball "
-        "(no scraping required). Identity bridges via Cricsheet's People Register."
+        "(no scraping required). Identity bridges via Cricsheet's People Register. "
+        "Use the slider in the sidebar to pick how many top-N rows to show; each "
+        "metric tab shows a one-line definition + the column it sorts by."
     )
+    provenance_banner(source="cricsheet", path=DUCKDB_PATH)
 
     collections = discover_collections()
     with st.sidebar:
@@ -198,9 +202,28 @@ def render() -> None:
                         "too strict for a small dataset)."
                     )
                 else:
-                    st.warning(
-                        f"No `{cfg['slug']}_{collection}.json` found. "
-                        "Run `make docker-metrics-all COLLECTION=<name>` first."
+                    # Look across every collection we DO have this metric for —
+                    # gives the user a one-click way to switch.
+                    available = sorted(
+                        p.stem.replace(f"{cfg['slug']}_", "")
+                        for p in METRIC_DIR.glob(f"{cfg['slug']}_*.json")
+                    )
+                    st.warning(f"No `{cfg['slug']}_{collection}.json` on disk yet.")
+                    if available:
+                        st.markdown(
+                            "**This metric is already computed for:** "
+                            + ", ".join(f"`{c}`" for c in available)
+                            + ". Change the *Collection* picker in the sidebar to one "
+                            "of these, or compute it for "
+                            f"`{collection}` with the command below."
+                        )
+                    st.code(
+                        f"cricdex data ingest metrics -c {collection}",
+                        language="bash",
+                    )
+                    st.caption(
+                        "Refresh the page once the command completes — the "
+                        "Streamlit cache picks up the new JSON automatically."
                     )
                 continue
 
