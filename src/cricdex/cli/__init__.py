@@ -80,12 +80,26 @@ app.command(name="match-report", help="LLM match report.")(profile_cmd.match_rep
 app.command(name="translate", help="Translate commentary text.")(profile_cmd.translate)
 
 
-@app.command(name="dashboard", help="Launch the Streamlit dashboard on :8501.")
-def dashboard() -> None:
+@app.command(name="dashboard", help="Launch the Streamlit dashboard.")
+def dashboard(
+    port: int = typer.Option(
+        0,
+        "--port",
+        "-p",
+        help="Port to bind (0 = auto-pick a free one).",
+    ),
+) -> None:
+    import socket
     import subprocess
     import sys
 
-    typer.echo("Open http://localhost:8501 — Ctrl-C to stop.")
+    def _free_port() -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("", 0))
+            return s.getsockname()[1]
+
+    bound = port if port else _free_port()
+    typer.echo(f"Open http://localhost:{bound} — Ctrl-C to stop.")
     subprocess.run(
         [
             sys.executable,
@@ -94,7 +108,9 @@ def dashboard() -> None:
             "run",
             "src/cricdex/dashboard/app.py",
             "--server.port",
-            "8501",
+            str(bound),
+            "--server.headless",
+            "true",
         ],
         check=False,
     )
