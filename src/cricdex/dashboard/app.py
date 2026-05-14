@@ -61,11 +61,12 @@ The Leaderboards page splits these across separate tabs; the Player
 Profile page surfaces them per-player with the same definitions.
 
 - **NGI (Net Game Impact)** — WPA-style flagship. For every ball we
-  estimate the win probability swing (XGBoost on Cricsheet, ~73% val
-  accuracy on a match-id holdout, Brier 0.17, perfectly calibrated)
-  and credit the swing to the batter (+) and bowler (−). Career NGI =
-  mean per-match contribution. One currency for offense + defense +
-  clutch.
+  estimate the win-probability swing and credit it to the batter (+)
+  and bowler (−). Career NGI = mean per-match contribution. One
+  currency for offense + defense + clutch — a 30* in a tight chase
+  outranks a 100 against a beaten side. The win-probability model
+  is calibrated — when it says "70% win chance", the batting team
+  actually wins ~70% of the time.
 - **Pressure Runs** — strike rate on balls where the required run rate
   is ≥ 1.5× the venue median (chase only). Higher = harder to slow
   down when the team needs it.
