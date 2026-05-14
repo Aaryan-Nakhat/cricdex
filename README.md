@@ -66,7 +66,7 @@ All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
 | `newsletter` | Markdown digest compiler (On-This-Day + headlines + auto match report). |
 | `commentary_translate` | English → Hindi / Tamil / Bengali / Urdu / Sinhala / Marathi / Telugu / Kannada (text-only). Voice-cloned audio deferred to year 2. |
 | `api` | FastAPI public REST surface (12 endpoints + OpenAPI at `/docs`). See [`docs/API.md`](docs/API.md). |
-| `dashboard` | 13-page Streamlit app: Home, Leaderboards, Rules Chat, Records, Match Reports, Compare, Venues, DRS Practice, Auction (MILP + war-room advisor), Player Profile, Translate Commentary, Auction Simulator (Monte-Carlo + GRPO RL), Player Twins (graph similarity). |
+| `dashboard` | 12-page Streamlit app: Home, Leaderboards, Rules Chat, Records, Match Reports, Compare, Venues, Auction (MILP + war-room advisor), Player Profile (with Wikidata photo + DOB + social links), Translate Commentary, Auction Simulator (Monte-Carlo + GRPO RL), Player Twins (graph similarity, role-archetype auto-flip). |
 
 Deferred to year 2: OpenBoundary (Hawk-Eye OSS), ChuckCheck (elbow flex
 biomechanics), Voice analyst, ScoutVLM (video → ball-by-ball), Highlight

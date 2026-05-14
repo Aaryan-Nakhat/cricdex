@@ -205,7 +205,7 @@ opponent OAR (Wicket Quality), or CV-derived release data
     reward), learner vs N-1 opponents.
   - ✅ `cricdex.auction.grpo` — GRPO (DeepSeek 2024) trainer, no
     value head, group-relative advantage. Produces a `policy.zip`
-    that `dashboard/pages/B_Auction_Simulator.py` can load.
+    that `dashboard/pages/10_Auction_Simulator.py` can load.
   - ✅ `cricdex.auction.real_pool` — real 429-player IPL pool driven
     by NumPyro Bayes skills (skill → projected_value, T20I dominant
     team → nationality, IPL career balls → role + recency) plus 6

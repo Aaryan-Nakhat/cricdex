@@ -142,9 +142,9 @@ their economy looks great.
 ## Shipped after v1
 
 - **NGI (Net Game Impact)** ✅ — WPA-style player impact. XGBoost
-  win-probability model trained on Cricsheet ball-by-ball (~70%
-  val accuracy), per-ball ΔWP credited to batter (+) and bowler
-  (−). Career table at `data/metrics/ngi_<collection>.json`,
+  win-probability model trained on Cricsheet ball-by-ball,
+  isotonically calibrated, per-ball ΔWP credited to batter (+) and
+  bowler (−). Career table at `data/metrics/ngi_<collection>.json`,
   dashboard tab "NGI (Net Game Impact)".
 - **Wicket Quality** ✅ — Σ(opponent Bayes skill) / wickets taken.
   Lives in `cricdex.metrics.bowler_wicket_quality`. Needs the
