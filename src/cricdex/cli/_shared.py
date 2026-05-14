@@ -78,6 +78,30 @@ def render_table(rows: list[dict], title: str | None = None) -> None:
     console().print(table)
 
 
+def resolve_or_die(query: str, collection: str = "ipl") -> str:
+    """CLI-side wrapper around profiles.identity.resolve_name.
+
+    Returns the unique_name when an exact match is found; otherwise
+    prints the top-K suggestions, hints the user to re-run with the
+    exact name, and exits 1.
+    """
+    from cricdex.profiles.identity import resolve_name
+
+    exact, suggestions = resolve_name(query, collection=collection)
+    if exact:
+        return exact
+    c = console()
+    c.print(f"[yellow]no exact match for[/yellow] {query!r}")
+    if not suggestions:
+        c.print("[dim](no fuzzy matches above 60% — check spelling / collection)[/dim]")
+    else:
+        c.print("[bold]closest matches:[/bold]")
+        for i, s in enumerate(suggestions, 1):
+            c.print(f"  [cyan]{i}[/cyan]  {s.name}  [dim]({s.score}%)[/dim]")
+        c.print(f'\nre-run with the exact name, e.g. --name "{suggestions[0].name}"')
+    raise typer.Exit(code=EXIT_USER_ERROR)
+
+
 def render_kv(d: dict, title: str | None = None) -> None:
     """Pretty-print a flat dict as a 2-column key/value rich table."""
     from rich.table import Table

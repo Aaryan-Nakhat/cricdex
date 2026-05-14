@@ -108,29 +108,35 @@ def phase_run_rates(
     collection: str = "ipl",
     db_path: Path | str = DEFAULT_DB_PATH,
 ) -> pl.DataFrame:
+    """Phase-by-phase run rate / dot% / boundary% at a venue.
+
+    `match_type` is qualified to `b.match_type` because `JOIN … USING
+    (match_id)` keeps the duplicated column on both sides and duckdb
+    refuses to disambiguate it on its own.
+    """
     safe = collection.replace("-", "_")
     sql = f"""
     SELECT
-        phase,
-        match_type,
-        COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides','noballs')) AS legal_balls,
-        SUM(runs_total) AS total_runs,
-        CAST(ROUND(SUM(runs_total) * 6.0 /
-                NULLIF(COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides','noballs')), 0),
+        b.phase,
+        b.match_type,
+        COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides','noballs')) AS legal_balls,
+        SUM(b.runs_total) AS total_runs,
+        CAST(ROUND(SUM(b.runs_total) * 6.0 /
+                NULLIF(COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides','noballs')), 0),
             2) AS DOUBLE) AS rpo,
-        CAST(ROUND(100.0 * SUM(CASE WHEN runs_total = 0
-                                     AND COALESCE(extras_type,'') NOT IN ('wides','noballs')
+        CAST(ROUND(100.0 * SUM(CASE WHEN b.runs_total = 0
+                                     AND COALESCE(b.extras_type,'') NOT IN ('wides','noballs')
                                 THEN 1 ELSE 0 END) /
-                NULLIF(COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides','noballs')), 0),
+                NULLIF(COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides','noballs')), 0),
             2) AS DOUBLE) AS dot_pct,
-        CAST(ROUND(100.0 * SUM(CASE WHEN runs_batter IN (4, 6) THEN 1 ELSE 0 END) /
-                NULLIF(COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides','noballs')), 0),
+        CAST(ROUND(100.0 * SUM(CASE WHEN b.runs_batter IN (4, 6) THEN 1 ELSE 0 END) /
+                NULLIF(COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides','noballs')), 0),
             2) AS DOUBLE) AS boundary_pct
     FROM balls_{safe} b
     JOIN matches_{safe} m USING (match_id)
     WHERE b.venue = ?
-    GROUP BY phase, match_type
-    ORDER BY match_type, phase
+    GROUP BY b.phase, b.match_type
+    ORDER BY b.match_type, b.phase
     """
     with duckdb.connect(str(db_path), read_only=True) as con:
         return con.execute(sql, [venue]).pl()
