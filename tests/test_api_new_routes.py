@@ -25,8 +25,6 @@ def client() -> TestClient:
 
 def _neo4j_alive() -> bool:
     try:
-        from neo4j.exceptions import ServiceUnavailable
-
         from cricdex.scout.graph.schema import driver
 
         drv = driver()
@@ -36,8 +34,6 @@ def _neo4j_alive() -> bool:
             return True
         finally:
             drv.close()
-    except ServiceUnavailable:
-        return False
     except Exception:
         return False
 
