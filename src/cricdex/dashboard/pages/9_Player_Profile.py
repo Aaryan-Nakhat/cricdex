@@ -115,5 +115,49 @@ with right:
     else:
         st.info("no bowler style-twins available for this player + collection")
 
+st.subheader("🔗 Graph cohort (Neo4j)")
+st.caption(
+    "Players in the same competitive neighbourhood — derived from the scout "
+    "graph's FACED and TEAMMATE_OF edges. Complements the cosine style-twins "
+    "above with a relational signal."
+)
+try:
+    from cricdex.scout.graph import similar
+
+    g_col1, g_col2 = st.columns(2)
+    with g_col1:
+        st.markdown("**Co-faced bowlers cohort**")
+        rows = similar.co_faced_bowlers(name, top_k=8)
+        if rows:
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+        else:
+            st.info("no graph cohort — populate scout graph for this collection")
+    with g_col2:
+        st.markdown("**Teammate overlap cohort**")
+        rows = similar.teammate_overlap(name, top_k=8)
+        if rows:
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+        else:
+            st.info("no teammate overlap — populate scout graph")
+
+    st.markdown(
+        "**Suggested substitutes** (graph similarity × Bayes value, role-matched, on a 10 cr budget)"
+    )
+    try:
+        from cricdex.auction import advisor
+
+        rec = advisor.recommend_substitutes(name, budget=10.0, n=8)
+        if rec.is_empty():
+            st.info(
+                "no affordable substitutes — try a higher budget via "
+                "`scripts/auction_advisor.py` or the Auction page."
+            )
+        else:
+            st.dataframe(rec.to_pandas(), use_container_width=True, hide_index=True)
+    except ImportError:
+        pass
+except ImportError:
+    st.info("`neo4j` extra not installed — run `uv sync --extra graph`.")
+
 with st.expander("Raw profile JSON"):
     st.json(profile)

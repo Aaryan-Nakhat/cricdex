@@ -208,3 +208,125 @@ def auction_solve(req: AuctionSolveReq) -> dict[str, Any]:
         "selected": result["selected"].to_dicts() if not result["selected"].is_empty() else [],
         "reason": result.get("reason"),
     }
+
+
+# ---- metrics ---------------------------------------------------------------
+
+
+@app.get("/v1/metrics/ngi")
+def metrics_ngi(
+    collection: str = Query("ipl"),
+    min_matches: int = Query(20, ge=0),
+    top_n: int = Query(50, ge=1, le=500),
+) -> dict[str, Any]:
+    """NGI (Net Game Impact) leaderboard. Reads the pre-computed JSON
+    written by `scripts/compute_metrics.py ngi` if present; otherwise
+    falls back to a live fit on the requested collection."""
+    import json
+
+    import polars as pl
+
+    from cricdex.config import DATA_DIR
+
+    cached = DATA_DIR / "metrics" / f"ngi_{collection}.json"
+    if cached.exists():
+        rows = json.loads(cached.read_text())
+        df = pl.DataFrame(rows)
+    else:
+        from cricdex.metrics import ngi as _ngi
+
+        res = _ngi.compute(collection=collection)
+        df = res["career"]
+        if df.is_empty():
+            raise HTTPException(404, f"no NGI data for collection {collection!r}")
+    if "matches" in df.columns:
+        df = df.filter(pl.col("matches") >= min_matches)
+    if "ngi_per_match" in df.columns:
+        df = df.sort("ngi_per_match", descending=True)
+    return {"collection": collection, "rows": df.head(top_n).to_dicts()}
+
+
+# ---- auction advisor -------------------------------------------------------
+
+
+class AuctionRecommendReq(BaseModel):
+    target: str
+    budget: float
+    role: str | None = None
+    n: int = 5
+    min_last_match_date: str | None = "2023-01-01"
+    max_balls_bowled: int | None = None
+    max_balls_faced: int | None = None
+
+
+@app.post("/v1/auction/recommend")
+def auction_recommend(req: AuctionRecommendReq) -> dict[str, Any]:
+    """Find affordable graph-similar substitutes for an unavailable
+    target player. Composite of FACED-cohort similarity + Bayes-driven
+    projected value, filtered to budget + role."""
+    try:
+        from cricdex.auction import advisor
+    except ImportError as e:
+        raise HTTPException(503, f"auction.advisor unavailable: {e}") from e
+    rec = advisor.recommend_substitutes(
+        req.target,
+        budget=req.budget,
+        role=req.role,
+        n=req.n,
+        min_last_match_date=req.min_last_match_date,
+        max_balls_bowled=req.max_balls_bowled,
+        max_balls_faced=req.max_balls_faced,
+    )
+    if rec.is_empty():
+        return {"target": req.target, "budget": req.budget, "rows": []}
+    return {"target": req.target, "budget": req.budget, "rows": rec.to_dicts()}
+
+
+# ---- scout graph twins -----------------------------------------------------
+
+
+@app.get("/v1/scout/twins/{name}")
+def scout_twins(
+    name: str,
+    mode: str = Query("co_faced", pattern="^(co_faced|teammates)$"),
+    top_k: int = Query(10, ge=1, le=50),
+) -> dict[str, Any]:
+    """Graph-traversal similarity. `mode=co_faced` returns players
+    sharing FACED bowlers (batter affinity); `mode=teammates` returns
+    teammate-overlap cohort."""
+    try:
+        from cricdex.scout.graph import similar
+    except ImportError as e:
+        raise HTTPException(503, f"scout.graph unavailable (neo4j extra?): {e}") from e
+    if mode == "co_faced":
+        rows = similar.co_faced_bowlers(name, top_k=top_k)
+    else:
+        rows = similar.teammate_overlap(name, top_k=top_k)
+    return {"target": name, "mode": mode, "rows": rows}
+
+
+@app.get("/v1/scout/find-replacement/{name}")
+def scout_find_replacement(
+    name: str,
+    top_k: int = Query(10, ge=1, le=50),
+    role: str | None = Query(None, pattern="^(bowler|batter|all_rounder)$"),
+    max_balls_bowled: int | None = Query(None, ge=0),
+    max_balls_faced: int | None = Query(None, ge=0),
+    min_last_match_date: str | None = Query(None),
+) -> dict[str, Any]:
+    """Find replacement / "next X" — auto-flips the FACED traversal
+    direction based on the target's role, applies recency + role +
+    balls filters."""
+    try:
+        from cricdex.scout.graph import similar
+    except ImportError as e:
+        raise HTTPException(503, f"scout.graph unavailable (neo4j extra?): {e}") from e
+    rows = similar.find_replacement(
+        name,
+        top_k=top_k,
+        role=role,
+        max_balls_bowled=max_balls_bowled,
+        max_balls_faced=max_balls_faced,
+        min_last_match_date=min_last_match_date,
+    )
+    return {"target": name, "role": role, "rows": rows}
