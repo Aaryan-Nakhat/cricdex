@@ -1,4 +1,8 @@
-"""`cricdex leaderboard <metric>` — rich-rendered novel-metric leaderboards."""
+"""`cricdex leaderboard <metric>` — rich-rendered novel-metric leaderboards.
+
+Renderer mirrors the Streamlit Leaderboards page: explainer panel +
+per-metric "what it captures" line + pruned headline columns.
+"""
 
 from __future__ import annotations
 
@@ -7,11 +11,12 @@ from pathlib import Path
 
 import typer
 
-from cricdex.cli._shared import EXIT_MISSING_DATA, die, render_table
+from cricdex.cli import _copy, _render
+from cricdex.cli._shared import EXIT_MISSING_DATA, die
 from cricdex.config import DATA_DIR
 
-# Metric slug → primary sort column. Matches the data/metrics/<slug>_<col>.json
-# emitted by scripts/compute_metrics.py / cricdex data ingest metrics.
+# Metric slug → (primary sort column, primary key column). Matches
+# data/metrics/<slug>_<col>.json emitted by compute_metrics.py.
 METRICS: dict[str, tuple[str, str]] = {
     "ngi": ("ngi_per_match", "name"),
     "pressure_runs": ("pressure_sr_per_100_balls", "batter"),
@@ -56,8 +61,25 @@ def leaderboard(
         typer.echo(json.dumps(rows, indent=2))
         return
 
+    pretty = metric.replace("_", " ").title()
+    _render.header(f"{pretty} — top {top}", subtitle=f"collection: {collection}")
+    _render.intro_panel(_copy.LEADERBOARD_INTRO, title="Leaderboards")
+
+    hint = _copy.METRIC_HINTS.get(metric)
+    if hint:
+        _render.intro_panel(hint, title=f"What this captures — {pretty}")
+
     # Trim to a useful preview: primary key + sort col + 3-4 extras.
-    extras = [k for k in rows[0].keys() if k not in {primary_key, sort_col}][:4]
-    cols = [primary_key, sort_col, *extras]
-    pruned = [{c: r.get(c) for c in cols} for r in rows]
-    render_table(pruned, title=f"{metric} top-{top} ({collection})")
+    if rows:
+        extras = [k for k in rows[0].keys() if k not in {primary_key, sort_col}][:4]
+        cols = [primary_key, sort_col, *extras]
+        pruned = [{c: r.get(c) for c in cols} for r in rows]
+        _render.pretty_table(
+            pruned,
+            columns=cols,
+            column_styles={primary_key: "bold cyan", sort_col: "bold"},
+        )
+    _render.footnote(
+        f"Path: {path.relative_to(Path.cwd()) if path.is_absolute() and Path.cwd() in path.parents else path}  "
+        f"·  refresh with `cricdex data ingest metrics -c {collection} --force`"
+    )
