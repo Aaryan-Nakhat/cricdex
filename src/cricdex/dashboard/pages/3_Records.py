@@ -32,9 +32,17 @@ RECORD_LABELS: dict[str, str] = {
     "highest_runs_in_over": "Highest runs conceded in an over",
 }
 
+from cricdex.dashboard._widgets import collection_picker  # noqa: E402
+
 with st.sidebar:
-    collection = st.text_input("Cricsheet collection", value="ipl")
-    top_n = st.slider("Top N", min_value=5, max_value=100, value=25)
+    collection = collection_picker(default="ipl", key="records-collection")
+    top_n = st.slider(
+        "Top N",
+        min_value=5,
+        max_value=100,
+        value=25,
+        help="How many top-record rows to show per category.",
+    )
 
 records_tab, otd_tab = st.tabs(["📊 Records", "🗓️ On This Day"])
 
