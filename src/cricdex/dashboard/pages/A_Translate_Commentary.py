@@ -10,8 +10,17 @@ st.set_page_config(page_title="CricDex Commentary Translate", page_icon="🌐", 
 st.title("🌐 CricDex — commentary translator")
 st.caption(
     "English → Hindi / Tamil / Bengali / Urdu / Sinhala / Marathi / Telugu / "
-    "Kannada. Voice-cloned audio is the deferred year-2 milestone."
+    "Kannada. Powered by Gemini — needs a Gemini key configured via "
+    "`cricdex config set gemini_api_key …`. Voice-cloned audio is the "
+    "deferred year-2 milestone."
 )
+from cricdex.config import settings  # noqa: E402
+
+if not (settings.gemini_api_key or settings.gemini_tmp_url):
+    st.warning(
+        "No Gemini credential set. Run `cricdex config set gemini_api_key sk-…` "
+        "(or `cricdex init`) and reload the page."
+    )
 
 with st.sidebar:
     target = st.selectbox(

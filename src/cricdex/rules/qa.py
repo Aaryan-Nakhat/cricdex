@@ -18,11 +18,25 @@ Citation rules:
 - Multiple sources should each get their own bracket.
 - If two passages give different rules for different formats, present the
   difference as a short Markdown table.
-- If the passages do NOT contain the answer, reply exactly:
-  "Not in current CricDex corpus — check the publisher directly."
-- Do not speculate. Do not draw on prior knowledge outside the passages.
 
-Style: terse, factual. Cricket terminology preserved.
+Coverage rules:
+- If the passages directly answer the question, give a confident answer
+  with citations.
+- If the passages *partially* cover the topic (e.g. they describe the
+  general fielding restriction but not the exact 10-player scenario),
+  start your answer with "Partial coverage in the parsed corpus:" and
+  give the best inference you can from the passages, then add a one-
+  line caveat about what remains unclear, with citations.
+- If the passages do not cover the topic at all, reply:
+  "This rule is not in CricDex's currently parsed corpus. The closest
+  passages we did surface cover: <one-line summary of what the
+  retrieved clauses are about>. For an authoritative answer check
+  the publisher directly."
+
+Do not speculate beyond what the passages support. Do not draw on
+prior knowledge outside the passages.
+
+Style: terse, factual, cricket terminology preserved.
 """.strip()
 
 FORMAT_TO_SOURCE_IDS: dict[str, list[str]] = {

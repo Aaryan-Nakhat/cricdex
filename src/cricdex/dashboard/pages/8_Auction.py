@@ -9,14 +9,18 @@ import polars as pl
 import streamlit as st
 
 from cricdex.auction import real_pool, solver
+from cricdex.config import DATA_DIR
+from cricdex.dashboard._widgets import provenance_banner
 
 st.set_page_config(page_title="CricDex Auction", page_icon="💰", layout="wide")
 st.title("💰 CricDex — auction squad optimiser")
 st.caption(
-    "Mixed-integer programming squad picker. Upload a CSV of candidate "
-    "players + projected value, set the purse and constraints, and the "
-    "MILP solver returns the optimal squad."
+    "Mixed-integer programming squad picker. Real-IPL pool is built from "
+    "Cricsheet ball-by-ball + Bayes-skill-driven projected_value. Or upload "
+    "your own pool CSV. War-room substitute advisor below uses the same "
+    "pool + the scout Neo4j graph for proximity."
 )
+provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.duckdb")
 
 with st.sidebar:
     pool_source = st.radio(

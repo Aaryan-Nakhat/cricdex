@@ -12,6 +12,7 @@ import duckdb
 import streamlit as st
 
 from cricdex.config import DATA_DIR
+from cricdex.dashboard._widgets import provenance_banner
 from cricdex.reports import match_report
 
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -20,8 +21,10 @@ st.set_page_config(page_title="CricDex Match Reports", page_icon="📰", layout=
 st.title("📰 CricDex — auto match reports")
 st.caption(
     "LLM-written 350-500 word reports grounded in Cricsheet facts — no "
-    "invented names or numbers, scores quoted verbatim."
+    "invented names or numbers, scores quoted verbatim. Needs a Gemini key "
+    "for live generation; cached Markdown is reused when present."
 )
+provenance_banner(source="cricsheet", path=DUCKDB_PATH)
 
 
 @st.cache_data

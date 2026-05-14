@@ -17,6 +17,12 @@ def solve(
     purse: float = typer.Option(120.0, "--purse"),
     squad_size: int = typer.Option(25, "--squad-size"),
     overseas_cap: int = typer.Option(8, "--overseas-cap"),
+    keeper_min: int | None = typer.Option(
+        None,
+        "--keeper-min",
+        help="Minimum keepers (default 2 on synthetic / 0 on real-pool — "
+        "real pool has no keeper-role tag yet, deferred to vNext).",
+    ),
 ) -> None:
     import polars as pl
 
@@ -24,15 +30,30 @@ def solve(
 
     if pool == "real":
         df = real_pool.build_pool()
+        # Real pool has no keeper-role tag — default to 0 unless user
+        # overrides explicitly. Otherwise the MILP is infeasible.
+        if keeper_min is None:
+            keeper_min = 0
     elif pool == "synthetic":
         df = solver.sample_pool()
+        if keeper_min is None:
+            keeper_min = 2
     else:
         p = Path(pool)
         if not p.exists():
             die(f"no such file: {pool}", code=EXIT_USER_ERROR)
         df = pl.read_csv(p)
+        if keeper_min is None:
+            keeper_min = 0
+    role_mins = {"batter": 5, "bowler": 5, "all_rounder": 3, "keeper": keeper_min}
 
-    res = solver.solve(df, purse=purse, squad_size=squad_size, overseas_cap=overseas_cap)
+    res = solver.solve(
+        df,
+        purse=purse,
+        squad_size=squad_size,
+        overseas_cap=overseas_cap,
+        role_mins=role_mins,
+    )
     if not res["feasible"]:
         die(f"infeasible: {res.get('reason')}", code=EXIT_USER_ERROR)
     typer.echo(f"feasible squad — price {res['total_price']:.2f}  value {res['total_value']:.2f}")

@@ -10,6 +10,7 @@ import streamlit as st
 
 from cricdex.auction import simulator, solver
 from cricdex.config import DATA_DIR
+from cricdex.dashboard._widgets import provenance_banner
 
 st.set_page_config(page_title="CricDex Auction Sim", page_icon="🎲", layout="wide")
 st.title("🎲 CricDex — auction Monte-Carlo simulator")
@@ -20,6 +21,7 @@ st.caption(
     "self-play; covers the practitioner-facing question — 'realistic "
     "price band for player X' — in seconds."
 )
+provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.duckdb")
 
 with st.sidebar:
     n_sims = st.slider("Simulations", 50, 1000, 200, step=50)
