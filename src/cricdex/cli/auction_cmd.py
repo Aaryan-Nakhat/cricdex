@@ -65,13 +65,23 @@ def recommend(
     target: str = typer.Argument(...),
     budget: float = typer.Option(..., "--budget"),
     role: str | None = typer.Option(None, "--role"),
+    style: str | None = typer.Option(
+        None,
+        "--style",
+        help="bowling style filter for bowler replacements (pace | spin).",
+    ),
     n: int = typer.Option(5, "-n", "--top-n"),
     min_last_match: str = typer.Option("2023-01-01", "--min-last-match"),
 ) -> None:
     from cricdex.auction import advisor
 
     rec = advisor.recommend_substitutes(
-        target, budget=budget, role=role, n=n, min_last_match_date=min_last_match
+        target,
+        budget=budget,
+        role=role,
+        n=n,
+        min_last_match_date=min_last_match,
+        bowling_style=style,
     )
     if rec.is_empty():
         die("no affordable graph-similar candidates")

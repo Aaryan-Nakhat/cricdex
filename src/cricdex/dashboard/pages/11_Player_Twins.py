@@ -52,11 +52,12 @@ def _teammates(name: str, k: int):
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _replacement(name, k, role, max_bw, max_bt, min_last):
+def _replacement(name, k, role, style, max_bw, max_bt, min_last):
     return similar.find_replacement(
         name,
         top_k=k,
         role=role or None,
+        bowling_style=style or None,
         max_balls_bowled=max_bw,
         max_balls_faced=max_bt,
         min_last_match_date=min_last or None,
@@ -80,6 +81,7 @@ with st.sidebar:
         st.info("Confirm a player above to query the graph.")
         st.stop()
     role = ""
+    style = ""
     max_balls_bowled: int | None = None
     max_balls_faced: int | None = None
     min_last_match: str = ""
@@ -89,6 +91,16 @@ with st.sidebar:
             ["", "bowler", "batter", "all_rounder"],
             index=0,
             help="Empty = no filter; otherwise restricts to the candidate role.",
+        )
+        style = st.selectbox(
+            "Bowling style (bowler replacements only)",
+            ["", "pace", "spin"],
+            index=0,
+            help=(
+                "Filter bowler candidates by pace vs spin. Source mix: "
+                "curated overrides for known edge cases + middle-overs "
+                "heuristic for the rest. Empty = no filter."
+            ),
         )
         max_balls_bowled = st.number_input(
             "Max balls bowled (career)", value=2000, step=100, min_value=0
@@ -111,6 +123,7 @@ with st.spinner(f"querying graph for {name!r} …"):
             name,
             top_k,
             role,
+            style,
             int(max_balls_bowled) if max_balls_bowled is not None else None,
             int(max_balls_faced) if max_balls_faced is not None else None,
             min_last_match,
