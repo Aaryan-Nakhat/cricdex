@@ -86,15 +86,23 @@ SCOUT_MODE_OPTIONS = [
 ]
 
 
-def _fmt_cell(val: Any) -> str:
+def _fmt_cell(val: Any) -> Any:
+    """Return cell content as a Rich Text with `fold` overflow so the
+    DataTable wraps long strings across multiple lines instead of
+    silently truncating. None → em-dash; floats trimmed to 3dp."""
+    from rich.text import Text
+
     if val is None:
-        return "—"
+        return Text("—", style="dim")
     if isinstance(val, float):
         return f"{val:.3f}" if abs(val) < 100 else f"{val:.1f}"
-    return str(val)[:80]
+    s = str(val)
+    return Text(s, overflow="fold", no_wrap=False)
 
 
 def _fill_datatable(table: DataTable, rows: list[dict], max_cols: int = 8) -> None:
+    """Populate a DataTable with auto-wrapping cells. We compute row
+    heights from the longest cell content so wraps render correctly."""
     table.clear(columns=True)
     if not rows:
         table.add_column("(no rows)")
@@ -102,7 +110,15 @@ def _fill_datatable(table: DataTable, rows: list[dict], max_cols: int = 8) -> No
     cols = list(rows[0].keys())[:max_cols]
     table.add_columns(*cols)
     for r in rows:
-        table.add_row(*(_fmt_cell(r.get(c)) for c in cols))
+        cells = tuple(_fmt_cell(r.get(c)) for c in cols)
+        # Auto-grow row height to fit the longest folded cell.
+        longest = max(
+            (len(str(r.get(c))) for c in cols if r.get(c) is not None),
+            default=20,
+        )
+        # ~32 chars per column line on a 160-wide screen with 8 cols.
+        height = max(1, min(4, (longest // 32) + 1))
+        table.add_row(*cells, height=height)
 
 
 class CricDexApp(App):
@@ -200,6 +216,8 @@ class CricDexApp(App):
                 yield from self._auction_sim_panel()
             with TabPane("🔗 Twins", id="tab-twins"):
                 yield from self._twins_panel()
+            with TabPane("🔄 Update Data", id="tab-update"):
+                yield from self._update_panel()
         yield Footer()
 
     # ---- status -----------------------------------------------------------
@@ -771,6 +789,62 @@ class CricDexApp(App):
         )
         _fill_datatable(table, rows)
 
+    # ===== Update Data ====================================================
+
+    def _update_panel(self) -> ComposeResult:
+        with Vertical():
+            with Horizontal(classes="controls"):
+                yield Label("Collection:")
+                yield Input(value="ipl", id="upd-collection")
+                yield Label("Force?")
+                yield Select(
+                    options=[("no", "no"), ("yes", "yes")],
+                    value="no",
+                    id="upd-force",
+                    allow_blank=False,
+                )
+                yield Button("Cricsheet", id="upd-cricsheet", variant="primary")
+                yield Button("Ratings", id="upd-ratings", variant="primary")
+                yield Button("Metrics", id="upd-metrics", variant="primary")
+            with Horizontal(classes="controls"):
+                yield Button("Graph", id="upd-graph", variant="primary")
+                yield Button("Rules", id="upd-rules", variant="primary")
+                yield Button("Wikidata", id="upd-wikidata", variant="primary")
+                yield Button("All (chained)", id="upd-all", variant="warning")
+            yield Static(
+                "Each button shells into `cricdex data ingest <slice> -c <collection>`. "
+                "Order if running individually: cricsheet → ratings → metrics → graph. "
+                "Rules + wikidata independent. `All (chained)` runs every slice in order.",
+                classes="intro",
+            )
+            yield RichLog(id="upd-log", highlight=False, markup=True, wrap=True)
+
+    def _run_update_slice(self, slice_: str) -> None:
+        log = self.query_one("#upd-log", RichLog)
+        collection = self.query_one("#upd-collection", Input).value.strip() or "ipl"
+        force = self.query_one("#upd-force", Select).value == "yes"
+        log.write(
+            f"[bold cyan]▶[/bold cyan] ingest [bold]{slice_}[/bold] "
+            f"(collection={collection}, force={force})"
+        )
+        try:
+            from cricdex.cli.data_cmd import run_ingest
+
+            msg = run_ingest(slice_, collection=collection, force=force)
+        except Exception as e:  # noqa: BLE001
+            log.write(f"[red]✗ {slice_} failed:[/red] {e}")
+            return
+        log.write(f"[green]✓[/green] {msg}")
+
+    def _run_update_all(self) -> None:
+        log = self.query_one("#upd-log", RichLog)
+        log.write(
+            "[bold]▶ chained refresh: cricsheet → ratings → metrics → graph → rules → wikidata[/bold]"
+        )
+        for slice_ in ("cricsheet", "ratings", "metrics", "graph", "rules", "wikidata"):
+            self._run_update_slice(slice_)
+        log.write("[bold green]✓ all slices complete[/bold green]")
+
     # ===== event dispatch ================================================
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -788,9 +862,16 @@ class CricDexApp(App):
             "sim-run": self._on_run_auction_sim,
             "twins-run": self._on_run_twins,
         }
-        handler = handlers.get(event.button.id)
-        if handler:
-            handler()
+        if event.button.id in handlers:
+            handlers[event.button.id]()
+            return
+        # Update Data buttons
+        if event.button.id == "upd-all":
+            self._run_update_all()
+        elif event.button.id and event.button.id.startswith("upd-"):
+            slice_ = event.button.id.removeprefix("upd-")
+            if slice_ in ("cricsheet", "ratings", "metrics", "graph", "rules", "wikidata"):
+                self._run_update_slice(slice_)
 
 
 # ---- helpers ----------------------------------------------------------------
