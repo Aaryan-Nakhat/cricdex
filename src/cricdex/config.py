@@ -1,70 +1,93 @@
-"""Project-wide settings loaded from `.env`.
+"""Project-wide settings.
 
-`.env` is loaded into `os.environ` at import time so that third-party
-libraries (notably HuggingFace, which reads HF_TOKEN directly from the
-process env) see the personal credentials in this `.env` rather than any
-shared on-disk token under ~/.cache/huggingface/token. This keeps personal
-project work strictly separated from work credentials living on the VM.
+CricDex is a terminal-first tool. Credentials live in:
+
+  1. Environment variables (highest precedence)
+  2. `$CRICDEX_HOME/config.toml` — the user-facing CLI config
+     (defaults to `~/.cricdex/config.toml`, see `cricdex config set`)
+  3. `.env` in the repo root — dev-convenience fallback only
+
+Only two credentials are user-relevant:
+
+- `gemini_api_key` (or `gemini_tmp_url` + `gemini_tmp_api_key` for the
+  legacy work proxy) — needed for rules Q&A, translate, match reports.
+- `jina_api_key` — optional, enables cross-encoder rerank in rules
+  retrieval. Falls back to RRF order if unset.
+
+Everything else (Neo4j password, embedded Qdrant, DuckDB path) is
+local-only — set sensible defaults and forget.
 """
 
+from __future__ import annotations
+
+import os
+import tomllib
 from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = ROOT / "data"
 
-load_dotenv(ROOT / ".env", override=True)
+# CRICDEX_HOME defaults to `~/.cricdex/`. Inside it: config.toml, data/,
+# cache/, logs/. Devs running from a repo checkout can override with the
+# env var to point at the repo's `data/` dir for convenience.
+CRICDEX_HOME = Path(os.environ.get("CRICDEX_HOME", str(Path.home() / ".cricdex")))
+
+# DATA_DIR: prefer ~/.cricdex/data when populated; fall back to repo
+# data/ for dev so existing scripts keep working without migration.
+_HOME_DATA = CRICDEX_HOME / "data"
+_REPO_DATA = ROOT / "data"
+DATA_DIR = _HOME_DATA if _HOME_DATA.exists() else _REPO_DATA
+
+CONFIG_PATH = CRICDEX_HOME / "config.toml"
+CACHE_DIR = CRICDEX_HOME / "cache"
+LOG_DIR = CRICDEX_HOME / "logs"
+
+# .env in the repo root is loaded only when it exists — useful for dev,
+# ignored by an end-user `uvx cricdex` install.
+load_dotenv(ROOT / ".env", override=False)
+
+
+def _read_toml_config() -> dict:
+    if not CONFIG_PATH.exists():
+        return {}
+    with open(CONFIG_PATH, "rb") as f:
+        return tomllib.load(f)
+
+
+_TOML = _read_toml_config()
+
+
+def _setting(name: str, default: str = "") -> str:
+    env = os.environ.get(name.upper())
+    if env:
+        return env
+    return str(_TOML.get(name, default))
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(ROOT / ".env"), extra="ignore")
 
-    gemini_api_key: str = ""
-    groq_api_key: str = ""
-    cerebras_api_key: str = ""
-    anthropic_api_key: str = ""
-    openai_api_key: str = ""
-    jina_api_key: str = ""
-    cohere_api_key: str = ""
+    # LLM (rules QA, translate, match reports).
+    gemini_api_key: str = _setting("gemini_api_key")
+    # Legacy work-hosted proxy. Phased out once user supplies a personal
+    # gemini_api_key. Both fields are read; non-empty wins.
+    gemini_tmp_url: str = _setting("gemini_tmp_url")
+    gemini_tmp_api_key: str = _setting("gemini_tmp_api_key")
 
-    hf_token: str = ""
+    # Optional: cross-encoder rerank on rules retrieval. Falls back to
+    # RRF order if empty.
+    jina_api_key: str = _setting("jina_api_key")
 
-    # Temporary Gemini proxy (work-hosted). Replace with personal GEMINI_API_KEY
-    # via `google-genai` client before public launch.
-    gemini_tmp_url: str = ""
-    gemini_tmp_api_key: str = ""
-
-    qdrant_url: str = ""
-    qdrant_api_key: str = ""
-
-    database_url: str = "postgresql://localhost:5432/cricdex"
+    # Local infra (sensible defaults, rarely touched).
+    qdrant_url: str = _setting("qdrant_url")
     duckdb_path: str = str(DATA_DIR / "cricdex.duckdb")
+    redis_url: str = _setting("redis_url", "redis://localhost:6379/0")
 
-    redis_url: str = "redis://localhost:6379/0"
-
-    neo4j_uri: str = "bolt://localhost:7687"
-    neo4j_user: str = "neo4j"
-    neo4j_password: str = ""
-
-    r2_account_id: str = ""
-    r2_access_key_id: str = ""
-    r2_secret_access_key: str = ""
-    r2_bucket: str = ""
-
-    reddit_client_id: str = ""
-    reddit_client_secret: str = ""
-    reddit_user_agent: str = "cricdex/0.1"
-
-    telegram_bot_token: str = ""
-
-    resend_api_key: str = ""
-    resend_from: str = "CricDex Digest <onboarding@resend.dev>"
-
-    langfuse_public_key: str = ""
-    langfuse_secret_key: str = ""
-    langfuse_host: str = "https://cloud.langfuse.com"
+    neo4j_uri: str = _setting("neo4j_uri", "bolt://localhost:7687")
+    neo4j_user: str = _setting("neo4j_user", "neo4j")
+    neo4j_password: str = _setting("neo4j_password", "cricdex_dev")
 
 
 settings = Settings()

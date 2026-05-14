@@ -1,0 +1,119 @@
+"""CricDex CLI — single entry point exposed as the `cricdex` console script.
+
+Subcommand groups, each mounted as its own typer app:
+
+  cricdex init                              one-shot first-run wizard
+  cricdex config set / get / edit / path    credential + setting store
+  cricdex data status / ingest              local data inventory + setup
+  cricdex leaderboard <metric>              novel-metric leaderboards
+  cricdex profile <name>                    per-player profile card
+  cricdex compare <a> <b>                   side-by-side comparator
+  cricdex records [today | <key>]           record book + on-this-day
+  cricdex venues <venue>                    pitch + conditions
+  cricdex match-report <id>                 LLM match report
+  cricdex translate <text> --to <lang>      Gemini commentary translate
+  cricdex rules ask "<question>"            citation-grounded rule QA
+  cricdex scout twins <name>                graph cohort
+  cricdex scout find-replacement <name>     auto-flip role-aware twins
+  cricdex auction solve / recommend / simulate / train-grpo
+  cricdex tui                               full Textual UI
+  cricdex dashboard                         optional Streamlit on :8501
+
+`uvx --from cricdex cricdex --help` or `pip install cricdex` + run
+`cricdex --help` from anywhere.
+"""
+
+from __future__ import annotations
+
+import typer
+
+from cricdex import __version__
+from cricdex.cli import (
+    auction_cmd,
+    config_cmd,
+    data_cmd,
+    init_cmd,
+    metrics_cmd,
+    profile_cmd,
+    rules_cmd,
+    scout_cmd,
+)
+
+app = typer.Typer(
+    add_completion=True,
+    no_args_is_help=True,
+    help="CricDex — open cricket intelligence in your terminal.",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"cricdex {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def root(
+    version: bool = typer.Option(  # noqa: B008
+        False, "--version", "-V", callback=_version_callback, is_eager=True
+    ),
+) -> None:
+    """CricDex root callback — version flag handled here."""
+
+
+# Subcommands mounted as sub-apps.
+app.add_typer(config_cmd.app, name="config", help="Manage credentials + settings.")
+app.add_typer(data_cmd.app, name="data", help="Inventory + ingest local data.")
+app.add_typer(scout_cmd.app, name="scout", help="Scout graph queries.")
+app.add_typer(auction_cmd.app, name="auction", help="Auction tooling.")
+app.add_typer(rules_cmd.app, name="rules", help="Rules Q&A.")
+
+# Top-level conveniences — one-shot commands without a sub-namespace.
+app.command(name="init", help="First-run wizard: creds + opt-in data setup.")(init_cmd.run)
+app.command(name="leaderboard", help="Show a metric leaderboard.")(metrics_cmd.leaderboard)
+app.command(name="profile", help="Per-player profile card.")(profile_cmd.profile)
+app.command(name="compare", help="Side-by-side comparator.")(profile_cmd.compare)
+app.command(name="records", help="Records + on-this-day.")(profile_cmd.records)
+app.command(name="venues", help="Venue pitch + conditions.")(profile_cmd.venues)
+app.command(name="match-report", help="LLM match report.")(profile_cmd.match_report)
+app.command(name="translate", help="Translate commentary text.")(profile_cmd.translate)
+
+
+@app.command(name="dashboard", help="Launch the Streamlit dashboard on :8501.")
+def dashboard() -> None:
+    import subprocess
+    import sys
+
+    typer.echo("Open http://localhost:8501 — Ctrl-C to stop.")
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            "src/cricdex/dashboard/app.py",
+            "--server.port",
+            "8501",
+        ],
+        check=False,
+    )
+
+
+@app.command(name="tui", help="Launch the interactive Textual TUI.")
+def tui() -> None:
+    try:
+        from cricdex.cli.tui import run_tui
+    except ImportError as e:
+        typer.echo(f"Textual TUI requires `cli` extras — `uv sync --extra cli`. ({e})")
+        raise typer.Exit(code=1) from e
+    run_tui()
+
+
+def main() -> None:
+    """Entry point referenced by `[project.scripts] cricdex = ...`."""
+    app()
+
+
+if __name__ == "__main__":
+    main()
