@@ -67,56 +67,78 @@ def _skip_if_exists(path: Path, label: str, force: bool) -> bool:
     return False
 
 
-@app.command("ingest", help="Ingest a data slice (cricsheet|rules|ratings|metrics|graph).")
-def ingest_cmd(
-    slice_: str = typer.Argument(..., metavar="SLICE"),
-    collection: str = typer.Option("ipl", "--collection", "-c"),
-    force: bool = typer.Option(False, "--force/--no-force"),
-) -> None:
+SLICES: tuple[str, ...] = (
+    "cricsheet",
+    "rules",
+    "ratings",
+    "metrics",
+    "graph",
+    "wikidata",
+)
+
+
+def run_ingest(slice_: str, collection: str = "ipl", force: bool = False) -> str:
+    """Run an ingest slice and return a one-line status string.
+
+    Pulled out of the typer command so the TUI + Streamlit can call
+    the same code path. Returns a human-readable summary; raises
+    `ValueError` for unknown slices and lets pipeline exceptions
+    propagate so the caller can format them.
+    """
     if slice_ == "cricsheet":
         from cricdex.scout.ingest import cricsheet
 
         out = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
-        if _skip_if_exists(out, "cricsheet duckdb", force):
-            return
+        if out.exists() and not force:
+            return f"cricsheet duckdb already present at {out} (pass force=True to regenerate)"
         cricsheet.ingest(collection=collection)
-        typer.echo(f"wrote {out}")
-    elif slice_ == "rules":
+        return f"wrote {out}"
+    if slice_ == "rules":
         from cricdex.rules import embed, parse
         from cricdex.rules import ingest as r_ingest
 
         r_ingest.download_all()
         parse.parse_all()
         embed.embed_all()
-        typer.echo("rules: download + parse + embed done")
-    elif slice_ == "ratings":
+        return "rules: download + parse + embed done"
+    if slice_ == "ratings":
         from cricdex.scout.ratings import bayesian
 
         out = DATA_DIR / "metrics" / f"scout_ratings_{collection}.json"
-        if _skip_if_exists(out, "scout ratings JSON", force):
-            return
+        if out.exists() and not force:
+            return f"scout ratings JSON already present at {out} (pass force=True to regenerate)"
         df = bayesian.fit(collection=collection)
         out.parent.mkdir(parents=True, exist_ok=True)
         df.write_json(str(out))
-        typer.echo(f"wrote {out} ({df.height} rows)")
-    elif slice_ == "metrics":
+        return f"wrote {out} ({df.height} rows)"
+    if slice_ == "metrics":
         import subprocess
         import sys
 
         cmd = [sys.executable, "scripts/compute_metrics.py", "all", "-c", collection]
-        subprocess.run(cmd, check=False)
-    elif slice_ == "graph":
+        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        return f"compute_metrics.py exit={proc.returncode}\n{proc.stdout.strip()}"
+    if slice_ == "graph":
         from cricdex.scout.graph import writer
 
         summary = writer.populate(collection=collection)
-        typer.echo(f"graph populated: {summary}")
-    elif slice_ == "wikidata":
+        return f"graph populated: {summary}"
+    if slice_ == "wikidata":
         from cricdex.scout.ingest import wikidata
 
         n = wikidata.enrich_via_entity_api(force=force)
-        typer.echo(f"wikidata enrichment cache size: {len(n)}")
-    else:
-        die(
-            f"unknown slice `{slice_}` — choose: cricsheet|rules|ratings|metrics|graph|wikidata",
-            code=EXIT_USER_ERROR,
-        )
+        return f"wikidata enrichment cache size: {len(n)}"
+    raise ValueError(f"unknown slice `{slice_}` — choose: {' | '.join(SLICES)}")
+
+
+@app.command("ingest", help="Ingest a data slice (cricsheet|rules|ratings|metrics|graph|wikidata).")
+def ingest_cmd(
+    slice_: str = typer.Argument(..., metavar="SLICE"),
+    collection: str = typer.Option("ipl", "--collection", "-c"),
+    force: bool = typer.Option(False, "--force/--no-force"),
+) -> None:
+    try:
+        msg = run_ingest(slice_, collection=collection, force=force)
+    except ValueError as e:
+        die(str(e), code=EXIT_USER_ERROR)
+    typer.echo(msg)
