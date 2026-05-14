@@ -35,6 +35,7 @@ def recommend_substitutes(
     min_last_match_date: str | None = "2023-01-01",
     max_balls_bowled: int | None = None,
     max_balls_faced: int | None = None,
+    bowling_style: str | None = None,
 ) -> pl.DataFrame:
     """Return up to `n` graph-similar players within `budget`.
 
@@ -62,6 +63,7 @@ def recommend_substitutes(
         max_balls_bowled=max_balls_bowled,
         max_balls_faced=max_balls_faced,
         min_last_match_date=min_last_match_date,
+        bowling_style=bowling_style,
     )
     if not candidates:
         return pl.DataFrame()

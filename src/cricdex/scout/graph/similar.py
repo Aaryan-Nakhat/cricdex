@@ -86,6 +86,7 @@ def find_replacement(
     max_balls_faced: int | None = None,
     role: str | None = None,
     min_last_match_date: str | None = None,
+    bowling_style: str | None = None,
 ) -> list[dict]:
     """Find a 'next X' candidate.
 
@@ -142,6 +143,11 @@ def find_replacement(
                 filters.append("q.balls_faced <= $max_balls_faced")
             if min_last_match_date:
                 filters.append("q.last_match_date >= $min_last_match_date")
+            if bowling_style:
+                # Only meaningful when the target *is* a bowler — but harmless
+                # for batter targets (the candidate's bowling_style just won't
+                # match anything sensible there, and the user opted in).
+                filters.append("q.bowling_style = $bowling_style")
             where = " AND ".join(filters)
 
             cypher = f"""
@@ -153,6 +159,8 @@ def find_replacement(
             RETURN q.unique_name AS name,
                    q.cricsheet_id AS cricsheet_id,
                    q.role AS role,
+                   q.bowling_style AS bowling_style,
+                   q.bowling_style_source AS bowling_style_source,
                    q.balls_bowled AS balls_bowled,
                    q.balls_faced AS balls_faced,
                    q.last_match_date AS last_match_date,
@@ -167,6 +175,8 @@ def find_replacement(
                 params["max_balls_faced"] = max_balls_faced
             if min_last_match_date:
                 params["min_last_match_date"] = min_last_match_date
+            if bowling_style:
+                params["bowling_style"] = bowling_style
             return s.run(cypher, **params).data()
     finally:
         drv.close()

@@ -47,6 +47,11 @@ def find_replacement(
     name: str = typer.Argument(...),
     top_k: int = typer.Option(10, "-k", "--top-k"),
     role: str | None = typer.Option(None, "--role", help="bowler|batter|all_rounder"),
+    style: str | None = typer.Option(
+        None,
+        "--style",
+        help="bowling style filter (pace | spin). Curated map + middle-overs heuristic.",
+    ),
     max_balls_bowled: int | None = typer.Option(None, "--max-balls-bowled"),
     max_balls_faced: int | None = typer.Option(None, "--max-balls-faced"),
     min_last_match: str | None = typer.Option(None, "--min-last-match"),
@@ -61,6 +66,7 @@ def find_replacement(
         max_balls_bowled=max_balls_bowled,
         max_balls_faced=max_balls_faced,
         min_last_match_date=min_last_match,
+        bowling_style=style,
     )
     if not rows:
         die("no candidates — relax filters or check spelling")
