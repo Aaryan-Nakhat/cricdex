@@ -117,6 +117,6 @@ def ingest_cmd(
         typer.echo(f"wikidata enrichment cache size: {len(n)}")
     else:
         die(
-            f"unknown slice `{slice_}` — " "choose: cricsheet|rules|ratings|metrics|graph|wikidata",
+            f"unknown slice `{slice_}` — choose: cricsheet|rules|ratings|metrics|graph|wikidata",
             code=EXIT_USER_ERROR,
         )

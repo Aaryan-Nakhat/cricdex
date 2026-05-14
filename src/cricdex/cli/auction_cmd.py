@@ -1,4 +1,9 @@
-"""`cricdex auction` — solve / recommend / simulate / train-grpo."""
+"""`cricdex auction` — solve / recommend / simulate / train-grpo.
+
+Renderers mirror the Streamlit Auction + Auction-Simulator pages:
+explainer panel, summary line, primary table, footnote with refresh
+hint.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +11,8 @@ from pathlib import Path
 
 import typer
 
-from cricdex.cli._shared import EXIT_USER_ERROR, die, render_table
+from cricdex.cli import _copy, _render
+from cricdex.cli._shared import EXIT_USER_ERROR, console, die
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -30,8 +36,6 @@ def solve(
 
     if pool == "real":
         df = real_pool.build_pool()
-        # Real pool has no keeper-role tag — default to 0 unless user
-        # overrides explicitly. Otherwise the MILP is infeasible.
         if keeper_min is None:
             keeper_min = 0
     elif pool == "synthetic":
@@ -47,6 +51,12 @@ def solve(
             keeper_min = 0
     role_mins = {"batter": 5, "bowler": 5, "all_rounder": 3, "keeper": keeper_min}
 
+    _render.header(
+        "Auction — MILP squad solve",
+        subtitle=f"pool: {pool}  ·  purse: {purse:.1f} cr  ·  squad-size: {squad_size}",
+    )
+    _render.intro_panel(_copy.AUCTION_SOLVE_INTRO, title="Auction")
+
     res = solver.solve(
         df,
         purse=purse,
@@ -56,8 +66,21 @@ def solve(
     )
     if not res["feasible"]:
         die(f"infeasible: {res.get('reason')}", code=EXIT_USER_ERROR)
-    typer.echo(f"feasible squad — price {res['total_price']:.2f}  value {res['total_value']:.2f}")
-    render_table(res["selected"].to_dicts(), title="selected XI")
+    _render.kv_grid(
+        {
+            "Total price (cr)": f"{res['total_price']:.2f}",
+            "Total projected value": f"{res['total_value']:.2f}",
+            "Squad size": squad_size,
+            "Overseas cap": overseas_cap,
+        },
+        title="Solution",
+        cols=4,
+    )
+    _render.pretty_table(res["selected"].to_dicts(), title="Selected XV")
+    _render.footnote(
+        "Constraints: budget + squad-size + per-role minimums + overseas cap. "
+        "Maximises total projected value."
+    )
 
 
 @app.command("recommend", help="War-room substitute advisor.")
@@ -75,6 +98,16 @@ def recommend(
 ) -> None:
     from cricdex.auction import advisor
 
+    _render.header(
+        f"War-room advisor — substitute for {target}",
+        subtitle=f"budget: {budget:.1f} cr  ·  top-{n}",
+    )
+    _render.intro_panel(_copy.AUCTION_RECOMMEND_INTRO, title="Recommend")
+    if role:
+        console().print(f"[dim]filter:[/dim] role = [bold]{role}[/bold]")
+    if style:
+        console().print(f"[dim]filter:[/dim] bowling style = [bold]{style}[/bold]")
+
     rec = advisor.recommend_substitutes(
         target,
         budget=budget,
@@ -85,7 +118,12 @@ def recommend(
     )
     if rec.is_empty():
         die("no affordable graph-similar candidates")
-    render_table(rec.to_dicts(), title=f"substitutes for {target} @ {budget:.1f} cr")
+    _render.pretty_table(
+        rec.to_dicts(),
+        title=f"Substitutes for {target} @ {budget:.1f} cr",
+        column_styles={"name": "bold cyan"},
+    )
+    _render.footnote("Composite score = graph similarity × Bayes value × role match × budget fit.")
 
 
 @app.command("simulate", help="Monte-Carlo auction price-band sim.")
@@ -97,6 +135,12 @@ def simulate(
 ) -> None:
     from cricdex.auction import real_pool, simulator
 
+    _render.header(
+        "Auction simulator — Monte-Carlo",
+        subtitle=f"n_sims: {n_sims}  ·  franchises: {n_franchises}  ·  purse: {purse:.1f}",
+    )
+    _render.intro_panel(_copy.AUCTION_SIMULATE_INTRO, title="Simulate")
+
     pool = real_pool.build_pool()
     franchises = [
         {"id": f"F{i + 1}", "purse": purse, "aggression": 1.0, "risk": 0.15}
@@ -104,7 +148,11 @@ def simulate(
     ]
     result = simulator.simulate(pool, franchises=franchises, n_sims=n_sims)
     df = result["per_player"].head(top_n)
-    render_table(df.to_dicts(), title=f"price distribution (top {top_n})")
+    _render.pretty_table(df.to_dicts(), title=f"Price distribution (top {top_n})")
+    _render.footnote(
+        "Per-player columns: mean_price · price_p10 · price_p90 · sold_pct  "
+        "(across all simulations)."
+    )
 
 
 @app.command("train-grpo", help="Train the GRPO auction self-play policy.")
@@ -119,6 +167,10 @@ def train_grpo(
     from cricdex.auction import grpo, real_pool, solver
     from cricdex.config import DATA_DIR
 
+    _render.header(
+        "GRPO auction self-play",
+        subtitle=f"pool: {pool}  ·  epochs: {epochs}  ·  group: {group_size}",
+    )
     pool_df = real_pool.build_pool() if pool == "real" else solver.sample_pool()
     franchises = real_pool.FRANCHISE_ARCHETYPES[:n_franchises] if diverse_franchises else None
     out_path = out or DATA_DIR / "auction" / "policy.zip"
@@ -131,4 +183,4 @@ def train_grpo(
         out_path=out_path,
         franchises=franchises,
     )
-    typer.echo(f"wrote policy → {out_path}")
+    console().print(f"[bold]wrote policy →[/bold] {out_path}")
