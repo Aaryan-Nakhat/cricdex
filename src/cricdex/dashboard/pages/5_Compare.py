@@ -9,7 +9,7 @@ import streamlit as st
 
 from cricdex.comparator import compare as cmp
 from cricdex.config import DATA_DIR
-from cricdex.dashboard._widgets import provenance_banner
+from cricdex.dashboard._widgets import collection_picker, provenance_banner
 
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 
@@ -70,7 +70,7 @@ def list_players(collection: str) -> list[str]:
 
 
 with st.sidebar:
-    collection = st.text_input("Collection", value="ipl")
+    collection = collection_picker(default="ipl", key="compare-collection")
     pool = list_players(collection)
     if not pool:
         st.warning(f"no balls_{collection} table — run docker-ingest-cricsheet first")

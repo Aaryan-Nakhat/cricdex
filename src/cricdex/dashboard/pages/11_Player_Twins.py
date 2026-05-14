@@ -21,7 +21,7 @@ from __future__ import annotations
 import streamlit as st
 
 from cricdex.config import DATA_DIR
-from cricdex.dashboard._widgets import fuzzy_player_input, provenance_banner
+from cricdex.dashboard._widgets import collection_picker, fuzzy_player_input, provenance_banner
 
 st.set_page_config(page_title="CricDex Player Twins", page_icon="🔗", layout="wide")
 st.title("🔗 CricDex — player twins & replacement finder")
@@ -65,6 +65,7 @@ def _replacement(name, k, role, style, max_bw, max_bt, min_last):
 
 
 with st.sidebar:
+    collection = collection_picker(default="ipl", key="twins-collection")
     mode = st.radio(
         "Query",
         ["Find replacement", "Co-faced bowlers", "Teammate overlap"],
@@ -73,10 +74,16 @@ with st.sidebar:
     name = fuzzy_player_input(
         label="Target player",
         default="JJ Bumrah",
-        collection="ipl",
+        collection=collection,
         key="twins-target",
     )
-    top_k = st.slider("Top-K", 5, 25, 10)
+    top_k = st.slider(
+        "Top-K",
+        5,
+        25,
+        10,
+        help="Number of suggested cohort rows to show. Sorted by shared-count descending.",
+    )
     if not name:
         st.info("Confirm a player above to query the graph.")
         st.stop()

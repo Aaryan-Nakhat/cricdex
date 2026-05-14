@@ -233,7 +233,15 @@ def render() -> None:
             df = df.sort_values(cfg["sort_col"], ascending=False)
 
             top_n = st.slider(
-                f"Top N for {metric_name}", min_value=10, max_value=200, value=25, step=5
+                f"Top N for {metric_name}",
+                min_value=10,
+                max_value=200,
+                value=25,
+                step=5,
+                help=(
+                    "How many of the highest-scoring rows to show. Higher = "
+                    "fuller list (slower to scroll); lower = just the leaders."
+                ),
             )
             head = df.head(top_n)
 

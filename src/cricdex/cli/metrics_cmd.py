@@ -29,7 +29,12 @@ METRICS: dict[str, tuple[str, str]] = {
 def leaderboard(
     metric: str = typer.Argument(..., help=f"one of: {sorted(METRICS)}"),
     collection: str = typer.Option("ipl", "--collection", "-c"),
-    top: int = typer.Option(15, "--top", "-n"),
+    top: int = typer.Option(
+        15,
+        "--top",
+        "-n",
+        help="How many top-scoring rows to render. Higher = fuller list.",
+    ),
     output_json: bool = typer.Option(False, "--json", help="emit raw JSON for piping"),
 ) -> None:
     if metric not in METRICS:

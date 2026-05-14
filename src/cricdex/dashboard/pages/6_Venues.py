@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from cricdex.config import DATA_DIR
-from cricdex.dashboard._widgets import provenance_banner
+from cricdex.dashboard._widgets import collection_picker, provenance_banner
 from cricdex.venues import profile
 
 st.set_page_config(page_title="CricDex Venues", page_icon="🏟️", layout="wide")
@@ -19,7 +19,7 @@ provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.d
 
 
 with st.sidebar:
-    collection = st.text_input("Collection", value="ipl")
+    collection = collection_picker(default="ipl", key="venues-collection")
     min_matches = st.slider("Min matches to list a venue", 1, 30, 5)
 
 venues_df = profile.list_venues(collection, min_matches=min_matches)

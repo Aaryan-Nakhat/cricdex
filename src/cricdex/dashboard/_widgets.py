@@ -1,8 +1,9 @@
-"""Shared Streamlit widgets — provenance banner + fuzzy name input.
+"""Shared Streamlit widgets — provenance banner + fuzzy name input +
+collection picker.
 
 Keeps the dashboard pages thin and lets every data-backed page use
-the same UX for "did you mean?" confirmation and "data as of …"
-provenance.
+the same UX for "did you mean?" confirmation, "data as of …"
+provenance, and collection selection.
 """
 
 from __future__ import annotations
@@ -10,10 +11,52 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 
+import duckdb
 import streamlit as st
 
 from cricdex.config import DATA_DIR
 from cricdex.profiles.identity import resolve_name
+
+
+@st.cache_data(ttl=60)
+def discover_collections() -> list[str]:
+    """Return the list of collections we have data for — scans the
+    cricsheet DuckDB for `balls_*` tables. Fallback to ['ipl'] when
+    DuckDB isn't ingested yet so the picker still has a default."""
+    db = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
+    if not db.exists():
+        return ["ipl"]
+    try:
+        con = duckdb.connect(str(db), read_only=True)
+        try:
+            rows = con.execute("SHOW TABLES").fetchall()
+            cols = sorted(r[0].removeprefix("balls_") for r in rows if r[0].startswith("balls_"))
+            return cols or ["ipl"]
+        finally:
+            con.close()
+    except Exception:
+        return ["ipl"]
+
+
+def collection_picker(
+    label: str = "Collection",
+    default: str = "ipl",
+    key: str | None = None,
+) -> str:
+    """Selectbox over the available collections — same source as
+    `cricdex data ingest cricsheet -c <name>`."""
+    options = discover_collections()
+    index = options.index(default) if default in options else 0
+    return st.selectbox(
+        label,
+        options=options,
+        index=index,
+        key=key,
+        help=(
+            "Pick a Cricsheet collection. New collections appear here once "
+            "`cricdex data ingest cricsheet -c <name>` lands the duckdb table."
+        ),
+    )
 
 
 def fuzzy_player_input(

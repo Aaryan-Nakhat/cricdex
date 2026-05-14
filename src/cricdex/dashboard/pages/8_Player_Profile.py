@@ -11,7 +11,7 @@ import duckdb
 import streamlit as st
 
 from cricdex.config import DATA_DIR
-from cricdex.dashboard._widgets import fuzzy_player_input, provenance_banner
+from cricdex.dashboard._widgets import collection_picker, fuzzy_player_input, provenance_banner
 from cricdex.profiles import builder
 
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -53,7 +53,7 @@ def list_players(collection: str) -> list[str]:
 
 
 with st.sidebar:
-    collection = st.text_input("Collection", value="ipl")
+    collection = collection_picker(default="ipl", key="profile-collection")
     pool = list_players(collection)
     if not pool:
         st.warning(

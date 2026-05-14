@@ -122,7 +122,19 @@ with col1:
 with col2:
     adv_role = st.selectbox("Role", ["", "bowler", "batter", "all_rounder"], index=1)
 with col3:
-    adv_n = st.slider("Top-N substitutes", 3, 15, 5)
+    adv_n = st.slider(
+        "Top-N substitutes",
+        3,
+        15,
+        5,
+        help="How many substitute candidates to suggest, sorted by composite score (graph cohort proximity + Bayes-driven projected value).",
+    )
+adv_style = st.selectbox(
+    "Bowling style (bowler replacements only)",
+    ["", "pace", "spin"],
+    index=0,
+    help="Filter bowler candidates by pace vs spin. Source: curated overrides + middle-overs heuristic.",
+)
 if st.button("Recommend substitutes"):
     try:
         from cricdex.auction import advisor as _advisor
@@ -132,6 +144,7 @@ if st.button("Recommend substitutes"):
             budget=adv_budget,
             role=adv_role or None,
             n=adv_n,
+            bowling_style=adv_style or None,
             pool=pool,
         )
         if rec.is_empty():

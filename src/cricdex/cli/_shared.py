@@ -62,20 +62,41 @@ def require_cred(key: str, *, label: str, set_cmd: str) -> str:
     return value
 
 
-def render_table(rows: list[dict], title: str | None = None) -> None:
-    """Pretty-print a list of dict rows as a rich table."""
+def render_table(
+    rows: list[dict],
+    title: str | None = None,
+    max_col_width: int = 28,
+) -> None:
+    """Pretty-print a list of dict rows as a rich table.
+
+    Tweaks for wide-terminal use:
+    - `expand=True` so the table fills available terminal width.
+    - `max_col_width` caps individual columns so a long name doesn't
+      starve the rest.
+    - rounded box style + no row separators for compact reading.
+    """
+    from rich import box
     from rich.table import Table
 
     if not rows:
         console().print("[dim](no rows)[/dim]")
         return
-    table = Table(title=title, show_lines=False, header_style="bold cyan")
+    table = Table(
+        title=title,
+        title_style="bold",
+        show_lines=False,
+        header_style="bold cyan",
+        box=box.ROUNDED,
+        expand=True,
+        pad_edge=False,
+    )
     cols = list(rows[0].keys())
     for col in cols:
-        table.add_column(col)
+        table.add_column(col, overflow="fold", max_width=max_col_width, no_wrap=False)
     for r in rows:
         table.add_row(*(str(r.get(c, "")) for c in cols))
     console().print(table)
+    console().print("[dim]tip: run `cricdex tui` for an interactive view.[/dim]")
 
 
 def resolve_or_die(query: str, collection: str = "ipl") -> str:
