@@ -103,11 +103,12 @@ METRICS: dict[str, dict] = {
         "bar_col": "ngi_per_match",
         "extras": ["matches", "ngi_total", "ngi_batting", "ngi_bowling"],
         "description": (
-            "WPA-style impact: each ball's win-probability swing (XGBoost WP model "
-            "fit on Cricsheet ball-by-ball, ~70% val accuracy) credited to the batter "
-            "or bowler involved. Higher = changed the game more on average. Treats "
-            "batters and bowlers on one currency. Run `make docker-metrics-all` or "
-            "`compute_metrics.py ngi --collection <name>` to populate."
+            "WPA-style impact: each ball's win-probability swing is credited to "
+            "the batter (+) or bowler (−). Higher = changed the game more on "
+            "average. Treats batters and bowlers on one currency, so a 30* in "
+            "a tight chase ranks above a 100 against a beaten side. The "
+            "underlying win-probability model is calibrated — when it says "
+            "'70% win chance', the batting team actually wins ~70% of the time."
         ),
         "primary_key": "name",
     },
