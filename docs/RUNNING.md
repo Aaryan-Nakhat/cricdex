@@ -73,7 +73,7 @@ uv run python scripts/scout_graph.py co-faced "V Kohli" -k 10
 uv run python scripts/scout_graph.py teammates "MS Dhoni" -k 10
 ```
 
-UI: dashboard page **Player Twins** (`C_Player_Twins.py`).
+UI: dashboard page **Player Twins** (`11_Player_Twins.py`).
 
 ### War-room auction substitute advisor
 
