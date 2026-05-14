@@ -110,8 +110,13 @@ def ingest_cmd(
 
         summary = writer.populate(collection=collection)
         typer.echo(f"graph populated: {summary}")
+    elif slice_ == "wikidata":
+        from cricdex.scout.ingest import wikidata
+
+        n = wikidata.enrich_via_entity_api(force=force)
+        typer.echo(f"wikidata enrichment cache size: {len(n)}")
     else:
         die(
-            f"unknown slice `{slice_}` — " "choose: cricsheet|rules|ratings|metrics|graph",
+            f"unknown slice `{slice_}` — " "choose: cricsheet|rules|ratings|metrics|graph|wikidata",
             code=EXIT_USER_ERROR,
         )

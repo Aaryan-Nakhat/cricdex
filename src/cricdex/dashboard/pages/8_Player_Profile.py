@@ -82,12 +82,76 @@ if ids:
             chips.append(f"`{k}={v}`")
     st.caption(" · ".join(chips))
 
-wikidata = profile.get("wikidata") or {}
-if wikidata:
-    cols = st.columns(3)
-    cols[0].metric("DOB", str(wikidata.get("dob") or "—"))
-    cols[1].metric("Country", str(wikidata.get("country") or "—"))
-    cols[2].metric("Gender", str(wikidata.get("gender") or "—"))
+
+def _load_wikidata_for(cricsheet_id: str) -> dict:
+    """Wikidata enrichment cache lookup. None-safe."""
+    import datetime as _dt
+    import json as _json
+
+    from cricdex.config import ROOT
+
+    path = ROOT / "data" / "curated" / "wikidata_enrichment.json"
+    if not path.exists():
+        return {}
+    try:
+        data = _json.loads(path.read_text())
+    except Exception:
+        return {}
+    record = data.get(cricsheet_id) or {}
+    # Age computation
+    dob = record.get("dob")
+    if dob:
+        try:
+            d = _dt.date.fromisoformat(dob[:10])
+            today = _dt.date.today()
+            age = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+            record["age"] = age
+        except Exception:
+            pass
+    return record
+
+
+wd = _load_wikidata_for(profile.get("cricsheet_id") or "")
+if wd and wd.get("_status") == "ok":
+    img_col, info_col = st.columns([1, 3])
+    with img_col:
+        if wd.get("image_url"):
+            st.image(wd["image_url"], width=180)
+    with info_col:
+        m = st.columns(4)
+        m[0].metric("DOB", wd.get("dob") or "—")
+        m[1].metric("Age", wd.get("age") or "—")
+        m[2].metric("Country (Wikidata Q-id)", wd.get("country_qid") or "—")
+        m[3].metric("Birthplace (Q-id)", wd.get("birthplace_qid") or "—")
+        social = []
+        if wd.get("twitter"):
+            social.append(f"[𝕏 @{wd['twitter']}](https://twitter.com/{wd['twitter']})")
+        if wd.get("instagram"):
+            social.append(
+                f"[Instagram @{wd['instagram']}](https://instagram.com/{wd['instagram']})"
+            )
+        if wd.get("espn_id"):
+            social.append(
+                f"[ESPNcricinfo](https://www.espncricinfo.com/cricketers/{wd['espn_id']})"
+            )
+        if wd.get("cricbuzz_id"):
+            social.append(f"[Cricbuzz](https://www.cricbuzz.com/profiles/{wd['cricbuzz_id']})")
+        if wd.get("wikidata_qid"):
+            social.append(f"[Wikidata](https://www.wikidata.org/wiki/{wd['wikidata_qid']})")
+        if social:
+            st.markdown(" · ".join(social))
+        st.caption(
+            "Wikidata-sourced (image + DOB + cross-source IDs). Country / birthplace are "
+            "raw Q-ids in v1 — label resolution in vNext. Refresh with "
+            "`cricdex data ingest wikidata --force`."
+        )
+elif wd and wd.get("_status") == "not_found":
+    st.caption("Wikidata: no entity found for this player.")
+else:
+    st.caption(
+        "Wikidata enrichment not yet pulled for this player — run "
+        "`cricdex data ingest wikidata` to populate."
+    )
 
 st.subheader("Career totals")
 career = profile.get("career") or {}

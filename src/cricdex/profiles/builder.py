@@ -144,10 +144,12 @@ def build(name: str, collection: str = "ipl") -> dict:
         people = _people_row(con, name)
         profile["ids"] = people or {}
         if people:
+            profile["cricsheet_id"] = people.get("cricsheet_id")
             wikidata = _wikidata_row(con, people.get("key_cricinfo"))
             profile["wikidata"] = wikidata or {}
             profile["bayes"] = _bayes_skills(con, collection, people.get("cricsheet_id"))
         else:
+            profile["cricsheet_id"] = None
             profile["wikidata"] = {}
             profile["bayes"] = {}
         profile["career"] = _career_totals(con, collection, name)
