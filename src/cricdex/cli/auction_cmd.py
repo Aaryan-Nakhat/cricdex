@@ -57,13 +57,14 @@ def solve(
     )
     _render.intro_panel(_copy.AUCTION_SOLVE_INTRO, title="Auction")
 
-    res = solver.solve(
-        df,
-        purse=purse,
-        squad_size=squad_size,
-        overseas_cap=overseas_cap,
-        role_mins=role_mins,
-    )
+    with _render.spinner("solving MILP"):
+        res = solver.solve(
+            df,
+            purse=purse,
+            squad_size=squad_size,
+            overseas_cap=overseas_cap,
+            role_mins=role_mins,
+        )
     if not res["feasible"]:
         die(f"infeasible: {res.get('reason')}", code=EXIT_USER_ERROR)
     _render.kv_grid(
@@ -108,14 +109,15 @@ def recommend(
     if style:
         console().print(f"[dim]filter:[/dim] bowling style = [bold]{style}[/bold]")
 
-    rec = advisor.recommend_substitutes(
-        target,
-        budget=budget,
-        role=role,
-        n=n,
-        min_last_match_date=min_last_match,
-        bowling_style=style,
-    )
+    with _render.spinner(f"finding substitutes for {target}"):
+        rec = advisor.recommend_substitutes(
+            target,
+            budget=budget,
+            role=role,
+            n=n,
+            min_last_match_date=min_last_match,
+            bowling_style=style,
+        )
     if rec.is_empty():
         die("no affordable graph-similar candidates")
     _render.pretty_table(
@@ -146,7 +148,8 @@ def simulate(
         {"id": f"F{i + 1}", "purse": purse, "aggression": 1.0, "risk": 0.15}
         for i in range(n_franchises)
     ]
-    result = simulator.simulate(pool, franchises=franchises, n_sims=n_sims)
+    with _render.spinner(f"running {n_sims} Monte-Carlo sims"):
+        result = simulator.simulate(pool, franchises=franchises, n_sims=n_sims)
     df = result["per_player"].head(top_n)
     _render.pretty_table(df.to_dicts(), title=f"Price distribution (top {top_n})")
     _render.footnote(

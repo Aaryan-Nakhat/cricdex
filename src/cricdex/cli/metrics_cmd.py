@@ -71,6 +71,14 @@ def leaderboard(
 
     # Trim to a useful preview: primary key + sort col + 3-4 extras.
     if rows:
+        # Sparkline over the sort_col values gives an at-a-glance
+        # distribution shape (steep top tail vs flat plateau etc).
+        spark_vals = [r.get(sort_col) or 0 for r in rows]
+        spark = _render.sparkline(spark_vals)
+        if spark:
+            from cricdex.cli._shared import console as _c
+
+            _c().print(f"[dim]{sort_col} shape:[/dim] [cyan]{spark}[/cyan]")
         extras = [k for k in rows[0].keys() if k not in {primary_key, sort_col}][:4]
         cols = [primary_key, sort_col, *extras]
         pruned = [{c: r.get(c) for c in cols} for r in rows]
