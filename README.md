@@ -1,37 +1,47 @@
 # CricDex
 
 Open cricket intelligence platform — natural-language rule Q&A, novel
-sabermetrics, multi-tier scouting graph, multi-agent auction simulator,
-social-pulse analyser, and more. All modules ship behind a single
-`docker compose up` so anyone can run the whole stack locally.
+sabermetrics (NGI / WPA, Phase Dilation, Setting Tax, Wicket Quality,
+Pressure Runs, …), multi-tier scouting graph with Bayesian opponent-
+adjusted ratings, MILP auction war-room + GRPO auction self-play +
+substitute advisor, side-by-side comparator, multilingual commentary
+translator, DRS practice game, daily newsletter digest.
 
-## Quickstart (Docker)
+**Distribution is terminal-first.** A single console script `cricdex`
+fronts everything; a Streamlit dashboard is included as an optional
+browser view of the same data.
+
+## Install
 
 ```bash
-git clone https://github.com/Aaryan-Nakhat/cricdex.git
-cd cricdex
-cp .env.example .env
-# (Optional) edit .env to wire up Gemini proxy / HF token / etc.
+# One-shot run (no install)
+uvx --from cricdex cricdex --help
 
-make docker-up                                # Qdrant + API on :8080
-# --- Rules ---
-make docker-ingest-rules-download             # 21 rulebook PDFs
-make docker-ingest-rules-parse                # → ~11k clauses
-make docker-embed-rules                       # → Qdrant collection
-make docker-query Q="impact player rule" FORMATS=ipl
-# --- Metrics + identity ---
-make docker-ingest-cricsheet COLLECTION=ipl   # IPL ball-by-ball → DuckDB
-make docker-ingest-people                     # cross-ID register
-make docker-metrics-all COLLECTION=ipl        # 6 novel metrics → JSON
-# --- Dashboard ---
-make docker-dashboard-up                      # Streamlit on :8511
+# Global install
+pip install cricdex                            # base CLI
+pip install 'cricdex[cli,graph,ui]'            # rich/textual TUI +
+                                                # Neo4j scout graph +
+                                                # Streamlit dashboard
 ```
 
-See [`docs/RUNNING.md`](docs/RUNNING.md) for the local `uv` path and the
-full pipeline catalogue. See [`docs/DOCKER.md`](docs/DOCKER.md) for image
-+ compose design notes. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-for the cross-module data flow. See [`docs/DEFERRED.md`](docs/DEFERRED.md)
-for every known gap + the concrete fix path for each.
+## First run (5 commands)
+
+```bash
+cricdex init                                   # wizard + Gemini key
+cricdex data ingest cricsheet -c ipl           # ~600 MB ball-by-ball
+cricdex data ingest rules                      # 21 PDFs + 11 k clauses
+cricdex data ingest metrics -c ipl             # 9 leaderboards
+cricdex leaderboard ngi -c ipl --top 15        # your first query
+```
+
+Optional next step — `cricdex dashboard` opens the Streamlit UI on
+`http://localhost:8501` reading the same `~/.cricdex/data/`.
+
+Full command reference: [`docs/CLI.md`](docs/CLI.md). Onboarding flow:
+[`docs/FIRST_RUN.md`](docs/FIRST_RUN.md). Architecture:
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Pending work
+(phase-grouped): [`docs/TODO.md`](docs/TODO.md). Canonical catalogue
+of every known gap + fix path: [`docs/DEFERRED.md`](docs/DEFERRED.md).
 
 ## Modules
 
