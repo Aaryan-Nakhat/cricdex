@@ -124,37 +124,49 @@ def _fill_datatable(table: DataTable, rows: list[dict], max_cols: int = 8) -> No
 class CricDexApp(App):
     """Main Textual app — 11 tabs, one per Streamlit page."""
 
-    # CSS uses explicit-height controls bar + 1fr result area so the
-    # bottom widget always stays in view. The earlier vertical-stack
-    # layout pushed DataTable/RichLog off-screen on shorter terminals
-    # because the controls panel + intro text totalled >30 rows.
+    # Layout notes:
+    # - `.controls` is a horizontal bar with `align-vertical: middle` so
+    #   labels / inputs / selects / buttons line up on one baseline (the
+    #   earlier `height: 5` top-aligned everything → ragged row).
+    # - Tab labels are short + emoji-free so all 12 fit inside a 120-col
+    #   terminal (the emoji versions overflowed to 157 cols and clipped
+    #   the last tabs off-screen).
+    # - Palette comes from the built-in `nord` theme set in on_mount;
+    #   `$accent` / `$panel` / `$boost` resolve to nord tokens.
     CSS = """
     Screen { background: $surface; }
-    Header { background: $primary; color: $text; }
     #status-bar {
         height: 1;
         background: $boost;
         color: $accent;
+        text-style: bold;
         padding: 0 2;
     }
     TabbedContent { height: 1fr; }
+    Tabs { background: $surface-darken-1; }
+    Tab { padding: 0 1; }
     TabPane { padding: 0; }
     .controls {
-        height: 5;
+        height: auto;
         layout: horizontal;
+        align-vertical: middle;
         background: $panel;
-        border: solid $primary;
-        padding: 0 1;
+        border: round $primary;
+        padding: 1;
         margin: 1 1 0 1;
     }
     .controls Label {
         width: auto;
-        padding: 1 1 0 0;
+        height: 3;
+        content-align: left middle;
+        padding: 0 1 0 1;
         color: $accent;
     }
-    .controls Input { width: 18; margin: 0 1; }
-    .controls Select { width: 28; margin: 0 1; }
-    .controls Button { width: 14; margin: 1 1 0 1; }
+    .controls Input { width: 16; height: 3; margin: 0 1; }
+    .controls Input.num { width: 8; }
+    .controls Input.wide { width: 24; }
+    .controls Select { width: 22; height: 3; margin: 0 1; }
+    .controls Button { min-width: 12; height: 3; margin: 0 1; }
     .intro {
         height: auto;
         max-height: 3;
@@ -164,17 +176,18 @@ class CricDexApp(App):
     DataTable {
         height: 1fr;
         margin: 1;
-        border: solid $primary;
+        border: round $primary;
     }
     DataTable > .datatable--header {
         background: $boost;
         color: $accent;
         text-style: bold;
     }
+    DataTable > .datatable--cursor { background: $accent 35%; }
     RichLog {
         height: 1fr;
         background: $panel;
-        border: solid $primary;
+        border: round $primary;
         margin: 1;
         padding: 0 1;
     }
@@ -183,40 +196,76 @@ class CricDexApp(App):
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("escape", "quit", "Quit"),
         Binding("ctrl+c", "quit", "Quit"),
+        Binding("right", "next_tab", "Next tab"),
+        Binding("left", "prev_tab", "Prev tab"),
+        Binding("ctrl+p", "command_palette", "Palette"),
     ]
 
     TITLE = "CricDex — open cricket intelligence"
-    SUB_TITLE = "tab/shift-tab to switch panels  ·  q to quit"
+    SUB_TITLE = "← → switch panels · q quit"
+
+    def on_mount(self) -> None:
+        # Built-in nord theme — clean dark palette, good contrast. Users
+        # can cycle themes live via the command palette (ctrl+p).
+        self.theme = "nord"
+
+    _TAB_ORDER = [
+        "tab-leaderboard",
+        "tab-rules",
+        "tab-records",
+        "tab-matchreport",
+        "tab-compare",
+        "tab-venues",
+        "tab-auction",
+        "tab-profile",
+        "tab-translate",
+        "tab-auction-sim",
+        "tab-twins",
+        "tab-update",
+    ]
+
+    def _shift_tab(self, delta: int) -> None:
+        tabs = self.query_one(TabbedContent)
+        try:
+            idx = self._TAB_ORDER.index(tabs.active)
+        except ValueError:
+            idx = 0
+        tabs.active = self._TAB_ORDER[(idx + delta) % len(self._TAB_ORDER)]
+
+    def action_next_tab(self) -> None:
+        self._shift_tab(1)
+
+    def action_prev_tab(self) -> None:
+        self._shift_tab(-1)
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Static(self._status_text(), id="status-bar")
         with TabbedContent(id="tabs"):
-            with TabPane("📊 Leaderboard", id="tab-leaderboard"):
+            with TabPane("Leaders", id="tab-leaderboard"):
                 yield from self._leaderboard_panel()
-            with TabPane("📜 Rules", id="tab-rules"):
+            with TabPane("Rules", id="tab-rules"):
                 yield from self._rules_panel()
-            with TabPane("🏆 Records", id="tab-records"):
+            with TabPane("Records", id="tab-records"):
                 yield from self._records_panel()
-            with TabPane("📝 Match Report", id="tab-matchreport"):
+            with TabPane("Report", id="tab-matchreport"):
                 yield from self._matchreport_panel()
-            with TabPane("🆚 Compare", id="tab-compare"):
+            with TabPane("Compare", id="tab-compare"):
                 yield from self._compare_panel()
-            with TabPane("🏟 Venues", id="tab-venues"):
+            with TabPane("Venues", id="tab-venues"):
                 yield from self._venues_panel()
-            with TabPane("💸 Auction", id="tab-auction"):
+            with TabPane("Auction", id="tab-auction"):
                 yield from self._auction_panel()
-            with TabPane("🪪 Profile", id="tab-profile"):
+            with TabPane("Profile", id="tab-profile"):
                 yield from self._profile_panel()
-            with TabPane("🌐 Translate", id="tab-translate"):
+            with TabPane("Translate", id="tab-translate"):
                 yield from self._translate_panel()
-            with TabPane("🎲 Auction Sim", id="tab-auction-sim"):
+            with TabPane("Sim", id="tab-auction-sim"):
                 yield from self._auction_sim_panel()
-            with TabPane("🔗 Twins", id="tab-twins"):
+            with TabPane("Twins", id="tab-twins"):
                 yield from self._twins_panel()
-            with TabPane("🔄 Update Data", id="tab-update"):
+            with TabPane("Update", id="tab-update"):
                 yield from self._update_panel()
         yield Footer()
 
@@ -228,8 +277,8 @@ class CricDexApp(App):
         m = (DATA_DIR / "metrics").exists()
         return (
             f"  data: cricsheet [{'✓' if n else '✗'}]  rules [{'✓' if r else '✗'}]  "
-            f"metrics [{'✓' if m else '✗'}]   ·   tab/shift-tab switches panels  "
-            f"·   q quits"
+            f"metrics [{'✓' if m else '✗'}]   ·   ← → switch panels  ·   "
+            f"ctrl+p themes  ·   q quit"
         )
 
     # ===== Leaderboard ====================================================
@@ -499,8 +548,9 @@ class CricDexApp(App):
                 yield Input(value="bowler", id="auc-role")
                 yield Label("Top N:")
                 yield Input(value="10", id="auc-n")
-                yield Button("Recommend", id="auc-rec-run", variant="primary")
-                yield Button("Solve MILP", id="auc-solve-run", variant="warning")
+            with Horizontal(classes="controls"):
+                yield Button("Recommend substitutes", id="auc-rec-run", variant="primary")
+                yield Button("Solve MILP squad", id="auc-solve-run", variant="warning")
             yield Static(
                 f"{_copy.AUCTION_RECOMMEND_INTRO}   ·   "
                 f"Solve MILP uses purse=120, squad=25, overseas-cap=8.",
@@ -703,13 +753,13 @@ class CricDexApp(App):
         with Vertical():
             with Horizontal(classes="controls"):
                 yield Label("Sims:")
-                yield Input(value="100", id="sim-n")
+                yield Input(value="100", id="sim-n", classes="num")
                 yield Label("Franch:")
-                yield Input(value="10", id="sim-fr")
+                yield Input(value="10", id="sim-fr", classes="num")
                 yield Label("Purse:")
-                yield Input(value="90", id="sim-purse")
+                yield Input(value="90", id="sim-purse", classes="num")
                 yield Label("Top N:")
-                yield Input(value="20", id="sim-topn")
+                yield Input(value="20", id="sim-topn", classes="num")
                 yield Button("Simulate ▸", id="sim-run", variant="primary")
             yield Static(_copy.AUCTION_SIMULATE_INTRO, classes="intro")
             yield DataTable(id="sim-table", zebra_stripes=True)
