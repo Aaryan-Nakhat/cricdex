@@ -144,10 +144,10 @@ def simulate(
     _render.intro_panel(_copy.AUCTION_SIMULATE_INTRO, title="Simulate")
 
     pool = real_pool.build_pool()
-    franchises = [
-        {"id": f"F{i + 1}", "purse": purse, "aggression": 1.0, "risk": 0.15}
-        for i in range(n_franchises)
-    ]
+    # Cycle the 6 hand-authored personalities to fill N franchises so the
+    # price bands reflect a realistic mix of bidders (marquee-chaser
+    # overpays, value-hunter lowballs, ...) instead of N identical clones.
+    franchises = real_pool.build_franchises(n_franchises, purse=purse)
     with _render.spinner(f"running {n_sims} Monte-Carlo sims"):
         result = simulator.simulate(pool, franchises=franchises, n_sims=n_sims)
     df = result["per_player"].head(top_n)
