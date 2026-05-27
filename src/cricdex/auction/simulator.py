@@ -106,7 +106,14 @@ def _run_one_auction(
     rosters: dict[str, list[str]] = {f["id"]: [] for f in state}
 
     for player in players:
-        ceilings = sorted(((_bid_ceiling(f, player, rng), f) for f in state), reverse=True)
+        # Sort on the ceiling only — comparing the franchise dicts on a
+        # tie raises TypeError (dicts aren't orderable). Ties at 0.0 are
+        # common once role / overseas gates zero out multiple bidders.
+        ceilings = sorted(
+            ((_bid_ceiling(f, player, rng), f) for f in state),
+            key=lambda x: x[0],
+            reverse=True,
+        )
         top_ceiling, top_franchise = ceilings[0]
         if top_ceiling < player["price"]:
             sales.append({"player": player["name"], "price": None, "winner": None})

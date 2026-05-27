@@ -46,6 +46,7 @@ Override the scaling factors via `value_scale` to recalibrate.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 from pathlib import Path
@@ -311,3 +312,22 @@ FRANCHISE_ARCHETYPES: list[dict] = [
         "role_mins": {"batter": 5, "bowler": 5, "all_rounder": 3, "keeper": 2},
     },
 ]
+
+
+def build_franchises(n: int, purse: float = 90.0) -> list[dict]:
+    """Return `n` franchise dicts for the Monte-Carlo simulator, cycling
+    the 6 hand-authored personalities so the auction has a realistic
+    mix of bidders instead of `n` identical clones.
+
+    With n > 6 the personalities repeat from the top (n=10 → the first
+    4 archetypes appear twice). Each gets a unique `id` suffixed with
+    its slot index so winners stay distinguishable, and the caller's
+    `purse` overrides the archetype default.
+    """
+    out: list[dict] = []
+    for i, base in zip(range(n), itertools.cycle(FRANCHISE_ARCHETYPES), strict=False):
+        f = dict(base)
+        f["id"] = f"{base['id']}-{i + 1}"
+        f["purse"] = purse
+        out.append(f)
+    return out

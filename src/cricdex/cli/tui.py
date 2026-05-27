@@ -778,10 +778,9 @@ class CricDexApp(App):
             from cricdex.auction import real_pool, simulator
 
             pool = real_pool.build_pool()
-            franchises = [
-                {"id": f"F{i + 1}", "purse": purse, "aggression": 1.0, "risk": 0.15}
-                for i in range(n_fr)
-            ]
+            # Mix of 6 bidder personalities (cycled to fill n_fr) so the
+            # price bands are realistic, not n identical clones.
+            franchises = real_pool.build_franchises(n_fr, purse=purse)
             result = simulator.simulate(pool, franchises=franchises, n_sims=n_sims)
         except Exception as e:  # noqa: BLE001
             _fill_datatable(table, [{"error": str(e)}])
