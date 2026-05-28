@@ -314,20 +314,121 @@ FRANCHISE_ARCHETYPES: list[dict] = [
 ]
 
 
-def build_franchises(n: int, purse: float = 90.0) -> list[dict]:
-    """Return `n` franchise dicts for the Monte-Carlo simulator, cycling
-    the 6 hand-authored personalities so the auction has a realistic
-    mix of bidders instead of `n` identical clones.
+# IPL 2024+ franchise roster keyed to bidding archetypes. The defaults
+# are hand-picked from broad historical patterns (CSK = disciplined /
+# balanced under Dhoni; MI + RCB = marquee-buyer-heavy; KKR = all-
+# rounder stack with Russell/Narine; SRH + LSG = overseas-heavy in
+# their respective eras; DC = Indian-talent focus; PBKS + RR = value-
+# hunters; GT = balanced cap management). They're opinions, not facts
+# — override per-team via `~/.cricdex/teams.yaml` or via the TUI /
+# Streamlit per-team selectors.
+IPL_TEAMS_DEFAULT: list[tuple[str, str]] = [
+    ("CSK", "Balanced"),
+    ("MI", "MarqueeChaser"),
+    ("RCB", "MarqueeChaser"),
+    ("KKR", "AllRounderStack"),
+    ("DC", "IndianFocus"),
+    ("PBKS", "ValueHunter"),
+    ("SRH", "OverseasHeavy"),
+    ("GT", "Balanced"),
+    ("RR", "ValueHunter"),
+    ("LSG", "OverseasHeavy"),
+]
 
-    With n > 6 the personalities repeat from the top (n=10 → the first
-    4 archetypes appear twice). Each gets a unique `id` suffixed with
-    its slot index so winners stay distinguishable, and the caller's
-    `purse` overrides the archetype default.
+# All personality ids, exposed so UI code can populate dropdowns
+# without re-deriving them from FRANCHISE_ARCHETYPES.
+PERSONALITY_IDS: tuple[str, ...] = tuple(a["id"] for a in FRANCHISE_ARCHETYPES)
+_PERSONALITY_BY_ID: dict[str, dict] = {a["id"]: a for a in FRANCHISE_ARCHETYPES}
+
+
+def load_team_overrides(
+    path: Path | None = None,
+) -> list[tuple[str, str]] | None:
+    """Read a YAML file mapping team → personality so power users can
+    customise without touching code. File shape:
+
+        teams:
+          - {name: CSK,  personality: Balanced}
+          - {name: MI,   personality: MarqueeChaser}
+          ...
+
+    Returns None if the file is missing / unreadable / malformed, so
+    the caller falls back to `IPL_TEAMS_DEFAULT`. PyYAML is optional;
+    we soft-fail if it's not installed.
     """
+    if path is None:
+        path = Path.home() / ".cricdex" / "teams.yaml"
+    if not path.exists():
+        return None
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except ImportError:
+        return None
+    try:
+        data = yaml.safe_load(path.read_text()) or {}
+    except Exception:
+        return None
+    teams = data.get("teams")
+    if not isinstance(teams, list):
+        return None
+    out: list[tuple[str, str]] = []
+    for row in teams:
+        if not isinstance(row, dict):
+            continue
+        name = row.get("name")
+        personality = row.get("personality")
+        if name and personality in _PERSONALITY_BY_ID:
+            out.append((str(name), str(personality)))
+    return out or None
+
+
+def build_franchises(
+    n: int = 10,
+    purse: float = 90.0,
+    teams: str | list[tuple[str, str]] = "real",
+) -> list[dict]:
+    """Return franchise dicts for the Monte-Carlo simulator.
+
+    Args:
+        n: how many franchises to emit (only consulted when `teams` is
+            the string `'generic'`).
+        purse: per-franchise budget; overrides the archetype default.
+        teams: one of
+            - `'real'` (default) — 10 real IPL teams with the
+              history-based personalities in `IPL_TEAMS_DEFAULT`. If
+              `~/.cricdex/teams.yaml` exists with a valid `teams:`
+              list, those overrides win.
+            - `'generic'` — `n` cycle-named F1, F2, … bidders rotating
+              the 6 archetypes (the prior behaviour).
+            - explicit `[(team_name, personality_id), ...]` — used by
+              the TUI / Streamlit per-team dropdowns to pass exactly
+              what the user picked.
+
+    Each emitted dict carries `id` (the team name), the personality's
+    `aggression / risk / role_mins / overseas_left`, and the caller's
+    `purse`.
+    """
+    if teams == "real":
+        pairs = load_team_overrides() or list(IPL_TEAMS_DEFAULT)
+    elif teams == "generic":
+        cycled = list(itertools.islice(itertools.cycle(FRANCHISE_ARCHETYPES), n))
+        pairs = [(f"F{i + 1}", a["id"]) for i, a in enumerate(cycled)]
+    elif isinstance(teams, list):
+        pairs = teams
+    else:
+        raise ValueError(f"teams must be 'real' | 'generic' | list, got {teams!r}")
+
     out: list[dict] = []
-    for i, base in zip(range(n), itertools.cycle(FRANCHISE_ARCHETYPES), strict=False):
+    for team_name, personality_id in pairs:
+        base = _PERSONALITY_BY_ID.get(personality_id)
+        if base is None:
+            raise ValueError(
+                f"unknown personality `{personality_id}` for team `{team_name}` "
+                f"(choose from {PERSONALITY_IDS})"
+            )
         f = dict(base)
-        f["id"] = f"{base['id']}-{i + 1}"
+        f["id"] = team_name
+        f["personality"] = personality_id
         f["purse"] = purse
         out.append(f)
     return out

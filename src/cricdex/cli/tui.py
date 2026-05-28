@@ -750,37 +750,87 @@ class CricDexApp(App):
     # ===== Auction Simulator ==============================================
 
     def _auction_sim_panel(self) -> ComposeResult:
+        from cricdex.auction.real_pool import (
+            IPL_TEAMS_DEFAULT,
+            PERSONALITY_IDS,
+            load_team_overrides,
+        )
+
+        # Persistent dict — picks survive across Run clicks. Initialised
+        # from the YAML override if present, otherwise IPL defaults.
+        self._team_personalities = dict(load_team_overrides() or IPL_TEAMS_DEFAULT)
+        team_opts = [(t, t) for t, _ in IPL_TEAMS_DEFAULT]
+        pers_opts = [(p, p) for p in PERSONALITY_IDS]
+
         with Vertical():
             with Horizontal(classes="controls"):
                 yield Label("Sims:")
                 yield Input(value="100", id="sim-n", classes="num")
-                yield Label("Franch:")
-                yield Input(value="10", id="sim-fr", classes="num")
                 yield Label("Purse:")
                 yield Input(value="90", id="sim-purse", classes="num")
                 yield Label("Top N:")
                 yield Input(value="20", id="sim-topn", classes="num")
                 yield Button("Simulate ▸", id="sim-run", variant="primary")
-            yield Static(_copy.AUCTION_SIMULATE_INTRO, classes="intro")
+            with Horizontal(classes="controls"):
+                yield Label("Edit:")
+                yield Select(options=team_opts, value="CSK", id="sim-team", allow_blank=False)
+                yield Label("→")
+                yield Select(
+                    options=pers_opts,
+                    value=self._team_personalities.get("CSK", "Balanced"),
+                    id="sim-pers",
+                    allow_blank=False,
+                )
+                yield Button("Apply", id="sim-apply", variant="success")
+                yield Button("Reset", id="sim-reset", variant="warning")
+            yield Static(
+                self._sim_team_map_line(),
+                id="sim-team-map",
+                classes="intro",
+            )
             yield DataTable(id="sim-table", zebra_stripes=True)
+
+    def _sim_team_map_line(self) -> str:
+        from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
+
+        return "  ".join(
+            f"{t}→[bold]{self._team_personalities.get(t, 'Balanced')}[/bold]"
+            for t, _ in IPL_TEAMS_DEFAULT
+        )
+
+    def _on_apply_sim_team(self) -> None:
+        team = self.query_one("#sim-team", Select).value
+        personality = self.query_one("#sim-pers", Select).value
+        self._team_personalities[team] = personality
+        self.query_one("#sim-team-map", Static).update(self._sim_team_map_line())
+
+    def _on_reset_sim_teams(self) -> None:
+        from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
+
+        self._team_personalities = dict(IPL_TEAMS_DEFAULT)
+        self.query_one("#sim-team-map", Static).update(self._sim_team_map_line())
+        # Resync the personality select to the currently-shown team.
+        team = self.query_one("#sim-team", Select).value
+        self.query_one("#sim-pers", Select).value = self._team_personalities[team]
 
     def _on_run_auction_sim(self) -> None:
         table = self.query_one("#sim-table", DataTable)
         try:
             n_sims = int(self.query_one("#sim-n", Input).value or "100")
-            n_fr = int(self.query_one("#sim-fr", Input).value or "10")
             purse = float(self.query_one("#sim-purse", Input).value or "90")
             top_n = int(self.query_one("#sim-topn", Input).value or "20")
         except ValueError:
-            _fill_datatable(table, [{"error": "all 4 inputs must be numeric"}])
+            _fill_datatable(table, [{"error": "all 3 numeric inputs must parse"}])
             return
         try:
             from cricdex.auction import real_pool, simulator
 
             pool = real_pool.build_pool()
-            # Mix of 6 bidder personalities (cycled to fill n_fr) so the
-            # price bands are realistic, not n identical clones.
-            franchises = real_pool.build_franchises(n_fr, purse=purse)
+            teams_list = [
+                (t, self._team_personalities.get(t, default))
+                for t, default in real_pool.IPL_TEAMS_DEFAULT
+            ]
+            franchises = real_pool.build_franchises(purse=purse, teams=teams_list)
             result = simulator.simulate(pool, franchises=franchises, n_sims=n_sims)
         except Exception as e:  # noqa: BLE001
             _fill_datatable(table, [{"error": str(e)}])
@@ -896,6 +946,18 @@ class CricDexApp(App):
 
     # ===== event dispatch ================================================
 
+    def on_select_changed(self, event: Select.Changed) -> None:
+        # Sim tab — when the team Select changes, surface that team's
+        # currently-chosen personality in the personality Select so the
+        # user sees what's set before they edit it.
+        if getattr(event.select, "id", None) == "sim-team":
+            new_team = event.value
+            try:
+                pers_select = self.query_one("#sim-pers", Select)
+            except Exception:
+                return
+            pers_select.value = self._team_personalities.get(new_team, "Balanced")
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         handlers = {
             "metric-run": self._on_run_leaderboard,
@@ -909,6 +971,8 @@ class CricDexApp(App):
             "profile-run": self._on_run_profile,
             "tr-run": self._on_run_translate,
             "sim-run": self._on_run_auction_sim,
+            "sim-apply": self._on_apply_sim_team,
+            "sim-reset": self._on_reset_sim_teams,
             "twins-run": self._on_run_twins,
         }
         if event.button.id in handlers:

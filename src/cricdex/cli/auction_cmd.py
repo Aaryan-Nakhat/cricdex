@@ -134,20 +134,35 @@ def simulate(
     n_franchises: int = typer.Option(10, "--n-franchises"),
     purse: float = typer.Option(90.0, "--purse"),
     top_n: int = typer.Option(20, "--top-n"),
+    teams: str = typer.Option(
+        "real",
+        "--teams",
+        help="`real` = 10 real IPL teams w/ history-based personalities "
+        "(override via ~/.cricdex/teams.yaml). `generic` = F1..FN cycling "
+        "through the 6 archetypes.",
+    ),
 ) -> None:
     from cricdex.auction import real_pool, simulator
 
+    if teams not in ("real", "generic"):
+        die("--teams must be `real` or `generic`")
+
+    franchises = real_pool.build_franchises(n=n_franchises, purse=purse, teams=teams)
+    label = "real IPL teams" if teams == "real" else f"{len(franchises)} generic personalities"
     _render.header(
         "Auction simulator — Monte-Carlo",
-        subtitle=f"n_sims: {n_sims}  ·  franchises: {n_franchises}  ·  purse: {purse:.1f}",
+        subtitle=f"n_sims: {n_sims}  ·  teams: {label}  ·  purse: {purse:.1f}",
     )
     _render.intro_panel(_copy.AUCTION_SIMULATE_INTRO, title="Simulate")
 
+    # Show the team → personality map so the user knows the assumptions.
+    _render.section("Franchise personalities")
+    _render.pretty_table(
+        [{"team": f["id"], "personality": f["personality"]} for f in franchises],
+        column_styles={"team": "bold cyan"},
+    )
+
     pool = real_pool.build_pool()
-    # Cycle the 6 hand-authored personalities to fill N franchises so the
-    # price bands reflect a realistic mix of bidders (marquee-chaser
-    # overpays, value-hunter lowballs, ...) instead of N identical clones.
-    franchises = real_pool.build_franchises(n_franchises, purse=purse)
     with _render.spinner(f"running {n_sims} Monte-Carlo sims"):
         result = simulator.simulate(pool, franchises=franchises, n_sims=n_sims)
     df = result["per_player"].head(top_n)
