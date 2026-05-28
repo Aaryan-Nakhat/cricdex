@@ -1,4 +1,13 @@
-"""Streamlit page: Monte-Carlo IPL auction simulator + optional RL agent."""
+"""Streamlit page: Monte-Carlo IPL auction simulator + optional RL agent.
+
+The simulator now uses the 10 real IPL franchises, each with a bidding
+personality picked from the 6 archetypes
+(MarqueeChaser / ValueHunter / OverseasHeavy / IndianFocus /
+AllRounderStack / Balanced). Defaults come from `IPL_TEAMS_DEFAULT`
+(history-based) and can be overridden per team via the sidebar
+selectboxes below. The same picks the user makes here flow into the
+underlying `cricdex.auction.real_pool.build_franchises` call.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +17,7 @@ import pandas as pd
 import polars as pl
 import streamlit as st
 
-from cricdex.auction import simulator, solver
+from cricdex.auction import real_pool, simulator, solver
 from cricdex.config import DATA_DIR
 from cricdex.dashboard._widgets import provenance_banner
 
@@ -23,25 +32,60 @@ st.caption(
 )
 provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.duckdb")
 
+# --- sidebar: sim knobs + per-team personality selectors ----------------
+
 with st.sidebar:
     n_sims = st.slider("Simulations", 50, 1000, 200, step=50)
     purse = st.number_input("Per-franchise purse (cr)", 30.0, 200.0, 90.0, step=5.0)
-    n_franchises = st.slider("Number of franchises", 4, 12, 10)
-    aggression = st.slider("Default aggression", 0.6, 1.6, 1.0, step=0.05)
-    risk = st.slider("Default risk (jitter sd)", 0.05, 0.4, 0.15, step=0.05)
     uploaded = st.file_uploader("Pool CSV (optional)", type="csv")
+
+    st.markdown("### Franchise personalities")
+    st.caption(
+        "Defaults are hand-picked from broad IPL history (CSK disciplined "
+        "→ Balanced, MI / RCB marquee-heavy, KKR all-rounder stack, "
+        "SRH / LSG overseas-led, PBKS / RR value-hunters, GT balanced, "
+        "DC Indian-focus). Override any team here — your picks are what "
+        "the simulator actually bids with."
+    )
+    if st.button("Reset to history defaults"):
+        for team, default in real_pool.IPL_TEAMS_DEFAULT:
+            st.session_state[f"team-{team}"] = default
+
+    yaml_override = real_pool.load_team_overrides()
+    if yaml_override:
+        st.info(f"`~/.cricdex/teams.yaml` override loaded ({len(yaml_override)} teams).")
+        defaults_map = dict(yaml_override)
+    else:
+        defaults_map = dict(real_pool.IPL_TEAMS_DEFAULT)
+
+    team_picks: list[tuple[str, str]] = []
+    for team, _default in real_pool.IPL_TEAMS_DEFAULT:
+        default_pers = defaults_map.get(team, "Balanced")
+        choice = st.selectbox(
+            team,
+            options=list(real_pool.PERSONALITY_IDS),
+            index=list(real_pool.PERSONALITY_IDS).index(default_pers),
+            key=f"team-{team}",
+        )
+        team_picks.append((team, choice))
+
+# --- pool + franchises --------------------------------------------------
 
 if uploaded is not None:
     pool = pl.from_pandas(pd.read_csv(uploaded))
 else:
     pool = solver.sample_pool()
 
-franchises = [
-    {"id": f"F{i + 1}", "purse": purse, "aggression": aggression, "risk": risk}
-    for i in range(n_franchises)
-]
+franchises = real_pool.build_franchises(purse=purse, teams=team_picks)
 
-if st.button("Run simulation"):
+# Show the current team → personality map so the user can sanity-check.
+st.subheader("Bidding line-up")
+map_df = pd.DataFrame([{"team": f["id"], "personality": f["personality"]} for f in franchises])
+st.dataframe(map_df, use_container_width=True, hide_index=True)
+
+# --- run the sim --------------------------------------------------------
+
+if st.button("Run simulation", type="primary"):
     with st.spinner(f"running {n_sims} auctions …"):
         result = simulator.simulate(pool, franchises=franchises, n_sims=n_sims)
     st.subheader("Price distribution per player")
@@ -54,9 +98,15 @@ if st.button("Run simulation"):
     target = st.selectbox("Player", pool["name"].to_list())
     your_bid = st.slider("Your bid (cr)", 0.0, 25.0, 5.0, step=0.25)
     p = simulator.win_probability(
-        pool, target_player=target, your_bid=your_bid, franchises=franchises, n_sims=n_sims
+        pool,
+        target_player=target,
+        your_bid=your_bid,
+        franchises=franchises,
+        n_sims=n_sims,
     )
     st.metric(f"P(win {target} at ≤ {your_bid} cr)", f"{p:.0%}")
+
+# --- RL agent block (unchanged) -----------------------------------------
 
 st.divider()
 st.subheader("🤖 GRPO RL agent (optional)")
@@ -73,7 +123,7 @@ if st.button("Run one RL auction"):
         from cricdex.auction.rl_env import AuctionEnv
 
         policy = grpo.load_policy(policy_path)
-        env = AuctionEnv(pool, n_franchises=n_franchises, purse=purse, seed=0)
+        env = AuctionEnv(pool, n_franchises=len(franchises), purse=purse, seed=0)
         obs = env.reset()
         done = False
         total_reward = 0.0
