@@ -22,7 +22,7 @@ Before picking a host, know what each component requires:
 | Qdrant (rule vectors) | embedded on-disk mode, no server | trivial — `QDRANT_URL` unset → on-disk |
 | Cricsheet data (~600 MB) | persistent disk OR rebuild on boot | the main sizing constraint |
 | **Neo4j (scout graph)** | a running server | **the only hard dependency** |
-| Gemini (rules answer, match reports, translate) | API key / proxy | optional; features degrade without it |
+| Gemini (rules answer) | API key / proxy | optional; rules QA degrades without it |
 | Snowflake-arctic-embed model (~2 GB) | downloaded once, or pre-baked | pre-baked in the Docker image |
 
 **Key fact:** everything except Neo4j runs serverless (file/embedded).

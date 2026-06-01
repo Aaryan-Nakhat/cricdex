@@ -21,11 +21,12 @@ Phase 2 follow-ups.
 | Identity bridge | Cricsheet People Register (17,981 players, 99.8% Cricinfo coverage) | ✅ — see [IDENTITY.md](IDENTITY.md) |
 | Player graph | Neo4j — Player / Match / Venue + FACED edges, **scoped per collection** (each Player node carries a `collection` tag, so ipl / bbl / t20s_male / indian_domestic_male / recently_played_30_male are independent subgraphs in one DB). Twins / find-replacement / advisor all take a `collection` arg. | ✅ all 5 collections |
 | Bayesian opponent-adjusted ratings | NumPyro / JAX (ADVI default, NUTS available) | ✅ — first cut |
-| Cricinfo player profile (DOB, role, style) | Cricinfo scrape | planned |
-| Semi-pro (Ranji / SMAT / Hazare) | BCCI Domestic scrape | planned |
-| Grassroots (CricHeroes) | CricHeroes scrape / partner API | planned |
-| Style-twin (k-NN over rating vector) | sentence-transformers + Qdrant | planned |
-| `/scout` web filter | Streamlit / Next.js | planned |
+| Player profile (DOB, photo, socials) | Wikidata one-time enrichment | ✅ — 289/300 active players |
+| Role / bowling type (seam-spin) / batting slot / country | Gemini taxonomy | ✅ — 2040 players |
+| Semi-pro (SMAT) | Cricsheet `indian_domestic_male` | ✅ ingested (Ranji / Hazare removed — out of scope) |
+| Grassroots (CricHeroes) | CricHeroes scrape / partner API | year-2 ([`DEFERRED.md`](DEFERRED.md) §grassroots) |
+| Style-twin (k-NN over rating vector) | feature-space nearest neighbours | ✅ — on every profile |
+| `/scout` web view (twins + find-replacement + filters) | Streamlit + static React site | ✅ |
 
 ## End-to-end pipeline today
 

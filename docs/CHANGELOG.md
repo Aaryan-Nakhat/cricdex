@@ -32,9 +32,9 @@ over the same `~/.cricdex/data/`.
 - **Fuzzy player resolver** — `rapidfuzz`-backed; CLI prints
   suggestions and exits 1 on no-exact-match, Streamlit renders a
   "did you mean?" confirmation button.
-- **Novel metrics** — Pressure Runs, Intent Curve, Recoverability,
-  Counter-Attack, Boundary Dependency, Sticky Dot Pressure, Phase
-  Dilation, Setting Tax, Wicket Quality, **NGI (Net Game Impact)** —
+- **Novel metrics** — Pressure Runs, Intent Curve, Dot-Ball Recovery,
+  Counter-Attack, Boundary Dependency, Pressure Conversion, Phase
+  Dilation, Slow-Start Cost, Wicket Quality, **NGI (Net Game Impact)** —
   the WPA-style flagship.
 - **NGI's WP model v2** — match-id holdout split, venue + innings1
   features, isotonic calibration, Brier + log-loss + reliability

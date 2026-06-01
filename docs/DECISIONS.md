@@ -2,6 +2,14 @@
 
 Locked design choices and their reasoning. Append new entries with date.
 
+> **Note (scope reversal):** CricDex is now **Cricsheet-only**. Earlier
+> entries below that discuss non-Cricsheet sources (Reddit/Cricbuzz/
+> ESPNcricinfo scrape, BCCI Ranji/Hazare) and LLM-convenience features
+> (`commentary_translate`, `live`, match reports, newsletter, DRS) record
+> decisions that were **later reversed** — those were removed from the
+> codebase. They're kept here as historical record. Current scope:
+> [`VNEXT.md`](VNEXT.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 ## 2026-05-11 — Name: CricDex
 
 Cricket-prefixed, evokes pokedex-style catalog metaphor — fits scout-first thesis. Unique vs CricInfo / CricViz / CricVision / Cricbuzz.

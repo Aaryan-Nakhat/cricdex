@@ -164,12 +164,12 @@ their economy looks great.
 ## Still planned
 
 - **Replacement Delta** — NGI − NGI of a replacement-level domestic
-  player. Cricket WAR. Sits on NGI (✅) plus a domestic-tier
-  baseline; needs the BCCI Domestic ingest to unblock first
-  (`docs/DEFERRED.md` §1.5).
+  player. Cricket WAR. Sits on NGI (✅) plus a domestic-tier baseline;
+  deferred until a sub-IPL tier exists to define replacement
+  (`docs/DEFERRED.md` §grassroots).
 - **Disguise Coefficient** (bowler) — outcome variance for same
   line / length. Needs CV-derived release-point data (OpenBoundary,
-  `docs/DEFERRED.md` §3.1).
+  `docs/DEFERRED.md` §cv).
 
 ---
 

@@ -1,10 +1,10 @@
 # Player identity resolution
 
-CricDex maintains one canonical `player_id` per person and bridges it
-to every external identifier the rest of the cricket-data ecosystem
-uses. This is what lets a query against a Cricsheet ball-by-ball
-record fan out to an ESPNcricinfo profile, a Cricbuzz live feed, or a
-CricHeroes grassroots ladder.
+CricDex keys every player on the canonical Cricsheet `identifier` and
+carries the cross-source IDs the rest of the ecosystem uses (ESPNcricinfo,
+BCCI, CricHeroes, …) straight from Cricsheet's People Register. That's
+what lets a Cricsheet ball-by-ball record link out to an ESPNcricinfo
+profile or join the one-time Wikidata enrichment by ID.
 
 ## v1: lean on Cricsheet's People Register
 
@@ -63,27 +63,22 @@ SELECT identifier, name FROM people_names WHERE name ILIKE 'v%kohli%';
 | CricHeroes | 111 | 0.6 |
 | Cricbuzz | 22 | 0.1 |
 
-The Cricbuzz / CricHeroes layers are thin — those bridges need our
-own scrape (planned, Phase 2 scout work).
+The Cricbuzz / CricHeroes register layers are thin, but CricDex is
+**Cricsheet-only** — it relies on the register's existing bridges and
+does not scrape these sources.
 
-## v2: extend with our own scrape
+## Enrichment on top of the register
 
-When the register doesn't cover a source CricDex needs, we'll layer
-our own bridges on top:
+Two on-disk caches extend the register by `cricsheet_id`, both committed:
 
-1. **Cricbuzz** — scrape player profile pages, match `cricsheet_id` via
-   `(unique_name, DOB, country)`.
-2. **CricHeroes** — apply for partner API; until then, slow respectful
-   scrape of public player URLs.
-3. **BCCI Domestic** — Ranji / SMAT / Hazare scorecards link players
-   by `(name, state)` — bind to `cricsheet_id` via Cricinfo profile
-   linkages.
+1. **Wikidata** (`data/curated/wikidata_enrichment.json`) — dob / photo /
+   socials for 289/300 active players (one-time pull).
+2. **Gemini taxonomy** (`data/curated/player_taxonomy.json`) — role /
+   seam-spin / batting slot / country for 2040 players.
 
-These extra bridges land in additional DuckDB tables
-(`cricbuzz_players`, `cricheroes_players`, etc.) joined to the
-canonical `people.identifier`. No edits to the canonical register —
-the register stays the truth and our supplementary scrapes are
-additive layers.
+Out of scope (year-2 at the earliest): a grassroots **CricHeroes** tier —
+see [`DEFERRED.md`](DEFERRED.md) §grassroots. Cricbuzz and BCCI-domestic
+scrapes were dropped.
 
 ## Why not push `cricsheet_id` into ball-by-ball directly
 

@@ -4,8 +4,9 @@
 
 - Cricsheet ETL → DuckDB. Phase tagging respects match_type.
 - Cricsheet People Register identity bridge (17,981 players, 99.8 % Cricinfo coverage).
-- Wikidata enrichment pipeline. Code shipped; data load deferred (WDQS hard rate-limits our datacenter IP).
-- Novel metrics v1: Pressure Runs, Intent Curve, Recoverability, Counter-Attack, Boundary Dependency, Sticky Dot Pressure.
+- Wikidata enrichment shipped — dob / photo / socials for 289/300 active players (cached JSON, merged into profiles).
+- Gemini player taxonomy — role / seam-spin / batting slot / country for 2040 players.
+- Novel metrics v1 (10): NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary Dependency, Pressure Conversion, Wicket Quality, Crease Longevity, Slow-Start Cost.
 - Public leaderboard surface (Streamlit dashboard + per-metric JSON).
 - Rulebook PDF ingest. 21 verified PDFs from MCC / ICC / IPL / Hundred / BBL / WBBL / SA20 / Cricket Australia domestic / ICC Codes / Anti-Corruption.
 - pdfplumber clause-hierarchy parser → ~11 k clauses.
@@ -31,7 +32,7 @@
 
 - `venues` pitch + conditions archive ✅ (5 SQL views; dashboard page).
 
-## Phase 5 (Profiles + Commentary translation + Comparator) — ✅ shipped
+## Phase 5 (Profiles + Comparator) — ✅ shipped
 
 - `profiles` per-player profile builder ✅ — aggregates People Register IDs + Wikidata + career totals + every novel metric + Bayes skill + style twins.
 - `comparator` visual side-by-side ✅ (Plotly radar + transposed table).
@@ -49,7 +50,5 @@
 - ScoutVLM — VLM-driven ball-by-ball extraction from YouTube grassroots video.
 - Highlight CV — auto key-moment clip extraction.
 - Tournament management B2B (partner with CricHeroes instead of competing).
-- **Voice-cloned commentary translation** — final-feature milestone. Clone English commentators with XTTS-v2 / F5-TTS / OpenVoice and synthesise target-language audio in their voice. Ships after text-translation v1 (✅) plus opt-in licensing with retired commentators.
 - Multi-agent RL auction-v2 — PettingZoo + per-franchise personality YAML (extracted from 10 yr bid history via Gemini) on top of today's GRPO single-agent scaffold.
-- Predict game once live-feed is unblocked.
 - BCCI / CricHeroes / Cricinfo scrapers via Playwright + residential proxies, so the datacenter-blocked feeds finally populate.

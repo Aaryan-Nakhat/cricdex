@@ -30,7 +30,7 @@ pip install 'cricdex[cli,graph,ui]'            # rich/textual TUI +
 cricdex init                                   # wizard + Gemini key
 cricdex data ingest cricsheet -c ipl           # ~600 MB ball-by-ball
 cricdex data ingest rules                      # 21 PDFs + 11 k clauses
-cricdex data ingest metrics -c ipl             # 9 leaderboards
+cricdex data ingest metrics -c ipl             # 10 leaderboards
 cricdex leaderboard ngi -c ipl --top 15        # your first query
 ```
 
@@ -40,8 +40,8 @@ Optional next step — `cricdex dashboard` opens the Streamlit UI on
 Full command reference: [`docs/CLI.md`](docs/CLI.md). Onboarding flow:
 [`docs/FIRST_RUN.md`](docs/FIRST_RUN.md). Architecture:
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Pending work
-(phase-grouped): [`docs/TODO.md`](docs/TODO.md). Canonical catalogue
-of every known gap + fix path: [`docs/DEFERRED.md`](docs/DEFERRED.md).
+(phase-grouped): [`docs/TODO.md`](docs/TODO.md). Known gaps + year-2
+backlog: [`docs/DEFERRED.md`](docs/DEFERRED.md).
 
 ## Modules
 
@@ -73,9 +73,9 @@ CricHeroes grassroots tier.
 
 - Python 3.12, `uv` package manager
 - DuckDB (analytics) · NumPyro / JAX (Bayesian ratings) · Qdrant (vectors) · Snowflake-arctic-embed-l-v2 (multilingual, Matryoshka-truncated to 384-dim) · PyTorch (GRPO auction agent)
-- FastAPI + Uvicorn (service layer)
-- Postgres + Redis + Neo4j (planned as scout / cache / graph come online)
-- Docker + Docker Compose (deployment)
+- FastAPI + Uvicorn (REST) · React + Vite static site (GitHub Pages)
+- Neo4j Community (per-collection scout graph)
+- Docker + Docker Compose (local stack + the nightly refresh pipeline)
 
 ## Repository layout
 

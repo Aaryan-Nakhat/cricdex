@@ -149,14 +149,12 @@ Watch the training log for two convergence signals:
   has two players with the same `unique_name` — there's a manual
   override map on the todo list.
 - `value_scale` is hand-calibrated against intuition, not against real
-  historical IPL auction prices. The pages on `iplt20.com` /
-  `espncricinfo.com` that hold those prices are datacenter-IP-blocked
-  today (`docs/DEFERRED.md` §1). Train-time signal is therefore
-  internally consistent but slightly mis-anchored to reality.
-- No bowling-style metadata (left vs right arm, pace vs spin, action
-  type) on Player nodes — also blocked on Wikidata / Cricinfo. The
-  policy bids on `role + country + skill + balls_*`, not on action
-  archetype.
+  historical IPL auction prices (which aren't openly published). The
+  signal is internally consistent but not anchored to actual crore
+  amounts.
+- Bowling-style + role + country metadata now comes from the Gemini
+  taxonomy (`data/curated/player_taxonomy.json`), so the auction can use
+  seam/spin, role and overseas status — not just `balls_*`.
 - 6 franchise archetypes is hand-authored, not extracted from 10 yr
   of IPL bid history. Personality YAML extraction via Gemini is the
   v2 unlock (DEFERRED §2.6).

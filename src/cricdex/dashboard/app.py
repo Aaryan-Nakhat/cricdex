@@ -43,13 +43,13 @@ show up here without restart.
 | **Leaderboards** | Top players by each novel metric — see definitions below | Cricsheet → metric JSONs |
 | **Rules Chat** | "what is the impact player rule?" with cited clauses | 21 rulebook PDFs + Gemini |
 | **Records** | Highest score, fastest fifty, most sixes, on-this-day | Cricsheet ball-by-ball |
-| **Match Reports** | LLM-written 350-500 word reports grounded in facts | Cricsheet + Gemini |
 | **Compare** | 2-5 players side-by-side, radar + tooltipped table | Cricsheet career totals + novel metrics + Bayes scout-rating |
 | **Venues** | Per-venue innings totals, chase vs set, phase-by-phase RR | Cricsheet ball-by-ball |
-| **DRS Practice** | 20 hand-curated umpire scenarios with MCC/ICC citations | Hand-curated + rulebook corpus |
 | **Auction** | MILP squad optimiser + war-room substitute advisor | Real-IPL pool (Bayes-driven projected_value) + scout graph |
+| **Auction Simulator** | Monte-Carlo of all 10 franchises bidding by personality | Real-IPL pool + GRPO scaffold |
+| **Player Twins** | Per-collection graph cohort + find-replacement | Neo4j scout graph |
 | **Player Profile** | Everything CricDex knows about one player | All of the above |
-| **Translate Commentary** | English → Hindi / Tamil / Bengali / 5 more (needs Gemini key) | Gemini |
+| **Update Data** | In-app buttons to re-run the ingest / compute pipeline | local pipeline |
 | **Auction Simulator** | Monte-Carlo price-band distribution + GRPO RL agent demo | Same as Auction page |
 | **Player Twins** | "Next Bumrah" / Dhoni's CSK cohort — graph traversal | Scout Neo4j (built from Cricsheet) |
 
@@ -70,21 +70,21 @@ Profile page surfaces them per-player with the same definitions.
 - **Pressure Runs** — strike rate on balls where the required run rate
   is ≥ 1.5× the venue median (chase only). Higher = harder to slow
   down when the team needs it.
-- **Recoverability** — how efficiently a batter recovers strike rate
-  after a slow patch. Higher = doesn't let one dot ball spiral.
+- **Dot-Ball Recovery** — runs scored in the six balls after a dot.
+  Higher = doesn't let one dot spiral into more dots.
 - **Counter-Attack** — strike-rate inflation right after a wicket
   falls. Higher = aggressive after partnership-breaking dismissals.
 - **Boundary Dependency** — share of runs from 4s + 6s. Lower = strong
   strike-rotator; higher = relies on boundaries.
 - **Intent Curve** — per-over batter strike-rate curve. Tab shows the
   curve shape, not a single number.
-- **Sticky Dot Pressure (bowler)** — wicket rate on the next ball
-  after a 4+ consecutive dot streak in the same over. Higher = turns
+- **Pressure Conversion (bowler)** — wicket rate on pressure balls
+  (after a run of dots / tight overs). Higher = turns built-up
   pressure into dismissals.
-- **Phase Dilation (batter)** — average balls per dismissal vs the
+- **Crease Longevity (batter)** — balls survived per dismissal vs the
   cohort. Anchor archetypes score high.
-- **Setting Tax (batter)** — career SR minus first-20-balls SR.
-  Higher = slower starter even after they're set.
+- **Slow-Start Cost (batter)** — career SR minus setting (1st-innings)
+  SR. Higher = bats slower when setting a total.
 - **Wicket Quality (bowler)** — mean Bayes batter-skill of dismissed
   batters per bowler. Picks up Kohli + Rohit + Buttler scores higher
   than tail-enders.
