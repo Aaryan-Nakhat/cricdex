@@ -92,10 +92,15 @@ jobs:
           done
 
       - name: Enrich new players (taxonomy) — only if key is configured
-        if: ${{ secrets.LLM_API_KEY != '' }}
         env:
+          # `secrets` can't be used in `if:` — gate inside the step instead.
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        run: uv run python scripts/enrich_taxonomy.py --batch 20 || echo "taxonomy enrich failed (non-fatal)"
+        run: |
+          if [ -z "$LLM_API_KEY" ]; then
+            echo "LLM_API_KEY not set — skipping taxonomy enrich"
+            exit 0
+          fi
+          uv run python scripts/enrich_taxonomy.py --batch 20 || echo "taxonomy enrich failed (non-fatal)"
 
       - name: Cook the static snapshot
         run: uv run python scripts/export_site.py
