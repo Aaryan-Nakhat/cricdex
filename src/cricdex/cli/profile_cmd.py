@@ -170,10 +170,10 @@ def _summarise_metric_payload(payload) -> str:
         for key in (
             "ngi_per_match",
             "pressure_sr_per_100_balls",
-            "intent",
+            "sr",
             "runs_per_6_after_dot",
             "counter_attack_sr",
-            "boundary_dependency",
+            "bdr_pct",
             "wicket_rate_pct",
             "wicket_quality",
             "longevity_index",

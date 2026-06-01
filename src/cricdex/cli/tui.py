@@ -52,7 +52,7 @@ METRIC_OPTIONS: list[tuple[str, str]] = [
 METRIC_KEYS: dict[str, tuple[str, str]] = {
     "ngi": ("ngi_per_match", "name"),
     "pressure_runs": ("pressure_sr_per_100_balls", "batter"),
-    "intent_curve": ("intent", "batter"),
+    "intent_curve": ("sr", "batter"),
     "dot_ball_recovery": ("runs_per_6_after_dot", "batter"),
     "counter_attack": ("counter_attack_sr", "batter"),
     "boundary_dependency": ("bdr_pct", "batter"),
@@ -953,10 +953,10 @@ def _summarise_metric(payload) -> str:
         for key in (
             "ngi_per_match",
             "pressure_sr_per_100_balls",
-            "intent",
+            "sr",
             "runs_per_6_after_dot",
             "counter_attack_sr",
-            "boundary_dependency",
+            "bdr_pct",
             "wicket_rate_pct",
             "wicket_quality",
             "longevity_index",

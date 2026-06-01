@@ -19,20 +19,6 @@ METRIC_DIR = DATA_DIR / "metrics"
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 
 
-BATTER_NUMERIC = {
-    "pressure_runs": ("pressure_runs", "pressure_runs"),
-    "pressure_runs_sr": ("pressure_runs", "pressure_sr_per_100_balls"),
-    "pct_pressure_balls": ("pressure_runs", "pct_balls_under_pressure"),
-    "dot_ball_recovery": ("dot_ball_recovery", "runs_per_6_after_dot"),
-    "counter_attack_sr": ("counter_attack", "counter_attack_sr"),
-    "bdr_pct": ("boundary_dependency", "bdr_pct"),
-}
-
-BOWLER_NUMERIC = {
-    "pressure_conversion_pct": ("pressure_conversion", "wicket_rate_pct"),
-}
-
-
 def _load_json(name: str) -> pl.DataFrame:
     path = METRIC_DIR / name
     if not path.exists():
