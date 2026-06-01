@@ -12,6 +12,7 @@ import {
   ARCHETYPES,
   IPL_TEAMS_DEFAULT,
   type PoolPlayer,
+  type SimResult,
 } from "@/lib/auction";
 import { PageTitle, Card, CardHeader, Spinner, Badge, StatTile, Empty, InfoTip } from "@/components/ui";
 import { cn, fmt } from "@/lib/utils";
@@ -204,13 +205,19 @@ function Simulate({ pool, navigate }: { pool: PoolPlayer[]; navigate: (p: string
   const [overseasCap, setOverseasCap] = useState(8);
   const [trials, setTrials] = useState(300);
   const [focus, setFocus] = useState(0); // which team's sample squad to show
+  const [result, setResult] = useState<SimResult | null>(null);
+  const [running, setRunning] = useState(false);
 
-  const result = useMemo(
-    () => simulateAuction(pool, teams, { purse, squadSize, overseasCap, trials }),
-    [pool, teams, purse, squadSize, overseasCap, trials],
-  );
+  function run() {
+    setRunning(true);
+    // defer so the button shows its running state before the sync crunch
+    setTimeout(() => {
+      setResult(simulateAuction(pool, teams, { purse, squadSize, overseasCap, trials }));
+      setRunning(false);
+    }, 20);
+  }
 
-  const draft = result.sampleDraft[focus];
+  const draft = result?.sampleDraft[focus];
 
   return (
     <div className="space-y-5">
@@ -248,8 +255,16 @@ function Simulate({ pool, navigate }: { pool: PoolPlayer[]; navigate: (p: string
           <NumberField label="Overseas cap" value={overseasCap} onChange={setOverseasCap} min={0} max={11} />
           <NumberField label="Trials" value={trials} onChange={setTrials} min={50} max={1000} step={50} />
         </div>
+        <button onClick={run} disabled={running} className="btn btn-accent mt-4">
+          <Dices className={cn("h-4 w-4", running && "animate-spin")} />
+          {running ? "Simulating…" : result ? "Re-run simulation" : "Run simulation"}
+        </button>
       </Card>
 
+      {!result ? (
+        <Empty>Set the personalities &amp; constraints, then <b className="mx-1 text-accent-glow">Run simulation</b> to draft.</Empty>
+      ) : (
+        <>
       {/* per-team outcomes */}
       <Card className="overflow-hidden">
         <CardHeader title="How each squad shapes up" subtitle={`Averaged over ${trials} simulated auctions`} />
@@ -349,6 +364,8 @@ function Simulate({ pool, navigate }: { pool: PoolPlayer[]; navigate: (p: string
             Spend {fmt(draft.spend, 1)} cr · {draft.squad.length} players · {draft.overseas} overseas
           </div>
         </Card>
+      )}
+        </>
       )}
     </div>
   );
