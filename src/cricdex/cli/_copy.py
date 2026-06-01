@@ -47,7 +47,7 @@ METRIC_HINTS: dict[str, str] = {
         "Strike rate on balls where the required run rate is ≥ 1.5× the "
         "venue median (chase only). Higher = better under pressure."
     ),
-    "recoverability": (
+    "dot_ball_recovery": (
         "How efficiently this batter recovers after a slow patch. "
         "Higher = doesn't let one dot ball spiral."
     ),
@@ -58,7 +58,7 @@ METRIC_HINTS: dict[str, str] = {
     "boundary_dependency": (
         "Share of runs from 4s + 6s. Higher = boundary-reliant; lower = strong strike-rotator."
     ),
-    "sticky_dot_pressure": (
+    "pressure_conversion": (
         "Wicket rate on the next ball after a 4+ consecutive dot streak "
         "in the same over (bowler metric). Higher = turns pressure into "
         "dismissals."
@@ -76,12 +76,12 @@ METRIC_HINTS: dict[str, str] = {
         "Σ(opponent Bayes skill) ÷ wickets taken. Wickets of marquee "
         "batters score higher than wickets of tail-enders."
     ),
-    "phase_dilation": (
+    "crease_longevity": (
         "Crease longevity vs the cohort — average balls faced per "
         "dismissal ÷ the cohort average. >1 = bats longer than the "
         "typical batter (anchor); <1 = shorter, higher-tempo cameos."
     ),
-    "setting_tax": (
+    "slow_start_cost": (
         "Career strike rate minus strike rate over the first 20 balls "
         "of an innings. Positive = slow starter whose early caution "
         "costs tempo; ~0 = aggressive from ball one."

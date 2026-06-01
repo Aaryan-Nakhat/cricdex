@@ -32,8 +32,8 @@ METRICS: dict[str, dict] = {
             "Chase-only (T20/ODI 2nd innings). Surfaces finishers under genuine pressure."
         ),
     },
-    "Recoverability": {
-        "slug": "recoverability",
+    "Dot-Ball Recovery": {
+        "slug": "dot_ball_recovery",
         "sort_col": "runs_per_6_after_dot",
         "bar_col": "runs_per_6_after_dot",
         "extras": ["dots_faced", "following_balls"],
@@ -72,8 +72,8 @@ METRICS: dict[str, dict] = {
             "Shows whether a batter is a slow starter who heats up or an immediate aggressor."
         ),
     },
-    "Sticky Dot Pressure": {
-        "slug": "sticky_dot_pressure",
+    "Pressure Conversion": {
+        "slug": "pressure_conversion",
         "sort_col": "wicket_rate_pct",
         "bar_col": "wicket_rate_pct",
         "extras": ["pressure_balls", "wickets_after_pressure"],

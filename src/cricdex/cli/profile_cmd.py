@@ -173,13 +173,13 @@ def _summarise_metric_payload(payload) -> str:
             "ngi_per_match",
             "pressure_sr_per_100_balls",
             "intent",
-            "recoverability",
-            "counter_attack",
+            "runs_per_6_after_dot",
+            "counter_attack_sr",
             "boundary_dependency",
             "wicket_rate_pct",
             "wicket_quality",
-            "phase_dilation",
-            "setting_tax",
+            "longevity_index",
+            "slow_start_cost",
         ):
             if key in payload and payload[key] is not None:
                 v = payload[key]

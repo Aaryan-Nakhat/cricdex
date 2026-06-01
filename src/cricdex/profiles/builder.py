@@ -169,11 +169,11 @@ def build(name: str, collection: str = "ipl") -> dict:
 
     profile["metrics"] = {
         "pressure_runs": _load_metric_row("pressure_runs", collection, name),
-        "recoverability": _load_metric_row("recoverability", collection, name),
+        "dot_ball_recovery": _load_metric_row("dot_ball_recovery", collection, name),
         "counter_attack": _load_metric_row("counter_attack", collection, name),
         "boundary_dependency": _load_metric_row("boundary_dependency", collection, name),
-        "sticky_dot_pressure": _load_metric_row(
-            "sticky_dot_pressure", collection, name, key_col="bowler"
+        "pressure_conversion": _load_metric_row(
+            "pressure_conversion", collection, name, key_col="bowler"
         ),
     }
 

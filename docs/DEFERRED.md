@@ -175,7 +175,7 @@ partner API.
 - **Smoke test:** Top-10 most ambiguous `unique_name` cases each
   resolve to one canonical `cricsheet_id` with confidence ≥ 0.9.
 
-### 2.4 `sticky_dot_pressure` returns 0 rows on small collections — ✅ shipped
+### 2.4 `pressure_conversion` returns 0 rows on small collections — ✅ shipped
 
 - `min_pressure_balls` is now optional; when omitted with
   `auto_threshold=True` (the default) the metric picks
@@ -190,7 +190,7 @@ partner API.
 
 Documented in `docs/METRICS.md` "Planned — not yet shipped"
 section. Specifically: Net Game Impact (NGI) / Replacement Delta /
-Wicket Quality / Phase Dilation / Setting Tax / Disguise
+Wicket Quality / Crease Longevity / Slow-Start Cost / Disguise
 Coefficient. Each needs either a win-probability model (NGI),
 opponent OAR (Wicket Quality), or CV-derived release data
 (Disguise).

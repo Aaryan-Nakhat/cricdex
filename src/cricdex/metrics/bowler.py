@@ -1,7 +1,7 @@
 """Novel bowler metrics over Cricsheet ball-by-ball data.
 
 Shipped:
-    sticky_dot_pressure — wicket rate after 4+ consecutive dots
+    pressure_conversion — wicket rate after a 4+ dot streak (squeeze conversion)
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ def _connect(db_path: Path | str) -> duckdb.DuckDBPyConnection:
     return duckdb.connect(str(db_path), read_only=True)
 
 
-def sticky_dot_pressure(
+def pressure_conversion(
     collection: str = "recently_played_30_male",
     db_path: Path | str = DEFAULT_DB_PATH,
     consecutive_dot_threshold: int = 4,

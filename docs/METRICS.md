@@ -36,8 +36,8 @@ own historical median normalises that out — "pressure" means hard
 
 **Why chase-only:** required RPB has no clean definition outside a
 chase, so Pressure Runs only covers the second innings. A
-batting-first pressure counterpart isn't yet shipped (Phase Dilation
-and Setting Tax measure crease longevity and slow starts, not
+batting-first pressure counterpart isn't yet shipped (Crease Longevity
+and Slow-Start Cost measure crease longevity and slow starts, not
 batting-first chase pressure — see below).
 
 **CLI:** `make docker-pressure-runs COLLECTION=ipl TOP_N=50`
@@ -63,7 +63,7 @@ dominate.
 
 ---
 
-## Recoverability Index — `cricdex.metrics.batter.recoverability_index`
+## Dot-Ball Recovery — `cricdex.metrics.batter.dot_ball_recovery`
 
 **What it captures:** a batter's ability to re-engage after a dot ball.
 Mental-reset proxy.
@@ -116,7 +116,7 @@ exists to distinguish *style*.
 
 ---
 
-## Sticky Dot Pressure — `cricdex.metrics.bowler.sticky_dot_pressure`
+## Pressure Conversion — `cricdex.metrics.bowler.pressure_conversion`
 
 **What it captures:** a bowler's wicket rate on the delivery immediately
 after building a streak of 4+ consecutive dots in the same over.
@@ -152,11 +152,11 @@ their economy looks great.
   Lives in `cricdex.metrics.bowler_wicket_quality`. Needs the
   scout NumPyro ratings (`scout_ratings_<collection>.json`) — see
   `docs/SCOUT.md`.
-- **Phase Dilation** ✅ — crease longevity: a batter's average balls
+- **Crease Longevity** ✅ — crease longevity: a batter's average balls
   faced per dismissal divided by the cohort average. >1 = bats longer
   than the typical qualifying batter; <1 = shorter, higher-tempo
   innings. Lives in `cricdex.metrics.batter`.
-- **Setting Tax** ✅ — career strike rate minus strike rate over the
+- **Slow-Start Cost** ✅ — career strike rate minus strike rate over the
   first 20 balls of an innings. Positive = slow starts cost tempo;
   ~0 or negative = aggressive from ball one. Lives in
   `cricdex.metrics.batter`.

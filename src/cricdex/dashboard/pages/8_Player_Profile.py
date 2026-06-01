@@ -168,7 +168,7 @@ METRIC_HINTS = {
         "Strike rate on balls where the required run rate is ≥ 1.5× the venue "
         "median (chase only). Higher = better under pressure."
     ),
-    "recoverability": (
+    "dot_ball_recovery": (
         "How efficiently this batter recovers after a slow patch. Higher = "
         "doesn't let one dot ball spiral."
     ),
@@ -179,7 +179,7 @@ METRIC_HINTS = {
     "boundary_dependency": (
         "Share of runs from 4s + 6s. Higher = boundary-reliant; lower = strong strike-rotator."
     ),
-    "sticky_dot_pressure": (
+    "pressure_conversion": (
         "Wicket rate on the next ball after a 4+ consecutive dot streak in the "
         "same over (bowler metric). Higher = turns pressure into dismissals."
     ),

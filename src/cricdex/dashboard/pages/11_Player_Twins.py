@@ -37,7 +37,7 @@ provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.d
 try:
     from cricdex.scout.graph import similar
 except ImportError as e:
-    st.error(f"`neo4j` extra not installed ({e}). Run `uv sync --extra graph` " "and retry.")
+    st.error(f"`neo4j` extra not installed ({e}). Run `uv sync --extra graph` and retry.")
     st.stop()
 
 
@@ -116,7 +116,7 @@ with st.sidebar:
             "Role filter",
             _role_options,
             index=_default_idx,
-            help=(f"Default = the target's own role (here: {_target_role}). " "Empty = no filter."),
+            help=(f"Default = the target's own role (here: {_target_role}). Empty = no filter."),
         )
         style = st.selectbox(
             "Bowling style (bowler replacements only)",
