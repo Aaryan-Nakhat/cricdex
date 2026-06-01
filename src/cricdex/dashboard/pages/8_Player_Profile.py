@@ -153,6 +153,37 @@ else:
         "`cricdex data ingest wikidata` to populate."
     )
 
+# Gemini taxonomy + activity (role / bowling type / batting slot / country)
+_tax = profile.get("taxonomy") or {}
+_act = profile.get("activity") or {}
+if _tax or _act:
+    _pos = {
+        "opener": "Opener",
+        "no3": "No. 3",
+        "middle": "Middle order",
+        "finisher": "Finisher",
+        "lower": "Lower order",
+        "tailender": "Tailender",
+    }
+    chips: list[str] = []
+    if _act:
+        last = (_act.get("last_match_date") or "")[:4]
+        chips.append(
+            "🟢 Active"
+            if _act.get("active")
+            else (f"⚪ Retired (last {last})" if last else "⚪ Retired")
+        )
+    if _tax.get("primary_role"):
+        chips.append(f"**{str(_tax['primary_role']).replace('_', '-')}**")
+    if _tax.get("bowling_style") and _tax.get("bowling_category") != "none":
+        chips.append(str(_tax["bowling_style"]).replace("-", " "))
+    if _tax.get("batting_position"):
+        chips.append(_pos.get(_tax["batting_position"], _tax["batting_position"]))
+    if _tax.get("country"):
+        chips.append(str(_tax["country"]))
+    if chips:
+        st.markdown(" · ".join(chips))
+
 st.subheader("Career totals")
 career = profile.get("career") or {}
 c1, c2, c3, c4 = st.columns(4)

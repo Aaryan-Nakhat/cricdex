@@ -37,6 +37,35 @@ def profile(
     wd = _render.load_wikidata(p.get("cricsheet_id"))
     _render.wikidata_block(wd)
 
+    # Gemini taxonomy + activity (role / bowling type / batting slot / country)
+    tax = p.get("taxonomy") or {}
+    act = p.get("activity") or {}
+    if tax or act:
+        _pos = {
+            "opener": "Opener",
+            "no3": "No. 3",
+            "middle": "Middle order",
+            "finisher": "Finisher",
+            "lower": "Lower order",
+            "tailender": "Tailender",
+        }
+        items: dict[str, object] = {}
+        if act:
+            last = (act.get("last_match_date") or "")[:4]
+            items["Status"] = (
+                "Active" if act.get("active") else (f"Retired (last {last})" if last else "Retired")
+            )
+        if tax.get("primary_role"):
+            items["Role"] = str(tax["primary_role"]).replace("_", "-")
+        if tax.get("bowling_style"):
+            items["Bowling"] = str(tax["bowling_style"]).replace("-", " ")
+        if tax.get("batting_position"):
+            items["Bats"] = _pos.get(tax["batting_position"], tax["batting_position"])
+        if tax.get("country"):
+            items["Country"] = tax["country"]
+        if items:
+            _render.kv_grid(items, title="Profile", cols=5)
+
     # career totals
     career = p.get("career") or {}
     if career:
