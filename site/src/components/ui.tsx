@@ -1,5 +1,50 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+/** A small "i" button that pops a panel on click. Closes on outside-click. */
+export function InfoTip({
+  title,
+  children,
+  className,
+}: {
+  title?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+  return (
+    <div ref={ref} className={cn("relative inline-flex", className)}>
+      <button
+        type="button"
+        aria-label="How it's calculated"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] transition-colors",
+          open
+            ? "border-accent/50 bg-accent/15 text-accent-glow"
+            : "border-border bg-surface text-muted hover:border-accent/40 hover:text-accent-glow",
+        )}
+      >
+        <Info className="h-3 w-3" />
+      </button>
+      {open && (
+        <div className="absolute left-1/2 top-7 z-50 w-80 -translate-x-1/2 rounded-lg border border-border bg-card p-3.5 text-left shadow-card">
+          {title && <div className="mb-1.5 text-xs font-semibold text-accent-glow">{title}</div>}
+          <div className="text-xs leading-relaxed text-muted">{children}</div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Card({
   className,

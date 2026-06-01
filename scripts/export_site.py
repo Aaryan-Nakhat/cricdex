@@ -131,26 +131,47 @@ def _players(con: duckdb.DuckDBPyConnection, collection: str, min_balls: int) ->
                    COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides')) AS bb
             FROM balls_{safe} b JOIN people p ON p.unique_name = b.bowler
             GROUP BY 1
+        ),
+        -- matches a player appeared in, whether batting or bowling
+        appeared AS (
+            SELECT p.identifier AS cid, b.match_id FROM balls_{safe} b
+                JOIN people p ON p.unique_name = b.batter
+            UNION
+            SELECT p.identifier AS cid, b.match_id FROM balls_{safe} b
+                JOIN people p ON p.unique_name = b.bowler
+        ),
+        mt AS (
+            SELECT cid, COUNT(DISTINCT match_id) AS matches FROM appeared GROUP BY 1
         )
         SELECT COALESCE(bats.cid, bowls.cid) AS cid,
                bats.name AS name,
                COALESCE(bats.bf, 0) AS balls_faced,
-               COALESCE(bowls.bb, 0) AS balls_bowled
+               COALESCE(bowls.bb, 0) AS balls_bowled,
+               COALESCE(mt.matches, 0) AS matches
         FROM bats FULL OUTER JOIN bowls ON bats.cid = bowls.cid
+             LEFT JOIN mt ON mt.cid = COALESCE(bats.cid, bowls.cid)
         """
     ).fetchall()
+    # Full display names (Wikidata label) so search matches "Manish"
+    # not just the Cricsheet short form "MK Pandey".
+    from cricdex.profiles import builder
+
+    wiki = builder._wikidata_cache()
     out = []
-    for cid, name, bf, bb in rows:
+    for cid, name, bf, bb, matches in rows:
         if cid is None or name is None:
             continue
         if (bf or 0) + (bb or 0) < min_balls:
             continue
+        full = (wiki.get(cid) or {}).get("label")
         out.append(
             {
                 "cricsheet_id": cid,
                 "name": name,
+                "full_name": full or name,
                 "balls_faced": int(bf or 0),
                 "balls_bowled": int(bb or 0),
+                "matches": int(matches or 0),
                 "role": "bowler" if (bb or 0) > (bf or 0) else "batter",
             }
         )
@@ -158,7 +179,25 @@ def _players(con: duckdb.DuckDBPyConnection, collection: str, min_balls: int) ->
     return out
 
 
-def _export_leaderboards(collection: str, out_dir: Path) -> int:
+def _match_counts(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, int]:
+    """unique_name -> matches played (batting or bowling), ALL players (no
+    ball cutoff) so leaderboard rows can be filtered by a min-matches gate."""
+    safe = _safe(collection)
+    rows = con.execute(
+        f"""
+        WITH appeared AS (
+            SELECT batter AS name, match_id FROM balls_{safe}
+            UNION
+            SELECT bowler AS name, match_id FROM balls_{safe}
+        )
+        SELECT name, COUNT(DISTINCT match_id) AS m FROM appeared
+        WHERE name IS NOT NULL GROUP BY 1
+        """
+    ).fetchall()
+    return {r[0]: int(r[1]) for r in rows}
+
+
+def _export_leaderboards(collection: str, out_dir: Path, matches: dict[str, int]) -> int:
     n = 0
     for slug in METRIC_SLUGS:
         src = METRIC_DIR / f"{slug}_{collection}.json"
@@ -167,6 +206,11 @@ def _export_leaderboards(collection: str, out_dir: Path) -> int:
         rows = json.loads(src.read_text())
         if isinstance(rows, dict):
             rows = rows.get("rows", [])
+        # Tag each row with the player's match count so the UI can apply a
+        # configurable min-matches filter (keeps 1-match flukes off the top).
+        for r in rows:
+            who = r.get("name") or r.get("batter") or r.get("bowler")
+            r["matches"] = matches.get(who, 0)
         # Trim each leaderboard to a sane top-N for the browser.
         _write(out_dir / "leaderboards" / f"{slug}.json", rows[:300])
         n += 1
@@ -289,7 +333,8 @@ def export(
             meta["n_players"] = len(players)
             _write(out_dir / "meta.json", meta)
             _write(out_dir / "players.json", players)
-            n_lb = _export_leaderboards(col, out_dir)
+            match_counts = _match_counts(con, col)
+            n_lb = _export_leaderboards(col, out_dir, match_counts)
             n_rat = _export_ratings(col, out_dir)
             _export_records_venues(col, out_dir)
             n_prof, n_cohort = _export_profiles_and_cohorts(col, out_dir, players)
