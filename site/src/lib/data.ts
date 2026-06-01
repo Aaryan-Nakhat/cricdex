@@ -1,0 +1,97 @@
+// Data layer — fetches the pre-cooked JSON tree under public/data.
+// Everything the UI shows is computed offline by scripts/export_site.py
+// and re-cooked nightly by the GitHub Action; the browser only displays.
+
+const DATA_ROOT = `${import.meta.env.BASE_URL}data`;
+
+// A cache-buster token. Bumped by the Refresh button so a manual refresh
+// re-pulls JSON past the CDN/browser cache without a hard reload.
+let bust = "";
+export function bumpCacheBust() {
+  bust = `?t=${Date.now()}`;
+  cache.clear();
+}
+
+const cache = new Map<string, unknown>();
+
+async function getJSON<T>(rel: string): Promise<T> {
+  const key = rel;
+  if (cache.has(key)) return cache.get(key) as T;
+  const res = await fetch(`${DATA_ROOT}/${rel}${bust}`);
+  if (!res.ok) throw new Error(`${rel}: ${res.status}`);
+  const data = (await res.json()) as T;
+  cache.set(key, data);
+  return data;
+}
+
+// ---- types ----------------------------------------------------------------
+
+export interface CollectionMeta {
+  collection: string;
+  data_as_of: string | null;
+  n_matches: number;
+  n_balls: number;
+  n_players: number;
+}
+
+export interface PlayerRow {
+  cricsheet_id: string;
+  name: string;
+  balls_faced: number;
+  balls_bowled: number;
+  role: "batter" | "bowler";
+}
+
+export interface RatingRow {
+  cricsheet_id: string;
+  unique_name: string;
+  role: "batter" | "bowler";
+  skill: number | null;
+  skill_sd: number | null;
+  survival_skill: number | null;
+  survival_skill_sd: number | null;
+  strike_skill: number | null;
+  strike_skill_sd: number | null;
+  value: number | null;
+  balls: number;
+  runs: number;
+}
+
+export type LeaderboardRow = Record<string, string | number | null>;
+
+export interface Profile {
+  name: string;
+  collection: string;
+  ids: Record<string, unknown>;
+  cricsheet_id: string;
+  wikidata: Record<string, unknown> | null;
+  bayes: Record<string, unknown> | null;
+  career: Record<string, unknown> | null;
+  metrics: Record<string, unknown> | null;
+  style_twins_batter: Record<string, unknown>[] | null;
+  style_twins_bowler: Record<string, unknown>[] | null;
+  dismissal_fingerprint: Record<string, unknown> | null;
+}
+
+export interface Cohorts {
+  co_faced: Record<string, unknown>[];
+  teammates: Record<string, unknown>[];
+  find_replacement: Record<string, unknown>[];
+}
+
+// ---- fetchers -------------------------------------------------------------
+
+export const getCollections = () => getJSON<CollectionMeta[]>("collections.json");
+export const getMeta = (c: string) => getJSON<CollectionMeta>(`${c}/meta.json`);
+export const getPlayers = (c: string) => getJSON<PlayerRow[]>(`${c}/players.json`);
+export const getRatings = (c: string) => getJSON<RatingRow[]>(`${c}/ratings.json`);
+export const getLeaderboard = (c: string, slug: string) =>
+  getJSON<LeaderboardRow[]>(`${c}/leaderboards/${slug}.json`);
+export const getRecords = (c: string) =>
+  getJSON<Record<string, Record<string, unknown>[]>>(`${c}/records.json`);
+export const getVenues = (c: string) =>
+  getJSON<Record<string, Record<string, Record<string, unknown>[]>>>(`${c}/venues.json`);
+export const getProfile = (c: string, cid: string) =>
+  getJSON<Profile>(`${c}/profiles/${cid}.json`);
+export const getCohorts = (c: string, cid: string) =>
+  getJSON<Cohorts>(`${c}/cohorts/${cid}.json`);

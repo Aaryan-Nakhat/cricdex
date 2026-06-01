@@ -92,9 +92,13 @@ client_secret*.json
 token.pickle
 auth_state.json
 
-# Frontend (later)
+# Frontend
 node_modules/
 .next/
 out/
 .turbo/
-site/data/
+site/node_modules/
+site/dist/
+# site/public/data is committed: it's the pre-cooked snapshot the static
+# build and GitHub Pages deploy read. The nightly refresh workflow
+# re-cooks it to the latest match date and redeploys.
