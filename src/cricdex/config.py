@@ -10,7 +10,7 @@ CricDex is a terminal-first tool. Credentials live in:
 Only two credentials are user-relevant:
 
 - `llm_api_key` (or `llm_api_base` + `llm_api_key` for the
-  LLM) — needed for rules Q&A, translate, match reports.
+  LLM) — needed for rules Q&A.
 - `jina_api_key` — optional, enables cross-encoder rerank in rules
   retrieval. Falls back to RRF order if unset.
 
@@ -69,7 +69,7 @@ def _setting(name: str, default: str = "") -> str:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(ROOT / ".env"), extra="ignore")
 
-    # LLM (rules QA, translate, match reports).
+    # LLM (rules Q&A).
     llm_api_key: str = _setting("llm_api_key")
     # Legacy hosted proxy. Phased out once user supplies a personal
     # llm_api_key. Both fields are read; non-empty wins.

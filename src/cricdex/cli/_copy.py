@@ -112,13 +112,6 @@ RECORDS_INTRO = (
     "selected collection."
 )
 
-# --- Match Reports -------------------------------------------------------
-
-MATCH_REPORT_INTRO = (
-    "LLM-written match report grounded in Cricsheet facts. No "
-    "hallucinations — every named stat traces back to the ball-by-ball."
-)
-
 # --- Compare -------------------------------------------------------------
 
 COMPARE_INTRO = (
@@ -164,14 +157,6 @@ AUCTION_RECOMMEND_INTRO = (
 AUCTION_SIMULATE_INTRO = (
     "Monte-Carlo auction price-band simulator. N franchises bid on "
     "a pool; emits per-player sale-price distributions."
-)
-
-# --- Translate -----------------------------------------------------------
-
-TRANSLATE_INTRO = (
-    "English commentary → Hindi / Tamil / Bengali / Urdu / Sinhala / "
-    "Marathi / Telugu / Kannada. Text-only in v1; voice-cloned audio "
-    "deferred to year 2."
 )
 
 # --- Scout ---------------------------------------------------------------

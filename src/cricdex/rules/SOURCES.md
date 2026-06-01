@@ -49,7 +49,6 @@ Legend
 | `ipl_impact_player_2025_27` | 📝 | 2025-2027 cycle | Curated supplementary clauses (10) under `data/rules/curated/`. The underlying TATA IPL Player Regulations 2025-27 is a separate BCCI document not publicly hosted; clauses synthesized from iplt20.com announcement + ESPNcricinfo / Wisden / Olympics.com explainers. |
 | `hundred_pc_2025` | ✅ | 2025 | Single PDF covers men's + women's competitions. |
 | `bbl_pc_2024_25` | ✅ | 2024-25 | Refresh once 2025-26 men's PC is published. |
-| `sa20_pc_2023` | 🔒 | 2023 | URL confirmed; sa20.co.za serves a Next.js shell to non-browser clients. |
 | `ilt20_pc` | ⏳ | TBD | No public PDF on ilt20.ae. ILT20 adopts ICC T20I PC with annexures. |
 | `mlc_pc` | ↪️ | — | majorleaguecricket.com publishes no PC PDF; MLC adopts ICC T20I PC with playoff annex. |
 | `cpl_pc` | ↪️ | 2025 | CPL formally adopted ICC's 2025 T20I PC. Use `icc_pc_men_t20i_2025`. |
@@ -59,7 +58,6 @@ Legend
 
 | ID | Status | Edition | Notes |
 |---|---|---|---|
-| `wpl_pc_2026` | 🔒 | Effective 1 January 2026 | URL confirmed; wplt20.com SPA gate blocks non-browser fetches. |
 | `wbbl_pc_2025_26` | ✅ | 2025-26 (WBBL\|11) | |
 
 ## Domestic
@@ -68,7 +66,6 @@ Legend
 |---|---|---|---|
 | `cricket_aus_shield_2025_26` | ✅ | 2025-26 | Sheffield Shield + Second XI. |
 | `cricket_aus_oneday_cup_2025_26` | ✅ | 2025-26 | Marsh One-Day Cup. |
-| `bcci_domestic_pc` | ⏳ | 2025-26 | BCCI publishes per-tournament annexures rather than a single PC PDF. Collect manually each season. |
 
 ## Ethics / conduct
 
@@ -77,7 +74,6 @@ Legend
 | `icc_code_of_conduct_players_2023` | ✅ | Effective 16 June 2023 | |
 | `icc_code_of_conduct_match_officials_2016` | ✅ | Effective 1 November 2016 | |
 | `ipl_code_of_conduct_2025` | ✅ | 2025 | |
-| `bcci_code_of_conduct_2025` | 🔒 | 2025 | Hyderabad CA mirror; host TLS cert is for a different hostname. |
 
 ## Integrity
 

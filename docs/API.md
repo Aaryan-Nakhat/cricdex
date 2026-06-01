@@ -50,18 +50,6 @@ FastAPI app at `cricdex.api.main:app`, served on port 8080 inside the
 |---|---|---|
 | POST | `/v1/rules/ask` body `{query, formats?, top_k}` | RAG QA with citations (`[source_id §law_number]`). Supports format filter (`ipl`, `t20i`, `mcc_laws`, `code_of_conduct`, …). |
 
-### Match reports
-
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/v1/match-reports/{match_id}?collection=` | Generates (or rereads cache) LLM-written match report Markdown. |
-
-### Commentary translate
-
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/v1/translate` body `{text, target}` | English → `hi / ta / bn / ur / si / mr / te / kn`. Cricket terms preserved as local-script loanwords. |
-
 ### Auction
 
 | Method | Path | Notes |
@@ -82,10 +70,6 @@ curl -s localhost:8080/v1/players/V%20Kohli?collection=ipl | jq '.career'
 curl -s -X POST localhost:8080/v1/rules/ask \
     -H 'content-type: application/json' \
     -d '{"query":"impact player rule","formats":["ipl"]}' | jq '.answer'
-
-curl -s -X POST localhost:8080/v1/translate \
-    -H 'content-type: application/json' \
-    -d '{"text":"Bumrah bowls a fast yorker","target":"hi"}' | jq -r '.translated'
 ```
 
 ## Future shape

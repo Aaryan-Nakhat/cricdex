@@ -32,8 +32,8 @@ def run() -> None:
 
     if not cfg.get("llm_api_key") and not cfg.get("llm_api_base"):
         c.print(
-            "\n[bold]LLM key[/bold] — needed for rules Q&A, translate, "
-            "match reports. Skip if you only want metrics / scout / auction."
+            "\n[bold]LLM key[/bold] — needed for rules Q&A. "
+            "Skip if you only want metrics / scout / auction."
         )
         key = typer.prompt(
             "paste LLM_API_KEY (or hit Enter to skip)", default="", show_default=False

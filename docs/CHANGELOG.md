@@ -131,6 +131,20 @@ over the same `~/.cricdex/data/`.
 
 ### Removed / dropped from v1
 
+- **Cricsheet-only scope cull** — deleted every non-Cricsheet source
+  and the LLM-convenience features built on them, so the codebase is
+  exactly what ships: `pulse` (Reddit sentiment), `live` (Cricbuzz),
+  `commentary_translate`, `reports` (match reports), `newsletter`,
+  and the orphaned `drs` module — plus their CLI commands
+  (`translate`, `match-report`), TUI tabs (Translate, Match Report →
+  TUI now 10 tabs), Streamlit pages (4_Match_Reports,
+  9_Translate_Commentary → dashboard now 10 pages), API routes
+  (`/v1/translate`, `/v1/match-reports`), and `scripts/` entry
+  points. Dropped 4 blocked rule sources from the manifest
+  (sa20_pc_2023, wpl_pc_2026, bcci_domestic_pc,
+  bcci_code_of_conduct_2025) — the 21 ingested PDFs are unaffected.
+  Everything now derives from Cricsheet ball-by-ball + the People
+  Register + one-time Wikidata enrichment.
 - DRS Practice dashboard page (was a hand-curated FAQ stand-in
   for the eventual Hawk-Eye CV simulator — moved to year-2 vNext
   group D, scenario JSONL stays on disk).
