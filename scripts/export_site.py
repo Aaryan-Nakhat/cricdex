@@ -44,7 +44,7 @@ from cricdex.config import DATA_DIR
 app = typer.Typer(add_completion=False)
 
 ROOT = Path(__file__).resolve().parent.parent
-SITE_DATA = ROOT / "site" / "data"
+SITE_DATA = ROOT / "site" / "public" / "data"
 METRIC_DIR = DATA_DIR / "metrics"
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 
@@ -84,7 +84,9 @@ def _json_default(o):
 
 def _write(path: Path, obj) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, separators=(",", ":"), default=_json_default))
+    # Trailing newline so the repo's end-of-file-fixer pre-commit hook
+    # leaves the snapshot untouched (and CI-committed data matches).
+    path.write_text(json.dumps(obj, separators=(",", ":"), default=_json_default) + "\n")
 
 
 def _safe(collection: str) -> str:
