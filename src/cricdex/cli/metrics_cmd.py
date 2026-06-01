@@ -20,7 +20,7 @@ from cricdex.config import DATA_DIR
 METRICS: dict[str, tuple[str, str]] = {
     "ngi": ("ngi_per_match", "name"),
     "pressure_runs": ("pressure_sr_per_100_balls", "batter"),
-    "intent_curve": ("intent", "batter"),
+    "intent_curve": ("sr", "batter"),
     "dot_ball_recovery": ("runs_per_6_after_dot", "batter"),
     "counter_attack": ("counter_attack_sr", "batter"),
     "boundary_dependency": ("bdr_pct", "batter"),
