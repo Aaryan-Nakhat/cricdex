@@ -27,7 +27,7 @@ from __future__ import annotations
 from cricdex.scout.graph.schema import driver
 
 
-def co_faced_bowlers(unique_name: str, top_k: int = 10) -> list[dict]:
+def co_faced_bowlers(unique_name: str, top_k: int = 10, collection: str = "ipl") -> list[dict]:
     """Auto-flip FACED-cohort similarity:
 
     - Target is a batter: returns OTHER BATTERS who faced the same
@@ -43,10 +43,11 @@ def co_faced_bowlers(unique_name: str, top_k: int = 10) -> list[dict]:
     try:
         with drv.session() as s:
             target_row = s.run(
-                "MATCH (p:Player {unique_name: $name}) "
+                "MATCH (p:Player {unique_name: $name, collection: $collection}) "
                 "RETURN p.balls_bowled AS bb, p.balls_faced AS bf, "
                 "p.bowling_style AS bowling_style",
                 name=unique_name,
+                collection=collection,
             ).single()
             target_bb = (target_row or {}).get("bb") or 0
             target_bf = (target_row or {}).get("bf") or 0
@@ -65,7 +66,7 @@ def co_faced_bowlers(unique_name: str, top_k: int = 10) -> list[dict]:
             if target_is_bowler:
                 rows = s.run(
                     f"""
-                    MATCH (p:Player {{unique_name: $name}})<-[:FACED]-(batter:Player)
+                    MATCH (p:Player {{unique_name: $name, collection: $collection}})<-[:FACED]-(batter:Player)
                     MATCH (batter)-[:FACED]->(q:Player)
                     WHERE q.cricsheet_id <> p.cricsheet_id
                       AND COALESCE(q.unresolved, false) = false
@@ -79,12 +80,13 @@ def co_faced_bowlers(unique_name: str, top_k: int = 10) -> list[dict]:
                            shared AS shared_batters
                     """,
                     name=unique_name,
+                    collection=collection,
                     k=top_k,
                 ).data()
             else:
                 rows = s.run(
                     f"""
-                    MATCH (p:Player {{unique_name: $name}})-[:FACED]->(b:Player)
+                    MATCH (p:Player {{unique_name: $name, collection: $collection}})-[:FACED]->(b:Player)
                     MATCH (q:Player)-[:FACED]->(b)
                     WHERE q.cricsheet_id <> p.cricsheet_id
                       AND COALESCE(q.unresolved, false) = false
@@ -98,6 +100,7 @@ def co_faced_bowlers(unique_name: str, top_k: int = 10) -> list[dict]:
                            shared AS shared_bowlers
                     """,
                     name=unique_name,
+                    collection=collection,
                     k=top_k,
                 ).data()
         return rows
@@ -105,13 +108,13 @@ def co_faced_bowlers(unique_name: str, top_k: int = 10) -> list[dict]:
         drv.close()
 
 
-def teammate_overlap(unique_name: str, top_k: int = 10) -> list[dict]:
+def teammate_overlap(unique_name: str, top_k: int = 10, collection: str = "ipl") -> list[dict]:
     drv = driver()
     try:
         with drv.session() as s:
             rows = s.run(
                 """
-                MATCH (p:Player {unique_name: $name})-[:TEAMMATE_OF]-(t:Player)
+                MATCH (p:Player {unique_name: $name, collection: $collection})-[:TEAMMATE_OF]-(t:Player)
                 MATCH (q:Player)-[r2:TEAMMATE_OF]-(t)
                 WHERE q.cricsheet_id <> p.cricsheet_id
                   AND COALESCE(q.unresolved, false) = false
@@ -125,6 +128,7 @@ def teammate_overlap(unique_name: str, top_k: int = 10) -> list[dict]:
                        weight
                 """,
                 name=unique_name,
+                collection=collection,
                 k=top_k,
             ).data()
         return rows
@@ -140,6 +144,7 @@ def find_replacement(
     role: str | None = None,
     min_last_match_date: str | None = None,
     bowling_style: str | None = None,
+    collection: str = "ipl",
 ) -> list[dict]:
     """Find a 'next X' candidate.
 
@@ -162,10 +167,11 @@ def find_replacement(
     try:
         with drv.session() as s:
             target = s.run(
-                "MATCH (p:Player {unique_name: $name}) "
+                "MATCH (p:Player {unique_name: $name, collection: $collection}) "
                 "RETURN p.role AS role, p.bowling_style AS bowling_style, "
                 "p.balls_bowled AS bb, p.balls_faced AS bf",
                 name=unique_name,
+                collection=collection,
             ).single()
             if target is None:
                 return []
@@ -186,14 +192,14 @@ def find_replacement(
             )
             if target_is_bowler:
                 base = """
-                MATCH (p:Player {unique_name: $name})<-[:FACED]-(batter:Player)
+                MATCH (p:Player {unique_name: $name, collection: $collection})<-[:FACED]-(batter:Player)
                 MATCH (batter)-[:FACED]->(q:Player)
                 """
                 count_alias = "shared_batters"
                 count_expr = "COUNT(DISTINCT batter)"
             else:
                 base = """
-                MATCH (p:Player {unique_name: $name})-[:FACED]->(opp:Player)
+                MATCH (p:Player {unique_name: $name, collection: $collection})-[:FACED]->(opp:Player)
                 MATCH (q:Player)-[:FACED]->(opp)
                 """
                 count_alias = "shared_bowlers"
@@ -237,7 +243,11 @@ def find_replacement(
                    q.last_match_date AS last_match_date,
                    {count_alias} AS shared
             """
-            params: dict[str, object] = {"name": unique_name, "k": top_k}
+            params: dict[str, object] = {
+                "name": unique_name,
+                "k": top_k,
+                "collection": collection,
+            }
             if role:
                 params["role"] = role
             if max_balls_bowled is not None:

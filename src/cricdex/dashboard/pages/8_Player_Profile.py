@@ -296,14 +296,14 @@ try:
     g_col1, g_col2 = st.columns(2)
     with g_col1:
         st.markdown("**Co-faced bowlers cohort**")
-        rows = similar.co_faced_bowlers(name, top_k=8)
+        rows = similar.co_faced_bowlers(name, top_k=8, collection=collection)
         if rows:
             st.dataframe(rows, use_container_width=True, hide_index=True)
         else:
             st.info("no graph cohort — populate scout graph for this collection")
     with g_col2:
         st.markdown("**Teammate overlap cohort**")
-        rows = similar.teammate_overlap(name, top_k=8)
+        rows = similar.teammate_overlap(name, top_k=8, collection=collection)
         if rows:
             st.dataframe(rows, use_container_width=True, hide_index=True)
         else:
@@ -315,7 +315,7 @@ try:
     try:
         from cricdex.auction import advisor
 
-        rec = advisor.recommend_substitutes(name, budget=10.0, n=8)
+        rec = advisor.recommend_substitutes(name, budget=10.0, n=8, collection=collection)
         if rec.is_empty():
             st.info(
                 "no affordable substitutes — try a higher budget via "

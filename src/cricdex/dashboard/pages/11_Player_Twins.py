@@ -42,17 +42,17 @@ except ImportError as e:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _co_faced(name: str, k: int):
-    return similar.co_faced_bowlers(name, top_k=k)
+def _co_faced(name: str, k: int, collection: str):
+    return similar.co_faced_bowlers(name, top_k=k, collection=collection)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _teammates(name: str, k: int):
-    return similar.teammate_overlap(name, top_k=k)
+def _teammates(name: str, k: int, collection: str):
+    return similar.teammate_overlap(name, top_k=k, collection=collection)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _replacement(name, k, role, style, max_bw, max_bt, min_last):
+def _replacement(name, k, role, style, max_bw, max_bt, min_last, collection):
     return similar.find_replacement(
         name,
         top_k=k,
@@ -61,6 +61,7 @@ def _replacement(name, k, role, style, max_bw, max_bt, min_last):
         max_balls_bowled=max_bw,
         max_balls_faced=max_bt,
         min_last_match_date=min_last or None,
+        collection=collection,
     )
 
 
@@ -139,10 +140,10 @@ with st.sidebar:
 
 with st.spinner(f"querying graph for {name!r} …"):
     if mode == "Co-faced bowlers":
-        rows = _co_faced(name, top_k)
+        rows = _co_faced(name, top_k, collection)
         st.subheader(f"Top-{top_k} players sharing FACED bowlers with {name}")
     elif mode == "Teammate overlap":
-        rows = _teammates(name, top_k)
+        rows = _teammates(name, top_k, collection)
         st.subheader(f"Top-{top_k} players sharing teammates with {name}")
     else:
         rows = _replacement(
@@ -153,6 +154,7 @@ with st.spinner(f"querying graph for {name!r} …"):
             int(max_balls_bowled) if max_balls_bowled is not None else None,
             int(max_balls_faced) if max_balls_faced is not None else None,
             min_last_match,
+            collection,
         )
         st.subheader(f"Replacement candidates for {name}")
 

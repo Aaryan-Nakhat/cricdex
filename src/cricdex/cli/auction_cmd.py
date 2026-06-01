@@ -96,12 +96,13 @@ def recommend(
     ),
     n: int = typer.Option(5, "-n", "--top-n"),
     min_last_match: str = typer.Option("2023-01-01", "--min-last-match"),
+    collection: str = typer.Option("ipl", "--collection", "-c"),
 ) -> None:
     from cricdex.auction import advisor
 
     _render.header(
         f"War-room advisor — substitute for {target}",
-        subtitle=f"budget: {budget:.1f} cr  ·  top-{n}",
+        subtitle=f"budget: {budget:.1f} cr  ·  top-{n}  ·  collection: {collection}",
     )
     _render.intro_panel(_copy.AUCTION_RECOMMEND_INTRO, title="Recommend")
     if role:
@@ -117,6 +118,7 @@ def recommend(
             n=n,
             min_last_match_date=min_last_match,
             bowling_style=style,
+            collection=collection,
         )
     if rec.is_empty():
         die("no affordable graph-similar candidates")

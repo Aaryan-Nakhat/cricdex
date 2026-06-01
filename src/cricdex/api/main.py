@@ -257,6 +257,7 @@ class AuctionRecommendReq(BaseModel):
     min_last_match_date: str | None = "2023-01-01"
     max_balls_bowled: int | None = None
     max_balls_faced: int | None = None
+    collection: str = "ipl"
 
 
 @app.post("/v1/auction/recommend")
@@ -276,6 +277,7 @@ def auction_recommend(req: AuctionRecommendReq) -> dict[str, Any]:
         min_last_match_date=req.min_last_match_date,
         max_balls_bowled=req.max_balls_bowled,
         max_balls_faced=req.max_balls_faced,
+        collection=req.collection,
     )
     if rec.is_empty():
         return {"target": req.target, "budget": req.budget, "rows": []}
@@ -290,6 +292,7 @@ def scout_twins(
     name: str,
     mode: str = Query("co_faced", pattern="^(co_faced|teammates)$"),
     top_k: int = Query(10, ge=1, le=50),
+    collection: str = Query("ipl"),
 ) -> dict[str, Any]:
     """Graph-traversal similarity. `mode=co_faced` returns players
     sharing FACED bowlers (batter affinity); `mode=teammates` returns
@@ -299,9 +302,9 @@ def scout_twins(
     except ImportError as e:
         raise HTTPException(503, f"scout.graph unavailable (neo4j extra?): {e}") from e
     if mode == "co_faced":
-        rows = similar.co_faced_bowlers(name, top_k=top_k)
+        rows = similar.co_faced_bowlers(name, top_k=top_k, collection=collection)
     else:
-        rows = similar.teammate_overlap(name, top_k=top_k)
+        rows = similar.teammate_overlap(name, top_k=top_k, collection=collection)
     return {"target": name, "mode": mode, "rows": rows}
 
 
@@ -313,6 +316,7 @@ def scout_find_replacement(
     max_balls_bowled: int | None = Query(None, ge=0),
     max_balls_faced: int | None = Query(None, ge=0),
     min_last_match_date: str | None = Query(None),
+    collection: str = Query("ipl"),
 ) -> dict[str, Any]:
     """Find replacement / "next X" — auto-flips the FACED traversal
     direction based on the target's role, applies recency + role +
@@ -328,5 +332,6 @@ def scout_find_replacement(
         max_balls_bowled=max_balls_bowled,
         max_balls_faced=max_balls_faced,
         min_last_match_date=min_last_match_date,
+        collection=collection,
     )
     return {"target": name, "role": role, "rows": rows}
