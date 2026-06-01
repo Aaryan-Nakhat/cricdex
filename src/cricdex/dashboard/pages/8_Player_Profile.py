@@ -256,6 +256,34 @@ with right:
     else:
         st.info("no bowler style-twins available for this player + collection")
 
+st.subheader("🎯 Dismissal fingerprint")
+st.caption(
+    "*How* this player gets out / takes wickets — descriptive scouting "
+    "metadata, separate from the skill model (which only cares about the "
+    "rate). High bowled+lbw = beaten at the stumps (technique); high "
+    "caught = false / aerial shots; high stumped = footwork vs spin. For "
+    "bowlers: bowled+lbw = attacks the stumps; caught = bowls for the "
+    "catch; stumped = flights it."
+)
+fp = profile.get("dismissal_fingerprint") or {}
+fp_left, fp_right = st.columns(2)
+with fp_left:
+    bat_fp = fp.get("batter") or {}
+    st.markdown(f"**As batter** ({bat_fp.get('total', 0)} dismissals)")
+    if bat_fp.get("rows"):
+        st.dataframe(bat_fp["rows"], use_container_width=True, hide_index=True)
+        st.caption(f"→ {bat_fp.get('read', '')}")
+    else:
+        st.info("no dismissals recorded")
+with fp_right:
+    bowl_fp = fp.get("bowler") or {}
+    st.markdown(f"**As bowler** ({bowl_fp.get('total', 0)} wickets)")
+    if bowl_fp.get("rows"):
+        st.dataframe(bowl_fp["rows"], use_container_width=True, hide_index=True)
+        st.caption(f"→ {bowl_fp.get('read', '')}")
+    else:
+        st.info("no bowler-credited wickets recorded")
+
 st.subheader("🔗 Graph cohort (Neo4j)")
 st.caption(
     "Players in the same competitive neighbourhood — derived from the scout "

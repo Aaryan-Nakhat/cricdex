@@ -203,3 +203,24 @@ else:
                 "These two players have no overlapping Bayesian ratings for "
                 f"this collection — run `cricdex data ingest ratings -c {collection}`."
             )
+
+    # --- matchup rivalry log (raw dismissal counts, both directions) ---
+    st.subheader("⚔️ Head-to-head dismissal log")
+    st.caption(
+        "The raw rivalry record — bowler-credited dismissals of one by the "
+        "other. Counts, not rates (matchups are sparse)."
+    )
+    from cricdex.metrics import dismissal_fingerprint as dfp  # noqa: E402
+
+    found_rivalry = False
+    for batter, bowler in ((player_a, player_b), (player_b, player_a)):
+        log = dfp.matchup_log(batter, bowler, collection=collection)
+        if log["total"]:
+            found_rivalry = True
+            kinds = ", ".join(f"{r['count']}× {r['kind']}" for r in log["rows"])
+            st.markdown(
+                f"**{bowler}** dismissed **{batter}** "
+                f"**{log['total']}×** in {log['balls']} balls — {kinds}"
+            )
+    if not found_rivalry:
+        st.info("No bowler-credited dismissals of each other on record.")
