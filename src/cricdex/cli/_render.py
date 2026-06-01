@@ -281,6 +281,20 @@ def bayes_sentence(bayes: dict, role_key: str, label: str) -> str:
     )
 
 
+def bayes_extra(bayes: dict, role_key: str, skill_key: str, label: str) -> str:
+    """Render a dismissal-aware secondary axis (survival_skill /
+    strike_skill) the same way as `bayes_sentence`. Returns a dim
+    'n/a' line when the joint model hasn't been fit (legacy ratings)."""
+    rec = (bayes or {}).get(f"bayes_{role_key}") or {}
+    skill = rec.get(skill_key)
+    if skill is None:
+        return f"{label}: [dim]n/a (run dismissal-aware ratings fit)[/dim]"
+    sd = rec.get(f"{skill_key}_sd")
+    sd_val = sd if sd is not None else 1.0
+    conf = "high" if sd_val < 0.05 else ("medium" if sd_val < 0.10 else "low")
+    return f"{label}: [bold]{skill:+.3f}[/bold] ([dim]{conf} confidence; σ={sd_val:.3f}[/dim])"
+
+
 def load_wikidata(cricsheet_id: str | None) -> dict:
     """Load the per-player Wikidata record. None-safe; returns {} on miss."""
     import json as _json
