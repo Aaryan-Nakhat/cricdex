@@ -14,7 +14,7 @@ import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getProfile, type Profile } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, CardHeader, Spinner, Empty } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Empty, InfoTip } from "@/components/ui";
 import { cn, fmt } from "@/lib/utils";
 
 const SERIES_COLORS = ["#34d399", "#a3e635", "#60a5fa", "#f43f5e"];
@@ -136,7 +136,23 @@ export function Compare() {
         <div className="space-y-5 animate-fade-up">
           {/* radar */}
           <Card>
-            <CardHeader title="Skill shape" subtitle="Four Bayesian axes, min-max scaled across the selected players" />
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  Skill shape
+                  <InfoTip title="How to read this">
+                    Four Bayesian skill axes — <b>Score</b> &amp; <b>Survive</b> (batting),{" "}
+                    <b>Economy</b> &amp; <b>Strike</b> (bowling). Values are{" "}
+                    <b>relative, not absolute</b>: for each axis the best of the selected players is
+                    pushed to the rim (100) and the worst to the centre (0), so the chart only
+                    compares <i>these</i> players to each other. A bigger, more filled shape = better
+                    across more skills. Pure batters sit near the centre on the two bowling axes (and
+                    vice-versa) — that's expected, not a weakness. Hover a point for its scaled value.
+                  </InfoTip>
+                </span>
+              }
+              subtitle="Four Bayesian axes, scaled 0–100 across the selected players (relative, not absolute)"
+            />
             <div className="h-80 p-4">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={radarData} outerRadius="72%">
@@ -158,6 +174,13 @@ export function Compare() {
                 </RadarChart>
               </ResponsiveContainer>
             </div>
+            <p className="border-t border-border px-5 py-3 text-xs leading-relaxed text-muted">
+              Reading it: each spoke is one skill. A player's point sits at the rim if they're the
+              best of the selected group on that skill, at the centre if they're the worst — it's a{" "}
+              <b>head-to-head shape</b>, not an absolute rating. Wider, fuller polygon = stronger
+              all-round. A spike toward one corner = a specialist. Don't read a small bowling-axis
+              value on a pure batter as bad — they simply don't bowl.
+            </p>
           </Card>
 
           {/* comparison table */}

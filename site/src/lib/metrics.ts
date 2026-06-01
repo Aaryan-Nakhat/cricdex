@@ -15,6 +15,7 @@ export interface MetricDef {
   name: string;
   one_liner: string;
   what: string; // longer explainer for the page header
+  how: string; // step-by-step "how it's calculated" (shown in the i-popover)
   nameCol: string; // column holding the player's name
   higherIsBetter: boolean;
   columns: Column[];
@@ -26,6 +27,7 @@ export const METRICS: MetricDef[] = [
     name: "Net Game Impact",
     one_liner: "Total runs added vs a replacement-level player, batting + bowling.",
     what: "NGI rolls a player's batting and bowling contribution into one win-currency number — runs added above a replacement-level player across their career — then normalises per match so part-timers and veterans compare fairly.",
+    how: "For every ball, compute expected runs for a replacement-level player in that exact match state (over, wickets, venue). A batter's credit = actual runs − expected; a bowler's = expected − conceded (plus a wicket bonus weighted by the batter's value). Sum a player's batting + bowling credit across all matches → NGI total, then divide by matches → NGI per match.",
     nameCol: "name",
     higherIsBetter: true,
     columns: [
@@ -42,6 +44,7 @@ export const METRICS: MetricDef[] = [
     name: "Pressure Runs",
     one_liner: "Strike rate when the required rate is climbing in a chase.",
     what: "Isolates balls faced under genuine chase pressure (required rate above par) and reports how fast a batter scores in exactly those moments — separating flat-track bullies from players who lift when it's tight.",
+    how: "Look only at 2nd-innings (chasing) balls. Flag a ball as 'under pressure' when the required run-rate exceeds a multiplier of par. Over just those flagged balls, Pressure SR = (runs / balls) × 100. % balls is how often this player was actually put under that pressure.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [
@@ -57,6 +60,7 @@ export const METRICS: MetricDef[] = [
     name: "Intent Curve",
     one_liner: "How strike rate ramps with balls faced — the acceleration shape.",
     what: "Buckets every innings by balls faced and plots the strike rate in each bucket. Reveals whether a batter explodes immediately, builds then launches, or fades — the shape of their intent over an innings.",
+    how: "Group each delivery a batter faced by how many balls into their innings it was (e.g. balls 1–10, 11–20, …). Within each bucket, SR = (runs / balls) × 100. The sequence of bucket SRs is the player's intent curve.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [
@@ -72,6 +76,7 @@ export const METRICS: MetricDef[] = [
     name: "Dot-Ball Recovery",
     one_liner: "Runs scored in the 6 balls after eating a dot.",
     what: "Measures how a batter responds to a dot ball: runs accumulated over the next six deliveries. High scorers refuse to let pressure compound; low scorers let dots snowball into more dots.",
+    how: "Find every dot ball the batter faced. For each, sum the runs they scored over the following six deliveries. Metric = total of those runs ÷ (dots faced) — average runs reclaimed in the six balls after a dot.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [
@@ -86,6 +91,7 @@ export const METRICS: MetricDef[] = [
     name: "Counter-Attack",
     one_liner: "Strike rate immediately after a partner is dismissed.",
     what: "Captures the player who counter-punches when a wicket has just fallen — strike rate on balls faced right after losing a partner, when most batters retreat into their shell.",
+    how: "Mark the balls a batter faced in the window right after a partner was dismissed. Counter SR = (runs / balls) × 100 over just those balls — high means they accelerate through a wicket, not shut down.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [
@@ -100,6 +106,7 @@ export const METRICS: MetricDef[] = [
     name: "Boundary Dependency",
     one_liner: "Share of runs that come from fours and sixes.",
     what: "The fraction of a batter's runs scored in boundaries. High dependency flags a player who can go quiet when boundaries dry up; low dependency means they rotate strike and keep the score ticking without the rope.",
+    how: "Boundary runs = (fours × 4) + (sixes × 6). Boundary % = boundary runs ÷ total runs × 100. Lower is better here — it means more of the score came from running, not just the rope.",
     nameCol: "batter",
     higherIsBetter: false,
     columns: [
@@ -116,6 +123,7 @@ export const METRICS: MetricDef[] = [
     name: "Pressure Conversion",
     one_liner: "How often a bowler turns pressure balls into wickets.",
     what: "After a bowler builds pressure (a run of dots / tight overs), how often do they actually convert it into a wicket? Separates the bowlers who finish the squeeze from those who let batters off the hook.",
+    how: "Identify 'pressure balls' — deliveries that follow a run of dots / tight scoring. Conversion % = wickets taken on those pressure balls ÷ pressure balls × 100. Measures finishing the squeeze, not just bowling dots.",
     nameCol: "bowler",
     higherIsBetter: true,
     columns: [
@@ -130,6 +138,7 @@ export const METRICS: MetricDef[] = [
     name: "Wicket Quality",
     one_liner: "Wickets weighted by the calibre of batter dismissed.",
     what: "Not all wickets are equal. This weights each dismissal by the quality of the batter removed (their Bayesian rating), rewarding bowlers who take the big scalps over those who pad stats against tail-enders.",
+    how: "For each wicket, look up the dismissed batter's Bayesian batting value. Sum those values across all the bowler's wickets → wicket quality. Removing top-order stars scores far higher than mopping up the tail.",
     nameCol: "bowler",
     higherIsBetter: true,
     columns: [
@@ -144,6 +153,7 @@ export const METRICS: MetricDef[] = [
     name: "Crease Longevity",
     one_liner: "Balls survived per dismissal vs the cohort average.",
     what: "How long a batter typically lasts at the crease — balls faced per dismissal — indexed against the cohort. Above 1.0 means they stick around longer than peers; an anchor's signature.",
+    how: "Balls per dismissal = total balls faced ÷ dismissals. Longevity index = that figure ÷ the cohort average. 1.0 = exactly average survival; 1.3 = lasts 30% longer than peers per dismissal.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [
@@ -159,6 +169,7 @@ export const METRICS: MetricDef[] = [
     name: "Slow-Start Cost",
     one_liner: "Strike-rate drop while setting a total vs chasing.",
     what: "Quantifies how much a batter slows down when batting first (setting) compared to their career strike rate — the hidden cost of cautious starts when there's no target to chase.",
+    how: "Setting SR = strike rate on 1st-innings (no target) balls. Slow-start cost = career SR − setting SR. Positive = they bat slower when setting a total; lower (or negative) is better.",
     nameCol: "batter",
     higherIsBetter: false,
     columns: [

@@ -1,18 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trophy, Info, TrendingDown } from "lucide-react";
+import { Trophy, Info, TrendingDown, Filter } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getLeaderboard } from "@/lib/data";
 import { METRICS, METRIC_BY_SLUG } from "@/lib/metrics";
 import { DataTable, type Col } from "@/components/DataTable";
-import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge } from "@/components/ui";
+import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 export function Leaderboards() {
   const { collection } = useStore();
   const navigate = useNavigate();
   const [slug, setSlug] = useState("ngi");
+  const [minMatches, setMinMatches] = useState(20);
   const metric = METRIC_BY_SLUG[slug];
 
   const { data, loading, error } = useAsync(
@@ -20,13 +21,22 @@ export function Leaderboards() {
     [collection, slug],
   );
 
-  const cols: Col<Record<string, unknown>>[] = metric.columns.map((c) => ({
-    key: c.key,
-    label: c.label,
-    digits: c.digits,
-    primary: c.primary,
-    align: c.digits !== undefined ? "right" : "left",
-  }));
+  // Min-matches gate — keeps 1-match flukes (hi Tanush Kotian) off the top.
+  const filtered = useMemo(
+    () => (data ?? []).filter((r) => Number(r.matches ?? 0) >= minMatches),
+    [data, minMatches],
+  );
+
+  const cols: Col<Record<string, unknown>>[] = [
+    ...metric.columns.map((c) => ({
+      key: c.key,
+      label: c.label,
+      digits: c.digits,
+      primary: c.primary,
+      align: (c.digits !== undefined ? "right" : "left") as "left" | "right",
+    })),
+    { key: "matches", label: "Mts", digits: 0, align: "right" as const },
+  ];
 
   return (
     <>
@@ -54,13 +64,14 @@ export function Leaderboards() {
         ))}
       </div>
 
-      {/* explainer */}
-      <Card className="mb-5 px-5 py-4">
+      {/* explainer + how-it's-calculated */}
+      <Card className="mb-4 px-5 py-4">
         <div className="flex items-start gap-3">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-semibold text-fg">{metric.name}</h3>
+              <InfoTip title={`How ${metric.name} is calculated`}>{metric.how}</InfoTip>
               {!metric.higherIsBetter && (
                 <Badge tone="ball">
                   <TrendingDown className="h-3 w-3" /> lower is better
@@ -72,15 +83,47 @@ export function Leaderboards() {
         </div>
       </Card>
 
+      {/* filter bar */}
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface/50 px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <Filter className="h-4 w-4 text-accent" />
+          Min matches
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={minMatches}
+          onChange={(e) => setMinMatches(Number(e.target.value))}
+          className="h-1.5 w-44 cursor-pointer accent-[#34d399]"
+        />
+        <input
+          type="number"
+          min={0}
+          max={500}
+          value={minMatches}
+          onChange={(e) => setMinMatches(Math.max(0, Number(e.target.value)))}
+          className="input w-20 py-1.5"
+        />
+        <span className="text-xs text-muted">
+          showing <span className="font-semibold text-fg">{filtered.length}</span> players with ≥{" "}
+          {minMatches} matches
+          {data && <span className="text-muted/60"> (of {data.length})</span>}
+        </span>
+      </div>
+
       {loading ? (
         <Spinner label={`Loading ${metric.name}…`} />
       ) : error ? (
         <ErrorBox message={error} />
       ) : !data || data.length === 0 ? (
         <Empty>No data for this metric in {collection}.</Empty>
+      ) : filtered.length === 0 ? (
+        <Empty>No players clear {minMatches} matches — lower the filter.</Empty>
       ) : (
         <DataTable
-          rows={data}
+          rows={filtered}
           cols={cols}
           onRowClick={(row) => {
             const name = row[metric.nameCol];

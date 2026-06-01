@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 export interface Option {
   value: string;
   label: string;
+  search?: string; // extra text to match against (e.g. alt names)
   hint?: string;
 }
 
@@ -31,7 +32,9 @@ export function Combobox({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options.slice(0, 50);
-    return options.filter((o) => o.label.toLowerCase().includes(q)).slice(0, 50);
+    return options
+      .filter((o) => `${o.label} ${o.search ?? ""}`.toLowerCase().includes(q))
+      .slice(0, 50);
   }, [options, query]);
 
   useEffect(() => {

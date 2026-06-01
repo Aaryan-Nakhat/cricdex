@@ -12,11 +12,12 @@ export function usePlayers(collection: string) {
     () =>
       players.map((p) => ({
         value: p.cricsheet_id,
-        label: p.name,
-        hint:
-          p.role === "bowler"
-            ? `${p.balls_bowled} bowled`
-            : `${p.balls_faced} faced`,
+        // Show the full name when we have it; keep the Cricsheet short
+        // form alongside so searching either ("Manish" or "MK Pandey")
+        // matches. The Combobox filters on `label` + `search`.
+        label: p.full_name && p.full_name !== p.name ? `${p.full_name} (${p.name})` : p.name,
+        search: `${p.full_name} ${p.name}`,
+        hint: `${p.matches} matches`,
       })),
     [players],
   );

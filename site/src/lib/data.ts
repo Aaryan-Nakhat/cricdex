@@ -37,8 +37,10 @@ export interface CollectionMeta {
 export interface PlayerRow {
   cricsheet_id: string;
   name: string;
+  full_name: string;
   balls_faced: number;
   balls_bowled: number;
+  matches: number;
   role: "batter" | "bowler";
 }
 
