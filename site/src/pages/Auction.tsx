@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Gavel, Wallet, Users, CheckCircle2, AlertTriangle, Dices, Plane } from "lucide-react";
+import { Gavel, Wallet, Users, CheckCircle2, AlertTriangle, Dices, Plane, Calculator } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
@@ -14,8 +14,129 @@ import {
   type PoolPlayer,
   type SimResult,
 } from "@/lib/auction";
-import { PageTitle, Card, CardHeader, Spinner, Badge, StatTile, Empty, InfoTip } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Badge, StatTile, Empty, InfoTip, Collapsible } from "@/components/ui";
 import { cn, fmt } from "@/lib/utils";
+
+function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/10 text-xs font-bold text-accent-glow">
+        {n}
+      </span>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-fg">{title}</div>
+        <div className="mt-1 text-sm leading-relaxed text-muted">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <pre className="mt-2 overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs leading-relaxed text-fg">
+      {children}
+    </pre>
+  );
+}
+
+function AuctionMath() {
+  return (
+    <Collapsible title="How the auction math works (plain English)" icon={<Calculator className="h-4 w-4" />}>
+      <div className="space-y-6">
+        <p className="text-sm leading-relaxed text-muted">
+          The data only knows how <b>good</b> a player is (a skill rating) — never what he{" "}
+          <b>costs</b>. So step zero is inventing a fair price from skill, then everything builds on
+          that.
+        </p>
+
+        <div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-wider text-accent">
+            Part 1 · Skill → price tag
+          </div>
+          <div className="space-y-3">
+            <Step n={1} title="Make skill multiply (e^skill)">
+              Skill is a small number (avg 0, stars positive). Exponentiate so it scales like a market:
+              skill 0 → ×1.00, +0.3 → ×1.35, −0.3 → ×0.74.
+            </Step>
+            <Step n={2} title="Scale to crore">
+              Multiply by a role weight (all-rounders rarer → higher) and a constant, so the best land
+              ~10–12 cr. Out comes <b>projected value</b> (worth) and a <b>base price</b> snapped to IPL
+              bands (0.3 / 0.5 / 0.75 / 1 / 1.5 / 2 cr).
+            </Step>
+            <Step n={3} title="Value per credit = value ÷ base price">
+              Quality per rupee. High = bargain. This is what the optimiser ranks by.
+            </Step>
+          </div>
+          <Code>{`"Player X", skill +0.25:
+  e^0.25                = 1.28
+  × 0.5 (batter) × 4    = 2.56 cr   ← projected value
+  opening tag           = 0.50 cr   ← base price
+  value per credit = 2.56 / 0.50 = 5.1   (cheap & good)`}</Code>
+        </div>
+
+        <div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-wider text-accent">
+            Part 2 · Build my squad (you, shopping smart)
+          </div>
+          <p className="text-sm leading-relaxed text-muted">
+            A "fill a cart on a budget" problem (a knapsack) with extra rules: squad size, overseas
+            cap, minimum players per role. The greedy strategy:
+          </p>
+          <div className="mt-3 space-y-3">
+            <Step n={1} title="Cover the minimums first">
+              For each role, buy the highest value-per-credit players until its minimum is met — skipping
+              anyone you can't afford or who'd break the overseas cap.
+            </Step>
+            <Step n={2} title="Spend the rest on best value">
+              Fill the leftover slots with the best value-per-credit players regardless of role, until
+              the squad is full or money runs out.
+            </Step>
+          </div>
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            When cash is the bottleneck, "most quality per rupee" is the right ranking — near-optimal and
+            instant. Lower the overseas cap → it swaps imports for the next-best Indians.
+          </p>
+        </div>
+
+        <div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-wider text-accent">
+            Part 3 · Simulate the auction (the whole room, many times)
+          </div>
+          <p className="text-sm leading-relaxed text-muted">
+            Players go up one at a time, stars first. Each team sets a <b>max bid</b>:
+          </p>
+          <Code>{`max bid = value × aggression × need × overseas-bias × luck`}</Code>
+          <ul className="mt-2 space-y-1 text-sm text-muted">
+            <li>• <b className="text-fg">aggression</b> — team style (MarqueeChaser 1.35 splurges, ValueHunter 0.85 holds back)</li>
+            <li>• <b className="text-fg">need</b> — 1.5 if it still needs that role, else 0.7</li>
+            <li>• <b className="text-fg">overseas-bias</b> — higher for imports if the team loves them; 1 for Indians</li>
+            <li>• <b className="text-fg">luck</b> — small random nudge sized by the team's risk; makes runs differ</li>
+            <li>• capped at the team's remaining money / squad / overseas slots</li>
+          </ul>
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            Highest max bid wins — but pays just <b>above the second-highest bid</b> (like a real
+            auction, you stop when everyone else drops).
+          </p>
+          <Code>{`Bidding for Player X (worth 10):
+  MI  (MarqueeChaser, needs a batter): 10 × 1.35 × 1.5 × 1 = 20.3
+  CSK (Balanced, batters full):        10 × 1.00 × 0.7 × 1 =  7.0
+  → MI wins, pays ≈ 7.1 cr (just over CSK), not its full 20.3`}</Code>
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            That's one mock auction. Run it ~300 times (reshuffled slightly) and average → each team's
+            typical spend & squad, and each star's win-share ("Bumrah → MI 62%, CSK 21%" = your odds in
+            a bidding war).
+          </p>
+        </div>
+
+        <p className="rounded-lg border border-willow/20 bg-willow/5 px-3 py-2 text-xs leading-relaxed text-muted">
+          <b className="text-willow">Honest caveat:</b> prices are invented from skill, not real auction
+          data — so this models auction <i>behaviour</i> and relative outcomes, it doesn't predict the
+          actual crore amounts.
+        </p>
+      </div>
+    </Collapsible>
+  );
+}
 
 const ROLE_TONE: Record<string, "accent" | "willow" | "muted" | "ball"> = {
   batter: "accent",
@@ -68,6 +189,8 @@ export function Auction() {
         archetype (marquee-chaser, value-hunter, overseas-heavy…), repeated hundreds of times, so you
         see who likely lands each marquee name and how each squad shapes up.
       </Card>
+
+      <AuctionMath />
 
       <div className="mb-5 flex gap-2">
         {(["build", "simulate"] as const).map((m) => (
