@@ -1,10 +1,16 @@
-import { useState } from "react";
-import { Medal } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Medal, CalendarRange } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getRecords } from "@/lib/data";
-import { PageTitle, Card, Spinner, ErrorBox, Empty } from "@/components/ui";
+import { PageTitle, Card, Spinner, ErrorBox, Empty, InfoTip } from "@/components/ui";
 import { cn, fmt } from "@/lib/utils";
+
+function yearOf(v: unknown): number | null {
+  if (typeof v !== "string") return null;
+  const y = Number(v.slice(0, 4));
+  return Number.isFinite(y) ? y : null;
+}
 
 const LABELS: Record<string, string> = {
   highest_individual_innings: "Highest individual innings",
@@ -48,8 +54,24 @@ export function Records() {
 
   const keys = data ? Object.keys(data).filter((k) => (data[k]?.length ?? 0) > 0) : [];
   const active = tab && keys.includes(tab) ? tab : keys[0];
-  const rows = active && data ? data[active] : [];
-  const cols = rows.length ? Object.keys(rows[0]).filter((c) => c !== "match_id") : [];
+  const rawRows = active && data ? data[active] : [];
+  const cols = rawRows.length ? Object.keys(rawRows[0]).filter((c) => c !== "match_id") : [];
+  const hasDate = rawRows.some((r) => yearOf(r.match_date) !== null);
+
+  // year span present in this record table (only for dated records)
+  const [span, setSpan] = useState<{ from: number; to: number } | null>(null);
+  const bounds = useMemo(() => {
+    const ys = rawRows.map((r) => yearOf(r.match_date)).filter((y): y is number => y !== null);
+    return ys.length ? { min: Math.min(...ys), max: Math.max(...ys) } : null;
+  }, [rawRows]);
+  const range = span ?? (bounds ? { from: bounds.min, to: bounds.max } : null);
+  const rows =
+    hasDate && range
+      ? rawRows.filter((r) => {
+          const y = yearOf(r.match_date);
+          return y === null || (y >= range.from && y <= range.to);
+        })
+      : rawRows;
 
   return (
     <>
@@ -83,6 +105,29 @@ export function Records() {
               </button>
             ))}
           </div>
+
+          {hasDate && bounds && range && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface/50 px-4 py-3 text-sm text-muted">
+              <span className="flex items-center gap-2">
+                <CalendarRange className="h-4 w-4 text-accent" /> Year range
+                <InfoTip title="Year filter">
+                  Limits this record table to feats between the two years. Only applies to dated
+                  records (career-leader tables have no single date, so they're unaffected).
+                </InfoTip>
+              </span>
+              <input type="number" className="input w-24 py-1.5" min={bounds.min} max={range.to}
+                value={range.from} onChange={(e) => setSpan({ from: Number(e.target.value), to: range.to })} />
+              <span>to</span>
+              <input type="number" className="input w-24 py-1.5" min={range.from} max={bounds.max}
+                value={range.to} onChange={(e) => setSpan({ from: range.from, to: Number(e.target.value) })} />
+              {span && (
+                <button onClick={() => setSpan(null)} className="text-xs text-muted hover:text-ball">reset</button>
+              )}
+              <span className="ml-auto text-xs">
+                <span className="font-semibold text-fg">{rows.length}</span> of {rawRows.length}
+              </span>
+            </div>
+          )}
 
           <Card className="overflow-hidden">
             <div className="overflow-auto" style={{ maxHeight: "70vh" }}>

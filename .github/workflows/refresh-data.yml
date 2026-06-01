@@ -91,6 +91,12 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Enrich new players (taxonomy) — only if key is configured
+        if: ${{ secrets.GEMINI_KONG_KEY != '' }}
+        env:
+          GEMINI_KONG_KEY: ${{ secrets.GEMINI_KONG_KEY }}
+        run: uv run python scripts/enrich_taxonomy.py --batch 20 || echo "taxonomy enrich failed (non-fatal)"
+
       - name: Cook the static snapshot
         run: uv run python scripts/export_site.py
 

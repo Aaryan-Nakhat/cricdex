@@ -42,6 +42,11 @@ export interface PlayerRow {
   balls_bowled: number;
   matches: number;
   role: "batter" | "bowler";
+  // Gemini taxonomy (null until enriched)
+  primary_role: string | null;
+  bowling_category: string | null;
+  batting_position: string | null;
+  country: string | null;
 }
 
 export interface RatingRow {
@@ -73,6 +78,7 @@ export interface Profile {
   style_twins_batter: Record<string, unknown>[] | null;
   style_twins_bowler: Record<string, unknown>[] | null;
   dismissal_fingerprint: Record<string, unknown> | null;
+  taxonomy?: Record<string, string> | null;
 }
 
 export interface Cohorts {

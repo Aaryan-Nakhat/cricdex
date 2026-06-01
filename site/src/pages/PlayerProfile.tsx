@@ -85,6 +85,15 @@ function MetricCard({ slug, m }: { slug: string; m: Record<string, unknown> }) {
   );
 }
 
+const POS_LABEL: Record<string, string> = {
+  opener: "Opener",
+  no3: "No. 3",
+  middle: "Middle order",
+  finisher: "Finisher",
+  lower: "Lower order",
+  tailender: "Tailender",
+};
+
 function ageFrom(dob: string): number | null {
   const d = new Date(dob);
   if (Number.isNaN(d.getTime())) return null;
@@ -119,6 +128,7 @@ function Identity({
   bowl?: Record<string, number>;
 }) {
   const w = (profile.wikidata ?? {}) as Record<string, string | null>;
+  const tax = profile.taxonomy ?? null;
   const photo = w.image_url ?? null;
   const dob = w.dob ?? null;
   const age = dob ? ageFrom(dob) : null;
@@ -151,6 +161,19 @@ function Identity({
             <Cake className="h-3.5 w-3.5" />
             Born {new Date(dob).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
             {age !== null && <span>· {age} yrs</span>}
+          </div>
+        )}
+        {/* Gemini taxonomy: role / bowling type / batting slot / country */}
+        {tax && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {tax.primary_role && <Badge tone="accent">{tax.primary_role.replace("_", "-")}</Badge>}
+            {tax.bowling_style && tax.bowling_category !== "none" && (
+              <Badge tone={tax.bowling_category === "spin" ? "willow" : "ball"}>
+                {tax.bowling_style.replace(/-/g, " ")}
+              </Badge>
+            )}
+            {tax.batting_position && <Badge>{POS_LABEL[tax.batting_position] ?? tax.batting_position}</Badge>}
+            {tax.country && <Badge>{tax.country}</Badge>}
           </div>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-2">

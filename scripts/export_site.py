@@ -47,6 +47,45 @@ ROOT = Path(__file__).resolve().parent.parent
 SITE_DATA = ROOT / "site" / "public" / "data"
 METRIC_DIR = DATA_DIR / "metrics"
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
+# Gemini-built taxonomy (role / bowling type / batting position / country),
+# keyed by cricsheet_id. See scripts/enrich_taxonomy.py.
+TAXONOMY_PATH = DATA_DIR / "curated" / "player_taxonomy.json"
+
+# Fields merged onto players / profiles / cohort members for filters + display.
+_TAX_KEEP = (
+    "primary_role",
+    "bowling_category",
+    "bowling_style",
+    "batting_position",
+    "batting_hand",
+    "country",
+)
+
+
+def _clean_tax(rec: dict) -> dict:
+    return {k: rec.get(k) for k in _TAX_KEEP if rec.get(k) not in (None, "unknown", "none")}
+
+
+def _load_taxonomy() -> dict[str, dict]:
+    if not TAXONOMY_PATH.exists():
+        return {}
+    raw = json.loads(TAXONOMY_PATH.read_text())
+    return {cid: _clean_tax(rec) for cid, rec in raw.items() if isinstance(rec, dict)}
+
+
+def _taxonomy_by_name() -> dict[str, dict]:
+    """unique_name -> taxonomy, for tagging leaderboard rows (which key on
+    the Cricsheet short name, not cricsheet_id)."""
+    if not TAXONOMY_PATH.exists():
+        return {}
+    raw = json.loads(TAXONOMY_PATH.read_text())
+    out: dict[str, dict] = {}
+    for rec in raw.values():
+        nm = rec.get("name") if isinstance(rec, dict) else None
+        if nm:
+            out[nm] = _clean_tax(rec)
+    return out
+
 
 METRIC_SLUGS = [
     "ngi",
@@ -114,7 +153,9 @@ def _collection_meta(con: duckdb.DuckDBPyConnection, collection: str) -> dict | 
     }
 
 
-def _players(con: duckdb.DuckDBPyConnection, collection: str, min_balls: int) -> list[dict]:
+def _players(
+    con: duckdb.DuckDBPyConnection, collection: str, min_balls: int, taxonomy: dict[str, dict]
+) -> list[dict]:
     """Players who cleared the ball cutoff (faced or bowled), with the
     cross-source ids needed for profile/cohort file lookups."""
     safe = _safe(collection)
@@ -164,6 +205,7 @@ def _players(con: duckdb.DuckDBPyConnection, collection: str, min_balls: int) ->
         if (bf or 0) + (bb or 0) < min_balls:
             continue
         full = (wiki.get(cid) or {}).get("label")
+        tax = taxonomy.get(cid, {})
         out.append(
             {
                 "cricsheet_id": cid,
@@ -173,6 +215,11 @@ def _players(con: duckdb.DuckDBPyConnection, collection: str, min_balls: int) ->
                 "balls_bowled": int(bb or 0),
                 "matches": int(matches or 0),
                 "role": "bowler" if (bb or 0) > (bf or 0) else "batter",
+                # Gemini taxonomy (None if not yet enriched) — powers filters.
+                "primary_role": tax.get("primary_role"),
+                "bowling_category": tax.get("bowling_category"),
+                "batting_position": tax.get("batting_position"),
+                "country": tax.get("country"),
             }
         )
     out.sort(key=lambda r: r["balls_faced"] + r["balls_bowled"], reverse=True)
@@ -197,7 +244,9 @@ def _match_counts(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, 
     return {r[0]: int(r[1]) for r in rows}
 
 
-def _export_leaderboards(collection: str, out_dir: Path, matches: dict[str, int]) -> int:
+def _export_leaderboards(
+    collection: str, out_dir: Path, matches: dict[str, int], name_tax: dict[str, dict]
+) -> int:
     n = 0
     for slug in METRIC_SLUGS:
         src = METRIC_DIR / f"{slug}_{collection}.json"
@@ -206,11 +255,14 @@ def _export_leaderboards(collection: str, out_dir: Path, matches: dict[str, int]
         rows = json.loads(src.read_text())
         if isinstance(rows, dict):
             rows = rows.get("rows", [])
-        # Tag each row with the player's match count so the UI can apply a
-        # configurable min-matches filter (keeps 1-match flukes off the top).
+        # Tag each row with match count (for the min-matches gate) and the
+        # Gemini taxonomy (role / bowling type / country / position) so the
+        # UI filter bar works per-row without a ball cutoff.
         for r in rows:
             who = r.get("name") or r.get("batter") or r.get("bowler")
             r["matches"] = matches.get(who, 0)
+            for k, v in (name_tax.get(who) or {}).items():
+                r.setdefault(k, v)
         # Trim each leaderboard to a sane top-N for the browser.
         _write(out_dir / "leaderboards" / f"{slug}.json", rows[:300])
         n += 1
@@ -264,8 +316,21 @@ def _export_records_venues(collection: str, out_dir: Path) -> None:
         logger.warning(f"venues export skipped for {collection}: {e}")
 
 
+def _tag(rows: list[dict], taxonomy: dict[str, dict]) -> list[dict]:
+    """Attach role / bowling type to graph cohort members so the UI can
+    filter (e.g. seam-only replacements) and stop pairing a seamer with a
+    leg-spinner."""
+    for r in rows:
+        t = taxonomy.get(r.get("cricsheet_id", ""))
+        if t:
+            r["primary_role"] = t.get("primary_role")
+            r["bowling_category"] = t.get("bowling_category")
+            r["batting_position"] = t.get("batting_position")
+    return rows
+
+
 def _export_profiles_and_cohorts(
-    collection: str, out_dir: Path, players: list[dict]
+    collection: str, out_dir: Path, players: list[dict], taxonomy: dict[str, dict]
 ) -> tuple[int, int]:
     from cricdex.profiles import builder
 
@@ -284,6 +349,9 @@ def _export_profiles_and_cohorts(
             # builder.build already merges Wikidata identity (dob / photo
             # / socials) from the JSON cache by cricsheet_id.
             prof = builder.build(name, collection)
+            tax = taxonomy.get(cid)
+            if tax:
+                prof["taxonomy"] = tax
             _write(out_dir / "profiles" / f"{cid}.json", prof)
             n_prof += 1
         except Exception as e:  # noqa: BLE001
@@ -292,10 +360,14 @@ def _export_profiles_and_cohorts(
         if graph_ok:
             try:
                 cohort = {
-                    "co_faced": similar.co_faced_bowlers(name, top_k=12, collection=collection),
-                    "teammates": similar.teammate_overlap(name, top_k=12, collection=collection),
-                    "find_replacement": similar.find_replacement(
-                        name, top_k=12, collection=collection
+                    "co_faced": _tag(
+                        similar.co_faced_bowlers(name, top_k=12, collection=collection), taxonomy
+                    ),
+                    "teammates": _tag(
+                        similar.teammate_overlap(name, top_k=12, collection=collection), taxonomy
+                    ),
+                    "find_replacement": _tag(
+                        similar.find_replacement(name, top_k=12, collection=collection), taxonomy
                     ),
                 }
                 _write(out_dir / "cohorts" / f"{cid}.json", cohort)
@@ -321,6 +393,9 @@ def export(
     cols = [collection] if collection else DEFAULT_COLLECTIONS
 
     con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+    taxonomy = _load_taxonomy()
+    name_tax = _taxonomy_by_name()
+    logger.info(f"taxonomy: {len(taxonomy)} players enriched (role / bowling type / country)")
     index: list[dict] = []
     try:
         for col in cols:
@@ -329,15 +404,15 @@ def export(
                 logger.warning(f"no balls table for {col} — skipping")
                 continue
             out_dir = SITE_DATA / col
-            players = _players(con, col, min_balls)
+            players = _players(con, col, min_balls, taxonomy)
             meta["n_players"] = len(players)
             _write(out_dir / "meta.json", meta)
             _write(out_dir / "players.json", players)
             match_counts = _match_counts(con, col)
-            n_lb = _export_leaderboards(col, out_dir, match_counts)
+            n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax)
             n_rat = _export_ratings(col, out_dir)
             _export_records_venues(col, out_dir)
-            n_prof, n_cohort = _export_profiles_and_cohorts(col, out_dir, players)
+            n_prof, n_cohort = _export_profiles_and_cohorts(col, out_dir, players, taxonomy)
             logger.info(
                 f"{col}: as_of={meta['data_as_of']} players={len(players)} "
                 f"leaderboards={n_lb} ratings={n_rat} profiles={n_prof} cohorts={n_cohort}"

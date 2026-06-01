@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trophy, Info, TrendingDown, Filter } from "lucide-react";
+import { Trophy, Info, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getLeaderboard } from "@/lib/data";
 import { METRICS, METRIC_BY_SLUG } from "@/lib/metrics";
 import { DataTable, type Col } from "@/components/DataTable";
+import { FilterBar } from "@/components/FilterBar";
+import { applyFilters, countriesIn, EMPTY_FILTERS, type Filters } from "@/lib/filters";
 import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +15,7 @@ export function Leaderboards() {
   const { collection } = useStore();
   const navigate = useNavigate();
   const [slug, setSlug] = useState("ngi");
-  const [minMatches, setMinMatches] = useState(20);
+  const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS, minMatches: 20 });
   const metric = METRIC_BY_SLUG[slug];
 
   const { data, loading, error } = useAsync(
@@ -21,11 +23,10 @@ export function Leaderboards() {
     [collection, slug],
   );
 
-  // Min-matches gate — keeps 1-match flukes (hi Tanush Kotian) off the top.
-  const filtered = useMemo(
-    () => (data ?? []).filter((r) => Number(r.matches ?? 0) >= minMatches),
-    [data, minMatches],
-  );
+  const countryOpts = useMemo(() => countriesIn(data ?? []), [data]);
+  // Min-matches + role/bowling/position/country gates. Min-matches keeps
+  // 1-match flukes (hi Tanush Kotian) off the top.
+  const filtered = useMemo(() => applyFilters(data ?? [], filters), [data, filters]);
 
   const cols: Col<Record<string, unknown>>[] = [
     ...metric.columns.map((c) => ({
@@ -84,34 +85,14 @@ export function Leaderboards() {
       </Card>
 
       {/* filter bar */}
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface/50 px-4 py-3">
-        <div className="flex items-center gap-2 text-sm text-muted">
-          <Filter className="h-4 w-4 text-accent" />
-          Min matches
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          step={1}
-          value={minMatches}
-          onChange={(e) => setMinMatches(Number(e.target.value))}
-          className="h-1.5 w-44 cursor-pointer accent-[#34d399]"
-        />
-        <input
-          type="number"
-          min={0}
-          max={500}
-          value={minMatches}
-          onChange={(e) => setMinMatches(Math.max(0, Number(e.target.value)))}
-          className="input w-20 py-1.5"
-        />
-        <span className="text-xs text-muted">
-          showing <span className="font-semibold text-fg">{filtered.length}</span> players with ≥{" "}
-          {minMatches} matches
-          {data && <span className="text-muted/60"> (of {data.length})</span>}
-        </span>
-      </div>
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        show={["minMatches", "role", "bowling", "position", "country"]}
+        countryOpts={countryOpts}
+        count={filtered.length}
+        total={data?.length}
+      />
 
       {loading ? (
         <Spinner label={`Loading ${metric.name}…`} />
@@ -120,7 +101,7 @@ export function Leaderboards() {
       ) : !data || data.length === 0 ? (
         <Empty>No data for this metric in {collection}.</Empty>
       ) : filtered.length === 0 ? (
-        <Empty>No players clear {minMatches} matches — lower the filter.</Empty>
+        <Empty>No players match these filters — loosen them.</Empty>
       ) : (
         <DataTable
           rows={filtered}
