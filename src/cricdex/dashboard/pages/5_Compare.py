@@ -150,3 +150,56 @@ fig.update_layout(
     height=500,
 )
 st.plotly_chart(fig, use_container_width=True)
+
+# --- Bayesian skill head-to-head (pairwise) -----------------------------
+
+st.subheader("🎯 Bayesian skill head-to-head")
+st.caption(
+    "How confident are we that one player is genuinely better than another? "
+    "Each player's opponent-adjusted skill is a Bayesian posterior — a mean "
+    "and an uncertainty. We take the difference of the two posteriors and "
+    "report **P(A is better than B)**. A result near 50% means the two are "
+    "statistically indistinguishable given the data (most 'X vs Y' debates "
+    "land here). Skill measures scoring / run-suppression *rate*, not "
+    "dismissal-adjusted value — that's a vNext model upgrade."
+)
+
+from cricdex.scout.ratings.head_to_head import head_to_head  # noqa: E402
+
+hcol1, hcol2 = st.columns(2)
+player_a = hcol1.selectbox("Player A", options=picks, index=0)
+player_b = hcol2.selectbox("Player B", options=picks, index=1 if len(picks) > 1 else 0)
+
+if player_a == player_b:
+    st.info("Pick two different players for the head-to-head.")
+else:
+    h2h = head_to_head(player_a, player_b, collection=collection)
+    if h2h.get("error"):
+        st.warning(h2h["error"])
+    else:
+        any_role = False
+        for role in ("batter", "bowler", "all_rounder"):
+            c = h2h["comparisons"].get(role)
+            if c is None:
+                continue
+            any_role = True
+            label = role.replace("_", "-").title()
+            st.markdown(f"**{label}**  ·  {c['verdict']}")
+            m1, m2, m3 = st.columns(3)
+            m1.metric(
+                f"{player_a} skill",
+                f"{c['mean_a']:+.3f}",
+                help=f"± {c['sd_a']:.3f} on {c.get('balls_a', '?')} balls",
+            )
+            m2.metric(
+                f"{player_b} skill",
+                f"{c['mean_b']:+.3f}",
+                help=f"± {c['sd_b']:.3f} on {c.get('balls_b', '?')} balls",
+            )
+            m3.metric(f"P({player_a} better)", f"{c['p_a_better']:.0%}")
+            st.progress(c["p_a_better"])
+        if not any_role:
+            st.info(
+                "These two players have no overlapping Bayesian ratings for "
+                f"this collection — run `cricdex data ingest ratings -c {collection}`."
+            )

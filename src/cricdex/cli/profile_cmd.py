@@ -206,6 +206,37 @@ def compare(
     _render.pretty_table(rows, column_styles={"metric": "bold cyan"})
     _render.footnote(_copy.COMPARE_THRESHOLD_NOTE)
 
+    # Bayesian skill head-to-head — P(A better than B) per role.
+    from cricdex.scout.ratings.head_to_head import head_to_head
+
+    _render.section("Bayesian skill head-to-head")
+    h2h = head_to_head(a, b, collection=collection)
+    if h2h.get("error"):
+        _render.footnote(h2h["error"])
+    else:
+        rows_h: list[dict] = []
+        for role in ("batter", "bowler", "all_rounder"):
+            c = h2h["comparisons"].get(role)
+            if c is None:
+                continue
+            rows_h.append(
+                {
+                    "role": role.replace("_", "-"),
+                    f"{a} skill": f"{c['mean_a']:+.3f} ± {c['sd_a']:.2f}",
+                    f"{b} skill": f"{c['mean_b']:+.3f} ± {c['sd_b']:.2f}",
+                    f"P({a} better)": f"{c['p_a_better']:.0%}",
+                    "verdict": c["verdict"],
+                }
+            )
+        if rows_h:
+            _render.pretty_table(rows_h, column_styles={"role": "bold cyan"})
+            _render.footnote(_copy.HEAD_TO_HEAD_NOTE)
+        else:
+            _render.footnote(
+                "no overlapping Bayesian ratings for these two — "
+                f"run `cricdex data ingest ratings -c {collection}`"
+            )
+
 
 def records(
     key: str = typer.Argument("today", help="`today` or a record key (run `cricdex records list`)"),

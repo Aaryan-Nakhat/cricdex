@@ -474,9 +474,12 @@ class CricDexApp(App):
                 yield Button("Compare ▸", id="cmp-run", variant="primary")
             yield Static(_copy.COMPARE_INTRO, classes="intro")
             yield DataTable(id="cmp-table", zebra_stripes=True)
+            yield Static("Bayesian skill head-to-head", classes="intro")
+            yield DataTable(id="cmp-h2h-table", zebra_stripes=True)
 
     def _on_run_compare(self) -> None:
         table = self.query_one("#cmp-table", DataTable)
+        h2h_table = self.query_one("#cmp-h2h-table", DataTable)
         a = self.query_one("#cmp-a", Input).value.strip()
         b = self.query_one("#cmp-b", Input).value.strip()
         collection = self.query_one("#cmp-collection", Input).value
@@ -492,6 +495,33 @@ class CricDexApp(App):
             return
         pdf = df.to_pandas().set_index("player").T.reset_index().rename(columns={"index": "metric"})
         _fill_datatable(table, pdf.to_dict(orient="records"), max_cols=10)
+
+        # Bayesian skill head-to-head — P(A > B) per role.
+        from cricdex.scout.ratings.head_to_head import head_to_head
+
+        h2h = head_to_head(a, b, collection=collection)
+        if h2h.get("error"):
+            _fill_datatable(h2h_table, [{"info": h2h["error"]}])
+            return
+        rows_h: list[dict] = []
+        for role in ("batter", "bowler", "all_rounder"):
+            c = h2h["comparisons"].get(role)
+            if c is None:
+                continue
+            rows_h.append(
+                {
+                    "role": role,
+                    f"{a}": f"{c['mean_a']:+.3f}±{c['sd_a']:.2f}",
+                    f"{b}": f"{c['mean_b']:+.3f}±{c['sd_b']:.2f}",
+                    f"P({a}>)": f"{c['p_a_better']:.0%}",
+                    "verdict": c["verdict"],
+                }
+            )
+        _fill_datatable(
+            h2h_table,
+            rows_h or [{"info": "no overlapping Bayesian ratings for these two"}],
+            max_cols=6,
+        )
 
     # ===== Venues =========================================================
 
