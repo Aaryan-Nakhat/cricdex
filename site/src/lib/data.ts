@@ -32,6 +32,8 @@ export interface CollectionMeta {
   n_matches: number;
   n_balls: number;
   n_players: number;
+  n_active?: number;
+  windows?: string[]; // recomputed time windows available, e.g. ["last3y","last1y"]
 }
 
 export interface PlayerRow {
@@ -98,8 +100,10 @@ export const getCollections = () => getJSON<CollectionMeta[]>("collections.json"
 export const getMeta = (c: string) => getJSON<CollectionMeta>(`${c}/meta.json`);
 export const getPlayers = (c: string) => getJSON<PlayerRow[]>(`${c}/players.json`);
 export const getRatings = (c: string) => getJSON<RatingRow[]>(`${c}/ratings.json`);
-export const getLeaderboard = (c: string, slug: string) =>
-  getJSON<LeaderboardRow[]>(`${c}/leaderboards/${slug}.json`);
+export const getLeaderboard = (c: string, slug: string, window?: string) =>
+  getJSON<LeaderboardRow[]>(
+    `${c}/leaderboards/${slug}${window && window !== "all" ? `.${window}` : ""}.json`,
+  );
 export const getRecords = (c: string) =>
   getJSON<Record<string, Record<string, unknown>[]>>(`${c}/records.json`);
 export const getVenues = (c: string) =>

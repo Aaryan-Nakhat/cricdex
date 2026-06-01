@@ -11,10 +11,17 @@ import { applyFilters, countriesIn, EMPTY_FILTERS, type Filters } from "@/lib/fi
 import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
+const PERIOD_LABEL: Record<string, string> = {
+  all: "All-time",
+  last3y: "Last 3 yrs",
+  last1y: "Last 1 yr",
+};
+
 export function Leaderboards() {
-  const { collection } = useStore();
+  const { collection, meta } = useStore();
   const navigate = useNavigate();
   const [slug, setSlug] = useState("ngi");
+  const [period, setPeriod] = useState("all");
   const [filters, setFilters] = useState<Filters>({
     ...EMPTY_FILTERS,
     minMatches: 20,
@@ -22,25 +29,16 @@ export function Leaderboards() {
   });
   const metric = METRIC_BY_SLUG[slug];
 
+  // recomputed periods: All-time + whatever windows this collection cooked
+  const periods = useMemo(() => ["all", ...(meta?.windows ?? [])], [meta]);
+  const activePeriod = periods.includes(period) ? period : "all";
+
   const { data, loading, error } = useAsync(
-    () => getLeaderboard(collection, slug),
-    [collection, slug],
+    () => getLeaderboard(collection, slug, activePeriod),
+    [collection, slug, activePeriod],
   );
 
   const countryOpts = useMemo(() => countriesIn(data ?? []), [data]);
-  const yearBounds = useMemo(() => {
-    const ys: number[] = [];
-    for (const r of data ?? []) {
-      for (const k of ["first_match_date", "last_match_date"] as const) {
-        const v = r[k];
-        if (typeof v === "string") {
-          const y = Number(v.slice(0, 4));
-          if (Number.isFinite(y)) ys.push(y);
-        }
-      }
-    }
-    return ys.length ? { min: Math.min(...ys), max: Math.max(...ys) } : undefined;
-  }, [data]);
   // Min-matches + role/bowling/position/country gates. Min-matches keeps
   // 1-match flukes (hi Tanush Kotian) off the top.
   const filtered = useMemo(() => applyFilters(data ?? [], filters), [data, filters]);
@@ -101,13 +99,38 @@ export function Leaderboards() {
         </div>
       </Card>
 
+      {/* period selector — recomputed metric windows, not a row filter */}
+      {periods.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-muted">Period</span>
+          <InfoTip title="Recomputed time windows">
+            These re-run the metric over only that window of matches — the numbers actually change,
+            they're not just a row filter. Windows are relative to the latest match in this
+            collection.
+          </InfoTip>
+          {periods.map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "rounded-lg border px-3 py-1.5 text-sm font-medium transition-all",
+                p === activePeriod
+                  ? "border-accent/40 bg-accent/10 text-accent-glow"
+                  : "border-border bg-surface text-muted hover:text-fg",
+              )}
+            >
+              {PERIOD_LABEL[p] ?? p}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* filter bar */}
       <FilterBar
         filters={filters}
         onChange={setFilters}
-        show={["minMatches", "activity", "role", "bowling", "position", "country", "years"]}
+        show={["minMatches", "activity", "role", "bowling", "position", "country"]}
         countryOpts={countryOpts}
-        yearBounds={yearBounds}
         count={filtered.length}
         total={data?.length}
       />
