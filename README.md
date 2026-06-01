@@ -58,7 +58,6 @@ All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
 | `drs` | 20-scenario umpire-decision practice game with MCC / ICC citations. |
 | `records` | 9 record SQL queries + On-This-Day digest. |
 | `reports` | LLM-written match reports grounded in Cricsheet facts, no hallucinations. |
-| `predict` | Deferred — needs the `live` feed first. |
 | `live` | Cricbuzz live-score fetcher. Pipeline correct; data load blocked from datacenter IPs. |
 | `venues` | Per-venue innings totals + chase/set winrate + phase rates + dismissal mix. |
 | `profiles` | Per-player profile assembler aggregating every source CricDex has. |
