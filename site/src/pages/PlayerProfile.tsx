@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { UserSearch, Activity, Target, Shield, Swords, Users2 } from "lucide-react";
+import { UserSearch, Activity, Target, Shield, Swords, Users2, Instagram, Twitter, Cake, ExternalLink } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
@@ -81,6 +81,96 @@ function MetricCard({ slug, m }: { slug: string; m: Record<string, unknown> }) {
       <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{name}</div>
       <div className="mt-1 stat-num text-lg font-bold text-fg">{fmt(v, 1)}</div>
       <div className="mt-0.5 text-[11px] text-muted">{sub}</div>
+    </Card>
+  );
+}
+
+function ageFrom(dob: string): number | null {
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  let a = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
+  return a;
+}
+
+function SocialChip({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-muted transition-colors hover:border-accent/40 hover:text-accent-glow"
+    >
+      {icon}
+      {label}
+    </a>
+  );
+}
+
+function Identity({
+  profile,
+  bat,
+  bowl,
+}: {
+  profile: Profile;
+  bat?: Record<string, number>;
+  bowl?: Record<string, number>;
+}) {
+  const w = (profile.wikidata ?? {}) as Record<string, string | null>;
+  const photo = w.image_url ?? null;
+  const dob = w.dob ?? null;
+  const age = dob ? ageFrom(dob) : null;
+  const ig = w.instagram;
+  const tw = w.twitter;
+  const qid = w.wikidata_qid;
+  const cricinfoId = (profile.ids?.key_cricinfo as number | string | null) ?? null;
+
+  return (
+    <Card className="flex flex-wrap items-center gap-4 px-5 py-4">
+      {photo ? (
+        <img
+          src={photo}
+          alt={profile.name}
+          loading="lazy"
+          className="h-16 w-16 shrink-0 rounded-xl border border-border object-cover"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
+      ) : (
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-2xl font-bold text-accent">
+          {profile.name.split(" ").pop()?.[0] ?? "?"}
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <h2 className="text-xl font-bold text-fg">{w.label ?? profile.name}</h2>
+        {dob && (
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+            <Cake className="h-3.5 w-3.5" />
+            Born {new Date(dob).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+            {age !== null && <span>· {age} yrs</span>}
+          </div>
+        )}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {bat && <Badge tone="accent">batting value {fmt(bat.value, 3)}</Badge>}
+          {bowl && bowl.balls > 60 && <Badge tone="willow">bowling value {fmt(bowl.value, 3)}</Badge>}
+          <Badge>id {profile.cricsheet_id}</Badge>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {ig && <SocialChip href={`https://instagram.com/${ig}`} icon={<Instagram className="h-3.5 w-3.5" />} label="Instagram" />}
+        {tw && <SocialChip href={`https://twitter.com/${tw}`} icon={<Twitter className="h-3.5 w-3.5" />} label="Twitter" />}
+        {cricinfoId && (
+          <SocialChip
+            href={`https://www.espncricinfo.com/cricketers/x-${cricinfoId}`}
+            icon={<ExternalLink className="h-3.5 w-3.5" />}
+            label="ESPNcricinfo"
+          />
+        )}
+        {qid && <SocialChip href={`https://www.wikidata.org/wiki/${qid}`} icon={<ExternalLink className="h-3.5 w-3.5" />} label="Wikidata" />}
+      </div>
     </Card>
   );
 }
@@ -191,19 +281,7 @@ export function PlayerProfile() {
       ) : (
         <div className="space-y-5 animate-fade-up">
           {/* identity */}
-          <Card className="flex flex-wrap items-center gap-4 px-5 py-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-surface text-xl font-bold text-accent">
-              {profile.name.split(" ").pop()?.[0] ?? "?"}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-fg">{profile.name}</h2>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                {bat && <Badge tone="accent">batting value {fmt(bat.value, 3)}</Badge>}
-                {bowl && bowl.balls > 60 && <Badge tone="willow">bowling value {fmt(bowl.value, 3)}</Badge>}
-                <Badge>id {profile.cricsheet_id}</Badge>
-              </div>
-            </div>
-          </Card>
+          <Identity profile={profile} bat={bat} bowl={bowl} />
 
           {/* career tiles */}
           {career && (
