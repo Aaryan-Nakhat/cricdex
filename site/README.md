@@ -46,3 +46,5 @@ Overview · Leaderboards (10 metrics) · Player profile (4 Bayesian skill
 axes + uncertainty, career, metrics, dismissal fingerprint, twins) ·
 Compare · Head-to-head P(A>B) · Scout graph · Auction room · Records ·
 Venues · How it works.
+
+<!-- deploy: Pages source set to GitHub Actions -->
