@@ -77,12 +77,14 @@ METRIC_HINTS: dict[str, str] = {
         "batters score higher than wickets of tail-enders."
     ),
     "phase_dilation": (
-        "Strike-rate inflation vs the batter's own baseline when the "
-        "phase demands it (batting-first counterpart of Pressure Runs)."
+        "Crease longevity vs the cohort — average balls faced per "
+        "dismissal ÷ the cohort average. >1 = bats longer than the "
+        "typical batter (anchor); <1 = shorter, higher-tempo cameos."
     ),
     "setting_tax": (
-        "Cost (in runs / ball) of setting a chaseable total — captures "
-        "balls spent below par when the team is batting first."
+        "Career strike rate minus strike rate over the first 20 balls "
+        "of an innings. Positive = slow starter whose early caution "
+        "costs tempo; ~0 = aggressive from ball one."
     ),
 }
 
