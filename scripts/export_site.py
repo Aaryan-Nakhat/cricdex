@@ -63,7 +63,13 @@ _TAX_KEEP = (
 
 
 def _clean_tax(rec: dict) -> dict:
-    return {k: rec.get(k) for k in _TAX_KEEP if rec.get(k) not in (None, "unknown", "none")}
+    kept = {k: rec.get(k) for k in _TAX_KEEP if rec.get(k) not in (None, "unknown", "none")}
+    # Pure batters / keepers shouldn't carry a bowling type — they only
+    # bowl occasional part-time, so a "seam" tag pollutes bowling filters.
+    if kept.get("primary_role") in {"batter", "wk_batter"}:
+        kept.pop("bowling_category", None)
+        kept.pop("bowling_style", None)
+    return kept
 
 
 def _load_taxonomy() -> dict[str, dict]:
@@ -154,7 +160,11 @@ def _collection_meta(con: duckdb.DuckDBPyConnection, collection: str) -> dict | 
 
 
 def _players(
-    con: duckdb.DuckDBPyConnection, collection: str, min_balls: int, taxonomy: dict[str, dict]
+    con: duckdb.DuckDBPyConnection,
+    collection: str,
+    min_balls: int,
+    taxonomy: dict[str, dict],
+    activity: dict[str, dict],
 ) -> list[dict]:
     """Players who cleared the ball cutoff (faced or bowled), with the
     cross-source ids needed for profile/cohort file lookups."""
@@ -206,6 +216,7 @@ def _players(
             continue
         full = (wiki.get(cid) or {}).get("label")
         tax = taxonomy.get(cid, {})
+        act = activity.get(name, {})
         out.append(
             {
                 "cricsheet_id": cid,
@@ -220,6 +231,10 @@ def _players(
                 "bowling_category": tax.get("bowling_category"),
                 "batting_position": tax.get("batting_position"),
                 "country": tax.get("country"),
+                # data-driven activity (per collection = per format)
+                "first_match_date": act.get("first_match_date"),
+                "last_match_date": act.get("last_match_date"),
+                "active": act.get("active", False),
             }
         )
     out.sort(key=lambda r: r["balls_faced"] + r["balls_bowled"], reverse=True)
@@ -244,8 +259,50 @@ def _match_counts(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, 
     return {r[0]: int(r[1]) for r in rows}
 
 
+def _activity_map(
+    con: duckdb.DuckDBPyConnection, collection: str, as_of: str | None
+) -> dict[str, dict]:
+    """unique_name -> {first_match_date, last_match_date, active}. 'active'
+    = appeared within 18 months of the collection's latest match (so it's
+    per-collection = per-format; a player retired from internationals can
+    still be active in IPL). Data-driven, no model needed."""
+    import datetime as _dt
+
+    safe = _safe(collection)
+    rows = con.execute(
+        f"""
+        SELECT name, MIN(match_date) AS first_d, MAX(match_date) AS last_d FROM (
+            SELECT batter AS name, match_date FROM balls_{safe}
+            UNION ALL SELECT bowler AS name, match_date FROM balls_{safe}
+        ) WHERE name IS NOT NULL GROUP BY 1
+        """
+    ).fetchall()
+    cutoff_iso: str | None = None
+    if as_of:
+        try:
+            cutoff_iso = (_dt.date.fromisoformat(as_of[:10]) - _dt.timedelta(days=548)).isoformat()
+        except ValueError:
+            cutoff_iso = None
+    out: dict[str, dict] = {}
+    for name, first_d, last_d in rows:
+        # duckdb may hand match_date back as a str here; ISO dates compare
+        # lexicographically, so normalise to str and string-compare.
+        last_iso = str(last_d)[:10] if last_d else None
+        active = bool(cutoff_iso and last_iso and last_iso >= cutoff_iso)
+        out[name] = {
+            "first_match_date": str(first_d)[:10] if first_d else None,
+            "last_match_date": last_iso,
+            "active": active,
+        }
+    return out
+
+
 def _export_leaderboards(
-    collection: str, out_dir: Path, matches: dict[str, int], name_tax: dict[str, dict]
+    collection: str,
+    out_dir: Path,
+    matches: dict[str, int],
+    name_tax: dict[str, dict],
+    activity: dict[str, dict],
 ) -> int:
     n = 0
     for slug in METRIC_SLUGS:
@@ -262,6 +319,8 @@ def _export_leaderboards(
             who = r.get("name") or r.get("batter") or r.get("bowler")
             r["matches"] = matches.get(who, 0)
             for k, v in (name_tax.get(who) or {}).items():
+                r.setdefault(k, v)
+            for k, v in (activity.get(who) or {}).items():
                 r.setdefault(k, v)
         # Trim each leaderboard to a sane top-N for the browser.
         _write(out_dir / "leaderboards" / f"{slug}.json", rows[:300])
@@ -330,7 +389,11 @@ def _tag(rows: list[dict], taxonomy: dict[str, dict]) -> list[dict]:
 
 
 def _export_profiles_and_cohorts(
-    collection: str, out_dir: Path, players: list[dict], taxonomy: dict[str, dict]
+    collection: str,
+    out_dir: Path,
+    players: list[dict],
+    taxonomy: dict[str, dict],
+    activity: dict[str, dict],
 ) -> tuple[int, int]:
     from cricdex.profiles import builder
 
@@ -352,6 +415,9 @@ def _export_profiles_and_cohorts(
             tax = taxonomy.get(cid)
             if tax:
                 prof["taxonomy"] = tax
+            act = activity.get(name)
+            if act:
+                prof["activity"] = act
             _write(out_dir / "profiles" / f"{cid}.json", prof)
             n_prof += 1
         except Exception as e:  # noqa: BLE001
@@ -404,15 +470,19 @@ def export(
                 logger.warning(f"no balls table for {col} — skipping")
                 continue
             out_dir = SITE_DATA / col
-            players = _players(con, col, min_balls, taxonomy)
+            activity = _activity_map(con, col, meta.get("data_as_of"))
+            players = _players(con, col, min_balls, taxonomy, activity)
             meta["n_players"] = len(players)
+            meta["n_active"] = sum(1 for p in players if p.get("active"))
             _write(out_dir / "meta.json", meta)
             _write(out_dir / "players.json", players)
             match_counts = _match_counts(con, col)
-            n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax)
+            n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
             n_rat = _export_ratings(col, out_dir)
             _export_records_venues(col, out_dir)
-            n_prof, n_cohort = _export_profiles_and_cohorts(col, out_dir, players, taxonomy)
+            n_prof, n_cohort = _export_profiles_and_cohorts(
+                col, out_dir, players, taxonomy, activity
+            )
             logger.info(
                 f"{col}: as_of={meta['data_as_of']} players={len(players)} "
                 f"leaderboards={n_lb} ratings={n_rat} profiles={n_prof} cohorts={n_cohort}"

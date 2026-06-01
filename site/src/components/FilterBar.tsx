@@ -6,10 +6,11 @@ import {
   ROLE_OPTS,
   BOWLING_OPTS,
   POSITION_OPTS,
+  ACTIVITY_OPTS,
   FILTER_HELP,
 } from "@/lib/filters";
 
-type Dim = "minMatches" | "role" | "bowling" | "position" | "country";
+type Dim = "minMatches" | "activity" | "role" | "bowling" | "position" | "country" | "years";
 
 function Select({
   value,
@@ -40,6 +41,7 @@ export function FilterBar({
   onChange,
   show,
   countryOpts,
+  yearBounds,
   count,
   total,
 }: {
@@ -47,16 +49,20 @@ export function FilterBar({
   onChange: (f: Filters) => void;
   show: Dim[];
   countryOpts?: { value: string; label: string }[];
+  yearBounds?: { min: number; max: number };
   count?: number;
   total?: number;
 }) {
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
   const active =
     filters.minMatches > 0 ||
+    filters.activity !== "all" ||
     !!filters.role ||
     !!filters.bowling ||
     !!filters.position ||
-    !!filters.country;
+    !!filters.country ||
+    filters.yearFrom > 0 ||
+    filters.yearTo > 0;
 
   const helpLines = show.map((d) => `• ${labelFor(d)}: ${FILTER_HELP[d]}`).join("\n");
 
@@ -91,6 +97,13 @@ export function FilterBar({
           />
         </label>
       )}
+      {show.includes("activity") && (
+        <Select
+          value={filters.activity}
+          onChange={(v) => set({ activity: v as Filters["activity"] })}
+          options={ACTIVITY_OPTS}
+        />
+      )}
       {show.includes("role") && (
         <Select value={filters.role} onChange={(v) => set({ role: v })} options={ROLE_OPTS} />
       )}
@@ -106,6 +119,52 @@ export function FilterBar({
       )}
       {show.includes("country") && countryOpts && (
         <Select value={filters.country} onChange={(v) => set({ country: v })} options={countryOpts} />
+      )}
+
+      {show.includes("years") && yearBounds && (
+        <div className="flex items-center gap-1.5 text-sm text-muted">
+          <span>Years</span>
+          {[
+            { label: "All", from: 0, to: 0 },
+            { label: yearBounds.max.toString(), from: yearBounds.max, to: yearBounds.max },
+            { label: `${yearBounds.max - 1}`, from: yearBounds.max - 1, to: yearBounds.max - 1 },
+          ].map((p) => {
+            const on = filters.yearFrom === p.from && filters.yearTo === p.to;
+            return (
+              <button
+                key={p.label}
+                onClick={() => set({ yearFrom: p.from, yearTo: p.to })}
+                className={
+                  "rounded-md border px-2 py-1 text-xs " +
+                  (on
+                    ? "border-accent/40 bg-accent/10 text-accent-glow"
+                    : "border-border bg-surface text-muted hover:text-fg")
+                }
+              >
+                {p.label}
+              </button>
+            );
+          })}
+          <input
+            type="number"
+            className="input w-20 py-1.5"
+            placeholder="from"
+            min={yearBounds.min}
+            max={yearBounds.max}
+            value={filters.yearFrom || ""}
+            onChange={(e) => set({ yearFrom: Number(e.target.value) || 0 })}
+          />
+          <span>–</span>
+          <input
+            type="number"
+            className="input w-20 py-1.5"
+            placeholder="to"
+            min={yearBounds.min}
+            max={yearBounds.max}
+            value={filters.yearTo || ""}
+            onChange={(e) => set({ yearTo: Number(e.target.value) || 0 })}
+          />
+        </div>
       )}
 
       {active && (
@@ -130,9 +189,11 @@ export function FilterBar({
 function labelFor(d: Dim): string {
   return {
     minMatches: "Min matches",
+    activity: "Active / retired",
     role: "Role",
     bowling: "Bowling type",
     position: "Batting position",
     country: "Country",
+    years: "Year range",
   }[d];
 }

@@ -15,7 +15,11 @@ export function Leaderboards() {
   const { collection } = useStore();
   const navigate = useNavigate();
   const [slug, setSlug] = useState("ngi");
-  const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS, minMatches: 20 });
+  const [filters, setFilters] = useState<Filters>({
+    ...EMPTY_FILTERS,
+    minMatches: 20,
+    activity: "active",
+  });
   const metric = METRIC_BY_SLUG[slug];
 
   const { data, loading, error } = useAsync(
@@ -24,6 +28,19 @@ export function Leaderboards() {
   );
 
   const countryOpts = useMemo(() => countriesIn(data ?? []), [data]);
+  const yearBounds = useMemo(() => {
+    const ys: number[] = [];
+    for (const r of data ?? []) {
+      for (const k of ["first_match_date", "last_match_date"] as const) {
+        const v = r[k];
+        if (typeof v === "string") {
+          const y = Number(v.slice(0, 4));
+          if (Number.isFinite(y)) ys.push(y);
+        }
+      }
+    }
+    return ys.length ? { min: Math.min(...ys), max: Math.max(...ys) } : undefined;
+  }, [data]);
   // Min-matches + role/bowling/position/country gates. Min-matches keeps
   // 1-match flukes (hi Tanush Kotian) off the top.
   const filtered = useMemo(() => applyFilters(data ?? [], filters), [data, filters]);
@@ -88,8 +105,9 @@ export function Leaderboards() {
       <FilterBar
         filters={filters}
         onChange={setFilters}
-        show={["minMatches", "role", "bowling", "position", "country"]}
+        show={["minMatches", "activity", "role", "bowling", "position", "country", "years"]}
         countryOpts={countryOpts}
+        yearBounds={yearBounds}
         count={filtered.length}
         total={data?.length}
       />

@@ -73,8 +73,8 @@ export function Overview() {
       {/* freshness footnote */}
       <div className="mt-10 flex items-center gap-2 text-xs text-muted">
         <CalendarClock className="h-3.5 w-3.5" />
-        Data is pre-computed and re-cooked nightly by a GitHub Action. The figures you see are
-        accurate up to {prettyDate(meta?.data_as_of)} — the date of the most recent match in
+        Data is pre-computed offline and refreshed on demand via a GitHub Action. The figures you
+        see are accurate up to {prettyDate(meta?.data_as_of)} — the date of the most recent match in
         this collection.
       </div>
     </div>

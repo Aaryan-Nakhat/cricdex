@@ -177,6 +177,12 @@ function Identity({
           </div>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-2">
+          {profile.activity &&
+            (profile.activity.active ? (
+              <Badge tone="accent">active</Badge>
+            ) : (
+              <Badge tone="ball">retired{profile.activity.last_match_date ? ` · last ${profile.activity.last_match_date.slice(0, 4)}` : ""}</Badge>
+            ))}
           {bat && <Badge tone="accent">batting value {fmt(bat.value, 3)}</Badge>}
           {bowl && bowl.balls > 60 && <Badge tone="willow">bowling value {fmt(bowl.value, 3)}</Badge>}
           <Badge>id {profile.cricsheet_id}</Badge>

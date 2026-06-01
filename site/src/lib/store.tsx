@@ -61,8 +61,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // "Refresh" in a no-backend world = re-pull the cooked JSON past the
-  // cache. The nightly GitHub Action is what actually re-computes to the
-  // latest match date; this button surfaces whatever it last produced.
+  // cache. The GitHub Action (manual "Run workflow") is what re-computes
+  // to the latest match date; this button surfaces whatever it last produced.
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
