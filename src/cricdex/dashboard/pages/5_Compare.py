@@ -39,8 +39,10 @@ FIELD_NOTES = {
     "counter_attack_sr": "Strike rate inflation right after a wicket",
     "bdr_pct": "Boundary dependency — share of runs from 4s + 6s",
     "sticky_wicket_rate_pct": "Wicket rate after 4+ consecutive dot streak in same over",
-    "bayes_skill_batter": "NumPyro hierarchical batter skill (0 = avg, +0.3 ≈ marquee)",
-    "bayes_skill_bowler": "NumPyro hierarchical bowler skill (0 = avg, +0.3 ≈ marquee)",
+    "bayes_skill_batter": "Bayesian batter scoring skill (0 = avg, +0.3 ≈ marquee)",
+    "bayes_survival_batter": "Bayesian batter survival — dismissal resistance (0 = avg, higher = harder to get out)",
+    "bayes_skill_bowler": "Bayesian bowler economy skill (0 = avg, +0.3 ≈ marquee)",
+    "bayes_strike_bowler": "Bayesian bowler strike — wicket-taking (0 = avg, higher = strikes more often)",
 }
 
 

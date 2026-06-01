@@ -32,10 +32,11 @@ def test_franchise_archetypes_shape():
         assert 0.0 < spec["aggression"] <= 2.0
 
 
-def test_project_value_monotone_in_skill():
-    a = real_pool._project_value(skill=-0.1, role="batter")
-    b = real_pool._project_value(skill=0.1, role="batter")
-    c = real_pool._project_value(skill=0.3, role="batter")
+def test_project_value_monotone_in_value():
+    # Higher complete value → higher cr price (monotone).
+    a = real_pool._project_value(-0.1, role="batter")
+    b = real_pool._project_value(0.1, role="batter")
+    c = real_pool._project_value(0.3, role="batter")
     assert a < b < c
 
 

@@ -168,13 +168,17 @@ def _role_of(career: dict, ratings_role: str) -> str:
     return ratings_role  # 'batter' or 'bowler' as fitted by Bayes
 
 
-def _project_value(skill: float, role: str, value_scale: float = 10.0) -> float:
-    """Map Bayes log-skill → IPL-realistic cr value.
+def _project_value(complete_value: float, role: str, value_scale: float = 10.0) -> float:
+    """Map a player's *complete* Bayes value → IPL-realistic cr value.
 
-    The top marquee cohort (skill ≈ +0.3) lands around 11-12 cr; the
-    replacement-level cohort (skill ≈ -0.1) around 0.5-1.0 cr."""
+    `complete_value` is the raw sum of the two log-scale axes for the
+    role (batter: scoring + survival; bowler: economy + strike), so a
+    fast slogger with poor survival is priced below a complete batter
+    even if their raw scoring is higher. The top complete cohort
+    (value ≈ +0.4) lands around 7-8 cr; replacement-level (value ≈
+    -0.3) around 3-4 cr; both scaled by the role floor."""
     floor = ROLE_FLOOR.get(role, 0.5)
-    return round(math.exp(skill) * floor * value_scale, 2)
+    return round(math.exp(complete_value) * floor * value_scale, 2)
 
 
 def _base_price(value: float) -> float:
@@ -196,11 +200,21 @@ def build_pool(
 ) -> pl.DataFrame:
     """One row per IPL player who has cleared `min_balls` (faced or bowled)."""
     ratings = _load_ratings(ratings_path)
-    # Collapse batter/bowler rows into one per cricsheet_id, keeping the
-    # strongest (largest |skill|) signal as the primary role.
-    ratings = ratings.with_columns(pl.col("skill").abs().alias("_abs_skill"))
+    # Per-role complete value = scoring/economy skill + its second axis
+    # (survival for batters, strike for bowlers); falls back to bare
+    # skill on legacy ratings. We collapse to one row per player keeping
+    # the role with the strongest *complete* signal, then price off it —
+    # so a slogger isn't promoted on scoring alone.
+    surv = pl.col("survival_skill") if "survival_skill" in ratings.columns else pl.lit(None)
+    strike = pl.col("strike_skill") if "strike_skill" in ratings.columns else pl.lit(None)
+    ratings = ratings.with_columns(
+        (
+            pl.col("skill") + pl.coalesce([surv, pl.lit(0.0)]) + pl.coalesce([strike, pl.lit(0.0)])
+        ).alias("complete_value")
+    )
+    ratings = ratings.with_columns(pl.col("complete_value").abs().alias("_abs_cval"))
     primary = (
-        ratings.sort("_abs_skill", descending=True)
+        ratings.sort("_abs_cval", descending=True)
         .group_by("cricsheet_id", maintain_order=True)
         .first()
     )
@@ -246,7 +260,7 @@ def build_pool(
         else:
             raw_country = nat.get(cid) or "India"
             country = country_codes.get(raw_country, raw_country)
-        value = _project_value(r["skill"], role, value_scale=value_scale)
+        value = _project_value(r["complete_value"], role, value_scale=value_scale)
         base_price = _base_price(value)
         rows.append(
             {

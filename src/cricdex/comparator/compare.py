@@ -104,10 +104,13 @@ def _bayes_skill(
     ratings_df: pl.DataFrame,
     player: str,
     role: str,
+    col: str = "skill",
 ) -> float | None:
-    if ratings_df.is_empty():
+    """Look up a ratings column (`skill` / `survival_skill` /
+    `strike_skill`) for a player+role. None if absent."""
+    if ratings_df.is_empty() or col not in ratings_df.columns:
         return None
-    # Bridge name -> cricsheet_id via the people register, then look up skill.
+    # Bridge name -> cricsheet_id via the people register, then look up.
     if "unique_name" not in ratings_df.columns:
         bridge = con.execute(
             "SELECT identifier, unique_name FROM people WHERE unique_name = ?",
@@ -122,9 +125,9 @@ def _bayes_skill(
             return None
         cricsheet_id = match["cricsheet_id"][0]
     row = ratings_df.filter((pl.col("cricsheet_id") == cricsheet_id) & (pl.col("role") == role))
-    if row.is_empty():
+    if row.is_empty() or row[col][0] is None:
         return None
-    return float(row["skill"][0])
+    return float(row[col][0])
 
 
 def compare(
@@ -157,7 +160,11 @@ def compare(
             row["bdr_pct"] = _safe_get(bdr, "batter", p, "bdr_pct")
             row["sticky_wicket_rate_pct"] = _safe_get(sticky, "bowler", p, "wicket_rate_pct")
             row["bayes_skill_batter"] = _bayes_skill(con, ratings, p, "batter")
+            row["bayes_survival_batter"] = _bayes_skill(
+                con, ratings, p, "batter", col="survival_skill"
+            )
             row["bayes_skill_bowler"] = _bayes_skill(con, ratings, p, "bowler")
+            row["bayes_strike_bowler"] = _bayes_skill(con, ratings, p, "bowler", col="strike_skill")
             out_rows.append(row)
     finally:
         con.close()
