@@ -134,7 +134,7 @@ def profile(
         from cricdex.scout.graph import similar
 
         with _render.spinner("traversing scout graph"):
-            cf_rows = similar.co_faced_bowlers(name, top_k=8)
+            cf_rows = similar.co_faced_bowlers(name, top_k=8, collection=collection)
         if cf_rows:
             _render.pretty_table(
                 cf_rows,
@@ -147,7 +147,7 @@ def profile(
                 f"(`cricdex data ingest graph -c {collection}`)"
             )
         with _render.spinner("loading teammate overlap"):
-            tm_rows = similar.teammate_overlap(name, top_k=8)
+            tm_rows = similar.teammate_overlap(name, top_k=8, collection=collection)
         if tm_rows:
             _render.pretty_table(
                 tm_rows,

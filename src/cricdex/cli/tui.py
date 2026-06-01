@@ -1063,7 +1063,7 @@ def _summarise_metric(payload) -> str:
     return str(payload)
 
 
-def _detect_archetype(name: str) -> tuple[str, str]:
+def _detect_archetype(name: str, collection: str = "ipl") -> tuple[str, str]:
     try:
         from cricdex.scout.graph.schema import driver
 
@@ -1071,10 +1071,11 @@ def _detect_archetype(name: str) -> tuple[str, str]:
         try:
             with drv.session() as s:
                 row = s.run(
-                    "MATCH (p:Player {unique_name: $name}) "
+                    "MATCH (p:Player {unique_name: $name, collection: $collection}) "
                     "RETURN p.balls_bowled AS bb, p.balls_faced AS bf, "
                     "p.bowling_style AS style",
                     name=name,
+                    collection=collection,
                 ).single()
         finally:
             drv.close()

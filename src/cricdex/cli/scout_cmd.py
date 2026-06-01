@@ -27,7 +27,7 @@ def _similar():
         )
 
 
-def _detect_target_archetype(name: str) -> tuple[str, str]:
+def _detect_target_archetype(name: str, collection: str = "ipl") -> tuple[str, str]:
     """Read balls_bowled vs balls_faced off the Player node — same
     discriminator the graph queries use internally. Returns (archetype,
     bowling_style) where archetype ∈ {bowler, batter}."""
@@ -38,10 +38,11 @@ def _detect_target_archetype(name: str) -> tuple[str, str]:
         try:
             with drv.session() as s:
                 row = s.run(
-                    "MATCH (p:Player {unique_name: $name}) "
+                    "MATCH (p:Player {unique_name: $name, collection: $collection}) "
                     "RETURN p.balls_bowled AS bb, p.balls_faced AS bf, "
                     "p.bowling_style AS style",
                     name=name,
+                    collection=collection,
                 ).single()
         finally:
             drv.close()
@@ -69,7 +70,7 @@ def twins(
     _render.header(f"Player Twins — {name}", subtitle=f"mode: {mode}  ·  collection: {collection}")
     _render.intro_panel(_copy.TWINS_INTRO, title="Player Twins")
 
-    archetype, style = _detect_target_archetype(name)
+    archetype, style = _detect_target_archetype(name, collection)
     console().print(
         f"[dim]auto-detected archetype:[/dim] [bold]{archetype}[/bold]  "
         f"[dim]·  bowling style:[/dim] [bold]{style}[/bold]"
@@ -77,9 +78,9 @@ def twins(
 
     with _render.spinner(f"querying graph ({mode})"):
         if mode == "co_faced":
-            rows = s.co_faced_bowlers(name, top_k=top_k)
+            rows = s.co_faced_bowlers(name, top_k=top_k, collection=collection)
         elif mode == "teammates":
-            rows = s.teammate_overlap(name, top_k=top_k)
+            rows = s.teammate_overlap(name, top_k=top_k, collection=collection)
         else:
             die(f"unknown mode `{mode}` — use co_faced or teammates")
     if not rows:
@@ -114,7 +115,7 @@ def find_replacement(
     _render.header(f"Find replacement — {name}", subtitle=f"collection: {collection}")
     _render.intro_panel(_copy.FIND_REPLACEMENT_INTRO, title="Find replacement")
 
-    archetype, target_style = _detect_target_archetype(name)
+    archetype, target_style = _detect_target_archetype(name, collection)
     console().print(
         f"[dim]auto-detected archetype:[/dim] [bold]{archetype}[/bold]  "
         f"[dim]·  bowling style:[/dim] [bold]{target_style}[/bold]"
@@ -133,6 +134,7 @@ def find_replacement(
             max_balls_faced=max_balls_faced,
             min_last_match_date=min_last_match,
             bowling_style=style,
+            collection=collection,
         )
     if not rows:
         die("no candidates — relax filters or check spelling")

@@ -203,7 +203,7 @@ def _write_players(
         s.run(
             """
             UNWIND $rows AS r
-            MERGE (p:Player {cricsheet_id: r.cricsheet_id})
+            MERGE (p:Player {cricsheet_id: r.cricsheet_id, collection: $collection})
             SET p.unique_name          = r.name,
                 p.key_cricinfo         = r.cricinfo_id,
                 p.key_cricbuzz         = r.cricbuzz_id,
@@ -217,6 +217,7 @@ def _write_players(
                 p.middle_overs_pct     = r.middle_overs_pct
             """,
             rows=enriched,
+            collection=collection,
         )
     return len(enriched)
 
@@ -304,8 +305,8 @@ def _write_faced_edges(
             s.run(
                 """
                 UNWIND $rows AS r
-                MATCH (b:Player {cricsheet_id: r.batter_id})
-                MATCH (k:Player {cricsheet_id: r.bowler_id})
+                MATCH (b:Player {cricsheet_id: r.batter_id, collection: $collection})
+                MATCH (k:Player {cricsheet_id: r.bowler_id, collection: $collection})
                 MERGE (b)-[f:FACED]->(k)
                 SET f.balls = r.balls,
                     f.runs = r.runs,
@@ -321,6 +322,7 @@ def _write_faced_edges(
                     }
                     for row in chunk
                 ],
+                collection=collection,
             )
             total += len(chunk)
     return total
@@ -365,7 +367,7 @@ def _write_played_in_edges(
             s.run(
                 """
                 UNWIND $rows AS r
-                MATCH (p:Player {cricsheet_id: r.cricsheet_id})
+                MATCH (p:Player {cricsheet_id: r.cricsheet_id, collection: $collection})
                 MATCH (m:Match  {match_id: r.match_id})
                 MERGE (p)-[e:PLAYED_IN]->(m)
                 SET e.team = r.team
@@ -373,6 +375,7 @@ def _write_played_in_edges(
                 rows=[
                     {"match_id": row[0], "team": row[1], "cricsheet_id": row[2]} for row in chunk
                 ],
+                collection=collection,
             )
             total += len(chunk)
     return total
@@ -431,15 +434,28 @@ def _write_teammate_edges(
             s.run(
                 """
                 UNWIND $rows AS r
-                MATCH (a:Player {cricsheet_id: r.a})
-                MATCH (b:Player {cricsheet_id: r.b})
+                MATCH (a:Player {cricsheet_id: r.a, collection: $collection})
+                MATCH (b:Player {cricsheet_id: r.b, collection: $collection})
                 MERGE (a)-[e:TEAMMATE_OF]->(b)
                 SET e.matches_together = r.matches_together
                 """,
                 rows=[{"a": row[0], "b": row[1], "matches_together": int(row[2])} for row in chunk],
+                collection=collection,
             )
             total += len(chunk)
     return total
+
+
+def _clear_collection(drv: Driver, collection: str) -> None:
+    """Delete this collection's subgraph (Player nodes carrying the
+    collection tag + their relationships) so a re-populate is a clean
+    rewrite, not a stale-node accumulation. Match/Venue nodes are shared
+    across collections and left intact."""
+    with drv.session() as s:
+        s.run(
+            "MATCH (p:Player {collection: $collection}) DETACH DELETE p",
+            collection=collection,
+        )
 
 
 def populate(
@@ -449,6 +465,7 @@ def populate(
     drv = driver()
     try:
         bootstrap(drv)
+        _clear_collection(drv, collection)
         con = duckdb.connect(str(db_path), read_only=True)
         try:
             _resolve_people(con)

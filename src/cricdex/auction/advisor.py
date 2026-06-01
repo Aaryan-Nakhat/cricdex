@@ -36,6 +36,7 @@ def recommend_substitutes(
     max_balls_bowled: int | None = None,
     max_balls_faced: int | None = None,
     bowling_style: str | None = None,
+    collection: str = "ipl",
 ) -> pl.DataFrame:
     """Return up to `n` graph-similar players within `budget`.
 
@@ -64,6 +65,7 @@ def recommend_substitutes(
         max_balls_faced=max_balls_faced,
         min_last_match_date=min_last_match_date,
         bowling_style=bowling_style,
+        collection=collection,
     )
     if not candidates:
         return pl.DataFrame()

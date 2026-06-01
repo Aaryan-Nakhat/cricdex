@@ -27,13 +27,13 @@ def driver() -> Driver:
 
 
 CONSTRAINTS = [
-    "CREATE CONSTRAINT player_id_unique IF NOT EXISTS FOR (p:Player) REQUIRE p.cricsheet_id IS UNIQUE",
     "CREATE CONSTRAINT match_id_unique IF NOT EXISTS FOR (m:Match) REQUIRE m.match_id IS UNIQUE",
     "CREATE CONSTRAINT venue_name_unique IF NOT EXISTS FOR (v:Venue) REQUIRE v.name IS UNIQUE",
 ]
 
 INDEXES = [
-    "CREATE INDEX player_unique_name IF NOT EXISTS FOR (p:Player) ON (p.unique_name)",
+    "CREATE INDEX player_id_coll IF NOT EXISTS FOR (p:Player) ON (p.cricsheet_id, p.collection)",
+    "CREATE INDEX player_name_coll IF NOT EXISTS FOR (p:Player) ON (p.unique_name, p.collection)",
     "CREATE INDEX player_cricinfo IF NOT EXISTS FOR (p:Player) ON (p.key_cricinfo)",
     "CREATE INDEX match_date IF NOT EXISTS FOR (m:Match) ON (m.match_date)",
     "CREATE INDEX match_type IF NOT EXISTS FOR (m:Match) ON (m.match_type)",
