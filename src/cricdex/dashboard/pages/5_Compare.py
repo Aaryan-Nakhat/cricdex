@@ -17,8 +17,8 @@ st.set_page_config(page_title="CricDex Compare", page_icon="🆚", layout="wide"
 st.title("🆚 CricDex — compare players")
 st.caption(
     "Pick 2–5 players and see every CricDex signal side-by-side: career totals "
-    "(from Cricsheet ball-by-ball), the six novel batter metrics + Sticky Dot "
-    "Pressure (bowler), and Bayes scout-rating skills."
+    "(from Cricsheet ball-by-ball), the novel batter metrics + Pressure "
+    "Conversion (bowler), and Bayes scout-rating skills."
 )
 provenance_banner(source="cricsheet", path=DUCKDB_PATH)
 

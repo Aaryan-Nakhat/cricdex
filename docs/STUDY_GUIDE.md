@@ -339,9 +339,9 @@ career.
 **Math.** `slow_start_cost = career_sr − setting_sr` where `setting_sr`
 covers balls where `balls_faced_to_date <= 20`.
 
-A setting tax of 30 means the batter scores 30 SR points slower in
+A slow-start cost of 30 means the batter scores 30 SR points slower in
 the first 20 balls than their career average — a heavy starter cost.
-A negative setting tax means they start *faster* than their career
+A negative slow-start cost means they start *faster* than their career
 norm (rare; opener territory).
 
 **Filter.** `min_career_balls=200`, `min_setting_balls=50`.

@@ -51,7 +51,6 @@ remaining 11 are obscure players genuinely absent from Wikidata).
 | ScoutVLM — YouTube ball-by-ball via VLM | §3.4 |
 | Highlight CV auto-clip | §3.5 |
 | Tournament management B2B | §3.6 |
-| Voice-cloned commentary translation | §3.7 |
 
 ## E — API + infra
 

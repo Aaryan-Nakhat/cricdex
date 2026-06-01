@@ -1,8 +1,8 @@
 """Textual TUI — `cricdex tui` (also `cricdex` with no subcommand).
 
-11 tabs matching the 11 Streamlit dashboard pages 1-to-1:
-Leaderboard / Rules / Records / Match-Report / Compare / Venues /
-Auction (Solve + Recommend) / Profile / Auction-Sim / Twins.
+10 tabs matching the Streamlit dashboard pages 1-to-1:
+Leaders / Rules / Records / Compare / Venues / Auction (Solve +
+Recommend) / Profile / Auction-Sim / Twins / Update.
 Same code paths as the one-shot CLI, so behaviour stays in
 lockstep.
 

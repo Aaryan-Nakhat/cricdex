@@ -1,23 +1,27 @@
 # dashboard
 
-Public-facing Streamlit app that surfaces every novel metric as a sortable
-leaderboard with bar charts and the Cricsheet people-register bridge
-(so every row carries Cricsheet + ESPNcricinfo identifiers for deeper
-linking later).
+Streamlit app surfacing every CricDex feature. Multi-page (Streamlit
+auto-discovers `pages/`); the home module (`app.py`) is the landing
+explainer. Every row carries the Cricsheet people-register bridge
+(cricsheet_id + cross-source identifiers) for deeper linking.
 
-## Layout
+## Pages
 
-One tab per metric:
+- **Leaderboards** — the 10 novel metrics, one tab each, sortable + bar charts.
+- **Player Profile** — per-player dossier: Bayesian skills, metrics,
+  dismissal fingerprint, style twins, Wikidata identity.
+- **Compare** — 2–5 players side by side.
+- **Records** — record books.
+- **Venues** — ground conditions.
+- **Auction** — squad optimiser + franchise simulation.
+- **Update Data** — in-app buttons to re-run the ingest/compute pipeline.
 
-- Pressure Runs
-- Recoverability
-- Counter-Attack
-- Boundary Dependency
-- Intent Curve
-- Sticky Dot Pressure (bowler)
+The 10 metrics: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery,
+Counter-Attack, Boundary Dependency, Pressure Conversion, Wicket Quality,
+Crease Longevity, Slow-Start Cost.
 
-Sidebar lets the user pick which ingested collection to slice by — every
-JSON under `data/metrics/*_<collection>.json` is auto-discovered.
+Sidebar picks the ingested collection — every `data/metrics/*_<collection>.json`
+is auto-discovered.
 
 ## Run
 
@@ -35,20 +39,19 @@ uv run streamlit run src/cricdex/dashboard/app.py
 
 ## Refresh data
 
-The app reads JSON snapshots, not the database directly, so the typical
-flow is:
+The app reads JSON snapshots, not the database directly:
 
 ```bash
 make docker-metrics-all COLLECTION=ipl  # regenerate JSONs
-# refresh the dashboard tab — Streamlit re-reads on rerun
+# then rerun the page — Streamlit re-reads on rerun
 ```
 
 ## Add a new metric
 
 1. Implement it in `cricdex.metrics.*` and wire a CLI subcommand in
    `scripts/compute_metrics.py`.
-2. Append a config block to `METRICS` in `app.py` with the slug, sort
-   column, bar column, description, and (for bowler metrics)
-   `primary_key="bowler"`.
+2. Append a config block to `METRICS` in `pages/1_Leaderboards.py` with
+   the slug, sort column, bar column, description, and (for bowler
+   metrics) `primary_key="bowler"`.
 
-That's it — the tab and chart are wired generically.
+The tab and chart are wired generically.
