@@ -4,22 +4,13 @@ Path from zero to running queries.
 
 ---
 
-## 1. Install
-
-```bash
-# Run once, no install
-uvx --from cricdex cricdex --help
-
-# Or install globally
-pip install cricdex
-```
-
-Dev checkout:
+## 1. Install (clone + uv)
 
 ```bash
 git clone git@github.com:Aaryan-Nakhat/cricdex.git
 cd cricdex
-uv sync --extra cli --extra graph --extra ui
+uv sync --extra cli --extra graph --extra ui   # CLI/TUI + Neo4j graph + dashboard
+uv run cricdex --help
 ```
 
 ## 2. Initialise

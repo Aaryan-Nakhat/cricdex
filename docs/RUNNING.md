@@ -171,20 +171,6 @@ make backup WHAT=metrics    # data/metrics + data/register + data/auction
 (Once R2 is provisioned per DEFERRED §4.4. Until then `policy_real.zip`
 is local-only on the training VM.)
 
-### Skip the local build — pull from GHCR
-
-After every push to `main` the CI builds `ghcr.io/aaryan-nakhat/cricdex:latest`
-and publishes it. To bring the stack up against the pre-built image
-(no ~10-min local build):
-
-```bash
-make docker-up-prod
-```
-
-This composes `docker-compose.yml` + `docker-compose.prod.yml` — the
-prod overlay drops the dev `./src` / `./scripts` bind-mounts so the
-running container matches what CI produced.
-
 ### Volume layout
 
 - `qdrant_data` (named volume) — vector index persistence.

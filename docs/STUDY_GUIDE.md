@@ -60,9 +60,10 @@ library functions back all three surfaces, so behaviour stays in
 lockstep.
 
 **Why open?** Existing cricket platforms (Cricbuzz, CricViz, ESPN)
-hide methodology behind paywalls. CricDex publishes the formulas,
-the Cricsheet-only inputs, and a Docker image you can `make
-docker-up-prod` in 30 seconds.
+hide methodology behind paywalls. CricDex publishes the formulas, the
+Cricsheet-only inputs, a live static demo
+(aaryan-nakhat.github.io/cricdex), and the full stack reproducible via
+`make docker-up`.
 
 **Why the obsession with context-adjusted metrics?** A 25-ball 40 in
 a slack chase scores the same as a 25-ball 40 chasing 12 an over.
@@ -1296,21 +1297,20 @@ Worker + API keys table).
 
 ### 12.1 GitHub Actions
 
-Two workflows in `.github/workflows/`:
+Workflows in `.github/workflows/`:
 
 - `ci.yml` — ruff lint + format + pre-commit + pytest on every push
   / PR to main. Runs in ~90 s.
-- `docker-push.yml` — builds `ghcr.io/aaryan-nakhat/cricdex:latest`
-  + `:sha-<short>` + `:vX.Y.Z` (on tag) and pushes to GitHub
-  Container Registry. Free-disk-space step nukes the GitHub runner's
-  .NET / Android / Haskell toolchains so the 9.8 GB image fits.
+- `deploy.yml` — builds the static `site/` and publishes it to
+  GitHub Pages on pushes touching `site/**`.
+- `refresh-data.yml` — manual ("Run workflow"): re-ingest + recompute +
+  re-cook the snapshot, then redeploy.
 
 ### 12.2 Docker
 
-`docker-compose.yml` brings up Qdrant + the app. Pre-bakes the
-Snowflake-arctic-embed-l-v2 weights so the container doesn't need
-`HF_TOKEN`. `make docker-up-prod` pulls the pre-built image instead
-of rebuilding locally (~10-min build skipped).
+`docker-compose.yml` brings up Qdrant + the app for local dev / the
+pipeline. Pre-bakes the Snowflake-arctic-embed-l-v2 weights so the
+container doesn't need `HF_TOKEN`. `make docker-up` builds + runs it.
 
 ### 12.3 Off-VM persistence
 
