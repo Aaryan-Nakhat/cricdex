@@ -50,11 +50,21 @@ make docker-scout-rate COLLECTION=ipl STEPS=12000
 ## Why Bayesian instead of plain SQL averages
 
 A standard scorecard average treats a wicket from Bumrah and a wicket
-from a county trundler as equivalent. The Bayesian model fits a single
-latent skill per batter and per bowler, so the strength of every
-opponent feeds into every estimate. Hierarchical priors handle small
-samples gracefully — a player with 30 balls faced is shrunk toward the
-global mean, while a player with 3,000 balls is barely shrunk at all.
+from a county trundler as equivalent. The Bayesian model fits latent
+skills per batter and per bowler, so the strength of every opponent
+feeds into every estimate. Hierarchical priors handle small samples
+gracefully — a player with 30 balls faced is shrunk toward the global
+mean, while a player with 3,000 balls is barely shrunk at all.
+
+The model is **dismissal-aware**: a joint fit of two coupled
+likelihoods (a runs Negative-Binomial + a per-ball dismissal
+Binomial) gives each batter both a **scoring** skill and a **survival**
+(dismissal-resistance) skill, and each bowler both an **economy** and
+a **strike** (wicket-taking) skill — four opponent-adjusted axes, all
+higher = better. A player's **complete value** is the sum of their two
+relevant axes, so a fast slogger who gets out often is no longer
+over-rated on scoring alone. See `docs/STUDY_GUIDE.md` §5.7 for the
+full model.
 
 The same model design extends downward later: when we add CricHeroes
 amateur balls, batters who happen to have faced one or two known

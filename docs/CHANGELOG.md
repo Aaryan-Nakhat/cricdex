@@ -61,10 +61,29 @@ over the same `~/.cricdex/data/`.
   graph with FACED + TEAMMATE_OF + PLAYED_IN edges + traversal
   helpers (`co_faced_bowlers`, `teammate_overlap`,
   `find_replacement`).
+- **Dismissal-aware ratings** — the Bayes fit is a joint model: a
+  runs Negative-Binomial + a per-ball dismissal Binomial. Each
+  batter gets a scoring skill AND a survival (dismissal-resistance)
+  skill; each bowler an economy AND a strike (wicket-taking) skill —
+  four opponent-adjusted axes, all higher = better. A player's
+  composite `value` is the two axes summed, so a fast slogger who
+  gets out often no longer outranks a complete batter on scoring
+  alone.
+- **Probabilistic skill head-to-head** — `cricdex compare A B`
+  reports `P(A is genuinely better than B)` per role (complete
+  batting / bowling value) from the difference of their Bayesian
+  posteriors; near-50% reads as "too close to call". Surfaced in
+  CLI, TUI and the Streamlit Compare page.
+- **Dismissal fingerprint** — per-batter, per-bowler and per-matchup
+  breakdown of *how* a player gets out / takes wickets (bowled / lbw
+  / caught / stumped …), with a one-line scouting read. Descriptive
+  metadata, separate from the skill model.
 - **Auction** — MILP squad optimiser, Monte-Carlo price-band
-  simulator, GRPO RL self-play scaffold (real-IPL pool + 6
-  franchise archetypes + terminal squad-quality bonus), war-room
-  substitute advisor.
+  simulator (10 real IPL franchises with editable bidding
+  personalities + a `~/.cricdex/teams.yaml` override), GRPO RL
+  self-play scaffold (real-IPL pool + 6 franchise archetypes +
+  terminal squad-quality bonus), war-room substitute advisor.
+  Player pricing keys off the dismissal-aware complete value.
 - **Rules Q&A** — 11k+ parsed clauses from 21 versioned PDFs
   (MCC, ICC PCs, IPL, Hundred, BBL/WBBL, SA20, Cricket Australia
   domestic, ICC Codes, Anti-Corruption); dense (snowflake-arctic-
@@ -73,8 +92,9 @@ over the same `~/.cricdex/data/`.
 - **Identity** — Cricsheet People Register cross-source bridge;
   manual nationality overrides for known same-name collisions
   (Rashid Khan, Mohsin Khan).
-- **Test coverage** — 57 unit + integration tests covering metrics,
-  auction, scout, venues, rules, API routes.
+- **Test coverage** — 70 unit + integration tests covering metrics,
+  auction, scout, venues, rules, API routes, skill head-to-head,
+  dismissal fingerprint.
 - **Docs** — README rewritten CLI-first; `docs/CLI.md` exhaustive
   command reference; `docs/FIRST_RUN.md` onboarding; `docs/TODO.md`
   phase-grouped pending work; `docs/VNEXT.md` items moved out of

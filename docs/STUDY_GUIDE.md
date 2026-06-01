@@ -538,20 +538,30 @@ shape semantics correctly.
 
 ### 5.6 Output
 
+With the dismissal-aware joint model (§5.7) each batter row also
+carries `survival_skill`, each bowler row `strike_skill`, plus a
+composite `value` (the two axes summed):
+
 ```json
 [
   {"cricsheet_id": "ba607b88", "name": "V Kohli", "role": "batter",
-   "skill": 0.118, "skill_sd": 0.029, "balls": 6499},
+   "skill": 0.051, "skill_sd": 0.023,
+   "survival_skill": 0.212, "survival_skill_sd": 0.060,
+   "value": 0.263, "balls": 6499},
   {"cricsheet_id": "ba607b88", "name": "V Kohli", "role": "bowler",
-   "skill": -0.162, "skill_sd": 0.343, "balls": 172},
+   "skill": -0.037, "skill_sd": 0.062,
+   "strike_skill": -0.190, "strike_skill_sd": 0.174,
+   "value": -0.227, "balls": 172},
   ...
 ]
 ```
 
 Two rows per cross-role player (Kohli has both because he bowls
-occasionally). The `skill_sd` is the standard error — pair it with
-the `balls` to read confidence: `balls=6499, sd=0.029` is rock
-solid; `balls=172, sd=0.343` is barely better than the prior.
+occasionally). The `*_sd` columns are standard errors — pair them
+with `balls` to read confidence: a tight σ on thousands of balls is
+rock-solid; a wide σ on a handful is barely better than the prior.
+(`dismissal_aware=False` falls back to the legacy two-column
+`skill` + `skill_sd` output.)
 
 ### 5.7 Dismissal-aware extension (the joint model)
 
