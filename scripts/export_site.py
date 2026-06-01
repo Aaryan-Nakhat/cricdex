@@ -297,16 +297,27 @@ def _activity_map(
     return out
 
 
+# Fixed time windows for the leaderboards period selector. label -> days
+# back from the collection's latest match. "all" (no window) is the base.
+WINDOWS: dict[str, int] = {"last3y": 1095, "last1y": 365}
+
+
 def _export_leaderboards(
     collection: str,
     out_dir: Path,
     matches: dict[str, int],
     name_tax: dict[str, dict],
     activity: dict[str, dict],
+    window: str | None = None,
 ) -> int:
+    """All-time (window=None) or a recomputed time window. Window metrics
+    live in data/metrics/<slug>_<collection>_<window>.json (cooked by the
+    subprocess pass); the site file gets a `.<window>` suffix."""
+    src_col = f"{collection}_{window}" if window else collection
+    suffix = f".{window}" if window else ""
     n = 0
     for slug in METRIC_SLUGS:
-        src = METRIC_DIR / f"{slug}_{collection}.json"
+        src = METRIC_DIR / f"{slug}_{src_col}.json"
         if not src.exists():
             continue
         rows = json.loads(src.read_text())
@@ -323,9 +334,61 @@ def _export_leaderboards(
             for k, v in (activity.get(who) or {}).items():
                 r.setdefault(k, v)
         # Trim each leaderboard to a sane top-N for the browser.
-        _write(out_dir / "leaderboards" / f"{slug}.json", rows[:300])
+        _write(out_dir / "leaderboards" / f"{slug}{suffix}.json", rows[:300])
         n += 1
     return n
+
+
+def _build_window_tables(
+    con: duckdb.DuckDBPyConnection, collection: str, as_of: str | None
+) -> list[str]:
+    """Create date-filtered balls_<col>_<win> tables so the existing metric
+    functions (which query balls_<safe> by name) recompute over each window.
+    `con` must be a read-write connection (call before the read-only export)."""
+    import datetime as _dt
+
+    if not as_of:
+        return []
+    safe = _safe(collection)
+    built: list[str] = []
+    for win, days in WINDOWS.items():
+        try:
+            cutoff = (_dt.date.fromisoformat(as_of[:10]) - _dt.timedelta(days=days)).isoformat()
+        except ValueError:
+            continue
+        wsafe = f"{safe}_{win}"
+        con.execute(
+            f"CREATE OR REPLACE TABLE balls_{wsafe} AS "
+            f"SELECT * FROM balls_{safe} WHERE match_date >= '{cutoff}'"
+        )
+        # metric fns also read matches_<safe> — window it too.
+        con.execute(
+            f"CREATE OR REPLACE TABLE matches_{wsafe} AS "
+            f"SELECT * FROM matches_{safe} WHERE match_date >= '{cutoff}'"
+        )
+        cnt = con.execute(f"SELECT COUNT(*) FROM balls_{wsafe}").fetchone()[0]
+        if cnt and cnt > 0:
+            built.append(win)
+    return built
+
+
+def _compute_window_metrics(collection: str, win: str) -> None:
+    """Run the tested `compute_metrics all` over a window collection (its own
+    read-only connection — safe alongside the export's). wicket_quality needs
+    a ratings file, so copy the base collection's in first."""
+    import subprocess
+    import sys
+
+    wcol = f"{collection}_{win}"
+    base_r = METRIC_DIR / f"scout_ratings_{collection}.json"
+    win_r = METRIC_DIR / f"scout_ratings_{wcol}.json"
+    if base_r.exists():
+        shutil.copy(base_r, win_r)  # weight window wickets by all-time batter skill
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "compute_metrics.py"), "all", "-c", wcol],
+        check=False,
+        capture_output=True,
+    )
 
 
 def _export_ratings(collection: str, out_dir: Path) -> int:
@@ -458,6 +521,23 @@ def export(
         shutil.rmtree(SITE_DATA)
     cols = [collection] if collection else DEFAULT_COLLECTIONS
 
+    # PREP: build window tables (exclusive write) then cook window metrics via
+    # subprocess — both before the read-only export connection opens.
+    windows_by_col: dict[str, list[str]] = {}
+    prep = duckdb.connect(str(DUCKDB_PATH))  # read-write
+    try:
+        for col in cols:
+            m = _collection_meta(prep, col)
+            if m is None:
+                continue
+            windows_by_col[col] = _build_window_tables(prep, col, m.get("data_as_of"))
+    finally:
+        prep.close()
+    for col, wins in windows_by_col.items():
+        for win in wins:
+            logger.info(f"cooking window metrics: {col} / {win}")
+            _compute_window_metrics(col, win)
+
     con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
     taxonomy = _load_taxonomy()
     name_tax = _taxonomy_by_name()
@@ -474,10 +554,13 @@ def export(
             players = _players(con, col, min_balls, taxonomy, activity)
             meta["n_players"] = len(players)
             meta["n_active"] = sum(1 for p in players if p.get("active"))
+            meta["windows"] = windows_by_col.get(col, [])
             _write(out_dir / "meta.json", meta)
             _write(out_dir / "players.json", players)
             match_counts = _match_counts(con, col)
             n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
+            for win in windows_by_col.get(col, []):
+                _export_leaderboards(col, out_dir, match_counts, name_tax, activity, window=win)
             n_rat = _export_ratings(col, out_dir)
             _export_records_venues(col, out_dir)
             n_prof, n_cohort = _export_profiles_and_cohorts(
