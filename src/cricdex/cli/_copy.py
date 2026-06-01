@@ -130,6 +130,13 @@ COMPARE_THRESHOLD_NOTE = (
     "min-balls / min-innings threshold for the collection."
 )
 
+HEAD_TO_HEAD_NOTE = (
+    "P(A better) = probability A's true opponent-adjusted skill exceeds "
+    "B's, from the difference of their Bayesian posteriors. Near-50% = "
+    "statistically indistinguishable. Skill = scoring / run-suppression "
+    "rate, not dismissal-adjusted value (vNext)."
+)
+
 # --- Venues --------------------------------------------------------------
 
 VENUES_INTRO = (
