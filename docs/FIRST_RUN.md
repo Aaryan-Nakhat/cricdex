@@ -67,8 +67,6 @@ cricdex auction recommend "JJ Bumrah" --budget 8 --role bowler
 
 ```bash
 cricdex rules ask "what is the impact player rule in IPL?"
-cricdex match-report 1247421
-cricdex translate "Stunning yorker" --to hi
 ```
 
 If you skipped the Gemini key in step 2, set it now:

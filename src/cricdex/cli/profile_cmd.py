@@ -1,7 +1,6 @@
-"""Top-level one-shot commands: profile / compare / records / venues /
-match-report / translate. All renderers parity-match the Streamlit
-pages (8_Player_Profile, 5_Compare, 3_Records, 6_Venues,
-4_Match_Reports, 9_Translate_Commentary).
+"""Top-level one-shot commands: profile / compare / records / venues.
+All renderers parity-match the Streamlit pages (8_Player_Profile,
+5_Compare, 3_Records, 6_Venues).
 """
 
 from __future__ import annotations
@@ -10,7 +9,6 @@ import typer
 
 from cricdex.cli import _copy, _render
 from cricdex.cli._shared import (
-    EXIT_MISSING_CRED,
     console,
     die,
     resolve_or_die,
@@ -360,34 +358,3 @@ def venues(
             _render.pretty_table(chase.to_dicts(), title="Chase vs set win rate")
     except Exception as e:  # noqa: BLE001
         die(f"venue lookup failed: {e}")
-
-
-def match_report(
-    match_id: str = typer.Argument(...),
-    collection: str = typer.Option("ipl", "--collection", "-c"),
-) -> None:
-    from cricdex.config import settings
-    from cricdex.reports import match_report as mr
-
-    if not (settings.gemini_api_key or settings.gemini_tmp_url):
-        die(
-            "no Gemini credential — `cricdex config set gemini_api_key <key>`",
-            code=EXIT_MISSING_CRED,
-        )
-    _render.header(f"Match report — {match_id}", subtitle=f"collection: {collection}")
-    _render.intro_panel(_copy.MATCH_REPORT_INTRO, title="Match report")
-    path = mr.generate(match_id=match_id, collection=collection)
-    console().print(path.read_text())
-
-
-def translate(
-    text: str = typer.Argument(...),
-    to: str = typer.Option("hi", "--to", help="hi|ta|bn|ur|si|mr|te|kn"),
-) -> None:
-    from cricdex.commentary_translate import translate as tr
-
-    _render.header("Translate", subtitle=f"en → {to}")
-    _render.intro_panel(_copy.TRANSLATE_INTRO, title="Translate")
-    out = tr.translate(text, target=to)
-    console().print(f"[bold]Input  [/bold] {text}")
-    console().print(f"[bold]Output [/bold] [cyan]{out}[/cyan]")

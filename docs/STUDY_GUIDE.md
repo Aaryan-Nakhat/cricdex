@@ -34,26 +34,24 @@ picture; the algorithm chapters (5–9) are the meat.
 **CricDex** is an open cricket intelligence platform that sits on top
 of publicly available cricket data (primarily
 [Cricsheet's](https://cricsheet.org/) ball-by-ball JSON dumps) and
-emits seven things:
+emits five things — all from Cricsheet ball-by-ball, no live feeds or
+scrapes:
 
 1. **Novel sabermetrics** — context-adjusted player metrics that
    scorecards miss (NGI, Pressure Runs, Crease Longevity, etc).
-2. **Bayesian player ratings** — opponent-adjusted skill scores fit
-   with NumPyro/JAX so a player who only ever faced weak attacks
-   doesn't outrank one who's faced everyone.
-3. **A scout graph** — Neo4j of every IPL player + their FACED
-   bowling edges, TEAMMATE_OF overlaps, and PLAYED_IN matches. Powers
-   "find me a substitute for Bumrah".
+2. **Bayesian player ratings** — dismissal-aware opponent-adjusted
+   skill scores fit with NumPyro/JAX (scoring + survival for batters,
+   economy + strike for bowlers) so a player who only ever faced weak
+   attacks doesn't outrank one who's faced everyone.
+3. **A scout graph** — per-collection Neo4j of every player + their
+   FACED bowling edges, TEAMMATE_OF overlaps, and PLAYED_IN matches.
+   Powers "find me a substitute for Bumrah".
 4. **Auction tooling** — MILP squad optimiser, Monte-Carlo price
-   simulator, GRPO reinforcement-learning self-play, war-room
-   substitute advisor.
-5. **Rules Q&A** — natural-language search over 21 official rulebook
-   PDFs (MCC Laws, ICC Playing Conditions, IPL, BBL, SA20, etc.) with
-   citations.
-6. **A multilingual commentary translator** — English → Hindi /
-   Tamil / Bengali / Urdu / Sinhala / Marathi / Telugu / Kannada.
-7. **A daily digest** — On-This-Day records, match reports, headline
-   metric movements.
+   simulator (real IPL teams), GRPO reinforcement-learning self-play,
+   war-room substitute advisor.
+5. **Rules Q&A** — natural-language search over verified rulebook
+   PDFs (MCC Laws, ICC Playing Conditions, IPL, BBL/WBBL, Cricket
+   Australia domestic, ICC Codes) with citations.
 
 The distribution is **terminal-first**. A single `cricdex` console
 script fronts all of it. A Streamlit dashboard is the parallel
@@ -79,30 +77,28 @@ Top-level layout:
 
 ```
 src/cricdex/
-├── api/                   FastAPI REST surface (12 endpoints + /docs)
+├── api/                   FastAPI REST surface + /docs
 ├── auction/               MILP solver + MC sim + GRPO RL + advisor
 ├── cli/                   typer console script (one file per command group)
-├── commentary_translate/  English → 8 Indic languages
-├── comparator/            Side-by-side player metric tables
-├── config/                Pydantic settings + DATA_DIR resolution
-├── dashboard/             Streamlit pages (12 of them, mirror the TUI)
+├── comparator/            Side-by-side metric table + skill head-to-head
+├── config.py              Pydantic settings + DATA_DIR resolution
+├── dashboard/             Streamlit pages (10 of them, mirror the TUI)
 ├── llm/                   Gemini wrapper (work-proxy URL or personal key)
-├── metrics/               The 10 novel metrics (batter.py + bowler.py + ngi.py)
-├── newsletter/            Markdown digest compiler
+├── metrics/               The 10 novel metrics + dismissal_fingerprint
 ├── people/                Cricsheet People Register loader
-├── pulse/                 Reddit sentiment (datacenter-IP blocked, deferred)
 ├── profiles/              Single-player JSON assembler (used by all surfaces)
 ├── records/               9 record SQL queries + on-this-day digest
-├── reports/               LLM match-report generator
-├── rules/                 21 PDFs → 11k clauses → Qdrant + RAG
+├── rules/                 verified PDFs → 11k clauses → Qdrant + RAG
 ├── scout/
-│   ├── graph/             Neo4j writer + similar.py cohort traversal
+│   ├── graph/             Neo4j writer + similar.py cohort traversal (per-collection)
 │   ├── ingest/            Cricsheet → DuckDB; Wikidata enrichment
-│   ├── ratings/           NumPyro hierarchical Bayes
+│   ├── ratings/           NumPyro hierarchical Bayes (dismissal-aware)
 │   └── search/            Cosine style-twin
-├── tui_helpers/           (small) styling helpers for Textual
 └── venues/                Per-venue conditions (innings totals, phase rates)
 ```
+
+Everything is Cricsheet-derived. There are no live-feed, scrape, or
+non-Cricsheet-source modules — those were intentionally removed.
 
 **Data flow**:
 
@@ -1267,26 +1263,24 @@ Streamlit dashboard.
 
 ### 11.2 TUI — `cricdex/cli/tui.py`
 
-Textual app. 12 tabs:
-1. 📊 Leaderboard
-2. 📜 Rules
-3. 🏆 Records
-4. 📝 Match Report
-5. 🆚 Compare
-6. 🏟 Venues
-7. 💸 Auction (Solve + Recommend in same panel)
-8. 🪪 Profile
-9. 🌐 Translate
-10. 🎲 Auction Sim
-11. 🔗 Twins
-12. 🔄 Update Data — buttons that shell into `data_cmd.run_ingest`
+Textual app. 10 tabs:
+1. Leaderboard
+2. Rules
+3. Records
+4. Compare
+5. Venues
+6. Auction (Solve + Recommend in same panel)
+7. Profile
+8. Auction Sim
+9. Twins
+10. Update Data — buttons that shell into `data_cmd.run_ingest`
 
 Default behaviour: `cricdex` (no args) launches TUI. `cricdex
 --help` lists subcommands as before.
 
 ### 11.3 Streamlit dashboard — `cricdex/dashboard/`
 
-12 pages mirroring the TUI tabs 1-to-1. Same `_widgets.py` helpers
+10 pages mirroring the TUI tabs 1-to-1. Same `_widgets.py` helpers
 (`collection_picker`, `fuzzy_player_input`, `provenance_banner`)
 across pages so the chrome stays uniform.
 
@@ -1332,68 +1326,47 @@ Items intentionally left out of v0.1.0. Grouped by what unblocks
 them; see `docs/VNEXT.md` for the full table and
 `docs/DEFERRED.md` for the per-item fix paths.
 
-### Group A — feeds blocked by datacenter IPs
+**Scope note:** CricDex is deliberately **Cricsheet-only**. Live
+feeds, scrapes, and other non-Cricsheet sources (Reddit sentiment,
+Cricbuzz live, ESPNcricinfo scrape, BCCI Ranji/Hazare, WPL/SA20 PC
+PDFs) and the LLM-convenience features they fed (commentary translate,
+match reports, newsletter digest) were **removed**, not deferred —
+they're out of scope.
 
-Every pipeline below is shipped and tested; the upstream servers
-refuse GCP/AWS traffic. Move to a residential uplink and they run.
+### Group A — grassroots + identity (year 2)
 
-- Wikidata enrichment **on the long tail** beyond the 300 active
-  players (rate-limit-throttled there too).
-- Reddit JSON pulse (sentiment + content).
-- Cricbuzz live match API (ball-by-ball stream).
-- ESPNcricinfo player scrape (would fill in handedness + bowling
-  style natively — would let us drop the middle-overs heuristic).
-- BCCI Domestic — Ranji + Hazare ball-by-ball (only SMAT is
-  currently in Cricsheet).
-- WPL 2026 + SA20 2023 PC PDFs (Playwright fallback needed).
-
-### Group B — grassroots + identity
-
-- `predict` daily-prediction game (depends on Group A live feed).
-- CricHeroes grassroots scraper (long-tail player coverage).
-- Photo-CLIP identity disambiguation (depends on CricHeroes).
+- **CricHeroes grassroots tier** — amateur ball-by-ball, if a
+  partner API or Cricsheet-compatible export becomes available.
+- **Photo-CLIP identity disambiguation** (depends on CricHeroes).
 - **Replacement Delta** metric — `NGI − NGI(replacement-level
-  domestic player)`. Cricket WAR. Depends on Ranji + Hazare ingest.
+  domestic player)`. Cricket WAR. Needs a domestic-tier baseline.
 
-### Group C — auction-v2 (GPU compute)
+### Group B — auction-v2 (GPU compute)
 
 - **Multi-agent PettingZoo self-play** — every franchise slot trains
   its own policy concurrently (currently one learner + 5 MC
   opponents).
-- **Bid-history-mined personality YAMLs** — replace the 6 hand-
-  authored archetypes with personalities extracted from 10 years of
-  real IPL auction bid logs via Gemini.
-- **GRPO reward-shape A/B** — alternative reward designs (per-slot
-  marginal value, replacement penalty, etc.).
+- **Bid-history-mined personality YAMLs** — replace the hand-
+  authored archetypes with personalities extracted from real IPL
+  auction bid logs.
+- **GRPO reward-shape A/B** + the real 8000-epoch converged run
+  (currently smoke-trained only).
 
-### Group D — year-2 advanced (CV + voice)
+### Group C — year-2 advanced (CV)
 
 - **OpenBoundary Hawk-Eye OSS** — ball tracking + pitch map + speed
-  from broadcast video. Would replace the FAQ-based DRS Practice
-  page with an actual ball-tracking simulator.
-- **ChuckCheck** — elbow flex from monocular pose (15° legality
-  test).
-- **Voice analyst earpiece** — LiveKit + STT + LLM + TTS for live
-  commentary insights.
-- **ScoutVLM** — YouTube broadcast → ball-by-ball via a Vision
-  Language Model (Gemini Pro Vision / Idefics2).
+  from broadcast video.
+- **ChuckCheck** — elbow flex from monocular pose (15° legality test).
+- **ScoutVLM** — broadcast → ball-by-ball via a Vision Language Model.
 - **Highlight CV** — auto-clip key moments from broadcast.
-- **Tournament management B2B** — turnkey scoring + analytics for
-  domestic boards.
-- **Voice-cloned commentary translation** — text → audio with the
-  commentator's own voice across 8 Indic languages.
 
-### Group E — API + infra
+### Group D — API + infra
 
 - **GraphQL** layer (Strawberry on top of existing FastAPI).
 - **Auth + rate-limit** — Cloudflare Worker + API keys table.
   Mandatory before any public deploy.
-- **Live → dashboard websocket** — push live-feed insights to a new
-  dashboard page once the feed unblocks.
 - **HF Datasets publish** — `cricdex-rules-clauses` open-benchmark.
-- **Public deploy** — HuggingFace Spaces (16 GB free Docker,
-  ephemeral disk) or Oracle Cloud Always Free (24 GB / 4 vCPU ARM,
-  persistent). Both scoped.
+- **Public deploy** — HuggingFace Spaces or Oracle Cloud Always Free.
 
 ### Group F — maintenance cadence
 

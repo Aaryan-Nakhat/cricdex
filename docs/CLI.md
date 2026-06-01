@@ -29,9 +29,8 @@ cricdex init
 ```
 
 First-run wizard. Creates `$CRICDEX_HOME` (default `~/.cricdex/`),
-prompts for the Gemini key (required for rules / translate / match-
-report) and Jina key (optional rerank), prints the next-step
-commands. Idempotent.
+prompts for the Gemini key (required for rules Q&A) and Jina key
+(optional rerank), prints the next-step commands. Idempotent.
 
 ---
 
@@ -82,7 +81,7 @@ via `cricdex data ingest metrics` first.
 
 ---
 
-## profile / compare / records / venues / match-report / translate
+## profile / compare / records / venues
 
 ```
 cricdex profile "V Kohli" [-c ipl]
@@ -91,8 +90,6 @@ cricdex records today                        # on-this-day
 cricdex records list                         # list record keys
 cricdex records career_run_leaders --top-n 25
 cricdex venues "Wankhede"
-cricdex match-report 1247421                 # needs Gemini key
-cricdex translate "Stunning yorker" --to hi  # needs Gemini key
 ```
 
 ---

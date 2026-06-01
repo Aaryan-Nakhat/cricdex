@@ -10,30 +10,28 @@ dependency.
 
 ---
 
-## A — feeds that need a residential / non-datacenter network
+## Scope: Cricsheet-only
 
-All pipelines below are shipped end-to-end and tested; the upstream
-servers refuse GCP / AWS / datacenter IPs. Move each pull to a
-domestic uplink, mobile hotspot, or residential-IP proxy.
+CricDex is intentionally **Cricsheet-only**. All non-Cricsheet
+sources and the LLM-convenience features built on them were
+**removed** (not deferred) — out of scope:
 
-| Slice | Module | Verify with |
-|---|---|---|
-| Wikidata player metadata (DOB, role, handedness, bowling style) | `cricdex.scout.ingest.wikidata` | `cricdex data ingest wikidata` |
-| Reddit JSON pulse | `cricdex.pulse.sources.reddit_public` | `cricdex data ingest reddit` |
-| Cricbuzz live match-api | `cricdex.live.cricbuzz` | `cricdex live --match <id>` (cmd lands once feed unblocks) |
-| ESPNcricinfo player scrape | (planned) | `cricdex profile "RG Sharma"` fills Cricinfo fields |
-| BCCI Domestic Ranji + Hazare | `cricdex.scout.ingest.cricsheet` (state-team aggregator covers SMAT only) | `cricdex data ingest cricsheet -c indian_domestic_male` |
-| WPL 2026 PC + SA20 2023 PC PDFs | `cricdex.rules.ingest` (Playwright fallback) | `cricdex data ingest rules` picks them up |
-| BCCI Code of Conduct mirror (TLS hostname mismatch) | `cricdex.rules.ingest` | `cricdex data ingest rules` |
+- Reddit sentiment (`pulse`), Cricbuzz live (`live`), ESPNcricinfo
+  scrape, BCCI Ranji/Hazare ingest, WPL 2026 / SA20 2023 / BCCI Code
+  rule PDFs.
+- Commentary translate, match reports, newsletter digest, the DRS
+  placeholder.
 
-## B — grassroots + identity
+Wikidata one-time enrichment stays (289/300 active players; the
+remaining 11 are obscure players genuinely absent from Wikidata).
+
+## A — grassroots + identity (year 2)
 
 | Slice | DEFERRED ref | Verify with |
 |---|---|---|
-| Predict daily-prediction game (blocked by §A live feed) | §2.1 | `cricdex predict play` |
 | CricHeroes grassroots scraper | §2.2 | `cricdex data ingest cricheroes` |
-| Photo-CLIP identity disambiguation (blocked by §B-CricHeroes) | §2.3 | `cricdex scout disambiguate "JJ Smith"` |
-| **Replacement Delta** metric (blocked by Ranji + Hazare in §A) | METRICS §"Still planned" | `cricdex leaderboard replacement_delta` |
+| Photo-CLIP identity disambiguation (blocked by §A-CricHeroes) | §2.3 | `cricdex scout disambiguate "JJ Smith"` |
+| **Replacement Delta** metric (needs a domestic-tier baseline) | METRICS §"Still planned" | `cricdex leaderboard replacement_delta` |
 
 ## C — auction-v2 (GPU compute)
 

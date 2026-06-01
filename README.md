@@ -1,11 +1,11 @@
 # CricDex
 
 Open cricket intelligence platform — natural-language rule Q&A, novel
-sabermetrics (NGI / WPA, Phase Dilation, Setting Tax, Wicket Quality,
-Pressure Runs, …), multi-tier scouting graph with Bayesian opponent-
-adjusted ratings, MILP auction war-room + GRPO auction self-play +
-substitute advisor, side-by-side comparator, multilingual commentary
-translator, DRS practice game, daily newsletter digest.
+sabermetrics (NGI / WPA, Crease Longevity, Slow-Start Cost, Wicket
+Quality, Pressure Runs, …), multi-tier scouting graph with
+dismissal-aware Bayesian opponent-adjusted ratings, MILP auction
+war-room + GRPO auction self-play + substitute advisor, side-by-side
+comparator.
 
 **Distribution is terminal-first.** A single console script `cricdex`
 fronts everything; a Streamlit dashboard is included as an optional
@@ -50,26 +50,24 @@ All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
 
 | Module | What |
 |---|---|
-| `scout` | Player graph (Neo4j) + Bayesian opponent-adjusted ratings (NumPyro/JAX, ADVI + NUTS) + style-twin k-NN. Pro tier ingested; grassroots / CricHeroes tier planned. |
-| `metrics` | Six novel context-adjusted ratings: Pressure Runs, Intent Curve, Recoverability, Counter-Attack, Boundary Dependency, Sticky Dot Pressure. |
-| `rules` | Natural-language Q&A over 21 verified rulebook PDFs (MCC Laws + ICC PCs + IPL + Hundred + BBL/WBBL + SA20 + Cricket Australia domestic + ICC Codes + Anti-Corruption). 11k+ clauses indexed in Qdrant. Curated supplementary clauses cover gaps such as the IPL Impact Player rule. |
-| `pulse` | Reddit fetcher + Gemini sentiment extractor. Data load blocked from datacenter IPs. |
-| `auction` | MILP squad optimiser via `scipy.optimize.milp` + Monte-Carlo price-band simulator + GRPO RL self-play (`scripts/train_auction_grpo.py`, real 429-player IPL pool, 6 franchise archetypes) + war-room substitute advisor (`scripts/auction_advisor.py`, composite of graph similarity + Bayes value + budget). CLI + dashboard war-room. |
-| `drs` | 20-scenario umpire-decision practice game with MCC / ICC citations. |
+| `scout` | Per-collection player graph (Neo4j) + dismissal-aware Bayesian opponent-adjusted ratings (NumPyro/JAX, ADVI + NUTS — scoring + survival for batters, economy + strike for bowlers) + style-twin k-NN. |
+| `metrics` | 10 novel context-adjusted ratings: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary Dependency, Pressure Conversion, Wicket Quality, Crease Longevity, Slow-Start Cost. + per-player/matchup dismissal fingerprint. |
+| `rules` | Natural-language Q&A over verified rulebook PDFs (MCC Laws + ICC PCs + IPL + Hundred + BBL/WBBL + Cricket Australia domestic + ICC Codes + Anti-Corruption). 11k+ clauses indexed in Qdrant. Curated supplementary clauses cover gaps such as the IPL Impact Player rule. |
+| `auction` | MILP squad optimiser via `scipy.optimize.milp` + Monte-Carlo price-band simulator (real IPL teams, editable bidding personalities) + GRPO RL self-play scaffold + war-room substitute advisor (composite of graph similarity + Bayes complete-value + budget). CLI + dashboard war-room. |
 | `records` | 9 record SQL queries + On-This-Day digest. |
-| `reports` | LLM-written match reports grounded in Cricsheet facts, no hallucinations. |
-| `live` | Cricbuzz live-score fetcher. Pipeline correct; data load blocked from datacenter IPs. |
 | `venues` | Per-venue innings totals + chase/set winrate + phase rates + dismissal mix. |
 | `profiles` | Per-player profile assembler aggregating every source CricDex has. |
-| `comparator` | Plotly-radar + transposed table side-by-side. |
-| `newsletter` | Markdown digest compiler (On-This-Day + headlines + auto match report). |
-| `commentary_translate` | English → Hindi / Tamil / Bengali / Urdu / Sinhala / Marathi / Telugu / Kannada (text-only). Voice-cloned audio deferred to year 2. |
-| `api` | FastAPI public REST surface (12 endpoints + OpenAPI at `/docs`). See [`docs/API.md`](docs/API.md). |
-| `dashboard` | 12-page Streamlit app: Home, Leaderboards, Rules Chat, Records, Match Reports, Compare, Venues, Auction (MILP + war-room advisor), Player Profile (with Wikidata photo + DOB + social links), Translate Commentary, Auction Simulator (Monte-Carlo + GRPO RL), Player Twins (graph similarity, role-archetype auto-flip). |
+| `comparator` | Plotly-radar + transposed table side-by-side + probabilistic skill head-to-head. |
+| `api` | FastAPI public REST surface + OpenAPI at `/docs`. See [`docs/API.md`](docs/API.md). |
+| `dashboard` | 10-page Streamlit app: Leaderboards, Rules Chat, Records, Compare, Venues, Auction (MILP + war-room advisor), Player Profile (Wikidata photo + DOB + dismissal fingerprint), Auction Simulator (Monte-Carlo + GRPO RL), Player Twins (per-collection graph), Update Data. |
+
+Cricsheet-only: all data derives from Cricsheet ball-by-ball + the
+People Register + (one-time) Wikidata enrichment. Live-feed, scrape,
+and non-Cricsheet sources are intentionally out of scope.
 
 Deferred to year 2: OpenBoundary (Hawk-Eye OSS), ChuckCheck (elbow flex
-biomechanics), Voice analyst, ScoutVLM (video → ball-by-ball), Highlight
-CV, Tournament B2B.
+biomechanics), ScoutVLM (video → ball-by-ball), Highlight CV,
+CricHeroes grassroots tier.
 
 ## Stack
 

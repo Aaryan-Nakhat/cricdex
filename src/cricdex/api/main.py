@@ -4,7 +4,7 @@ Conventions
 -----------
 - All read endpoints are GET with query-string params.
 - Outputs are JSON — either a list of records or a single object.
-- Write-shape endpoints (rules QA, translate, auction solve) are POST
+- Write-shape endpoints (rules QA, auction solve) are POST
   with a JSON body for forward-compat.
 - No auth yet; expose only behind a reverse proxy with rate-limiting
   in front (Cloudflare Workers planned).
@@ -19,11 +19,9 @@ from pydantic import BaseModel
 
 from cricdex import __version__
 from cricdex.auction import solver as auction_solver
-from cricdex.commentary_translate import translate as ct
 from cricdex.comparator import compare as comparator
 from cricdex.profiles import builder as profiles
 from cricdex.records import queries as records
-from cricdex.reports import match_report
 from cricdex.rules import qa as rules_qa
 from cricdex.scout.search import style_twin as st
 from cricdex.venues import profile as venues
@@ -141,30 +139,6 @@ def rules_ask(req: RulesAskReq) -> dict[str, Any]:
         "citations": [{"source_id": s, "law_number": l_} for s, l_ in res["citations"]],
         "llm_used": res.get("llm_used"),
     }
-
-
-# ---- match reports --------------------------------------------------------
-
-
-@app.get("/v1/match-reports/{match_id}")
-def match_report_endpoint(match_id: str, collection: str = Query("ipl")) -> dict[str, str]:
-    path = match_report.generate(match_id=match_id, collection=collection)
-    return {"match_id": match_id, "collection": collection, "report_md": path.read_text()}
-
-
-# ---- translate ------------------------------------------------------------
-
-
-class TranslateReq(BaseModel):
-    text: str
-    target: str = "hi"
-
-
-@app.post("/v1/translate")
-def translate_endpoint(req: TranslateReq) -> dict[str, str]:
-    if req.target not in ct.TARGETS:
-        raise HTTPException(status_code=422, detail=f"unsupported target {req.target!r}")
-    return {"target": req.target, "translated": ct.translate(req.text, target=req.target)}
 
 
 # ---- auction --------------------------------------------------------------

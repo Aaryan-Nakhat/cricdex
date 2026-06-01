@@ -193,16 +193,6 @@ SOURCES: list[RuleSource] = [
         notes="Latest BBL men's PC publicly released. Refresh once 2025-26 published.",
     ),
     RuleSource(
-        id="sa20_pc_2023",
-        title="SA20 Playing Conditions",
-        organization="CSA / SA20",
-        tier="league_men",
-        url="https://sa20.co.za/wp-content/uploads/2023/01/VF_SA20-Playing-Conditions-2023.pdf",
-        edition="2023",
-        verified=False,
-        notes="URL confirmed correct, but Next.js + Cloudfront gate the path and serve an HTML shell to non-browser clients. Promote to Playwright-based fetcher when needed.",
-    ),
-    RuleSource(
         id="ilt20_pc",
         title="ILT20 Playing Conditions",
         organization="ECB UAE / ILT20",
@@ -244,17 +234,6 @@ SOURCES: list[RuleSource] = [
     ),
     # --- Leagues (women's) ---
     RuleSource(
-        id="wpl_pc_2026",
-        title="WPL Playing Conditions",
-        organization="BCCI / WPL",
-        tier="league_women",
-        url="https://www.wplt20.com/static-assets/pdfs/TATA_WPL_2026_Playing_Conditions.pdf",
-        edition="Effective 1 January 2026",
-        effective_from=date(2026, 1, 1),
-        verified=False,
-        notes="URL confirmed in WPL site search, but wplt20.com's Next.js SPA rewrites static-assets paths and serves an HTML shell to non-browser clients. Promote to Playwright-based fetcher when needed.",
-    ),
-    RuleSource(
         id="wbbl_pc_2025_26",
         title="WBBL Playing Conditions",
         organization="Cricket Australia",
@@ -281,16 +260,6 @@ SOURCES: list[RuleSource] = [
         url="https://resources.cricket-australia.pulselive.com/cricket-australia/document/2025/11/07/a219316b-ffbe-4119-89fa-ae540abe9dae/2025-26-One-Day-Cup-Playing-Conditions-1-September-2025.pdf",
         edition="2025-26",
         verified=True,
-    ),
-    RuleSource(
-        id="bcci_domestic_pc",
-        title="BCCI Domestic Tournament Playing Conditions (Ranji / SMAT / Vijay Hazare)",
-        organization="BCCI",
-        tier="domestic_mixed",
-        url="",
-        edition="2025-26",
-        verified=False,
-        notes="No aggregated PC PDF on documents.bcci.tv. BCCI publishes per-tournament annexures; collect manually each season.",
     ),
     # --- Ethics + Conduct ---
     RuleSource(
@@ -321,16 +290,6 @@ SOURCES: list[RuleSource] = [
         url="https://documents.iplt20.com/bcci/documents/1742708207275_Code_of_Conduct_for_Players_&_Team_Officials.pdf",
         edition="2025",
         verified=True,
-    ),
-    RuleSource(
-        id="bcci_code_of_conduct_2025",
-        title="BCCI Code of Conduct for Players and Team Officials",
-        organization="BCCI",
-        tier="ethics",
-        url="https://www.hycricket.org/data-2025-26/BCCI/BCCI-coc-Players_Final-031025.pdf",
-        edition="2025",
-        verified=False,
-        notes="Hyderabad Cricket Association mirror (BCCI's own copy not directly linked). Host's TLS certificate is for a different hostname, so httpx rejects it; promote to a fetcher that allows cert overrides if needed.",
     ),
     # --- Integrity ---
     RuleSource(

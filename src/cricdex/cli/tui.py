@@ -2,8 +2,8 @@
 
 11 tabs matching the 11 Streamlit dashboard pages 1-to-1:
 Leaderboard / Rules / Records / Match-Report / Compare / Venues /
-Auction (Solve + Recommend) / Profile / Translate / Auction-Sim /
-Twins. Same code paths as the one-shot CLI, so behaviour stays in
+Auction (Solve + Recommend) / Profile / Auction-Sim / Twins.
+Same code paths as the one-shot CLI, so behaviour stays in
 lockstep.
 
 Quit: q / Ctrl-C / Esc.
@@ -66,17 +66,6 @@ VENUE_VIEW_OPTIONS = [
     ("Innings totals", "innings"),
     ("Phase run rates", "phases"),
     ("Chase vs set winrate", "chase"),
-]
-
-TRANSLATE_OPTIONS = [
-    ("Hindi", "hi"),
-    ("Tamil", "ta"),
-    ("Bengali", "bn"),
-    ("Urdu", "ur"),
-    ("Sinhala", "si"),
-    ("Marathi", "mr"),
-    ("Telugu", "te"),
-    ("Kannada", "kn"),
 ]
 
 SCOUT_MODE_OPTIONS = [
@@ -214,12 +203,10 @@ class CricDexApp(App):
         "tab-leaderboard",
         "tab-rules",
         "tab-records",
-        "tab-matchreport",
         "tab-compare",
         "tab-venues",
         "tab-auction",
         "tab-profile",
-        "tab-translate",
         "tab-auction-sim",
         "tab-twins",
         "tab-update",
@@ -249,8 +236,6 @@ class CricDexApp(App):
                 yield from self._rules_panel()
             with TabPane("Records", id="tab-records"):
                 yield from self._records_panel()
-            with TabPane("Report", id="tab-matchreport"):
-                yield from self._matchreport_panel()
             with TabPane("Compare", id="tab-compare"):
                 yield from self._compare_panel()
             with TabPane("Venues", id="tab-venues"):
@@ -259,8 +244,6 @@ class CricDexApp(App):
                 yield from self._auction_panel()
             with TabPane("Profile", id="tab-profile"):
                 yield from self._profile_panel()
-            with TabPane("Translate", id="tab-translate"):
-                yield from self._translate_panel()
             with TabPane("Sim", id="tab-auction-sim"):
                 yield from self._auction_sim_panel()
             with TabPane("Twins", id="tab-twins"):
@@ -423,42 +406,6 @@ class CricDexApp(App):
             _fill_datatable(table, [{"error": str(e)}])
             return
         _fill_datatable(table, rows)
-
-    # ===== Match Report ===================================================
-
-    def _matchreport_panel(self) -> ComposeResult:
-        with Vertical():
-            with Horizontal(classes="controls"):
-                yield Label("Match ID:")
-                yield Input(value="980987", id="mr-id")
-                yield Label("Coll:")
-                yield Input(value="ipl", id="mr-collection")
-                yield Button("Generate ▸", id="mr-run", variant="primary")
-            yield Static(_copy.MATCH_REPORT_INTRO, classes="intro")
-            yield RichLog(id="mr-log", highlight=False, markup=True, wrap=True)
-
-    def _on_run_matchreport(self) -> None:
-        log = self.query_one("#mr-log", RichLog)
-        log.clear()
-        from cricdex.config import settings
-
-        if not (settings.gemini_api_key or settings.gemini_tmp_url):
-            log.write(
-                "[red]missing Gemini credential[/red]\n"
-                "set via `cricdex config set gemini_api_key <key>` then re-launch the TUI."
-            )
-            return
-        match_id = self.query_one("#mr-id", Input).value.strip()
-        collection = self.query_one("#mr-collection", Input).value
-        try:
-            from cricdex.reports import match_report as mr
-
-            path = mr.generate(match_id=match_id, collection=collection)
-        except Exception as e:  # noqa: BLE001
-            log.write(f"[red]error:[/red] {e}")
-            return
-        for line in path.read_text().splitlines():
-            log.write(line)
 
     # ===== Compare ========================================================
 
@@ -758,42 +705,6 @@ class CricDexApp(App):
         for line in buf.export_text(clear=False, styles=False).splitlines():
             log.write(line)
 
-    # ===== Translate ======================================================
-
-    def _translate_panel(self) -> ComposeResult:
-        with Vertical():
-            with Horizontal(classes="controls"):
-                yield Label("Text:")
-                yield Input(
-                    value="Kohli pulls the short ball for six over deep mid-wicket",
-                    id="tr-text",
-                )
-                yield Label("To:")
-                yield Select(
-                    options=TRANSLATE_OPTIONS,
-                    value="hi",
-                    id="tr-lang",
-                    allow_blank=False,
-                )
-                yield Button("Translate ▸", id="tr-run", variant="primary")
-            yield Static(_copy.TRANSLATE_INTRO, classes="intro")
-            yield RichLog(id="tr-log", highlight=False, markup=True, wrap=True)
-
-    def _on_run_translate(self) -> None:
-        log = self.query_one("#tr-log", RichLog)
-        log.clear()
-        text = self.query_one("#tr-text", Input).value
-        lang = self.query_one("#tr-lang", Select).value
-        try:
-            from cricdex.commentary_translate import translate as tr
-
-            out = tr.translate(text, target=lang)
-        except Exception as e:  # noqa: BLE001
-            log.write(f"[red]error:[/red] {e}")
-            return
-        log.write(f"[bold]Input[/bold]  {text}")
-        log.write(f"[bold]Output ({lang})[/bold]  [cyan]{out}[/cyan]")
-
     # ===== Auction Simulator ==============================================
 
     def _auction_sim_panel(self) -> ComposeResult:
@@ -1010,13 +921,11 @@ class CricDexApp(App):
             "metric-run": self._on_run_leaderboard,
             "rules-run": self._on_run_rules,
             "records-run": self._on_run_records,
-            "mr-run": self._on_run_matchreport,
             "cmp-run": self._on_run_compare,
             "ven-run": self._on_run_venues,
             "auc-rec-run": self._on_run_auction_recommend,
             "auc-solve-run": self._on_run_auction_solve,
             "profile-run": self._on_run_profile,
-            "tr-run": self._on_run_translate,
             "sim-run": self._on_run_auction_sim,
             "sim-apply": self._on_apply_sim_team,
             "sim-reset": self._on_reset_sim_teams,

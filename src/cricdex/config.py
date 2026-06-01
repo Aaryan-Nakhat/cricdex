@@ -10,7 +10,7 @@ CricDex is a terminal-first tool. Credentials live in:
 Only two credentials are user-relevant:
 
 - `gemini_api_key` (or `gemini_tmp_url` + `gemini_tmp_api_key` for the
-  legacy work proxy) — needed for rules Q&A, translate, match reports.
+  legacy work proxy) — needed for rules Q&A.
 - `jina_api_key` — optional, enables cross-encoder rerank in rules
   retrieval. Falls back to RRF order if unset.
 
@@ -69,7 +69,7 @@ def _setting(name: str, default: str = "") -> str:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(ROOT / ".env"), extra="ignore")
 
-    # LLM (rules QA, translate, match reports).
+    # LLM (rules Q&A).
     gemini_api_key: str = _setting("gemini_api_key")
     # Legacy work-hosted proxy. Phased out once user supplies a personal
     # gemini_api_key. Both fields are read; non-empty wins.

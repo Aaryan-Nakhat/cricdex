@@ -32,8 +32,8 @@ def run() -> None:
 
     if not cfg.get("gemini_api_key") and not cfg.get("gemini_tmp_url"):
         c.print(
-            "\n[bold]Gemini key[/bold] — needed for rules Q&A, translate, "
-            "match reports. Skip if you only want metrics / scout / auction."
+            "\n[bold]Gemini key[/bold] — needed for rules Q&A. "
+            "Skip if you only want metrics / scout / auction."
         )
         key = typer.prompt(
             "paste personal GEMINI_API_KEY (or hit Enter to skip)", default="", show_default=False

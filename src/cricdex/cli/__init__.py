@@ -10,8 +10,6 @@ Subcommand groups, each mounted as its own typer app:
   cricdex compare <a> <b>                   side-by-side comparator
   cricdex records [today | <key>]           record book + on-this-day
   cricdex venues <venue>                    pitch + conditions
-  cricdex match-report <id>                 LLM match report
-  cricdex translate <text> --to <lang>      Gemini commentary translate
   cricdex rules ask "<question>"            citation-grounded rule QA
   cricdex scout twins <name>                graph cohort
   cricdex scout find-replacement <name>     auto-flip role-aware twins
@@ -94,8 +92,6 @@ app.command(name="profile", help="Per-player profile card.")(profile_cmd.profile
 app.command(name="compare", help="Side-by-side comparator.")(profile_cmd.compare)
 app.command(name="records", help="Records + on-this-day.")(profile_cmd.records)
 app.command(name="venues", help="Venue pitch + conditions.")(profile_cmd.venues)
-app.command(name="match-report", help="LLM match report.")(profile_cmd.match_report)
-app.command(name="translate", help="Translate commentary text.")(profile_cmd.translate)
 
 
 @app.command(name="dashboard", help="Launch the Streamlit dashboard.")
