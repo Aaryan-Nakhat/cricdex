@@ -177,7 +177,7 @@ METRIC_HINTS = {
         "after partnership-breaking dismissals."
     ),
     "boundary_dependency": (
-        "Share of runs from 4s + 6s. Higher = boundary-reliant; lower = strong " "strike-rotator."
+        "Share of runs from 4s + 6s. Higher = boundary-reliant; lower = strong strike-rotator."
     ),
     "sticky_dot_pressure": (
         "Wicket rate on the next ball after a 4+ consecutive dot streak in the "
@@ -212,28 +212,31 @@ st.markdown("### Bayesian scout-rating")
 bayes = profile.get("bayes") or {}
 
 
-def _bayes_sentence(role_key: str, label: str) -> str:
+def _bayes_sentence(role_key: str, label: str, skill_key: str = "skill") -> str:
     # builder.build returns nested dicts: `bayes.bayes_batter / bayes_bowler`
     rec = (bayes or {}).get(f"bayes_{role_key}") or {}
-    skill = rec.get("skill")
-    sd = rec.get("skill_sd")
-    balls = rec.get("balls")
+    skill = rec.get(skill_key)
     if skill is None:
         return f"{label}: not enough data."
+    sd = rec.get(f"{skill_key}_sd")
+    balls = rec.get("balls")
     sd = sd if sd is not None else 1.0
     confidence = "high" if sd < 0.05 else ("medium" if sd < 0.10 else "low")
-    return (
-        f"{label}: **{skill:+.3f}** ({confidence} confidence; "
-        f"σ={sd:.3f} on {balls or '?'} balls)."
-    )
+    tail = f" on {balls or '?'} balls" if skill_key == "skill" else ""
+    return f"{label}: **{skill:+.3f}** ({confidence} confidence; σ={sd:.3f}{tail})."
 
 
-st.markdown(_bayes_sentence("batter", "Batter skill"))
-st.markdown(_bayes_sentence("bowler", "Bowler skill"))
+st.markdown(_bayes_sentence("batter", "Batter scoring rate"))
+st.markdown(_bayes_sentence("batter", "Batter survival (dismissal resistance)", "survival_skill"))
+st.markdown(_bayes_sentence("bowler", "Bowler economy"))
+st.markdown(_bayes_sentence("bowler", "Bowler strike (wicket-taking)", "strike_skill"))
 st.caption(
-    "Skill is on the natural-log scale of the NumPyro / JAX hierarchical "
-    "Negative-Binomial fit. 0 = league average. +0.30 ≈ marquee; -0.30 ≈ "
-    "replacement-level."
+    "Skills are on the natural-log scale of the NumPyro / JAX hierarchical "
+    "joint fit (runs Negative-Binomial + dismissals Binomial). 0 = league "
+    "average, higher = better on every axis. Scoring rate + survival "
+    "together give complete batting value; economy + strike give complete "
+    "bowling value. A fast slogger who gets out often scores high on "
+    "scoring but low on survival."
 )
 
 st.subheader("Style twins")

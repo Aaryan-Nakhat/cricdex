@@ -126,11 +126,22 @@ def _bayes_skills(con: duckdb.DuckDBPyConnection, collection: str, cricsheet_id:
     out: dict = {}
     for r in rows:
         if r.get("cricsheet_id") == cricsheet_id:
-            out[f"bayes_{r['role']}"] = {
+            entry = {
                 "skill": r.get("skill"),
                 "skill_sd": r.get("skill_sd"),
                 "balls": r.get("balls"),
             }
+            # Dismissal-aware extras (present once the joint model is fit):
+            # batters get survival, bowlers get strike, both get `value`.
+            if r.get("survival_skill") is not None:
+                entry["survival_skill"] = r.get("survival_skill")
+                entry["survival_skill_sd"] = r.get("survival_skill_sd")
+            if r.get("strike_skill") is not None:
+                entry["strike_skill"] = r.get("strike_skill")
+                entry["strike_skill_sd"] = r.get("strike_skill_sd")
+            if r.get("value") is not None:
+                entry["value"] = r.get("value")
+            out[f"bayes_{r['role']}"] = entry
     return out
 
 

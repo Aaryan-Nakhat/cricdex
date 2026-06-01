@@ -131,10 +131,11 @@ COMPARE_THRESHOLD_NOTE = (
 )
 
 HEAD_TO_HEAD_NOTE = (
-    "P(A better) = probability A's true opponent-adjusted skill exceeds "
-    "B's, from the difference of their Bayesian posteriors. Near-50% = "
-    "statistically indistinguishable. Skill = scoring / run-suppression "
-    "rate, not dismissal-adjusted value (vNext)."
+    "P(A better) = probability A's true value exceeds B's, from the "
+    "difference of their Bayesian posteriors. Near-50% = statistically "
+    "indistinguishable. Batting value = opponent-adjusted scoring rate "
+    "+ dismissal resistance; bowling value = economy + strike rate. A "
+    "fast slogger who gets out often no longer outranks an anchor."
 )
 
 # --- Venues --------------------------------------------------------------

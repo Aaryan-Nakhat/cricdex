@@ -82,7 +82,9 @@ NATIONALITY_OVERRIDES: dict[str, str] = {
 
 def _load_ratings(path: Path | str = DEFAULT_RATINGS_PATH) -> pl.DataFrame:
     rows = json.loads(Path(path).read_text())
-    return pl.DataFrame(rows)
+    # infer_schema_length=None — ratings JSON mixes batter-only
+    # (survival_skill) and bowler-only (strike_skill) columns.
+    return pl.DataFrame(rows, infer_schema_length=None)
 
 
 def _nationality_map(con: duckdb.DuckDBPyConnection) -> dict[str, str]:

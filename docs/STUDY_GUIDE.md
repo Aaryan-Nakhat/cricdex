@@ -17,7 +17,7 @@ picture; the algorithm chapters (5–9) are the meat.
 2. Architecture — module layout, data flow, how pieces fit
 3. Data layer — Cricsheet, People Register, Wikidata, Rules PDFs
 4. The 10 novel cricket metrics — formula + intuition each
-5. Bayesian scout ratings — hierarchical NegBin, NumPyro, ADVI vs NUTS
+5. Bayesian scout ratings — hierarchical NegBin + dismissal Binomial, NumPyro, ADVI vs NUTS
 6. NGI / Net Game Impact — XGBoost win-prob + isotonic calibration + ΔWP
 7. Scout graph — Neo4j model + cohort traversal + archetype detection
 8. Auction stack — MILP solver, Monte Carlo simulator, GRPO RL, advisor
@@ -552,6 +552,67 @@ Two rows per cross-role player (Kohli has both because he bowls
 occasionally). The `skill_sd` is the standard error — pair it with
 the `balls` to read confidence: `balls=6499, sd=0.029` is rock
 solid; `balls=172, sd=0.343` is barely better than the prior.
+
+### 5.7 Dismissal-aware extension (the joint model)
+
+The runs-only model above has a blind spot: it scores **scoring
+rate**, not **getting out**. A slogger who smashes 1.8 runs/ball but
+is dismissed every 8 balls looks "high skill" — clearly wrong for a
+complete batting rating.
+
+The fix is a **second, coupled likelihood**. Alongside the runs
+Negative-Binomial we add a per-ball **dismissal Binomial** on the same
+(batter, bowler) edges:
+
+```
+# scoring sub-model (as before)
+runs_ij ~ NegBin(exp(r_int + bat_score[i] − bowl_econ[j]) × balls, alpha)
+
+# dismissal sub-model (new)
+outs_ij ~ Binomial(balls_ij,
+                   sigmoid(w_int + bowl_strike[j] − bat_survive[i]))
+```
+
+Now each player carries up to **four** latent skills (all higher =
+better):
+
+| Skill | Axis | Meaning |
+|---|---|---|
+| `bat_score` | batting | scoring rate (existing) |
+| `bat_survive` | batting | dismissal resistance (NEW) |
+| `bowl_econ` | bowling | run suppression (existing) |
+| `bowl_strike` | bowling | wicket-taking rate (NEW) |
+
+`outs_ij` = bowler-credited dismissals of batter i by bowler j
+(caught / bowled / lbw / c&b / stumped / hit-wicket — excludes run-out
+& retired). The two sub-models share the edge structure but have
+independent latents, so a single ADVI/NUTS run fits all four at once.
+
+**Why a Binomial?** Each ball is a Bernoulli "out / not out"; summed
+over the edge's balls it's Binomial. The logit (`sigmoid`) keeps the
+probability in [0, 1]. Baseline dismissal rate in T20 ≈ 1/25, so the
+intercept prior is `Normal(−3, 2)` (log-odds of ~1/25).
+
+**What it fixes — validated on IPL:**
+
+| Player | score | survive | complete value |
+|---|---|---|---|
+| AB de Villiers | +0.18 | +0.17 | **+3.56** (top) |
+| V Kohli | +0.05 | +0.21 | +2.93 (anchor) |
+| KA Pollard | +0.12 | **−0.14** | **−0.57** (slogger!) |
+
+Pollard's high scoring rate no longer wins — his poor survival drags
+his **complete value** negative, while De Villiers (elite on both)
+tops the table. Same split for bowlers distinguishes wicket-takers
+(Chahal: weak economy, top strike) from control bowlers (Ashwin:
+elite economy, near-zero strike) — the old single-skill model
+couldn't tell them apart.
+
+**Complete value** = raw sum of the two axes (both log-scale, both
+higher = better, empirically comparable magnitude). This is what the
+head-to-head (§ surfaces) and the leaderboard's `value` column rank
+on. Output JSON gains `survival_skill` / `strike_skill` (+ SDs) and
+`value` per row; legacy readers that only want `skill` keep working.
 
 ---
 

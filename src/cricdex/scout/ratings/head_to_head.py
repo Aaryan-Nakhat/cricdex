@@ -72,6 +72,27 @@ def _index(rows: list[dict]) -> dict[tuple[str, str], dict]:
     return out
 
 
+def _complete_axis(
+    row: dict,
+    primary_col: str,
+    primary_sd_col: str,
+    second_col: str,
+    second_sd_col: str,
+) -> tuple[float, float] | None:
+    """Combine two latent axes (e.g. scoring + survival) into a single
+    posterior (mean, sd) by raw sum — both axes are on a log scale and
+    empirically comparable in magnitude, so a plain sum keeps honest
+    uncertainty (variances add). Returns None if the second axis is
+    absent (legacy ratings without dismissal modelling)."""
+    if row.get(second_col) is None:
+        return None
+    mean = row[primary_col] + row[second_col]
+    sd_primary = row.get(primary_sd_col) or 1.0
+    sd_second = row.get(second_sd_col) or 1.0
+    sd = math.sqrt(sd_primary**2 + sd_second**2)
+    return mean, sd
+
+
 def _compare_normal(
     mean_a: float,
     sd_a: float,
@@ -142,32 +163,35 @@ def head_to_head(name_a: str, name_b: str, collection: str = "ipl") -> dict:
     idx = _index(rows)
     comparisons: dict[str, dict | None] = {}
 
-    for role in ("batter", "bowler"):
-        ra = idx.get((name_a, role))
-        rb = idx.get((name_b, role))
-        if ra is None or rb is None:
-            comparisons[role] = None
-            continue
-        cmp = _compare_normal(
-            ra["skill"],
-            ra.get("skill_sd") or 1.0,
-            rb["skill"],
-            rb.get("skill_sd") or 1.0,
-        )
-        cmp["balls_a"] = ra.get("balls")
-        cmp["balls_b"] = rb.get("balls")
-        cmp["verdict"] = _verdict(name_a, name_b, cmp["p_a_better"])
-        comparisons[role] = cmp
+    dismissal_aware = any(r.get("survival_skill") is not None for r in rows)
 
-    # All-rounder = batting skill + bowling skill (both higher = better),
-    # variances add. Only when BOTH players have BOTH ratings.
+    # --- batter (scoring + survival) ---
     bat_a, bat_b = idx.get((name_a, "batter")), idx.get((name_b, "batter"))
+    comparisons["batter"] = _build_batter(name_a, name_b, bat_a, bat_b)
+
+    # --- bowler (economy + strike) ---
     bowl_a, bowl_b = idx.get((name_a, "bowler")), idx.get((name_b, "bowler"))
-    if all(x is not None for x in (bat_a, bat_b, bowl_a, bowl_b)):
-        mean_a = bat_a["skill"] + bowl_a["skill"]
-        mean_b = bat_b["skill"] + bowl_b["skill"]
-        sd_a = math.sqrt((bat_a.get("skill_sd") or 1.0) ** 2 + (bowl_a.get("skill_sd") or 1.0) ** 2)
-        sd_b = math.sqrt((bat_b.get("skill_sd") or 1.0) ** 2 + (bowl_b.get("skill_sd") or 1.0) ** 2)
+    comparisons["bowler"] = _build_bowler(name_a, name_b, bowl_a, bowl_b)
+
+    # --- all-rounder = complete batting value + complete bowling value ---
+    if bat_a is not None and bat_b is not None and bowl_a is not None and bowl_b is not None:
+        ca_a = _complete_axis(
+            bat_a, "skill", "skill_sd", "survival_skill", "survival_skill_sd"
+        ) or (bat_a["skill"], bat_a.get("skill_sd") or 1.0)
+        ca_b = _complete_axis(
+            bat_b, "skill", "skill_sd", "survival_skill", "survival_skill_sd"
+        ) or (bat_b["skill"], bat_b.get("skill_sd") or 1.0)
+        cb_a = _complete_axis(bowl_a, "skill", "skill_sd", "strike_skill", "strike_skill_sd") or (
+            bowl_a["skill"],
+            bowl_a.get("skill_sd") or 1.0,
+        )
+        cb_b = _complete_axis(bowl_b, "skill", "skill_sd", "strike_skill", "strike_skill_sd") or (
+            bowl_b["skill"],
+            bowl_b.get("skill_sd") or 1.0,
+        )
+        mean_a, mean_b = ca_a[0] + cb_a[0], ca_b[0] + cb_b[0]
+        sd_a = math.sqrt(ca_a[1] ** 2 + cb_a[1] ** 2)
+        sd_b = math.sqrt(ca_b[1] ** 2 + cb_b[1] ** 2)
         cmp = _compare_normal(mean_a, sd_a, mean_b, sd_b)
         cmp["balls_a"] = (bat_a.get("balls") or 0) + (bowl_a.get("balls") or 0)
         cmp["balls_b"] = (bat_b.get("balls") or 0) + (bowl_b.get("balls") or 0)
@@ -180,5 +204,51 @@ def head_to_head(name_a: str, name_b: str, collection: str = "ipl") -> dict:
         "name_a": name_a,
         "name_b": name_b,
         "collection": collection,
+        "dismissal_aware": dismissal_aware,
         "comparisons": comparisons,
     }
+
+
+def _build_batter(name_a, name_b, ra, rb) -> dict | None:
+    """Complete batting comparison: scoring rate + survival (raw sum).
+    Falls back to scoring-only on legacy ratings."""
+    if ra is None or rb is None:
+        return None
+    ca = _complete_axis(ra, "skill", "skill_sd", "survival_skill", "survival_skill_sd")
+    cb = _complete_axis(rb, "skill", "skill_sd", "survival_skill", "survival_skill_sd")
+    if ca is not None and cb is not None:
+        cmp = _compare_normal(ca[0], ca[1], cb[0], cb[1])
+        cmp["component"] = "scoring + survival"
+        # Surface raw sub-axes for display.
+        cmp["score_a"], cmp["score_b"] = ra["skill"], rb["skill"]
+        cmp["survival_a"], cmp["survival_b"] = ra["survival_skill"], rb["survival_skill"]
+    else:
+        cmp = _compare_normal(
+            ra["skill"], ra.get("skill_sd") or 1.0, rb["skill"], rb.get("skill_sd") or 1.0
+        )
+        cmp["component"] = "scoring only (legacy ratings)"
+    cmp["balls_a"], cmp["balls_b"] = ra.get("balls"), rb.get("balls")
+    cmp["verdict"] = _verdict(name_a, name_b, cmp["p_a_better"])
+    return cmp
+
+
+def _build_bowler(name_a, name_b, ra, rb) -> dict | None:
+    """Complete bowling comparison: economy + strike (raw sum).
+    Falls back to economy-only on legacy ratings."""
+    if ra is None or rb is None:
+        return None
+    ca = _complete_axis(ra, "skill", "skill_sd", "strike_skill", "strike_skill_sd")
+    cb = _complete_axis(rb, "skill", "skill_sd", "strike_skill", "strike_skill_sd")
+    if ca is not None and cb is not None:
+        cmp = _compare_normal(ca[0], ca[1], cb[0], cb[1])
+        cmp["component"] = "economy + strike"
+        cmp["score_a"], cmp["score_b"] = ra["skill"], rb["skill"]
+        cmp["survival_a"], cmp["survival_b"] = ra["strike_skill"], rb["strike_skill"]
+    else:
+        cmp = _compare_normal(
+            ra["skill"], ra.get("skill_sd") or 1.0, rb["skill"], rb.get("skill_sd") or 1.0
+        )
+        cmp["component"] = "economy only (legacy ratings)"
+    cmp["balls_a"], cmp["balls_b"] = ra.get("balls"), rb.get("balls")
+    cmp["verdict"] = _verdict(name_a, name_b, cmp["p_a_better"])
+    return cmp

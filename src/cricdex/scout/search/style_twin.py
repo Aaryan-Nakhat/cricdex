@@ -55,7 +55,10 @@ def _load_json(name: str) -> pl.DataFrame:
         return pl.DataFrame()
     with open(path) as f:
         rows = json.load(f)
-    return pl.DataFrame(rows) if rows else pl.DataFrame()
+    # infer_schema_length=None — ratings JSON mixes batter-only and
+    # bowler-only columns, so a truncated scan trips on the first
+    # bowler row.
+    return pl.DataFrame(rows, infer_schema_length=None) if rows else pl.DataFrame()
 
 
 def _people_index(db_path: Path | str) -> pl.DataFrame:

@@ -80,8 +80,10 @@ def profile(
     _render.section("Bayesian scout-rating")
     bayes = p.get("bayes") or {}
     c = console()
-    c.print(_render.bayes_sentence(bayes, "batter", "Batter skill"))
-    c.print(_render.bayes_sentence(bayes, "bowler", "Bowler skill"))
+    c.print(_render.bayes_sentence(bayes, "batter", "Batter scoring"))
+    c.print(_render.bayes_extra(bayes, "batter", "survival_skill", "Batter survival"))
+    c.print(_render.bayes_sentence(bayes, "bowler", "Bowler economy"))
+    c.print(_render.bayes_extra(bayes, "bowler", "strike_skill", "Bowler strike"))
     _render.footnote(_copy.BAYES_SCALE)
 
     # Style twins (cosine on metric vector)
@@ -214,18 +216,30 @@ def compare(
     if h2h.get("error"):
         _render.footnote(h2h["error"])
     else:
+        # Axis labels per role for the sub-component column.
+        axis_labels = {
+            "batter": ("score", "survive"),
+            "bowler": ("econ", "strike"),
+        }
         rows_h: list[dict] = []
         for role in ("batter", "bowler", "all_rounder"):
             c = h2h["comparisons"].get(role)
             if c is None:
                 continue
+            if "score_a" in c and role in axis_labels:
+                p, s = axis_labels[role]
+                detail = (
+                    f"{a}: {p} {c['score_a']:+.2f} / {s} {c['survival_a']:+.2f}   "
+                    f"{b}: {p} {c['score_b']:+.2f} / {s} {c['survival_b']:+.2f}"
+                )
+            else:
+                detail = f"composite {c['mean_a']:+.2f} vs {c['mean_b']:+.2f}"
             rows_h.append(
                 {
                     "role": role.replace("_", "-"),
-                    f"{a} skill": f"{c['mean_a']:+.3f} ± {c['sd_a']:.2f}",
-                    f"{b} skill": f"{c['mean_b']:+.3f} ± {c['sd_b']:.2f}",
                     f"P({a} better)": f"{c['p_a_better']:.0%}",
                     "verdict": c["verdict"],
+                    "components": detail,
                 }
             )
         if rows_h:

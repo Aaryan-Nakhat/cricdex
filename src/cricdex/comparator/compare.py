@@ -39,7 +39,11 @@ def _load_json(name: str) -> pl.DataFrame:
         return pl.DataFrame()
     with open(path) as f:
         rows = json.load(f)
-    return pl.DataFrame(rows) if rows else pl.DataFrame()
+    # infer_schema_length=None: scout_ratings has batter-only
+    # (survival_skill) and bowler-only (strike_skill) columns, so a
+    # truncated scan over the leading batter rows trips on the first
+    # bowler row.
+    return pl.DataFrame(rows, infer_schema_length=None) if rows else pl.DataFrame()
 
 
 def _safe_get(df: pl.DataFrame, key_col: str, key: str, value_col: str) -> float | None:

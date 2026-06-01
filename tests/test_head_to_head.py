@@ -59,8 +59,88 @@ def test_head_to_head_all_rounder_combines(tmp_path, monkeypatch):
     (tmp_path / "scout_ratings_test.json").write_text(json.dumps(rows))
     monkeypatch.setattr(h2h, "METRIC_DIR", tmp_path)
     out = h2h.head_to_head("A", "B", collection="test")
+    assert out["dismissal_aware"] is False  # legacy rows → scoring-only
     ar = out["comparisons"]["all_rounder"]
     assert ar is not None
     # A's combined mean (0.3) > B's (0.0) → A favoured.
     assert ar["p_a_better"] > 0.5
     assert ar["balls_a"] == 900
+
+
+def test_head_to_head_dismissal_aware_slogger(tmp_path, monkeypatch):
+    """A fast slogger (high scoring, poor survival) must NOT beat an
+    anchor (equal scoring, strong survival) on complete batting value."""
+    import json
+
+    rows = [
+        # Anchor: average scoring, strong dismissal resistance.
+        {
+            "unique_name": "Anchor",
+            "role": "batter",
+            "skill": 0.05,
+            "skill_sd": 0.05,
+            "survival_skill": 0.25,
+            "survival_skill_sd": 0.06,
+            "balls": 5000,
+        },
+        # Slogger: higher scoring, but gets out far more often.
+        {
+            "unique_name": "Slogger",
+            "role": "batter",
+            "skill": 0.15,
+            "skill_sd": 0.05,
+            "survival_skill": -0.20,
+            "survival_skill_sd": 0.06,
+            "balls": 2000,
+        },
+    ]
+    (tmp_path / "scout_ratings_test.json").write_text(json.dumps(rows))
+    monkeypatch.setattr(h2h, "METRIC_DIR", tmp_path)
+    out = h2h.head_to_head("Anchor", "Slogger", collection="test")
+    assert out["dismissal_aware"] is True
+    bat = out["comparisons"]["batter"]
+    assert bat is not None
+    assert bat["component"] == "scoring + survival"
+    # Scoring-only would favour the slogger (0.15 > 0.05); the survival
+    # axis (0.25 vs -0.20) flips it so the anchor wins on complete value.
+    assert bat["p_a_better"] > 0.5
+    # Sub-axes carried for display.
+    assert bat["score_a"] == 0.05
+    assert bat["survival_a"] == 0.25
+
+
+def test_head_to_head_strike_axis(tmp_path, monkeypatch):
+    """Bowler complete value combines economy + strike."""
+    import json
+
+    rows = [
+        # Control bowler: great economy, no wickets.
+        {
+            "unique_name": "Control",
+            "role": "bowler",
+            "skill": 0.20,
+            "skill_sd": 0.05,
+            "strike_skill": -0.05,
+            "strike_skill_sd": 0.06,
+            "balls": 3000,
+        },
+        # Strike bowler: average economy, high wicket-taking.
+        {
+            "unique_name": "Striker",
+            "role": "bowler",
+            "skill": 0.05,
+            "skill_sd": 0.05,
+            "strike_skill": 0.35,
+            "strike_skill_sd": 0.06,
+            "balls": 2500,
+        },
+    ]
+    (tmp_path / "scout_ratings_test.json").write_text(json.dumps(rows))
+    monkeypatch.setattr(h2h, "METRIC_DIR", tmp_path)
+    out = h2h.head_to_head("Control", "Striker", collection="test")
+    bowl = out["comparisons"]["bowler"]
+    assert bowl is not None
+    assert bowl["component"] == "economy + strike"
+    # Striker's strike edge (0.35 vs -0.05 = +0.40) outweighs Control's
+    # economy edge (0.20 vs 0.05 = +0.15) → Striker favoured.
+    assert bowl["p_b_better"] > 0.5
