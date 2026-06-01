@@ -47,6 +47,10 @@ export interface PlayerRow {
   bowling_category: string | null;
   batting_position: string | null;
   country: string | null;
+  // data-driven activity (per collection = per format)
+  first_match_date: string | null;
+  last_match_date: string | null;
+  active: boolean;
 }
 
 export interface RatingRow {
@@ -79,6 +83,7 @@ export interface Profile {
   style_twins_bowler: Record<string, unknown>[] | null;
   dismissal_fingerprint: Record<string, unknown> | null;
   taxonomy?: Record<string, string> | null;
+  activity?: { first_match_date: string | null; last_match_date: string | null; active: boolean } | null;
 }
 
 export interface Cohorts {

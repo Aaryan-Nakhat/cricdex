@@ -59,6 +59,39 @@ def _wikidata_cache() -> dict[str, dict]:
     return out
 
 
+# Gemini-built taxonomy (role / bowling type / batting slot / country),
+# keyed by cricsheet_id. See scripts/enrich_taxonomy.py.
+TAXONOMY_CACHE_PATH = DATA_DIR / "curated" / "player_taxonomy.json"
+_TAX_KEEP = (
+    "primary_role",
+    "bowling_category",
+    "bowling_style",
+    "batting_position",
+    "batting_hand",
+    "country",
+)
+
+
+@lru_cache(maxsize=1)
+def _taxonomy_cache() -> dict[str, dict]:
+    """cricsheet_id -> taxonomy. Pure batters/keepers get their bowling
+    type dropped (part-time bowling shouldn't read as a bowling identity)."""
+    if not TAXONOMY_CACHE_PATH.exists():
+        return {}
+    raw = json.loads(TAXONOMY_CACHE_PATH.read_text())
+    out: dict[str, dict] = {}
+    for cid, rec in raw.items():
+        if not isinstance(rec, dict):
+            continue
+        kept = {k: rec.get(k) for k in _TAX_KEEP if rec.get(k) not in (None, "unknown", "none")}
+        if kept.get("primary_role") in {"batter", "wk_batter"}:
+            kept.pop("bowling_category", None)
+            kept.pop("bowling_style", None)
+        if kept:
+            out[cid] = kept
+    return out
+
+
 def _people_row(con: duckdb.DuckDBPyConnection, name: str) -> dict | None:
     tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
     if "people" not in tables:
@@ -180,10 +213,12 @@ def build(name: str, collection: str = "ipl") -> dict:
             profile["cricsheet_id"] = people.get("cricsheet_id")
             wikidata = _wikidata_row(people.get("cricsheet_id"))
             profile["wikidata"] = wikidata or {}
+            profile["taxonomy"] = _taxonomy_cache().get(people.get("cricsheet_id")) or {}
             profile["bayes"] = _bayes_skills(con, collection, people.get("cricsheet_id"))
         else:
             profile["cricsheet_id"] = None
             profile["wikidata"] = {}
+            profile["taxonomy"] = {}
             profile["bayes"] = {}
         profile["career"] = _career_totals(con, collection, name)
     finally:

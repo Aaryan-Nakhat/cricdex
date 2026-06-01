@@ -36,7 +36,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <div className="mt-1">
           Data up to{" "}
           <span className="font-medium text-accent-glow">{prettyDate(meta?.data_as_of)}</span>.
-          Re-cooked nightly.
+          Updated on demand.
         </div>
       </div>
     </nav>

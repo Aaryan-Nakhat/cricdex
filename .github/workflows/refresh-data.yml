@@ -2,19 +2,19 @@ name: refresh-data
 
 # The "refresh to today" backend. GitHub Pages can't recompute in the
 # browser (no JAX / XGBoost / Neo4j in WASM), so this Action is the
-# compute layer: nightly it re-ingests Cricsheet, recomputes the
-# metrics + dismissal-aware Bayesian ratings, repopulates the scout
-# graph, re-cooks the static JSON snapshot, and commits it. That commit
-# touches site/public/data/** which triggers deploy-pages, so the live
-# site moves to the latest match date automatically.
+# compute layer: it re-ingests Cricsheet, recomputes the metrics +
+# dismissal-aware Bayesian ratings, repopulates the scout graph, re-cooks
+# the static JSON snapshot, and commits it. That commit touches
+# site/public/data/** which triggers deploy-pages, so the live site moves
+# to the latest match date.
 #
-# This is the heavy path (ingest + 5× ADVI fits + Neo4j). It's best
-# effort per collection: a collection that fails to ingest is skipped,
-# the rest still refresh. If nothing changed, no commit and no deploy.
+# MANUAL ONLY — runs when you click "Run workflow" in the Actions tab (no
+# nightly cron, so the 35 MB snapshot isn't re-committed automatically and
+# git history stays lean). This is the heavy path (ingest + 5× ADVI fits +
+# Neo4j): best-effort per collection — a collection that fails to ingest is
+# skipped, the rest still refresh. If nothing changed, no commit/deploy.
 
 on:
-  schedule:
-    - cron: "0 3 * * *" # 03:00 UTC nightly
   workflow_dispatch:
     inputs:
       collections:

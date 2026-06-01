@@ -36,9 +36,10 @@ content.
 ## Data pipeline cadence
 
 - Cricsheet ingest + metrics + Bayes ratings + scout graph + static-site
-  re-cook → nightly via GitHub Actions (`refresh-data.yml`), then a Pages
-  redeploy. This is the only "refresh to the latest match date" path
-  (browsers can't run JAX / XGBoost / Neo4j).
+  re-cook → on demand via GitHub Actions (`refresh-data.yml`, manual
+  "Run workflow"), then a Pages redeploy. This is the only "refresh to the
+  latest match date" path (browsers can't run JAX / XGBoost / Neo4j).
+  Manual (not cron) so the 35 MB snapshot isn't re-committed nightly.
 - Rulebook PDFs → manual, on each board's release window.
 - People Register / Wikidata / taxonomy → one-time, refreshed on demand.
 
