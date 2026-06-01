@@ -12,6 +12,7 @@ Builds a single dict for one player from every source CricDex has:
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import duckdb
@@ -22,6 +23,40 @@ from cricdex.scout.search import style_twin as twin
 
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 METRIC_DIR = DATA_DIR / "metrics"
+# Wikidata identity enrichment lives in this JSON cache keyed by
+# cricsheet_id — NOT a DuckDB table (no ingest step builds one).
+WIKIDATA_ENRICHMENT = DATA_DIR / "curated" / "wikidata_enrichment.json"
+# Fields surfaced on profiles (drop the qid/status plumbing).
+_WIKI_KEEP = (
+    "dob",
+    "label",
+    "image_url",
+    "instagram",
+    "twitter",
+    "espn_id",
+    "cricbuzz_id",
+    "statsguru_id",
+    "wikidata_qid",
+    "country_qid",
+    "birthplace_qid",
+)
+
+
+@lru_cache(maxsize=1)
+def _wikidata_cache() -> dict[str, dict]:
+    """cricsheet_id -> cleaned identity record (dob/photo/socials), only
+    where the Wikidata lookup succeeded. Loaded once per process."""
+    if not WIKIDATA_ENRICHMENT.exists():
+        return {}
+    raw = json.loads(WIKIDATA_ENRICHMENT.read_text())
+    out: dict[str, dict] = {}
+    for cid, rec in raw.items():
+        if not isinstance(rec, dict) or rec.get("_status") != "ok":
+            continue
+        kept = {k: rec.get(k) for k in _WIKI_KEEP if rec.get(k) is not None}
+        if kept:
+            out[cid] = kept
+    return out
 
 
 def _people_row(con: duckdb.DuckDBPyConnection, name: str) -> dict | None:
@@ -43,24 +78,11 @@ def _people_row(con: duckdb.DuckDBPyConnection, name: str) -> dict | None:
     return dict(zip(cols, row, strict=True))
 
 
-def _wikidata_row(con: duckdb.DuckDBPyConnection, key_cricinfo) -> dict | None:
-    if key_cricinfo is None:
+def _wikidata_row(cricsheet_id: str | None) -> dict | None:
+    """Identity (dob / photo / socials) for a player, by cricsheet_id."""
+    if not cricsheet_id:
         return None
-    tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
-    if "wikidata_players" not in tables:
-        return None
-    row = con.execute(
-        """
-        SELECT dob, country, gender, wikidata_id
-        FROM wikidata_players
-        WHERE cricinfo_id = ?
-        """,
-        [int(key_cricinfo)],
-    ).fetchone()
-    if not row:
-        return None
-    cols = [d[0] for d in con.description]
-    return dict(zip(cols, row, strict=True))
+    return _wikidata_cache().get(cricsheet_id)
 
 
 def _career_totals(con: duckdb.DuckDBPyConnection, collection: str, name: str) -> dict:
@@ -156,7 +178,7 @@ def build(name: str, collection: str = "ipl") -> dict:
         profile["ids"] = people or {}
         if people:
             profile["cricsheet_id"] = people.get("cricsheet_id")
-            wikidata = _wikidata_row(con, people.get("key_cricinfo"))
+            wikidata = _wikidata_row(people.get("cricsheet_id"))
             profile["wikidata"] = wikidata or {}
             profile["bayes"] = _bayes_skills(con, collection, people.get("cricsheet_id"))
         else:

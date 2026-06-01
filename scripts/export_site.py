@@ -47,43 +47,6 @@ ROOT = Path(__file__).resolve().parent.parent
 SITE_DATA = ROOT / "site" / "public" / "data"
 METRIC_DIR = DATA_DIR / "metrics"
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
-# Wikidata identity enrichment (dob / photo / socials), keyed by
-# cricsheet_id. The profile builder reads a `wikidata_players` DuckDB
-# table that isn't built, so we merge this JSON cache in directly.
-WIKIDATA_ENRICHMENT = DATA_DIR / "curated" / "wikidata_enrichment.json"
-
-# Fields worth surfacing in the UI identity card (drop the qid/status
-# plumbing the frontend never shows).
-_WIKI_KEEP = (
-    "dob",
-    "label",
-    "image_url",
-    "instagram",
-    "twitter",
-    "espn_id",
-    "cricbuzz_id",
-    "statsguru_id",
-    "wikidata_qid",
-    "country_qid",
-    "birthplace_qid",
-)
-
-
-def _load_wikidata() -> dict[str, dict]:
-    """cricsheet_id -> cleaned enrichment record (only the kept fields,
-    and only where the lookup actually succeeded)."""
-    if not WIKIDATA_ENRICHMENT.exists():
-        return {}
-    raw = json.loads(WIKIDATA_ENRICHMENT.read_text())
-    out: dict[str, dict] = {}
-    for cid, rec in raw.items():
-        if not isinstance(rec, dict) or rec.get("_status") != "ok":
-            continue
-        kept = {k: rec.get(k) for k in _WIKI_KEEP if rec.get(k) is not None}
-        if kept:
-            out[cid] = kept
-    return out
-
 
 METRIC_SLUGS = [
     "ngi",
@@ -258,7 +221,7 @@ def _export_records_venues(collection: str, out_dir: Path) -> None:
 
 
 def _export_profiles_and_cohorts(
-    collection: str, out_dir: Path, players: list[dict], wikidata: dict[str, dict]
+    collection: str, out_dir: Path, players: list[dict]
 ) -> tuple[int, int]:
     from cricdex.profiles import builder
 
@@ -274,10 +237,9 @@ def _export_profiles_and_cohorts(
         name = p["name"]
         cid = p["cricsheet_id"]
         try:
+            # builder.build already merges Wikidata identity (dob / photo
+            # / socials) from the JSON cache by cricsheet_id.
             prof = builder.build(name, collection)
-            # Merge in dob / photo / socials the builder couldn't find.
-            if not prof.get("wikidata") and cid in wikidata:
-                prof["wikidata"] = wikidata[cid]
             _write(out_dir / "profiles" / f"{cid}.json", prof)
             n_prof += 1
         except Exception as e:  # noqa: BLE001
@@ -315,8 +277,6 @@ def export(
     cols = [collection] if collection else DEFAULT_COLLECTIONS
 
     con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
-    wikidata = _load_wikidata()
-    logger.info(f"wikidata enrichment: {len(wikidata)} players with identity data")
     index: list[dict] = []
     try:
         for col in cols:
@@ -332,7 +292,7 @@ def export(
             n_lb = _export_leaderboards(col, out_dir)
             n_rat = _export_ratings(col, out_dir)
             _export_records_venues(col, out_dir)
-            n_prof, n_cohort = _export_profiles_and_cohorts(col, out_dir, players, wikidata)
+            n_prof, n_cohort = _export_profiles_and_cohorts(col, out_dir, players)
             logger.info(
                 f"{col}: as_of={meta['data_as_of']} players={len(players)} "
                 f"leaderboards={n_lb} ratings={n_rat} profiles={n_prof} cohorts={n_cohort}"
