@@ -6,8 +6,44 @@ import { useAsync } from "@/lib/useAsync";
 import { getRatings } from "@/lib/data";
 import { headToHead, rolesFor } from "@/lib/headtohead";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, Spinner, Empty, Badge } from "@/components/ui";
+import { PageTitle, Card, Spinner, Empty, Badge, Collapsible } from "@/components/ui";
 import { cn } from "@/lib/utils";
+
+function H2HMath() {
+  return (
+    <Collapsible title="How the probability is computed (plain English)" icon={<Swords className="h-4 w-4" />}>
+      <div className="space-y-3 text-sm leading-relaxed text-muted">
+        <p>
+          The model doesn't give each player one fixed number — it gives a <b>bell curve</b>: a best
+          estimate of their skill (the centre) plus how <b>unsure</b> it is (the width). Few matches →
+          wide curve; lots of matches → narrow.
+        </p>
+        <p>
+          For a role we add the two relevant skill axes into one{" "}
+          <b>complete value</b> (batting = scoring + survival; bowling = economy + strike), with the
+          uncertainties combined.
+        </p>
+        <p>
+          <b>P(A better than B)</b> = how much of A's bell curve sits above B's. Big gap between two
+          confident estimates → near 100%. Small gap, or fuzzy estimates → near 50% (too close to
+          call).
+        </p>
+        <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs text-fg">{`A: value +0.30, uncertainty 0.05
+B: value +0.10, uncertainty 0.05
+gap = 0.20, combined spread = √(0.05² + 0.05²) = 0.071
+P(A better) = how far 0.20 is above 0 in that spread
+            ≈ 100%  (gap is ~2.8× the spread → A clearly ahead)
+
+If both uncertainties were 0.20 instead:
+combined spread = 0.28 → gap is only 0.7× spread → P ≈ 76%`}</pre>
+        <p className="text-xs">
+          Technically: P = Φ(gap ÷ combined&nbsp;spread), the normal CDF — but the idea is just
+          "overlap of two bell curves".
+        </p>
+      </div>
+    </Collapsible>
+  );
+}
 
 export function HeadToHead() {
   const { collection } = useStore();
@@ -41,6 +77,8 @@ export function HeadToHead() {
         icon={<Swords className="h-6 w-6" />}
         desc="Not just whose average is bigger — the probability that one player's true underlying skill exceeds the other's, straight from the Bayesian model's posterior (mean and uncertainty for both)."
       />
+
+      <H2HMath />
 
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr]">
         <Combobox options={options} value={a} onChange={setA} placeholder="Player A" />

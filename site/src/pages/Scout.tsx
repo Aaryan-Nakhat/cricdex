@@ -6,7 +6,45 @@ import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getCohorts, type Cohorts } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, InfoTip } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, InfoTip, Collapsible } from "@/components/ui";
+
+function ScoutMath() {
+  return (
+    <Collapsible title="How the scout graph works (plain English)" icon={<Network className="h-4 w-4" />}>
+      <div className="space-y-3 text-sm leading-relaxed text-muted">
+        <p>
+          Every player is a <b>dot</b>. We draw two kinds of lines between them, straight from the
+          ball-by-ball data:
+        </p>
+        <ul className="space-y-1.5">
+          <li>• <b className="text-fg">faced</b> — this batter faced that bowler (a lot)</li>
+          <li>• <b className="text-fg">teammate</b> — they played in the same XI</li>
+        </ul>
+        <p>Then we just count overlaps — no skill model involved here, only who-met-whom:</p>
+        <ul className="space-y-1.5">
+          <li>
+            • <b className="text-fg">Faced the same bowlers</b> — batters who battled the same attacks.
+            Shared-bowler count = how alike their on-field challenge was (a batting-style twin).
+          </li>
+          <li>
+            • <b className="text-fg">Teammate overlap</b> — who shared the most XIs with this player.
+          </li>
+          <li>
+            • <b className="text-fg">Find a replacement</b> — graph-similar players, then filtered by
+            role/recency. Because "shared opponents" alone can pair a seamer with a leg-spinner, the{" "}
+            <b>same bowling type only</b> toggle keeps replacements seam↔seam or spin↔spin (using the
+            Gemini-classified type).
+          </li>
+        </ul>
+        <p className="rounded-lg border border-willow/20 bg-willow/5 px-3 py-2 text-xs">
+          <b className="text-willow">Note:</b> "faced the same bowlers" measures shared <i>experience</i>,
+          not similar skill — so two very different batters can be high if they came up against the same
+          attacks.
+        </p>
+      </div>
+    </Collapsible>
+  );
+}
 
 function TypeBadge({ row }: { row: Record<string, unknown> }) {
   const cat = row.bowling_category as string | undefined;
@@ -100,6 +138,8 @@ export function Scout() {
         icon={<Network className="h-6 w-6" />}
         desc="A Neo4j graph links players through who they faced and who they played alongside. Find stylistic twins (same bowlers troubled them) and ready-made replacements for an unavailable player."
       />
+
+      <ScoutMath />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Combobox options={options} value={cid} onChange={setCid} placeholder="Search a player…" className="max-w-md flex-1" />
