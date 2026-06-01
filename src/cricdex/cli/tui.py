@@ -517,6 +517,23 @@ class CricDexApp(App):
                     "verdict": c["verdict"],
                 }
             )
+
+        # Matchup rivalry — bowler-credited dismissals either way.
+        from cricdex.metrics import dismissal_fingerprint as dfp
+
+        for batter, bowler in ((a, b), (b, a)):
+            log = dfp.matchup_log(batter, bowler, collection=collection)
+            if log["total"]:
+                kinds = ", ".join(f"{r['count']}× {r['kind']}" for r in log["rows"])
+                rows_h.append(
+                    {
+                        "role": "rivalry",
+                        f"{a}": "",
+                        f"{b}": "",
+                        f"P({a}>)": "",
+                        "verdict": f"{bowler} dismissed {batter} {log['total']}× ({kinds})",
+                    }
+                )
         _fill_datatable(
             h2h_table,
             rows_h or [{"info": "no overlapping Bayesian ratings for these two"}],

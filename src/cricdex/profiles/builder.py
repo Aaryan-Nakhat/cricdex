@@ -187,6 +187,18 @@ def build(name: str, collection: str = "ipl") -> dict:
         profile["style_twins_bowler"] = twins_b.to_dicts() if not twins_b.is_empty() else []
     except Exception:
         profile["style_twins_bowler"] = []
+
+    # Dismissal fingerprint — *how* this player gets out / takes wickets
+    # (scouting metadata, separate from the Bayesian skill numbers).
+    try:
+        from cricdex.metrics import dismissal_fingerprint as df
+
+        profile["dismissal_fingerprint"] = {
+            "batter": df.batter_modes(name, collection),
+            "bowler": df.bowler_modes(name, collection),
+        }
+    except Exception:
+        profile["dismissal_fingerprint"] = {}
     return profile
 
 

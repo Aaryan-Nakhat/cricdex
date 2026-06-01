@@ -102,6 +102,31 @@ def profile(
             formatters={"distance": _fmt_distance},
         )
 
+    # Dismissal fingerprint — how this player gets out / takes wickets.
+    fp = p.get("dismissal_fingerprint") or {}
+    bat_fp = fp.get("batter") or {}
+    bowl_fp = fp.get("bowler") or {}
+    if bat_fp.get("total"):
+        _render.pretty_table(
+            [
+                {"kind": r["kind"], "count": r["count"], "pct": f"{r['pct']}%"}
+                for r in bat_fp["rows"]
+            ],
+            title=f"Dismissal fingerprint — as batter ({bat_fp['total']} dismissals)",
+            column_styles={"kind": "bold cyan"},
+        )
+        _render.footnote(bat_fp.get("read", ""))
+    if bowl_fp.get("total"):
+        _render.pretty_table(
+            [
+                {"kind": r["kind"], "count": r["count"], "pct": f"{r['pct']}%"}
+                for r in bowl_fp["rows"]
+            ],
+            title=f"Dismissal fingerprint — as bowler ({bowl_fp['total']} wickets)",
+            column_styles={"kind": "bold cyan"},
+        )
+        _render.footnote(bowl_fp.get("read", ""))
+
     # Graph cohort (Neo4j) — optional, soft-fails if extra not installed
     _render.section("Graph cohort (Neo4j)")
     _render.footnote(_copy.GRAPH_COHORT_INTRO)
@@ -250,6 +275,24 @@ def compare(
                 "no overlapping Bayesian ratings for these two — "
                 f"run `cricdex data ingest ratings -c {collection}`"
             )
+
+    # Matchup rivalry log — has either ever dismissed the other?
+    from cricdex.metrics import dismissal_fingerprint as df
+
+    _render.section("Head-to-head dismissal log")
+    any_rivalry = False
+    for batter, bowler in ((a, b), (b, a)):
+        log = df.matchup_log(batter, bowler, collection=collection)
+        if log["total"]:
+            any_rivalry = True
+            kinds = ", ".join(f"{r['count']}× {r['kind']}" for r in log["rows"])
+            console().print(
+                f"  [bold cyan]{bowler}[/bold cyan] dismissed [bold]{batter}[/bold] "
+                f"[bold]{log['total']}×[/bold] in {log['balls']} balls  "
+                f"([dim]{kinds}[/dim])"
+            )
+    if not any_rivalry:
+        _render.footnote("these two have no bowler-credited dismissals of each other on record")
 
 
 def records(
