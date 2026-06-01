@@ -1,8 +1,7 @@
 # CricDex CLI reference
 
-`cricdex` is the one console entry point — installed by
-`uv sync` (dev) or `pip install cricdex` / `uvx --from cricdex cricdex`
-(end users).
+`cricdex` is the one console entry point — available after `uv sync`
+(run as `uv run cricdex …`, or inside the activated venv).
 
 ```
 cricdex                          show help

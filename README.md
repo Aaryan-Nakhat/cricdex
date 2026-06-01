@@ -7,21 +7,18 @@ dismissal-aware Bayesian opponent-adjusted ratings, MILP auction
 war-room + GRPO auction self-play + substitute advisor, side-by-side
 comparator.
 
-**Distribution is terminal-first.** A single console script `cricdex`
-fronts everything; a Streamlit dashboard is included as an optional
-browser view of the same data.
+**Terminal-first.** A single console script `cricdex` fronts everything; a
+Streamlit dashboard, a FastAPI surface, and a static web demo are optional
+views of the same data. Live demo: https://aaryan-nakhat.github.io/cricdex/
 
-## Install
+## Install (clone + uv)
 
 ```bash
-# One-shot run (no install)
-uvx --from cricdex cricdex --help
-
-# Global install
-pip install cricdex                            # base CLI
-pip install 'cricdex[cli,graph,ui]'            # rich/textual TUI +
-                                                # Neo4j scout graph +
-                                                # Streamlit dashboard
+git clone git@github.com:Aaryan-Nakhat/cricdex.git
+cd cricdex
+uv sync                       # base CLI
+uv sync --extra cli --extra graph --extra ui   # + TUI + Neo4j graph + dashboard
+uv run cricdex --help
 ```
 
 ## First run (5 commands)

@@ -53,5 +53,4 @@ module's output into `site/public/data/`.
 
 Local dev + the heavy pipeline run via Docker (`make docker-up`); see
 [`DOCKER.md`](DOCKER.md). The static site deploys to GitHub Pages via
-`deploy-pages.yml`. Distribution options (PyPI, GHCR, hosted demo) are in
-[`SHIPPING.md`](SHIPPING.md).
+`deploy.yml`. Hosting notes are in [`SHIPPING.md`](SHIPPING.md).
