@@ -1,6 +1,34 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Info } from "lucide-react";
+import { Info, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+/** A click-to-expand panel. Collapsed by default. */
+export function Collapsible({
+  title,
+  icon,
+  defaultOpen = false,
+  children,
+}: {
+  title: ReactNode;
+  icon?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="card mb-5 overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2.5 px-5 py-3.5 text-left text-sm font-semibold text-fg hover:bg-surface/40"
+      >
+        {icon && <span className="text-accent">{icon}</span>}
+        {title}
+        <ChevronRight className={cn("ml-auto h-4 w-4 text-muted transition-transform", open && "rotate-90")} />
+      </button>
+      {open && <div className="border-t border-border px-5 py-4">{children}</div>}
+    </div>
+  );
+}
 
 /** A small "i" button that pops a panel on click. Closes on outside-click. */
 export function InfoTip({
