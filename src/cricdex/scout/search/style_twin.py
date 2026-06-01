@@ -13,7 +13,7 @@ batter:
     pressure_runs / chase_balls_faced       (chase clutch density)
     pressure_sr_per_100_balls               (chase clutch efficiency)
     pct_balls_under_pressure                (chase pressure exposure)
-    runs_per_6_after_dot                    (recoverability)
+    runs_per_6_after_dot                    (dot_ball_recovery)
     counter_attack_sr                       (partner-wicket survival SR)
     bdr_pct                                 (boundary dependency)
     intent_curve sr by bucket (6 axes)      (early-vs-late aggression)
@@ -92,7 +92,7 @@ def _bowler_intent_curve(intent: pl.DataFrame) -> pl.DataFrame:
 
 def build_batter_features(collection: str, db_path: Path | str) -> pl.DataFrame:
     pr = _load_json(f"pressure_runs_{collection}.json")
-    rec = _load_json(f"recoverability_{collection}.json")
+    rec = _load_json(f"dot_ball_recovery_{collection}.json")
     ca = _load_json(f"counter_attack_{collection}.json")
     bdr = _load_json(f"boundary_dependency_{collection}.json")
     intent = _load_json(f"intent_curve_{collection}.json")
@@ -157,7 +157,7 @@ def build_batter_features(collection: str, db_path: Path | str) -> pl.DataFrame:
 
 
 def build_bowler_features(collection: str, db_path: Path | str) -> pl.DataFrame:
-    sticky = _load_json(f"sticky_dot_pressure_{collection}.json")
+    sticky = _load_json(f"pressure_conversion_{collection}.json")
     ratings = _load_json(f"scout_ratings_{collection}.json")
     if sticky.is_empty() and ratings.is_empty():
         return pl.DataFrame()

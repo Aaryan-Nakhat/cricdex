@@ -74,9 +74,9 @@ last-updated.
 cricdex leaderboard <metric> [-c <collection>] [--top 25] [--json]
 ```
 
-Metrics: `ngi`, `pressure_runs`, `intent_curve`, `recoverability`,
-`counter_attack`, `boundary_dependency`, `sticky_dot_pressure`,
-`wicket_quality`, `phase_dilation`, `setting_tax`. Reads
+Metrics: `ngi`, `pressure_runs`, `intent_curve`, `dot_ball_recovery`,
+`counter_attack`, `boundary_dependency`, `pressure_conversion`,
+`wicket_quality`, `crease_longevity`, `slow_start_cost`. Reads
 `$CRICDEX_HOME/data/metrics/<metric>_<collection>.json` — emit it
 via `cricdex data ingest metrics` first.
 

@@ -40,26 +40,26 @@ METRIC_OPTIONS: list[tuple[str, str]] = [
     ("NGI (Net Game Impact)", "ngi"),
     ("Pressure Runs", "pressure_runs"),
     ("Intent Curve", "intent_curve"),
-    ("Recoverability", "recoverability"),
+    ("Dot-Ball Recovery", "dot_ball_recovery"),
     ("Counter-Attack", "counter_attack"),
     ("Boundary Dependency", "boundary_dependency"),
-    ("Sticky Dot Pressure", "sticky_dot_pressure"),
+    ("Pressure Conversion", "pressure_conversion"),
     ("Wicket Quality", "wicket_quality"),
-    ("Phase Dilation", "phase_dilation"),
-    ("Setting Tax", "setting_tax"),
+    ("Crease Longevity", "crease_longevity"),
+    ("Slow-Start Cost", "slow_start_cost"),
 ]
 
 METRIC_KEYS: dict[str, tuple[str, str]] = {
     "ngi": ("ngi_per_match", "name"),
     "pressure_runs": ("pressure_sr_per_100_balls", "batter"),
     "intent_curve": ("intent", "batter"),
-    "recoverability": ("recoverability", "batter"),
-    "counter_attack": ("counter_attack", "batter"),
-    "boundary_dependency": ("boundary_dependency", "batter"),
-    "sticky_dot_pressure": ("wicket_rate_pct", "bowler"),
+    "dot_ball_recovery": ("runs_per_6_after_dot", "batter"),
+    "counter_attack": ("counter_attack_sr", "batter"),
+    "boundary_dependency": ("bdr_pct", "batter"),
+    "pressure_conversion": ("wicket_rate_pct", "bowler"),
     "wicket_quality": ("wicket_quality", "bowler"),
-    "phase_dilation": ("phase_dilation", "batter"),
-    "setting_tax": ("setting_tax", "batter"),
+    "crease_longevity": ("longevity_index", "batter"),
+    "slow_start_cost": ("slow_start_cost", "batter"),
 }
 
 VENUE_VIEW_OPTIONS = [
@@ -1045,13 +1045,13 @@ def _summarise_metric(payload) -> str:
             "ngi_per_match",
             "pressure_sr_per_100_balls",
             "intent",
-            "recoverability",
-            "counter_attack",
+            "runs_per_6_after_dot",
+            "counter_attack_sr",
             "boundary_dependency",
             "wicket_rate_pct",
             "wicket_quality",
-            "phase_dilation",
-            "setting_tax",
+            "longevity_index",
+            "slow_start_cost",
         ):
             v = payload.get(key)
             if v is not None:

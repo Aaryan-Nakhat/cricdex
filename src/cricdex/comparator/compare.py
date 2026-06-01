@@ -23,13 +23,13 @@ BATTER_NUMERIC = {
     "pressure_runs": ("pressure_runs", "pressure_runs"),
     "pressure_runs_sr": ("pressure_runs", "pressure_sr_per_100_balls"),
     "pct_pressure_balls": ("pressure_runs", "pct_balls_under_pressure"),
-    "recoverability": ("recoverability", "runs_per_6_after_dot"),
+    "dot_ball_recovery": ("dot_ball_recovery", "runs_per_6_after_dot"),
     "counter_attack_sr": ("counter_attack", "counter_attack_sr"),
     "bdr_pct": ("boundary_dependency", "bdr_pct"),
 }
 
 BOWLER_NUMERIC = {
-    "sticky_wicket_rate_pct": ("sticky_dot_pressure", "wicket_rate_pct"),
+    "pressure_conversion_pct": ("pressure_conversion", "wicket_rate_pct"),
 }
 
 
@@ -139,10 +139,10 @@ def compare(
         return pl.DataFrame()
 
     pr = _load_json(f"pressure_runs_{collection}.json")
-    rec = _load_json(f"recoverability_{collection}.json")
+    rec = _load_json(f"dot_ball_recovery_{collection}.json")
     ca = _load_json(f"counter_attack_{collection}.json")
     bdr = _load_json(f"boundary_dependency_{collection}.json")
-    sticky = _load_json(f"sticky_dot_pressure_{collection}.json")
+    sticky = _load_json(f"pressure_conversion_{collection}.json")
     ratings = _load_json(f"scout_ratings_{collection}.json")
 
     con = duckdb.connect(str(db_path), read_only=True)
@@ -155,10 +155,10 @@ def compare(
             row["pressure_runs"] = _safe_get(pr, "batter", p, "pressure_runs")
             row["pressure_runs_sr"] = _safe_get(pr, "batter", p, "pressure_sr_per_100_balls")
             row["pct_pressure_balls"] = _safe_get(pr, "batter", p, "pct_balls_under_pressure")
-            row["recoverability"] = _safe_get(rec, "batter", p, "runs_per_6_after_dot")
+            row["dot_ball_recovery"] = _safe_get(rec, "batter", p, "runs_per_6_after_dot")
             row["counter_attack_sr"] = _safe_get(ca, "batter", p, "counter_attack_sr")
             row["bdr_pct"] = _safe_get(bdr, "batter", p, "bdr_pct")
-            row["sticky_wicket_rate_pct"] = _safe_get(sticky, "bowler", p, "wicket_rate_pct")
+            row["pressure_conversion_pct"] = _safe_get(sticky, "bowler", p, "wicket_rate_pct")
             row["bayes_skill_batter"] = _bayes_skill(con, ratings, p, "batter")
             row["bayes_survival_batter"] = _bayes_skill(
                 con, ratings, p, "batter", col="survival_skill"

@@ -37,7 +37,7 @@ of publicly available cricket data (primarily
 emits seven things:
 
 1. **Novel sabermetrics** — context-adjusted player metrics that
-   scorecards miss (NGI, Pressure Runs, Phase Dilation, etc).
+   scorecards miss (NGI, Pressure Runs, Crease Longevity, etc).
 2. **Bayesian player ratings** — opponent-adjusted skill scores fit
    with NumPyro/JAX so a player who only ever faced weak attacks
    doesn't outrank one who's faced everyone.
@@ -271,7 +271,7 @@ scalar headline.
 **Filter.** `min_balls_in_bucket=200` so a single freak innings
 doesn't dominate a bucket.
 
-### 4.3 Recoverability — `metrics/batter.py:recoverability_index`
+### 4.3 Dot-Ball Recovery — `metrics/batter.py:dot_ball_recovery`
 
 **Intuition.** A batter's ability to re-engage after a dot ball.
 Mental-reset proxy.
@@ -319,7 +319,7 @@ distinguishes *style*.
 
 **Filter.** `min_runs=200`.
 
-### 4.6 Phase Dilation — `metrics/batter.py:phase_dilation`
+### 4.6 Crease Longevity — `metrics/batter.py:crease_longevity`
 
 **Intuition.** How much longer a batter survives at the crease
 versus the cohort average.
@@ -334,13 +334,13 @@ dismissal than the cohort. Anchor batters score high here.
 
 **Filter.** `min_dismissals=10`.
 
-### 4.7 Setting Tax — `metrics/batter.py:setting_tax`
+### 4.7 Slow-Start Cost — `metrics/batter.py:slow_start_cost`
 
 **Intuition.** The cost (in SR points) of "setting up" an innings —
 how much slower a batter scores in the first 20 balls vs their
 career.
 
-**Math.** `setting_tax = career_sr − setting_sr` where `setting_sr`
+**Math.** `slow_start_cost = career_sr − setting_sr` where `setting_sr`
 covers balls where `balls_faced_to_date <= 20`.
 
 A setting tax of 30 means the batter scores 30 SR points slower in
@@ -350,7 +350,7 @@ norm (rare; opener territory).
 
 **Filter.** `min_career_balls=200`, `min_setting_balls=50`.
 
-### 4.8 Sticky Dot Pressure — `metrics/bowler.py:sticky_dot_pressure`
+### 4.8 Pressure Conversion — `metrics/bowler.py:pressure_conversion`
 
 **Intuition.** A bowler's wicket rate on the delivery immediately
 after they've built a streak of 4+ consecutive dots in the same

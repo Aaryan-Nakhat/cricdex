@@ -8,9 +8,11 @@ canonical scorecard hides.
 Shipped:
     pressure_runs            — chase pressure (vs venue+phase median req RPB)
     intent_curve             — SR per ball-faced bucket (slow-start vs aggressor)
-    recoverability_index     — runs in next 6 balls after a dot
+    dot_ball_recovery        — runs in next 6 balls after a dot
     counter_attack_coefficient — SR in 12 balls after partner wicket
     boundary_dependency      — % of runs from 4s+6s (volatility proxy)
+    crease_longevity         — balls survived per dismissal vs cohort
+    slow_start_cost          — career SR minus first-20-ball SR
 """
 
 from __future__ import annotations
@@ -183,7 +185,7 @@ def intent_curve(
         return con.execute(sql).pl()
 
 
-def recoverability_index(
+def dot_ball_recovery(
     collection: str = "recently_played_30_male",
     db_path: Path | str = DEFAULT_DB_PATH,
     min_dot_balls: int = 100,
@@ -303,7 +305,7 @@ def counter_attack_coefficient(
         return con.execute(sql).pl()
 
 
-def phase_dilation(
+def crease_longevity(
     collection: str = "recently_played_30_male",
     db_path: Path | str = DEFAULT_DB_PATH,
     min_dismissals: int = 10,
@@ -313,7 +315,7 @@ def phase_dilation(
 
     For each batter we compute `avg_balls_per_dismissal` over their
     completed innings, then divide by the cohort mean. A
-    `dilation_index > 1` means the batter draws innings out longer
+    `longevity_index > 1` means the batter draws innings out longer
     than the typical qualifying batter; `< 1` means shorter,
     higher-tempo innings (or just thinner accumulation).
     """
@@ -352,11 +354,11 @@ def phase_dilation(
         pb.innings_count,
         CAST(ROUND(pb.avg_balls_per_dismissal, 2) AS DOUBLE) AS avg_balls_per_dismissal,
         CAST(ROUND(c.cohort_avg, 2) AS DOUBLE) AS cohort_avg,
-        CAST(ROUND(pb.avg_balls_per_dismissal / NULLIF(c.cohort_avg, 0), 3) AS DOUBLE) AS dilation_index
+        CAST(ROUND(pb.avg_balls_per_dismissal / NULLIF(c.cohort_avg, 0), 3) AS DOUBLE) AS longevity_index
     FROM per_batter pb, cohort c
     WHERE pb.dismissals >= {min_dismissals}
       AND pb.avg_balls_per_dismissal IS NOT NULL
-    ORDER BY dilation_index DESC
+    ORDER BY longevity_index DESC
     """
     if top_n is not None:
         sql += f"\nLIMIT {top_n}"
@@ -364,7 +366,7 @@ def phase_dilation(
         return con.execute(sql).pl()
 
 
-def setting_tax(
+def slow_start_cost(
     collection: str = "recently_played_30_male",
     db_path: Path | str = DEFAULT_DB_PATH,
     min_career_balls: int = 200,
@@ -423,12 +425,12 @@ def setting_tax(
                 - 100.0 * s.setting_runs / NULLIF(s.setting_balls, 0),
                 2
             ) AS DOUBLE
-        ) AS setting_tax
+        ) AS slow_start_cost
     FROM career c
     JOIN setting s USING (batter)
     WHERE c.career_balls >= {min_career_balls}
       AND s.setting_balls >= {min_setting_balls}
-    ORDER BY setting_tax DESC
+    ORDER BY slow_start_cost DESC
     """
     if top_n is not None:
         sql += f"\nLIMIT {top_n}"

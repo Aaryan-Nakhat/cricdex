@@ -21,13 +21,13 @@ METRICS: dict[str, tuple[str, str]] = {
     "ngi": ("ngi_per_match", "name"),
     "pressure_runs": ("pressure_sr_per_100_balls", "batter"),
     "intent_curve": ("intent", "batter"),
-    "recoverability": ("recoverability", "batter"),
-    "counter_attack": ("counter_attack", "batter"),
-    "boundary_dependency": ("boundary_dependency", "batter"),
-    "sticky_dot_pressure": ("wicket_rate_pct", "bowler"),
+    "dot_ball_recovery": ("runs_per_6_after_dot", "batter"),
+    "counter_attack": ("counter_attack_sr", "batter"),
+    "boundary_dependency": ("bdr_pct", "batter"),
+    "pressure_conversion": ("wicket_rate_pct", "bowler"),
     "wicket_quality": ("wicket_quality", "bowler"),
-    "phase_dilation": ("phase_dilation", "batter"),
-    "setting_tax": ("setting_tax", "batter"),
+    "crease_longevity": ("longevity_index", "batter"),
+    "slow_start_cost": ("slow_start_cost", "batter"),
 }
 
 

@@ -7,10 +7,10 @@ view to stdout.
 Examples:
     uv run python scripts/compute_metrics.py pressure-runs --collection ipl
     uv run python scripts/compute_metrics.py intent-curve --collection ipl
-    uv run python scripts/compute_metrics.py recoverability --collection ipl
+    uv run python scripts/compute_metrics.py dot-ball-recovery --collection ipl
     uv run python scripts/compute_metrics.py counter-attack --collection ipl
     uv run python scripts/compute_metrics.py boundary-dependency --collection ipl
-    uv run python scripts/compute_metrics.py sticky-dots --collection ipl
+    uv run python scripts/compute_metrics.py pressure-conversion --collection ipl
     uv run python scripts/compute_metrics.py all --collection ipl
 """
 
@@ -79,19 +79,19 @@ def intent_curve_cmd(
     _emit(df, "intent_curve", collection, out_json)
 
 
-@app.command("recoverability")
-def recoverability_cmd(
+@app.command("dot-ball-recovery")
+def dot_ball_recovery_cmd(
     collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
     min_dots: int = typer.Option(100, "--min-dots"),
     top_n: int = typer.Option(50, "--top-n"),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
-    df = batter_metrics.recoverability_index(
+    df = batter_metrics.dot_ball_recovery(
         collection=collection,
         min_dot_balls=min_dots,
         top_n=top_n,
     )
-    _emit(df, "recoverability", collection, out_json)
+    _emit(df, "dot_ball_recovery", collection, out_json)
 
 
 @app.command("counter-attack")
@@ -124,34 +124,34 @@ def boundary_dependency_cmd(
     _emit(df, "boundary_dependency", collection, out_json)
 
 
-@app.command("phase-dilation")
-def phase_dilation_cmd(
+@app.command("crease-longevity")
+def crease_longevity_cmd(
     collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
     min_dismissals: int = typer.Option(10, "--min-dismissals"),
     top_n: int = typer.Option(50, "--top-n"),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
-    df = batter_metrics.phase_dilation(
+    df = batter_metrics.crease_longevity(
         collection=collection, min_dismissals=min_dismissals, top_n=top_n
     )
-    _emit(df, "phase_dilation", collection, out_json)
+    _emit(df, "crease_longevity", collection, out_json)
 
 
-@app.command("setting-tax")
-def setting_tax_cmd(
+@app.command("slow-start-cost")
+def slow_start_cost_cmd(
     collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
     min_career_balls: int = typer.Option(200, "--min-career-balls"),
     min_setting_balls: int = typer.Option(50, "--min-setting-balls"),
     top_n: int = typer.Option(50, "--top-n"),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
-    df = batter_metrics.setting_tax(
+    df = batter_metrics.slow_start_cost(
         collection=collection,
         min_career_balls=min_career_balls,
         min_setting_balls=min_setting_balls,
         top_n=top_n,
     )
-    _emit(df, "setting_tax", collection, out_json)
+    _emit(df, "slow_start_cost", collection, out_json)
 
 
 @app.command("wicket-quality")
@@ -193,8 +193,8 @@ def ngi_cmd(
     )
 
 
-@app.command("sticky-dots")
-def sticky_dots_cmd(
+@app.command("pressure-conversion")
+def pressure_conversion_cmd(
     collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
     threshold: int = typer.Option(4, "--threshold"),
     min_balls: int | None = typer.Option(
@@ -205,13 +205,13 @@ def sticky_dots_cmd(
     top_n: int = typer.Option(50, "--top-n"),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
-    df = bowler_metrics.sticky_dot_pressure(
+    df = bowler_metrics.pressure_conversion(
         collection=collection,
         consecutive_dot_threshold=threshold,
         min_pressure_balls=min_balls,
         top_n=top_n,
     )
-    _emit(df, "sticky_dot_pressure", collection, out_json)
+    _emit(df, "pressure_conversion", collection, out_json)
 
 
 @app.command("all")
@@ -237,8 +237,8 @@ def all_cmd(
         None,
     )
     _emit(
-        batter_metrics.recoverability_index(collection=collection, top_n=top_n),
-        "recoverability",
+        batter_metrics.dot_ball_recovery(collection=collection, top_n=top_n),
+        "dot_ball_recovery",
         collection,
         None,
     )
@@ -255,8 +255,8 @@ def all_cmd(
         None,
     )
     _emit(
-        bowler_metrics.sticky_dot_pressure(collection=collection, top_n=top_n),
-        "sticky_dot_pressure",
+        bowler_metrics.pressure_conversion(collection=collection, top_n=top_n),
+        "pressure_conversion",
         collection,
         None,
     )
@@ -275,14 +275,14 @@ def all_cmd(
         None,
     )
     _emit(
-        batter_metrics.phase_dilation(collection=collection, top_n=top_n),
-        "phase_dilation",
+        batter_metrics.crease_longevity(collection=collection, top_n=top_n),
+        "crease_longevity",
         collection,
         None,
     )
     _emit(
-        batter_metrics.setting_tax(collection=collection, top_n=top_n),
-        "setting_tax",
+        batter_metrics.slow_start_cost(collection=collection, top_n=top_n),
+        "slow_start_cost",
         collection,
         None,
     )
