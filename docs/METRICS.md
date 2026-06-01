@@ -35,8 +35,10 @@ own historical median normalises that out — "pressure" means hard
 *for that ground*, not above some hand-picked global cut-off.
 
 **Why chase-only:** required RPB has no clean definition outside a
-chase. Pressure for the team batting first is captured by Phase
-Dilation / Setting Tax (✅ shipped — see below).
+chase, so Pressure Runs only covers the second innings. A
+batting-first pressure counterpart isn't yet shipped (Phase Dilation
+and Setting Tax measure crease longevity and slow starts, not
+batting-first chase pressure — see below).
 
 **CLI:** `make docker-pressure-runs COLLECTION=ipl TOP_N=50`
 
@@ -150,9 +152,14 @@ their economy looks great.
   Lives in `cricdex.metrics.bowler_wicket_quality`. Needs the
   scout NumPyro ratings (`scout_ratings_<collection>.json`) — see
   `docs/SCOUT.md`.
-- **Phase Dilation / Setting Tax** ✅ — batting-first counterpart
-  of Pressure Runs. Lives in `cricdex.metrics.batter`. Dashboard
-  tabs on the Leaderboards page.
+- **Phase Dilation** ✅ — crease longevity: a batter's average balls
+  faced per dismissal divided by the cohort average. >1 = bats longer
+  than the typical qualifying batter; <1 = shorter, higher-tempo
+  innings. Lives in `cricdex.metrics.batter`.
+- **Setting Tax** ✅ — career strike rate minus strike rate over the
+  first 20 balls of an innings. Positive = slow starts cost tempo;
+  ~0 or negative = aggressive from ball one. Lives in
+  `cricdex.metrics.batter`.
 
 ## Still planned
 
