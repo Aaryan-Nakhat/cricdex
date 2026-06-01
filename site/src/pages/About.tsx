@@ -67,11 +67,12 @@ const SECTIONS: Section[] = [
     title: "Auction optimisation",
     body: (
       <>
-        Given a player pool with projected values and prices, the auction room builds the best squad you
-        can afford under real constraints — total purse, squad size, the overseas cap, and minimum
-        players per role. The full desktop tool solves this exactly as a mixed-integer program and runs a
-        Monte-Carlo simulation of rival franchises; the web version uses a fast value-per-credit
-        heuristic so it stays fully in your browser.
+        Given a player pool with projected values and prices, the auction room does two things: a
+        value-per-credit optimiser that builds the best squad you can afford under real constraints
+        (purse, squad size, overseas cap, role minimums), and a Monte-Carlo simulation of the full
+        auction where all ten franchises bid to their own personality — marquee-chaser, value-hunter,
+        overseas-heavy and so on — over hundreds of runs, so you see who likely lands each marquee name.
+        Both run entirely in your browser.
       </>
     ),
   },

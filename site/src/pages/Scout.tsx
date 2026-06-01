@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Network, Users, Handshake, Repeat } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -6,7 +6,19 @@ import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getCohorts, type Cohorts } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, CardHeader, Spinner, Empty, Badge } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, InfoTip } from "@/components/ui";
+
+function TypeBadge({ row }: { row: Record<string, unknown> }) {
+  const cat = row.bowling_category as string | undefined;
+  const role = row.primary_role as string | undefined;
+  return (
+    <span className="flex items-center gap-1">
+      {role && <Badge>{String(role).replace("_", "-")}</Badge>}
+      {cat === "seam" && <Badge tone="ball">seam</Badge>}
+      {cat === "spin" && <Badge tone="willow">spin</Badge>}
+    </span>
+  );
+}
 
 function CohortColumn({
   title,
@@ -17,7 +29,7 @@ function CohortColumn({
   metricLabel,
   onPick,
 }: {
-  title: string;
+  title: React.ReactNode;
   icon: React.ReactNode;
   subtitle: string;
   rows: Record<string, unknown>[];
@@ -30,7 +42,7 @@ function CohortColumn({
       <CardHeader title={<span className="flex items-center gap-2">{icon}{title}</span>} subtitle={subtitle} />
       <div className="p-2">
         {rows.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted">No cohort data.</div>
+          <div className="px-3 py-6 text-center text-sm text-muted">No matching cohort.</div>
         ) : (
           rows.slice(0, 12).map((r, i) => {
             const cid = r.cricsheet_id ? String(r.cricsheet_id) : null;
@@ -41,10 +53,10 @@ function CohortColumn({
                 onClick={() => cid && onPick(cid)}
                 className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-surface disabled:opacity-60"
               >
-                <span className="flex items-center gap-2">
-                  <span className="stat-num w-5 text-xs text-muted">{i + 1}</span>
-                  <span className="text-fg">{String(r.name)}</span>
-                  {r.role ? <Badge>{String(r.role)}</Badge> : null}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="stat-num w-5 shrink-0 text-xs text-muted">{i + 1}</span>
+                  <span className="truncate text-fg">{String(r.name)}</span>
+                  <TypeBadge row={r} />
                 </span>
                 <span className="stat-num shrink-0 text-xs text-muted">
                   {String(r[metricKey] ?? "")} {metricLabel}
@@ -60,26 +72,61 @@ function CohortColumn({
 
 export function Scout() {
   const { collection } = useStore();
-  const { options } = usePlayers(collection);
+  const { options, byId } = usePlayers(collection);
   const navigate = useNavigate();
   const [cid, setCid] = useState<string | null>(null);
+  const [sameType, setSameType] = useState(true);
 
   const { data, loading } = useAsync<Cohorts | null>(
     () => (cid ? getCohorts(collection, cid) : Promise.resolve(null)),
     [collection, cid],
   );
 
+  const player = cid ? byId.get(cid) : null;
+  const playerCat = player?.bowling_category ?? null;
+
+  // "Same bowling type" makes find-replacement actually useful: a seamer
+  // should be replaced by seamers, not Amit Mishra.
+  const replacements = useMemo(() => {
+    const rows = data?.find_replacement ?? [];
+    if (!sameType || !playerCat) return rows;
+    return rows.filter((r) => !r.bowling_category || r.bowling_category === playerCat);
+  }, [data, sameType, playerCat]);
+
   return (
     <>
       <PageTitle
         title="Scout graph"
         icon={<Network className="h-6 w-6" />}
-        desc="A Neo4j graph links players through who they faced and who they played alongside. Use it to find stylistic twins (same bowlers troubled them) and ready-made replacements for an unavailable player."
+        desc="A Neo4j graph links players through who they faced and who they played alongside. Find stylistic twins (same bowlers troubled them) and ready-made replacements for an unavailable player."
       />
 
-      <div className="mb-6 max-w-md">
-        <Combobox options={options} value={cid} onChange={setCid} placeholder="Search a player…" />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Combobox options={options} value={cid} onChange={setCid} placeholder="Search a player…" className="max-w-md flex-1" />
+        {player && (playerCat || player.primary_role) && (
+          <div className="flex items-center gap-2 text-sm text-muted">
+            <span>this player:</span>
+            <TypeBadge row={{ primary_role: player.primary_role, bowling_category: player.bowling_category }} />
+          </div>
+        )}
       </div>
+
+      {cid && (
+        <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface/50 px-3 py-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            checked={sameType}
+            onChange={(e) => setSameType(e.target.checked)}
+            className="accent-[#34d399]"
+          />
+          Replacements: same bowling type only
+          <InfoTip title="Why">
+            Find-replacement walks the graph by shared opponents, which can surface a spinner as a
+            seamer's "twin". This filter keeps replacements to the same bowling category (seam/spin)
+            as the selected player. Off = raw graph similarity.
+          </InfoTip>
+        </label>
+      )}
 
       {!cid ? (
         <Empty>Pick a player to traverse their cohort.</Empty>
@@ -90,7 +137,7 @@ export function Scout() {
       ) : (
         <div className="grid grid-cols-1 gap-5 animate-fade-up lg:grid-cols-3">
           <CohortColumn
-            title="Faced the same bowlers"
+            title={<>Faced the same bowlers</>}
             icon={<Users className="h-4 w-4 text-accent" />}
             subtitle="Batting affinity — troubled by the same attacks"
             rows={data.co_faced}
@@ -99,7 +146,7 @@ export function Scout() {
             onPick={(c) => navigate(`/player?cid=${c}`)}
           />
           <CohortColumn
-            title="Teammate overlap"
+            title={<>Teammate overlap</>}
             icon={<Handshake className="h-4 w-4 text-willow" />}
             subtitle="Played the most alongside this player"
             rows={data.teammates}
@@ -108,10 +155,15 @@ export function Scout() {
             onPick={(c) => navigate(`/player?cid=${c}`)}
           />
           <CohortColumn
-            title="Find a replacement"
+            title={
+              <span className="flex items-center gap-1.5">
+                Find a replacement
+                {sameType && playerCat && <Badge tone="accent">{playerCat} only</Badge>}
+              </span>
+            }
             icon={<Repeat className="h-4 w-4 text-accent" />}
             subtitle="Closest available substitutes by role + graph similarity"
-            rows={data.find_replacement}
+            rows={replacements}
             metricKey="shared"
             metricLabel="shared"
             onPick={(c) => navigate(`/player?cid=${c}`)}
