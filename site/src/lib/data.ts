@@ -116,5 +116,16 @@ export interface RetentionData {
   mega: Record<string, { cricsheet_id: string; name: string; price: number }[]>;
 }
 export const getRetentions = (c: string) => getJSON<RetentionData>(`${c}/retentions.json`);
+
+export interface AuctionPoolRow {
+  cricsheet_id: string;
+  name: string;
+  value: number;
+  role: "batter" | "bowler" | "all_rounder" | "keeper";
+  country: string | null;
+  is_overseas: boolean;
+  team: string | null;
+}
+export const getAuctionPool = (c: string) => getJSON<AuctionPoolRow[]>(`${c}/auction_pool.json`);
 export const getCohorts = (c: string, cid: string) =>
   getJSON<Cohorts>(`${c}/cohorts/${cid}.json`);

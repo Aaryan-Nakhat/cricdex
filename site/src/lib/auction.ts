@@ -1,4 +1,4 @@
-import type { PlayerRow, RatingRow } from "./data";
+import type { AuctionPoolRow } from "./data";
 
 export type Role = "batter" | "bowler" | "all_rounder" | "keeper";
 
@@ -41,61 +41,28 @@ function priceTier(pv: number): number {
   return PRICE_TIERS[5];
 }
 
-function roleOf(p: PlayerRow): Role {
-  switch (p.primary_role) {
-    case "wk_batter":
-      return "keeper";
-    case "allrounder":
-      return "all_rounder";
-    case "bowler":
-      return "bowler";
-    case "batter":
-      return "batter";
-  }
-  if (p.balls_faced > 200 && p.balls_bowled > 200) return "all_rounder";
-  return p.balls_bowled > p.balls_faced ? "bowler" : "batter";
-}
-
-/** Priced auction pool from ratings + ball counts + taxonomy. ACTIVE players
- * only — no retired names in the auction. Carries current franchise. */
-export function buildPool(players: PlayerRow[], ratings: RatingRow[]): PoolPlayer[] {
-  const ratByKey = new Map<string, RatingRow>();
-  for (const r of ratings) ratByKey.set(`${r.cricsheet_id}:${r.role}`, r);
-  const byId = new Map<string, PlayerRow>();
-  for (const p of players) byId.set(p.cricsheet_id, p);
-
-  const out: PoolPlayer[] = [];
-  const seen = new Set<string>();
-  for (const r of ratings) {
-    if (seen.has(r.cricsheet_id)) continue;
-    seen.add(r.cricsheet_id);
-    const p = byId.get(r.cricsheet_id);
-    if (!p || !p.active) continue; // active only
-    const bat = ratByKey.get(`${r.cricsheet_id}:batter`);
-    const bowl = ratByKey.get(`${r.cricsheet_id}:bowler`);
-    const value = Math.max(bat?.value ?? -99, bowl?.value ?? -99);
-    if (!Number.isFinite(value) || value < -90) continue;
-
-    const role = roleOf(p);
-    const country = p.country ?? "—";
+/** Price the big auction pool (every ACTIVE rated IPL player). Each row
+ * already carries value / role / country / team; we add crore pricing. */
+export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
+  const out: PoolPlayer[] = rows.map((r) => {
     const pv = Math.max(
       0.3,
-      Math.min(PV_MAX, PV_BASE * Math.exp(PV_SCALE * value) * ROLE_MULT[role]),
+      Math.min(PV_MAX, PV_BASE * Math.exp(PV_SCALE * r.value) * ROLE_MULT[r.role]),
     );
     const base = priceTier(pv);
-    out.push({
+    return {
       cricsheet_id: r.cricsheet_id,
-      name: r.unique_name,
-      role,
-      country,
-      is_overseas: !!p.country && p.country !== "IND",
-      team: p.team ?? null,
-      value,
+      name: r.name,
+      role: r.role,
+      country: r.country ?? "—",
+      is_overseas: r.is_overseas,
+      team: r.team,
+      value: r.value,
       projected_value: pv,
       base_price: base,
       vpc: pv / base,
-    });
-  }
+    };
+  });
   out.sort((a, b) => b.projected_value - a.projected_value);
   return out;
 }
@@ -329,6 +296,9 @@ function freshState(b: FranchiseBase): TeamState {
   };
 }
 
+const MIN_BASE = 0.3; // cheapest base price (cr) — reserve this per unfilled slot
+const MIN_SQUAD = 18; // IPL rule: every team must end with ≥18
+
 function oneTrial(
   bases: FranchiseBase[],
   auctionPool: PoolPlayer[],
@@ -337,11 +307,23 @@ function oneTrial(
 ): TeamState[] {
   const rand = rng(seed);
   const states = bases.map(freshState);
+  const filledOf = (st: TeamState) => st.retained.length + st.bought.length;
+  const remPurseOf = (i: number) => opts.purse - bases[i].retainSpend - states[i].spent;
+  const buy = (i: number, player: PoolPlayer, price: number) => {
+    const st = states[i];
+    st.bought.push(player);
+    st.spent += price;
+    st.counts[player.role]++;
+    if (player.is_overseas) st.overseas++;
+  };
+
   const order = [...auctionPool]
     .map((p) => ({ p, k: p.projected_value * (1 + (rand() - 0.5) * 0.1) }))
     .sort((a, b) => b.k - a.k)
     .map((x) => x.p);
+  const sold = new Set<string>();
 
+  // Phase 1 — personality-driven bidding, marquee first.
   for (const player of order) {
     let bestTeam = -1;
     let bestBid = 0;
@@ -349,16 +331,17 @@ function oneTrial(
     for (let i = 0; i < states.length; i++) {
       const st = states[i];
       const arc = ARCH_BY_ID[st.personality] ?? ARCH_BY_ID.Balanced;
-      const filled = st.retained.length + st.bought.length;
-      if (filled >= opts.squadSize) continue;
-      const remPurse = opts.purse - bases[i].retainSpend - st.spent;
-      if (remPurse < player.base_price) continue;
+      const open = opts.squadSize - filledOf(st);
+      if (open <= 0) continue;
       if (player.is_overseas && st.overseas >= opts.overseasCap) continue;
+      // reserve enough to fill remaining slots at the floor price
+      const spendable = remPurseOf(i) - (open - 1) * MIN_BASE;
+      if (spendable < player.base_price) continue;
       const need = st.counts[player.role] < arc.roleMins[player.role] ? 1.5 : 0.7;
       const overseasBias = player.is_overseas ? arc.overseasAppetite * 1.4 : 1;
       const jitter = 1 + (rand() - 0.5) * 2 * arc.risk;
       let wtp = player.projected_value * arc.aggression * need * overseasBias * jitter;
-      wtp = Math.min(wtp, remPurse);
+      wtp = Math.min(wtp, spendable);
       if (wtp < player.base_price) continue;
       if (wtp > bestBid) {
         secondBid = bestBid > 0 ? bestBid : player.base_price;
@@ -369,12 +352,29 @@ function oneTrial(
       }
     }
     if (bestTeam >= 0) {
-      const st = states[bestTeam];
-      const price = Math.max(player.base_price, Math.min(bestBid, secondBid * 1.02));
-      st.bought.push(player);
-      st.spent += price;
-      st.counts[player.role]++;
-      if (player.is_overseas) st.overseas++;
+      buy(bestTeam, player, Math.max(player.base_price, Math.min(bestBid, secondBid * 1.02)));
+      sold.add(player.cricsheet_id);
+    }
+  }
+
+  // Phase 2 — must-fill: every team needs ≥ MIN_SQUAD. Hand the cheapest
+  // remaining bodies to whoever's shortest, at base price.
+  const leftovers = order.filter((p) => !sold.has(p.cricsheet_id)).sort((a, b) => a.base_price - b.base_price);
+  for (const player of leftovers) {
+    let pick = -1;
+    let fewest = Infinity;
+    for (let i = 0; i < states.length; i++) {
+      if (filledOf(states[i]) >= MIN_SQUAD) continue;
+      if (player.is_overseas && states[i].overseas >= opts.overseasCap) continue;
+      if (remPurseOf(i) < player.base_price) continue;
+      if (filledOf(states[i]) < fewest) {
+        fewest = filledOf(states[i]);
+        pick = i;
+      }
+    }
+    if (pick >= 0) {
+      buy(pick, player, player.base_price);
+      sold.add(player.cricsheet_id);
     }
   }
   return states;
