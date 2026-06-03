@@ -181,8 +181,8 @@ function rng(seed: number): () => number {
 export type AuctionMode = "mega" | "mini";
 
 // How many a team keeps by default. Mega ≈ real 2025 retention size; Mini =
-// keep most of the squad (only a few slots auctioned).
-export const MINI_RETAIN = 12;
+// keep most of the squad (release only a few), so only a handful are auctioned.
+export const MINI_RETAIN = 18;
 // Cost (cr) for a retained player with no known real price: IPL slabs for the
 // first few, then a floor — used for Mini defaults / user-added retentions.
 const SLABS = [18, 14, 11, 18, 14];
@@ -272,8 +272,10 @@ function buildFranchises(
     let retainOverseas = 0;
     retained.forEach((p, i) => {
       retainedIds.add(p.cricsheet_id);
-      // real retention price if known, else an IPL slab estimate
-      retainSpend += opts.realPrices[p.cricsheet_id] ?? slabCost(i);
+      // Mega: retentions draw from the 120cr purse via slabs (or real price).
+      // Mini: the squad is already paid for (sunk) — retentions are free and
+      // the team bids from a small leftover purse.
+      if (opts.mode !== "mini") retainSpend += opts.realPrices[p.cricsheet_id] ?? slabCost(i);
       if (p.is_overseas) retainOverseas++;
     });
     return { team, personality, retained, retainSpend, retainOverseas };
@@ -323,42 +325,49 @@ function oneTrial(
     .map((x) => x.p);
   const sold = new Set<string>();
 
-  // Phase 1 — personality-driven bidding, marquee first.
-  for (const player of order) {
-    let bestTeam = -1;
-    let bestBid = 0;
-    let secondBid = player.base_price;
-    for (let i = 0; i < states.length; i++) {
-      const st = states[i];
-      const arc = ARCH_BY_ID[st.personality] ?? ARCH_BY_ID.Balanced;
-      const open = opts.squadSize - filledOf(st);
-      if (open <= 0) continue;
-      if (player.is_overseas && st.overseas >= opts.overseasCap) continue;
-      // reserve enough to fill remaining slots at the floor price
-      const spendable = remPurseOf(i) - (open - 1) * MIN_BASE;
-      if (spendable < player.base_price) continue;
-      const need = st.counts[player.role] < arc.roleMins[player.role] ? 1.5 : 0.7;
-      const overseasBias = player.is_overseas ? arc.overseasAppetite * 1.4 : 1;
-      const jitter = 1 + (rand() - 0.5) * 2 * arc.risk;
-      let wtp = player.projected_value * arc.aggression * need * overseasBias * jitter;
-      wtp = Math.min(wtp, spendable);
-      if (wtp < player.base_price) continue;
-      if (wtp > bestBid) {
-        secondBid = bestBid > 0 ? bestBid : player.base_price;
-        bestBid = wtp;
-        bestTeam = i;
-      } else if (wtp > secondBid) {
-        secondBid = wtp;
+  // One bidding round over the pool, with teams capped at `target` squad size.
+  // Run it first to MIN_SQUAD (so every team gets its minimum before anyone
+  // tops up) and again to the full squadSize cap.
+  const bidRound = (target: number) => {
+    for (const player of order) {
+      if (sold.has(player.cricsheet_id)) continue;
+      let bestTeam = -1;
+      let bestBid = 0;
+      let secondBid = player.base_price;
+      for (let i = 0; i < states.length; i++) {
+        const st = states[i];
+        const arc = ARCH_BY_ID[st.personality] ?? ARCH_BY_ID.Balanced;
+        if (filledOf(st) >= target) continue;
+        if (player.is_overseas && st.overseas >= opts.overseasCap) continue;
+        // reserve enough to fill remaining slots (toward the full cap) cheaply
+        const slotsLeft = opts.squadSize - filledOf(st);
+        const spendable = remPurseOf(i) - (slotsLeft - 1) * MIN_BASE;
+        if (spendable < player.base_price) continue;
+        const need = st.counts[player.role] < arc.roleMins[player.role] ? 1.5 : 0.7;
+        const overseasBias = player.is_overseas ? arc.overseasAppetite * 1.4 : 1;
+        const jitter = 1 + (rand() - 0.5) * 2 * arc.risk;
+        let wtp = player.projected_value * arc.aggression * need * overseasBias * jitter;
+        wtp = Math.min(wtp, spendable);
+        if (wtp < player.base_price) continue;
+        if (wtp > bestBid) {
+          secondBid = bestBid > 0 ? bestBid : player.base_price;
+          bestBid = wtp;
+          bestTeam = i;
+        } else if (wtp > secondBid) {
+          secondBid = wtp;
+        }
+      }
+      if (bestTeam >= 0) {
+        buy(bestTeam, player, Math.max(player.base_price, Math.min(bestBid, secondBid * 1.02)));
+        sold.add(player.cricsheet_id);
       }
     }
-    if (bestTeam >= 0) {
-      buy(bestTeam, player, Math.max(player.base_price, Math.min(bestBid, secondBid * 1.02)));
-      sold.add(player.cricsheet_id);
-    }
-  }
+  };
 
-  // Phase 2 — must-fill: every team needs ≥ MIN_SQUAD. Hand the cheapest
-  // remaining bodies to whoever's shortest, at base price.
+  bidRound(MIN_SQUAD); // everyone reaches the minimum first
+  bidRound(opts.squadSize); // then top up toward the cap
+
+  // Safety: any team still under MIN gets the cheapest leftovers at base price.
   const leftovers = order.filter((p) => !sold.has(p.cricsheet_id)).sort((a, b) => a.base_price - b.base_price);
   for (const player of leftovers) {
     let pick = -1;

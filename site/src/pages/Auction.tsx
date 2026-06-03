@@ -249,6 +249,9 @@ function Simulate({
   const [retentions, setRetentions] = useState<Record<string, string[]>>({});
   useEffect(() => {
     setRetentions(defaultRetentions(pool, teams, mode, megaIds));
+    // Mega = full 120cr purse (retentions drawn from it). Mini = the squad is
+    // already paid for; teams bid from a small leftover purse.
+    setPurse(mode === "mega" ? 120 : 30);
     setResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, pool, megaIds]);
@@ -261,8 +264,9 @@ function Simulate({
   }, [pool, teams]);
   const byId = useMemo(() => new Map(pool.map((p) => [p.cricsheet_id, p])), [pool]);
 
+  // Mega: retention cost (real price or slab). Mini: carried over, free.
   const retCost = (cid: string, i: number) =>
-    realPrices[cid] ?? [18, 14, 11, 18, 14][i] ?? 4;
+    mode === "mini" ? 0 : (realPrices[cid] ?? [18, 14, 11, 18, 14][i] ?? 4);
 
   function run() {
     setRunning(true);
@@ -285,7 +289,7 @@ function Simulate({
           <InfoTip title="Mega vs Mini">
             <div className="space-y-1.5">
               <div><b className="text-fg">Mega</b>: {MODE_BLURB.mega} Defaults to the <b>real 2025 retention lists</b>.</div>
-              <div><b className="text-fg">Mini</b>: {MODE_BLURB.mini} Defaults to each team's top {12} by value.</div>
+              <div><b className="text-fg">Mini</b>: {MODE_BLURB.mini} Defaults to each team's top 18 by value (squad already paid for — they bid a small leftover purse).</div>
               <div className="text-muted/80">Retentions are <b>editable</b> below — they lock those players and draw their cost from the purse before bidding.</div>
             </div>
           </InfoTip>
