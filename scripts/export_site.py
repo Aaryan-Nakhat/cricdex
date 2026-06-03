@@ -339,6 +339,7 @@ def _export_auction_pool(
         "bowler": "bowler",
         "batter": "batter",
     }
+    asof_d = _dt.date.fromisoformat(asof) if asof else None
     out = []
     for cid, b in best.items():
         name = b["name"]
@@ -351,21 +352,102 @@ def _export_auction_pool(
         # IPL players always qualify; free agents only from IPL-relevant nations
         if not team and country not in AUCTION_COUNTRIES:
             continue
+        # Recency decay: a stale player (last played long ago — Chris Lynn,
+        # Amit Mishra) is worth less at auction than someone in current form.
+        # ~4-month grace, then ramp, capped — applied to the auction value.
+        months = ((asof_d - _dt.date.fromisoformat(ld)).days / 30.4) if asof_d else 0
+        recency_pen = min(0.30, max(0.0, months - 4) * 0.015)
         out.append(
             {
                 "cricsheet_id": cid,
                 "name": name,
-                "value": b["value"],
+                "value": round(b["value"] - recency_pen, 4),
                 "role": role_map.get(tax.get("primary_role"), "batter"),
                 "country": country,
                 "is_overseas": bool(country) and country != "IND",
                 "team": team,
+                "last_match_date": ld,
             }
         )
     out.sort(key=lambda p: p["value"], reverse=True)
     out = out[:AUCTION_POOL_CAP]
     _write(out_dir / "auction_pool.json", out)
     return len(out)
+
+
+def _export_scout_index(
+    con: duckdb.DuckDBPyConnection, out_dir: Path, taxonomy: dict[str, dict]
+) -> int:
+    """Cross-tier scouting index: for IPL, SMAT (uncapped Indian) and BBL
+    (overseas), per recently-active player emit role/type + skill standing
+    (z within that tier, so levels compare across competitions). Powers
+    'players similar to <IPL player> in each tier'."""
+    import datetime as _dt
+    import statistics as _st
+
+    tiers = {"ipl": "ipl", "smat": "indian_domestic_male", "bbl": "bbl"}
+    role_map = {
+        "wk_batter": "keeper",
+        "allrounder": "all_rounder",
+        "bowler": "bowler",
+        "batter": "batter",
+    }
+    index: dict[str, list[dict]] = {}
+    for tier, col in tiers.items():
+        f = METRIC_DIR / f"scout_ratings_{col}.json"
+        if not f.exists():
+            index[tier] = []
+            continue
+        best: dict[str, dict] = {}
+        balls: dict[str, int] = {}
+        for r in json.loads(f.read_text()):
+            cid, v = r.get("cricsheet_id"), r.get("value")
+            if cid is None or v is None:
+                continue
+            balls[cid] = max(balls.get(cid, 0), int(r.get("balls") or 0))
+            if cid not in best or v > best[cid]["value"]:
+                best[cid] = {"value": v, "name": r.get("unique_name")}
+        # recency in this tier
+        safe = _safe(col)
+        last = {
+            nm: str(d)[:10]
+            for nm, d in con.execute(
+                f"SELECT nm, MAX(match_date) FROM (SELECT batter nm, match_date FROM balls_{safe} "
+                f"UNION ALL SELECT bowler, match_date FROM balls_{safe}) WHERE nm IS NOT NULL GROUP BY 1"
+            ).fetchall()
+            if d
+        }
+        asof = max(last.values()) if last else None
+        cutoff = (
+            (_dt.date.fromisoformat(asof) - _dt.timedelta(days=900)).isoformat() if asof else None
+        )
+        vals = [b["value"] for b in best.values()]
+        mean = _st.mean(vals) if vals else 0.0
+        sd = _st.pstdev(vals) if len(vals) > 1 else 1.0
+        rows = []
+        for cid, b in best.items():
+            nm = b["name"]
+            ld = last.get(nm)
+            if not nm or balls.get(cid, 0) < 150 or not ld or (cutoff and ld < cutoff):
+                continue
+            tax = taxonomy.get(cid, {})
+            rows.append(
+                {
+                    "cricsheet_id": cid,
+                    "name": nm,
+                    "role": role_map.get(tax.get("primary_role"), "batter"),
+                    "bowling_category": tax.get("bowling_category"),
+                    "batting_position": tax.get("batting_position"),
+                    "country": tax.get("country"),
+                    "value": round(b["value"], 4),
+                    "z": round((b["value"] - mean) / (sd or 1), 3),
+                    "last_match_date": ld,
+                }
+            )
+        rows.sort(key=lambda r: r["z"], reverse=True)
+        index[tier] = rows
+    _write(out_dir / "scout_index.json", index)
+    return sum(len(v) for v in index.values())
 
 
 def _export_retentions(players: list[dict], out_dir: Path) -> None:
@@ -823,7 +905,8 @@ def export(
             if col == "ipl":
                 _export_retentions(players, out_dir)
                 n_pool = _export_auction_pool(con, out_dir, taxonomy, _current_teams(con, col))
-                logger.info(f"  auction_pool: {n_pool} active players (cross-collection)")
+                n_scout = _export_scout_index(con, out_dir, taxonomy)
+                logger.info(f"  auction_pool: {n_pool}, scout_index: {n_scout}")
             match_counts = _match_counts(con, col)
             n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
             for win in windows_by_col.get(col, []):
