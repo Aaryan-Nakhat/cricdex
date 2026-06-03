@@ -58,17 +58,17 @@ export const METRICS: MetricDef[] = [
   {
     slug: "intent_curve",
     name: "Intent Curve",
-    one_liner: "How strike rate ramps with balls faced — the acceleration shape.",
-    what: "Buckets every innings by balls faced and plots the strike rate in each bucket. Reveals whether a batter explodes immediately, builds then launches, or fades — the shape of their intent over an innings.",
-    how: "Group each delivery a batter faced by how many balls into their innings it was (e.g. balls 1–10, 11–20, …). Within each bucket, SR = (runs / balls) × 100. The sequence of bucket SRs is the player's intent curve.",
+    one_liner: "Strike rate from ball one — who comes out firing, with the full innings shape.",
+    what: "Ranks batters by how hard they go in their first 10 balls — pure early intent, before they're set — and shows the full shape of their innings (strike rate across ball-faced buckets) as an inline sparkline. Separates immediate-aggressors from slow-starters who only launch once they're in.",
+    how: "Bucket every ball a batter faced by how deep into their innings it was (0–5, 6–10, 11–20, 21–30, 31–50, 51+). Within each bucket, SR = runs ÷ balls × 100 — that 6-point sequence is the curve (the sparkline). The ranking number is Early SR: their combined SR over balls 1–10, weighted by balls faced.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [
       { key: "batter", label: "Batter" },
-      { key: "ball_bucket", label: "Ball bucket" },
-      { key: "sr", label: "Strike rate", digits: 1, primary: true, bar: true },
+      { key: "early_sr", label: "Early SR (balls 1–10)", digits: 1, primary: true, bar: true },
+      { key: "curve", label: "Innings curve (0–5 → 51+)" },
+      { key: "peak_sr", label: "Peak SR", digits: 1 },
       { key: "balls", label: "Balls", digits: 0 },
-      { key: "runs", label: "Runs", digits: 0 },
     ],
   },
   {
