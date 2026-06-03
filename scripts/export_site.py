@@ -159,6 +159,54 @@ def _collection_meta(con: duckdb.DuckDBPyConnection, collection: str) -> dict | 
     }
 
 
+# Cricsheet IPL team name (incl. renames) -> current franchise code.
+# Defunct sides (Deccan, Pune, Kochi, Gujarat Lions) are intentionally
+# absent — a player whose MOST-RECENT team is defunct stopped playing, so
+# they fall out via the `active` flag and become a free agent here (None).
+IPL_TEAM_CODE: dict[str, str] = {
+    "Mumbai Indians": "MI",
+    "Chennai Super Kings": "CSK",
+    "Royal Challengers Bengaluru": "RCB",
+    "Royal Challengers Bangalore": "RCB",
+    "Kolkata Knight Riders": "KKR",
+    "Delhi Capitals": "DC",
+    "Delhi Daredevils": "DC",
+    "Punjab Kings": "PBKS",
+    "Kings XI Punjab": "PBKS",
+    "Sunrisers Hyderabad": "SRH",
+    "Gujarat Titans": "GT",
+    "Rajasthan Royals": "RR",
+    "Lucknow Super Giants": "LSG",
+}
+
+
+def _current_teams(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, str]:
+    """unique_name -> current franchise code, from the team in each
+    player's most-recent match. Only meaningful for IPL (the 10 franchises);
+    other collections return {} since the codes don't map."""
+    if collection != "ipl":
+        return {}
+    safe = _safe(collection)
+    rows = con.execute(
+        f"""
+        WITH app AS (
+            SELECT batter AS name, batting_team AS team, match_date FROM balls_{safe}
+                WHERE batting_team IS NOT NULL
+            UNION ALL
+            SELECT bowler, bowling_team, match_date FROM balls_{safe}
+                WHERE bowling_team IS NOT NULL
+        ),
+        ranked AS (
+            SELECT name, team,
+                   ROW_NUMBER() OVER (PARTITION BY name ORDER BY match_date DESC) AS rk
+            FROM app
+        )
+        SELECT name, team FROM ranked WHERE rk = 1
+        """
+    ).fetchall()
+    return {name: IPL_TEAM_CODE[team] for name, team in rows if team in IPL_TEAM_CODE}
+
+
 def _players(
     con: duckdb.DuckDBPyConnection,
     collection: str,
@@ -169,6 +217,7 @@ def _players(
     """Players who cleared the ball cutoff (faced or bowled), with the
     cross-source ids needed for profile/cohort file lookups."""
     safe = _safe(collection)
+    teams = _current_teams(con, collection)
     rows = con.execute(
         f"""
         WITH bats AS (
@@ -235,6 +284,8 @@ def _players(
                 "first_match_date": act.get("first_match_date"),
                 "last_match_date": act.get("last_match_date"),
                 "active": act.get("active", False),
+                # current IPL franchise (None = free agent / non-IPL collection)
+                "team": teams.get(name),
             }
         )
     out.sort(key=lambda r: r["balls_faced"] + r["balls_bowled"], reverse=True)

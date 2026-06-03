@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Gavel, Wallet, Users, CheckCircle2, AlertTriangle, Dices, Plane, Calculator } from "lucide-react";
-import { useStore } from "@/lib/store";
 import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getRatings } from "@/lib/data";
@@ -13,6 +12,7 @@ import {
   IPL_TEAMS_DEFAULT,
   type PoolPlayer,
   type SimResult,
+  type AuctionMode,
 } from "@/lib/auction";
 import { PageTitle, Card, CardHeader, Spinner, Badge, StatTile, Empty, InfoTip, Collapsible } from "@/components/ui";
 import { cn, fmt } from "@/lib/utils";
@@ -102,8 +102,14 @@ function AuctionMath() {
           <div className="mb-2 text-xs font-bold uppercase tracking-wider text-accent">
             Part 3 · Simulate the auction (the whole room, many times)
           </div>
+          <p className="mb-2 text-sm leading-relaxed text-muted">
+            First, <b>retentions</b>: each franchise keeps its top players (by value) from its current
+            Cricsheet roster — <b>Mega</b> keeps ~5, <b>Mini</b> keeps most of the squad. Retained
+            players leave the pool and draw their cost from the purse (and count toward the overseas
+            cap). Only the rest goes under the hammer — and only <b>active</b> players.
+          </p>
           <p className="text-sm leading-relaxed text-muted">
-            Players go up one at a time, stars first. Each team sets a <b>max bid</b>:
+            Then the remaining players go up one at a time, stars first. Each team sets a <b>max bid</b>:
           </p>
           <Code>{`max bid = value × aggression × need × overseas-bias × luck`}</Code>
           <ul className="mt-2 space-y-1 text-sm text-muted">
@@ -161,10 +167,11 @@ function NumberField({ label, value, onChange, min = 0, max = 999, step = 1, suf
 }
 
 export function Auction() {
-  const { collection } = useStore();
   const navigate = useNavigate();
-  const { players } = usePlayers(collection);
-  const ratings = useAsync(() => getRatings(collection), [collection]);
+  // Auction is IPL-only — the ten franchises + retentions are IPL concepts,
+  // so it always uses IPL data regardless of the global collection.
+  const { players } = usePlayers("ipl");
+  const ratings = useAsync(() => getRatings("ipl"), []);
   const [mode, setMode] = useState<"build" | "simulate">("build");
 
   const pool = useMemo<PoolPlayer[]>(
@@ -177,17 +184,18 @@ export function Auction() {
       <PageTitle
         title="Auction room"
         icon={<Gavel className="h-6 w-6" />}
-        desc="A T20 auction is a constrained optimisation: build the strongest XI-plus-squad you can under a fixed purse, a squad size, role minimums, and an overseas-player cap. Two tools here — optimise YOUR squad, or simulate the whole auction against the ten IPL franchises, each bidding to its own personality."
+        desc="An IPL auction is a constrained optimisation under a fixed purse, squad size, role minimums and an overseas cap — over ACTIVE players only. Two tools: optimise YOUR squad from scratch, or simulate the real auction where each of the ten franchises first RETAINS its core (Mega = small retention, Mini = keep most of the squad) and then bids for the rest by its own personality."
       />
 
       {/* what is this for */}
       <Card className="mb-5 px-5 py-4 text-sm leading-relaxed text-muted">
         <span className="font-semibold text-fg">What it's for: </span>
-        Player values + estimated prices come from the Bayesian skill model. <b>Build my squad</b> runs
-        a value-per-credit optimiser to assemble the best squad your purse allows. <b>Simulate the
-        auction</b> drops every player under the hammer and lets all ten franchises bid by their
-        archetype (marquee-chaser, value-hunter, overseas-heavy…), repeated hundreds of times, so you
-        see who likely lands each marquee name and how each squad shapes up.
+        Values + estimated prices come from the Bayesian skill model, over <b>active</b> players only.{" "}
+        <b>Build my squad</b> drafts the best value-per-credit squad your purse allows, from scratch.{" "}
+        <b>Simulate the auction</b> first has each franchise <b>retain</b> its top core (by value, from
+        its current Cricsheet roster) — <b>Mega</b> keeps ~5, <b>Mini</b> keeps most of the squad —
+        then the ten teams bid for everyone else by personality, repeated hundreds of times, so you see
+        who lands each remaining star and how each squad shapes up.
       </Card>
 
       <AuctionMath />
@@ -212,7 +220,7 @@ export function Auction() {
       {ratings.loading ? (
         <Spinner label="Pricing the pool…" />
       ) : pool.length === 0 ? (
-        <Empty>No rated pool available for {collection}.</Empty>
+        <Empty>No rated IPL pool available.</Empty>
       ) : mode === "build" ? (
         <BuildSquad pool={pool} navigate={navigate} />
       ) : (
@@ -321,21 +329,26 @@ function SquadTable({ rows, navigate }: { rows: PoolPlayer[]; navigate: (p: stri
   );
 }
 
+const MODE_BLURB: Record<AuctionMode, string> = {
+  mega: "Mega auction — each franchise retains only ~5 core players; almost everyone else is up for grabs.",
+  mini: "Mini auction — franchises keep most of their squad; only a handful of slots are auctioned.",
+};
+
 function Simulate({ pool, navigate }: { pool: PoolPlayer[]; navigate: (p: string) => void }) {
   const [teams, setTeams] = useState(IPL_TEAMS_DEFAULT);
-  const [purse, setPurse] = useState(90);
+  const [mode, setSimMode] = useState<AuctionMode>("mega");
+  const [purse, setPurse] = useState(120);
   const [squadSize, setSquadSize] = useState(18);
   const [overseasCap, setOverseasCap] = useState(8);
   const [trials, setTrials] = useState(300);
-  const [focus, setFocus] = useState(0); // which team's sample squad to show
+  const [focus, setFocus] = useState(0);
   const [result, setResult] = useState<SimResult | null>(null);
   const [running, setRunning] = useState(false);
 
   function run() {
     setRunning(true);
-    // defer so the button shows its running state before the sync crunch
     setTimeout(() => {
-      setResult(simulateAuction(pool, teams, { purse, squadSize, overseasCap, trials }));
+      setResult(simulateAuction(pool, teams, { purse, squadSize, overseasCap, trials, mode }));
       setRunning(false);
     }, 20);
   }
@@ -344,9 +357,36 @@ function Simulate({ pool, navigate }: { pool: PoolPlayer[]; navigate: (p: string
 
   return (
     <div className="space-y-5">
-      {/* team personalities */}
+      {/* mode */}
       <Card className="p-5">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-fg">
+          Auction type
+          <InfoTip title="Mega vs Mini">
+            <div className="space-y-1.5">
+              <div><b className="text-fg">Mega</b>: {MODE_BLURB.mega}</div>
+              <div><b className="text-fg">Mini</b>: {MODE_BLURB.mini}</div>
+              <div className="text-muted/80">Retentions = each team's top players by Bayesian value from its current Cricsheet roster; they're locked and draw down the purse before bidding starts.</div>
+            </div>
+          </InfoTip>
+        </div>
+        <div className="flex gap-2">
+          {(["mega", "mini"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setSimMode(m)}
+              className={cn(
+                "rounded-lg border px-4 py-2 text-sm font-medium transition-all",
+                m === mode ? "border-accent/40 bg-accent/10 text-accent-glow shadow-glow" : "border-border bg-surface text-muted hover:text-fg",
+              )}
+            >
+              {m === "mega" ? "Mega auction" : "Mini auction"}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-muted">{MODE_BLURB[mode]}</p>
+
+        {/* team personalities */}
+        <div className="mb-3 mt-5 flex items-center gap-2 text-sm font-semibold text-fg">
           <Dices className="h-4 w-4 text-accent" /> Franchise personalities
           <InfoTip title="Bidding archetypes">
             <div className="space-y-1">
@@ -385,21 +425,22 @@ function Simulate({ pool, navigate }: { pool: PoolPlayer[]; navigate: (p: string
       </Card>
 
       {!result ? (
-        <Empty>Set the personalities &amp; constraints, then <b className="mx-1 text-accent-glow">Run simulation</b> to draft.</Empty>
+        <Empty>Pick the auction type &amp; personalities, then <b className="mx-1 text-accent-glow">Run simulation</b>.</Empty>
       ) : (
         <>
       {/* per-team outcomes */}
       <Card className="overflow-hidden">
-        <CardHeader title="How each squad shapes up" subtitle={`Averaged over ${trials} simulated auctions`} />
+        <CardHeader title="How each squad shapes up" subtitle={`${result.mode === "mega" ? "Mega" : "Mini"} auction · ${result.poolSize} players under the hammer · averaged over ${trials} runs`} />
         <div className="overflow-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr>
                 <th className="th">Team</th>
                 <th className="th">Personality</th>
-                <th className="th text-right">Avg spend</th>
-                <th className="th text-right">Avg value</th>
-                <th className="th text-right">Squad</th>
+                <th className="th text-right">Retained</th>
+                <th className="th text-right">Bought</th>
+                <th className="th text-right">Auction spend</th>
+                <th className="th text-right">Squad value</th>
                 <th className="th text-right">Overseas</th>
               </tr>
             </thead>
@@ -408,9 +449,10 @@ function Simulate({ pool, navigate }: { pool: PoolPlayer[]; navigate: (p: string
                 <tr key={t.team} className="hover:bg-surface/50">
                   <td className="td font-bold text-fg">{t.team}</td>
                   <td className="td"><Badge tone="accent">{t.personality}</Badge></td>
+                  <td className="td stat-num text-right text-muted">{t.retained}</td>
+                  <td className="td stat-num text-right">{fmt(t.avgBought, 1)}</td>
                   <td className="td stat-num text-right">{fmt(t.avgSpend, 1)} cr</td>
                   <td className="td stat-num text-right text-accent-glow">{fmt(t.avgValue, 1)}</td>
-                  <td className="td stat-num text-right">{fmt(t.avgSize, 1)}</td>
                   <td className="td stat-num text-right">{fmt(t.avgOverseas, 1)}</td>
                 </tr>
               ))}
@@ -459,8 +501,8 @@ function Simulate({ pool, navigate }: { pool: PoolPlayer[]; navigate: (p: string
       {draft && (
         <Card className="overflow-hidden">
           <CardHeader
-            title="A representative draft"
-            subtitle="One sampled auction — pick a team to see the squad it walked away with"
+            title="A representative squad"
+            subtitle="One sampled auction — retained core (locked) + auction buys"
             right={
               <select value={focus} onChange={(e) => setFocus(Number(e.target.value))} className="input w-auto cursor-pointer py-1 text-xs">
                 {result.sampleDraft.map((d, i) => (
@@ -469,22 +511,36 @@ function Simulate({ pool, navigate }: { pool: PoolPlayer[]; navigate: (p: string
               </select>
             }
           />
-          <div className="flex flex-wrap gap-2 p-4">
-            {draft.squad.length === 0 ? (
-              <span className="text-sm text-muted">No buys in this sample.</span>
-            ) : (
-              draft.squad.map((p) => (
-                <button key={p.cricsheet_id} onClick={() => navigate(`/player?cid=${p.cricsheet_id}`)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-xs hover:border-accent/40">
-                  <span className="text-fg">{p.name}</span>
-                  <Badge tone={ROLE_TONE[p.role]}>{p.role.replace("_", "-")}</Badge>
-                  {p.is_overseas && <Plane className="h-3 w-3 text-willow" />}
-                </button>
-              ))
-            )}
+          <div className="space-y-3 p-4">
+            <div>
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">Retained ({draft.retained.length})</div>
+              <div className="flex flex-wrap gap-2">
+                {draft.retained.length === 0 ? <span className="text-xs text-muted">none</span> : draft.retained.map((p) => (
+                  <button key={p.cricsheet_id} onClick={() => navigate(`/player?cid=${p.cricsheet_id}`)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-accent/30 bg-accent/10 px-2 py-1 text-xs hover:border-accent/50">
+                    <span className="text-accent-glow">{p.name}</span>
+                    <Badge tone={ROLE_TONE[p.role]}>{p.role.replace("_", "-")}</Badge>
+                    {p.is_overseas && <Plane className="h-3 w-3 text-willow" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">Bought ({draft.bought.length})</div>
+              <div className="flex flex-wrap gap-2">
+                {draft.bought.length === 0 ? <span className="text-xs text-muted">no buys in this sample</span> : draft.bought.map((p) => (
+                  <button key={p.cricsheet_id} onClick={() => navigate(`/player?cid=${p.cricsheet_id}`)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-xs hover:border-accent/40">
+                    <span className="text-fg">{p.name}</span>
+                    <Badge tone={ROLE_TONE[p.role]}>{p.role.replace("_", "-")}</Badge>
+                    {p.is_overseas && <Plane className="h-3 w-3 text-willow" />}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="border-t border-border px-4 py-2 text-xs text-muted">
-            Spend {fmt(draft.spend, 1)} cr · {draft.squad.length} players · {draft.overseas} overseas
+            {draft.retained.length + draft.bought.length} total · {draft.overseas} overseas · auction spend {fmt(draft.spent, 1)} cr
           </div>
         </Card>
       )}

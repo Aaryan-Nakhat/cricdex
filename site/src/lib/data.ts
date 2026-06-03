@@ -53,6 +53,7 @@ export interface PlayerRow {
   first_match_date: string | null;
   last_match_date: string | null;
   active: boolean;
+  team: string | null; // current IPL franchise code (null = free agent / non-IPL)
 }
 
 export interface RatingRow {

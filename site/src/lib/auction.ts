@@ -8,6 +8,7 @@ export interface PoolPlayer {
   role: Role;
   country: string;
   is_overseas: boolean;
+  team: string | null; // current IPL franchise code, null = free agent
   value: number; // complete Bayes value (best of bat/bowl)
   projected_value: number; // scaled to credits (cr)
   base_price: number; // estimated tier (cr)
@@ -32,7 +33,6 @@ function priceTier(pv: number): number {
 }
 
 function roleOf(p: PlayerRow): Role {
-  // Prefer Gemini taxonomy; fall back to ball counts.
   switch (p.primary_role) {
     case "wk_batter":
       return "keeper";
@@ -47,8 +47,8 @@ function roleOf(p: PlayerRow): Role {
   return p.balls_bowled > p.balls_faced ? "bowler" : "batter";
 }
 
-/** Priced auction pool from ratings + ball counts + taxonomy (country,
- * role). Mirrors the CLI real_pool calibration. */
+/** Priced auction pool from ratings + ball counts + taxonomy. ACTIVE players
+ * only — no retired names in the auction. Carries current franchise. */
 export function buildPool(players: PlayerRow[], ratings: RatingRow[]): PoolPlayer[] {
   const ratByKey = new Map<string, RatingRow>();
   for (const r of ratings) ratByKey.set(`${r.cricsheet_id}:${r.role}`, r);
@@ -61,7 +61,7 @@ export function buildPool(players: PlayerRow[], ratings: RatingRow[]): PoolPlaye
     if (seen.has(r.cricsheet_id)) continue;
     seen.add(r.cricsheet_id);
     const p = byId.get(r.cricsheet_id);
-    if (!p) continue;
+    if (!p || !p.active) continue; // active only
     const bat = ratByKey.get(`${r.cricsheet_id}:batter`);
     const bowl = ratByKey.get(`${r.cricsheet_id}:bowler`);
     const value = Math.max(bat?.value ?? -99, bowl?.value ?? -99);
@@ -77,6 +77,7 @@ export function buildPool(players: PlayerRow[], ratings: RatingRow[]): PoolPlaye
       role,
       country,
       is_overseas: !!p.country && p.country !== "IND",
+      team: p.team ?? null,
       value,
       projected_value: pv,
       base_price: base,
@@ -87,7 +88,7 @@ export function buildPool(players: PlayerRow[], ratings: RatingRow[]): PoolPlaye
   return out;
 }
 
-// ---- greedy single-squad optimiser (unchanged behaviour) ------------------
+// ---- greedy single-squad optimiser (Build my squad) -----------------------
 
 export interface SolveOpts {
   purse: number;
@@ -151,14 +152,14 @@ export function solve(pool: PoolPlayer[], opts: SolveOpts): SolveResult {
   };
 }
 
-// ---- franchise personalities + Monte-Carlo auction ------------------------
+// ---- franchise personalities ----------------------------------------------
 
 export interface Archetype {
   id: string;
   blurb: string;
-  aggression: number; // bid multiplier on perceived value
-  risk: number; // jitter
-  overseasAppetite: number; // 0..1 bias toward overseas
+  aggression: number;
+  risk: number;
+  overseasAppetite: number;
   roleMins: Record<Role, number>;
 }
 
@@ -188,8 +189,6 @@ export const IPL_TEAMS_DEFAULT: { team: string; personality: string }[] = [
   { team: "LSG", personality: "OverseasHeavy" },
 ];
 
-// deterministic-per-index PRNG (no Math.random — keeps runs reproducible
-// and avoids the workflow ban; varies by trial+player index)
 function rng(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
@@ -198,43 +197,113 @@ function rng(seed: number): () => number {
   };
 }
 
+// ---- retentions + mega/mini auction ---------------------------------------
+
+export type AuctionMode = "mega" | "mini";
+
+// retention cost slabs (cr) per retained slot, descending. Mega keeps a small
+// core at premium slabs; mini keeps most of the squad at a flat notional cost.
+const MEGA_SLABS = [16, 13, 11, 7, 4];
+const MINI_FLAT = 5;
+
+export const MODE_RETAIN: Record<AuctionMode, number> = { mega: 5, mini: 12 };
+
+function retentionCost(mode: AuctionMode, i: number): number {
+  return mode === "mega" ? (MEGA_SLABS[i] ?? 4) : MINI_FLAT;
+}
+
 export interface SimOpts {
   purse: number;
   squadSize: number;
   overseasCap: number;
   trials: number;
+  mode: AuctionMode;
+}
+
+interface FranchiseBase {
+  team: string;
+  personality: string;
+  retained: PoolPlayer[];
+  retainSpend: number;
+  retainOverseas: number;
 }
 
 export interface TeamState {
   team: string;
   personality: string;
-  spend: number;
-  overseas: number;
-  squad: PoolPlayer[];
+  retained: PoolPlayer[];
+  bought: PoolPlayer[];
+  spent: number; // auction spend only
+  overseas: number; // retained + bought
   counts: Record<Role, number>;
 }
 
 export interface SimResult {
-  teams: { team: string; personality: string; avgSpend: number; avgValue: number; avgOverseas: number; avgSize: number }[];
-  // per marquee player: win share by team
+  mode: AuctionMode;
+  bases: FranchiseBase[]; // retentions (constant across trials)
+  poolSize: number;
+  teams: {
+    team: string;
+    personality: string;
+    retained: number;
+    avgBought: number;
+    avgSpend: number;
+    avgValue: number; // retained + bought projected value
+    avgOverseas: number;
+  }[];
   marquee: { player: PoolPlayer; winners: { team: string; pct: number }[] }[];
-  // one representative final draft (the median-ish trial)
   sampleDraft: TeamState[];
 }
 
-function oneTrial(pool: PoolPlayer[], teamCfg: { team: string; personality: string }[], opts: SimOpts, seed: number): TeamState[] {
-  const rand = rng(seed);
-  const states: TeamState[] = teamCfg.map((t) => ({
-    team: t.team,
-    personality: t.personality,
-    spend: 0,
-    overseas: 0,
-    squad: [],
-    counts: { batter: 0, bowler: 0, all_rounder: 0, keeper: 0 },
-  }));
+function buildFranchises(
+  pool: PoolPlayer[],
+  teamCfg: { team: string; personality: string }[],
+  opts: SimOpts,
+): { bases: FranchiseBase[]; auctionPool: PoolPlayer[] } {
+  const retainN = MODE_RETAIN[opts.mode];
+  const retainedIds = new Set<string>();
+  const bases: FranchiseBase[] = teamCfg.map(({ team, personality }) => {
+    const roster = pool
+      .filter((p) => p.team === team)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, retainN);
+    let retainSpend = 0;
+    let retainOverseas = 0;
+    roster.forEach((p, i) => {
+      retainedIds.add(p.cricsheet_id);
+      retainSpend += retentionCost(opts.mode, i);
+      if (p.is_overseas) retainOverseas++;
+    });
+    return { team, personality, retained: roster, retainSpend, retainOverseas };
+  });
+  // everyone active and not retained goes under the hammer (incl. free agents)
+  const auctionPool = pool.filter((p) => !retainedIds.has(p.cricsheet_id));
+  return { bases, auctionPool };
+}
 
-  // marquee-first order with small jitter so the draft varies per trial
-  const order = [...pool]
+function freshState(b: FranchiseBase): TeamState {
+  const counts: Record<Role, number> = { batter: 0, bowler: 0, all_rounder: 0, keeper: 0 };
+  for (const p of b.retained) counts[p.role]++;
+  return {
+    team: b.team,
+    personality: b.personality,
+    retained: b.retained,
+    bought: [],
+    spent: 0,
+    overseas: b.retainOverseas,
+    counts,
+  };
+}
+
+function oneTrial(
+  bases: FranchiseBase[],
+  auctionPool: PoolPlayer[],
+  opts: SimOpts,
+  seed: number,
+): TeamState[] {
+  const rand = rng(seed);
+  const states = bases.map(freshState);
+  const order = [...auctionPool]
     .map((p) => ({ p, k: p.projected_value * (1 + (rand() - 0.5) * 0.1) }))
     .sort((a, b) => b.k - a.k)
     .map((x) => x.p);
@@ -246,15 +315,16 @@ function oneTrial(pool: PoolPlayer[], teamCfg: { team: string; personality: stri
     for (let i = 0; i < states.length; i++) {
       const st = states[i];
       const arc = ARCH_BY_ID[st.personality] ?? ARCH_BY_ID.Balanced;
-      if (st.squad.length >= opts.squadSize) continue;
+      const filled = st.retained.length + st.bought.length;
+      if (filled >= opts.squadSize) continue;
+      const remPurse = opts.purse - bases[i].retainSpend - st.spent;
+      if (remPurse < player.base_price) continue;
       if (player.is_overseas && st.overseas >= opts.overseasCap) continue;
-      if (st.spend + player.base_price > opts.purse) continue;
-      // willingness to pay
       const need = st.counts[player.role] < arc.roleMins[player.role] ? 1.5 : 0.7;
       const overseasBias = player.is_overseas ? arc.overseasAppetite * 1.4 : 1;
       const jitter = 1 + (rand() - 0.5) * 2 * arc.risk;
       let wtp = player.projected_value * arc.aggression * need * overseasBias * jitter;
-      wtp = Math.min(wtp, opts.purse - st.spend); // can't exceed remaining purse
+      wtp = Math.min(wtp, remPurse);
       if (wtp < player.base_price) continue;
       if (wtp > bestBid) {
         secondBid = bestBid > 0 ? bestBid : player.base_price;
@@ -267,8 +337,8 @@ function oneTrial(pool: PoolPlayer[], teamCfg: { team: string; personality: stri
     if (bestTeam >= 0) {
       const st = states[bestTeam];
       const price = Math.max(player.base_price, Math.min(bestBid, secondBid * 1.02));
-      st.squad.push(player);
-      st.spend += price;
+      st.bought.push(player);
+      st.spent += price;
       st.counts[player.role]++;
       if (player.is_overseas) st.overseas++;
     }
@@ -281,23 +351,32 @@ export function simulateAuction(
   teamCfg: { team: string; personality: string }[],
   opts: SimOpts,
 ): SimResult {
-  // cap pool size for browser speed — the marquee + mid tiers decide it
-  const usePool = pool.slice(0, 160);
-  const agg = teamCfg.map((t) => ({ team: t.team, personality: t.personality, spend: 0, value: 0, overseas: 0, size: 0 }));
-  const marqueeWins = new Map<string, Map<string, number>>(); // cid -> team -> count
+  const { bases, auctionPool } = buildFranchises(pool, teamCfg, opts);
+  const usePool = auctionPool.slice(0, 200);
+  const agg = bases.map((b) => ({
+    team: b.team,
+    personality: b.personality,
+    retained: b.retained.length,
+    retVal: b.retained.reduce((s, p) => s + p.projected_value, 0),
+    bought: 0,
+    spend: 0,
+    value: 0,
+    overseas: 0,
+  }));
+  const marqueeWins = new Map<string, Map<string, number>>();
   const top = usePool.slice(0, 20);
   for (const p of top) marqueeWins.set(p.cricsheet_id, new Map());
 
   let sampleDraft: TeamState[] = [];
   for (let t = 0; t < opts.trials; t++) {
-    const states = oneTrial(usePool, teamCfg, opts, 1000 + t * 7919);
+    const states = oneTrial(bases, usePool, opts, 1000 + t * 7919);
     if (t === Math.floor(opts.trials / 2)) sampleDraft = states;
     states.forEach((st, i) => {
-      agg[i].spend += st.spend;
-      agg[i].value += st.squad.reduce((s, p) => s + p.projected_value, 0);
+      agg[i].bought += st.bought.length;
+      agg[i].spend += st.spent;
+      agg[i].value += agg[i].retVal + st.bought.reduce((s, p) => s + p.projected_value, 0);
       agg[i].overseas += st.overseas;
-      agg[i].size += st.squad.length;
-      for (const p of st.squad) {
+      for (const p of st.bought) {
         const m = marqueeWins.get(p.cricsheet_id);
         if (m) m.set(st.team, (m.get(st.team) ?? 0) + 1);
       }
@@ -305,13 +384,17 @@ export function simulateAuction(
   }
   const n = opts.trials;
   return {
+    mode: opts.mode,
+    bases,
+    poolSize: auctionPool.length,
     teams: agg.map((a) => ({
       team: a.team,
       personality: a.personality,
+      retained: a.retained,
+      avgBought: a.bought / n,
       avgSpend: a.spend / n,
       avgValue: a.value / n,
       avgOverseas: a.overseas / n,
-      avgSize: a.size / n,
     })),
     marquee: top.map((p) => {
       const m = marqueeWins.get(p.cricsheet_id)!;
