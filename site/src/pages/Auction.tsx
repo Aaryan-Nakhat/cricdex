@@ -239,7 +239,7 @@ function Simulate({
   const [teams, setTeams] = useState(IPL_TEAMS_DEFAULT);
   const [mode, setSimMode] = useState<AuctionMode>("mega");
   const [purse, setPurse] = useState(120);
-  const [squadSize, setSquadSize] = useState(22);
+  const [squadSize, setSquadSize] = useState(25);
   const [overseasCap, setOverseasCap] = useState(8);
   const [trials, setTrials] = useState(300);
   const [focus, setFocus] = useState(0);
@@ -380,7 +380,7 @@ function Simulate({
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <NumberField label="Purse / team" value={purse} onChange={setPurse} min={10} max={500} step={5} suffix="cr" />
-          <NumberField label="Squad size" value={squadSize} onChange={setSquadSize} min={5} max={30} />
+          <NumberField label="Squad cap" value={squadSize} onChange={setSquadSize} min={20} max={25} />
           <NumberField label="Overseas cap" value={overseasCap} onChange={setOverseasCap} min={0} max={11} />
           <NumberField label="Trials" value={trials} onChange={setTrials} min={50} max={1000} step={50} />
         </div>
