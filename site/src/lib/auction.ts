@@ -297,7 +297,7 @@ function freshState(b: FranchiseBase): TeamState {
 }
 
 const MIN_BASE = 0.3; // cheapest base price (cr) — reserve this per unfilled slot
-const MIN_SQUAD = 18; // IPL rule: every team must end with ≥18
+const MIN_SQUAD = 20; // every team fills to at least 20 (max = squadSize, ≤25)
 
 function oneTrial(
   bases: FranchiseBase[],
