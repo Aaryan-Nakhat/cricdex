@@ -111,5 +111,10 @@ export const getVenues = (c: string) =>
   getJSON<Record<string, Record<string, Record<string, unknown>[]>>>(`${c}/venues.json`);
 export const getProfile = (c: string, cid: string) =>
   getJSON<Profile>(`${c}/profiles/${cid}.json`);
+
+export interface RetentionData {
+  mega: Record<string, { cricsheet_id: string; name: string; price: number }[]>;
+}
+export const getRetentions = (c: string) => getJSON<RetentionData>(`${c}/retentions.json`);
 export const getCohorts = (c: string, cid: string) =>
   getJSON<Cohorts>(`${c}/cohorts/${cid}.json`);
