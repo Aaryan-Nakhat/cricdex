@@ -52,27 +52,32 @@ const SECTIONS: Section[] = [
   },
   {
     icon: <Network className="h-5 w-5" />,
-    title: "The scout graph",
+    title: "Scout — cross-tier look-alikes",
     body: (
       <>
-        Players are nodes; edges record who <em>faced</em> whom and who <em>played alongside</em> whom. A
-        graph traversal then answers scouting questions raw stats can’t: who are this batter’s stylistic
-        twins (troubled by the same bowlers), and who’s the closest available replacement for an
-        unavailable player, filtered by role and recency.
+        Pick an active IPL player and find others of the <em>same mould</em> at three levels:{" "}
+        <strong>IPL peers</strong>, uncapped Indian prospects from the <strong>SMAT</strong>, and
+        overseas options from the <strong>BBL</strong>. Matches share the same role (and seam/spin type
+        for bowlers) and are ranked by how close their <em>skill standing</em> is — each player's
+        Bayesian value as a z-score within its own competition, so a SMAT star and an IPL star line up
+        even though raw numbers aren't comparable across tiers. (A Neo4j faced/teammate graph still
+        powers the desktop CLI &amp; Streamlit twins.)
       </>
     ),
   },
   {
     icon: <Gavel className="h-5 w-5" />,
-    title: "Auction optimisation",
+    title: "Auction simulation",
     body: (
       <>
-        Given a player pool with projected values and prices, the auction room does two things: a
-        value-per-credit optimiser that builds the best squad you can afford under real constraints
-        (purse, squad size, overseas cap, role minimums), and a Monte-Carlo simulation of the full
-        auction where all ten franchises bid to their own personality — marquee-chaser, value-hunter,
-        overseas-heavy and so on — over hundreds of runs, so you see who likely lands each marquee name.
-        Both run entirely in your browser.
+        A Monte-Carlo of a real IPL auction. The pool spans the active T20 world it draws from — IPL
+        players plus free agents from the <strong>BBL</strong> (overseas) and <strong>SMAT</strong>
+        (uncapped Indians) — priced in crore from the skill model and decayed for staleness. Each
+        franchise first <strong>retains</strong> its core (Mega = the real 2025 lists, ~5; Mini = keep
+        most of the squad — both editable), then the ten teams bid for the rest by their own
+        personality (marquee-chaser, value-hunter, overseas-heavy…), hundreds of times, filling 20–25-man
+        squads under the purse + overseas cap. You see who likely lands each remaining star. Runs
+        entirely in your browser. (The desktop CLI keeps an exact MILP optimiser.)
       </>
     ),
   },

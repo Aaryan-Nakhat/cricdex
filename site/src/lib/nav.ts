@@ -27,7 +27,7 @@ export const NAV: NavItem[] = [
   { to: "/compare", label: "Compare", icon: GitCompareArrows, group: "Analyse", blurb: "Side-by-side across every number." },
   { to: "/head-to-head", label: "Head-to-head", icon: Swords, group: "Analyse", blurb: "P(A is better than B) from the Bayesian model." },
   { to: "/scout", label: "Scout", icon: Network, group: "Scout", blurb: "Find look-alikes across IPL, SMAT & BBL." },
-  { to: "/auction", label: "Auction room", icon: Gavel, group: "Scout", blurb: "Optimise a squad under purse + overseas caps." },
+  { to: "/auction", label: "Auction room", icon: Gavel, group: "Scout", blurb: "Simulate a real IPL auction — retain, then bid for the rest." },
   { to: "/records", label: "Records", icon: Medal, group: "Explore", blurb: "All-time record books." },
   { to: "/venues", label: "Venues", icon: MapPin, group: "Explore", blurb: "Ground conditions: totals, phases, chasing." },
   { to: "/about", label: "How it works", icon: BookOpen, group: "Explore", blurb: "The models, plainly explained." },

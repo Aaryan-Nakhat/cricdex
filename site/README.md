@@ -35,7 +35,7 @@ pnpm preview      # serve the build locally
 - **`deploy-pages`** workflow builds `dist/` and publishes to GitHub
   Pages on every push to `site/**`.
 - **`refresh-data`** workflow (nightly) re-ingests Cricsheet, recomputes
-  metrics + Bayesian ratings + the scout graph, re-cooks
+  metrics + Bayesian ratings + the scout & auction indices, re-cooks
   `public/data/`, and commits it — which triggers a redeploy. That is
   the "refresh to the latest match date" mechanism; it can't run in the
   browser because the models need JAX / XGBoost / Neo4j.
@@ -44,7 +44,7 @@ pnpm preview      # serve the build locally
 
 Overview · Leaderboards (10 metrics) · Player profile (4 Bayesian skill
 axes + uncertainty, career, metrics, dismissal fingerprint, twins) ·
-Compare · Head-to-head P(A>B) · Scout graph · Auction room · Records ·
-Venues · How it works.
+Compare · Head-to-head P(A>B) · Scout (3-tier IPL/SMAT/BBL look-alikes) ·
+Auction room (real-rules IPL auction sim) · Records · Venues · How it works.
 
 <!-- deploy: Pages source set to GitHub Actions -->

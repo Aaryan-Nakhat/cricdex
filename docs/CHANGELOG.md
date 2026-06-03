@@ -6,6 +6,46 @@ versioning starts at v0.1.0.
 
 ---
 
+## [Unreleased]
+
+Web-surface overhaul of the Scout and Auction rooms. These now **diverge
+by design** from the desktop CLI/Streamlit (which keep the Neo4j-graph
+twins and the exact MILP squad optimiser) — the browser versions are
+rebuilt as more realistic, self-contained tools.
+
+### Changed
+
+- **Auction room (web) — real-rules IPL auction sim.** Replaced the
+  browser "build my squad" knapsack with a Monte-Carlo of an actual IPL
+  auction:
+  - **Cross-collection pool** — IPL players + free agents from the BBL
+    (overseas) and SMAT (uncapped Indians), not IPL-only. Active-only
+    (last ~3 yrs), ≥150 balls, associate/non-IPL-nation noise filtered,
+    cross-tier values penalised (BBL −0.07, SMAT −0.20).
+  - **Crore pricing recalibrated** to recent real auctions —
+    `clamp(1.6·e^(5.8·skill)·roleMult, 0.3, 27)` with a **recency decay**
+    so dormant/retired names (Lynn, Mishra) stop topping the buys.
+  - **Editable retentions** — Mega = the real 2025 lists (~5, slab-priced
+    from a 120 cr purse); Mini = keep most of the squad (free, small
+    leftover purse). Both shown and editable before you run.
+  - **Two-phase fill** — every team fills to a 20-man minimum, then tops
+    up toward a 25 cap (squads land 20–25, no team left short).
+  - Real IPL rules: overseas cap 8, retention slabs, uncapped/RTM, second-
+    price clearing, ~300 Monte-Carlo trials. See
+    [`docs/AUCTION_MATH.md`](AUCTION_MATH.md).
+- **Scout (web) — 3-tier look-alike finder.** Replaced the browser scout
+  graph with: pick an active IPL player → similar **IPL peers**, then
+  uncapped **SMAT** prospects, then overseas **BBL** options. Matches share
+  archetype (role + seam/spin) and are ranked by within-tier skill-standing
+  z-score, so cross-tier stars line up despite incomparable raw numbers.
+- **Export pipeline** — `scripts/export_site.py` gains
+  `_export_auction_pool` (cross-collection, recency, tier penalty) and
+  `_export_scout_index` (3-tier z-standing), plus real-2025 retention
+  lists; `collections.json` merge so single-collection runs don't clobber
+  the index.
+
+---
+
 ## [0.1.0] — v1 release (pending tag)
 
 The first cut a non-developer can install + browse. Terminal-first

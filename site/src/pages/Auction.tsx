@@ -50,65 +50,61 @@ function AuctionMath() {
 
         <div>
           <div className="mb-2 text-xs font-bold uppercase tracking-wider text-accent">
-            Part 1 · Skill → price tag
+            Part 1 · Skill → crore price
           </div>
           <div className="space-y-3">
-            <Step n={1} title="Make skill multiply (e^skill)">
-              Skill is a small number (avg 0, stars positive). Exponentiate so it scales like a market:
-              skill 0 → ×1.00, +0.3 → ×1.35, −0.3 → ×0.74.
+            <Step n={1} title="Amplify skill exponentially">
+              Skill is a compressed number (avg 0, stars ~+0.5). Exponentiate and scale so the spread
+              matches real money — top players land ~27 cr, the median ~3–4 cr. All-rounders/keepers get
+              a small scarcity premium.
             </Step>
-            <Step n={2} title="Scale to crore">
-              Multiply by a role weight (all-rounders rarer → higher) and a constant, so the best land
-              ~10–12 cr. Out comes <b>projected value</b> (worth) and a <b>base price</b> snapped to IPL
-              bands (0.3 / 0.5 / 0.75 / 1 / 1.5 / 2 cr).
+            <Step n={2} title="Decay for staleness">
+              A player who's barely featured lately (last game years ago) is worth less now — value
+              decays with time since their last match (a few months' grace, then ramps). Keeps
+              has-beens out of the top buys.
             </Step>
-            <Step n={3} title="Value per credit = value ÷ base price">
-              Quality per rupee. High = bargain. This is what the optimiser ranks by.
+            <Step n={3} title="Base price">
+              The opening tag, snapped to IPL bands (0.3 / 0.5 / 0.75 / 1 / 1.5 / 2 cr). Bidding pushes
+              the final price up from there.
             </Step>
           </div>
           <Code>{`"Player X", skill +0.25:
-  e^0.25                = 1.28
-  × 0.5 (batter) × 4    = 2.56 cr   ← projected value
-  opening tag           = 0.50 cr   ← base price
-  value per credit = 2.56 / 0.50 = 5.1   (cheap & good)`}</Code>
+  1.6 × e^(5.8 × 0.25)        ≈ 6.5 cr   ← projected value
+  (− recency penalty if stale)
+  opening tag                 = 0.75 cr  ← base price`}</Code>
         </div>
 
         <div>
           <div className="mb-2 text-xs font-bold uppercase tracking-wider text-accent">
-            Part 2 · Build my squad (you, shopping smart)
+            Part 2 · Who's in the pool
           </div>
           <p className="text-sm leading-relaxed text-muted">
-            A "fill a cart on a budget" problem (a knapsack) with extra rules: squad size, overseas
-            cap, minimum players per role. The greedy strategy:
+            The whole active T20 world an IPL auction draws from — not just IPL:
           </p>
-          <div className="mt-3 space-y-3">
-            <Step n={1} title="Cover the minimums first">
-              For each role, buy the highest value-per-credit players until its minimum is met — skipping
-              anyone you can't afford or who'd break the overseas cap.
-            </Step>
-            <Step n={2} title="Spend the rest on best value">
-              Fill the leftover slots with the best value-per-credit players regardless of role, until
-              the squad is full or money runs out.
-            </Step>
-          </div>
-          <p className="mt-3 text-sm leading-relaxed text-muted">
-            When cash is the bottleneck, "most quality per rupee" is the right ranking — near-optimal and
-            instant. Lower the overseas cap → it swaps imports for the next-best Indians.
+          <ul className="mt-2 space-y-1 text-sm text-muted">
+            <li>• <b className="text-fg">IPL players</b> — retainable, carry their current franchise.</li>
+            <li>• <b className="text-fg">Free agents</b> — Aus uncapped via the <b>BBL</b>, uncapped Indians via <b>SMAT</b>.</li>
+            <li>• Active only (last ~3 years), ≥150 balls (cuts tiny-sample flukes).</li>
+            <li>• Excludes men's-T20I associate noise + non-IPL nations (PAK).</li>
+          </ul>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            Value isn't comparable across tiers (runs vs weak SMAT attacks ≠ vs IPL), so lower tiers are
+            penalised (BBL −0.07, SMAT −0.20) before pricing.
           </p>
         </div>
 
         <div>
           <div className="mb-2 text-xs font-bold uppercase tracking-wider text-accent">
-            Part 3 · Simulate the auction (the whole room, many times)
+            Part 3 · Retentions, then the auction
           </div>
           <p className="mb-2 text-sm leading-relaxed text-muted">
-            First, <b>retentions</b>: each franchise keeps its top players (by value) from its current
-            Cricsheet roster — <b>Mega</b> keeps ~5, <b>Mini</b> keeps most of the squad. Retained
-            players leave the pool and draw their cost from the purse (and count toward the overseas
-            cap). Only the rest goes under the hammer — and only <b>active</b> players.
+            First, <b>retentions</b> (editable per team): <b>Mega</b> = the real 2025 lists (~5 each,
+            drawn from the 120 cr purse via slabs); <b>Mini</b> = keep most of the squad (already
+            paid-for — teams bid a small leftover purse). Retained players leave the pool and count
+            toward the overseas cap. Everyone else goes under the hammer.
           </p>
           <p className="text-sm leading-relaxed text-muted">
-            Then the remaining players go up one at a time, stars first. Each team sets a <b>max bid</b>:
+            Then players go up one at a time, stars first. Each team sets a <b>max bid</b>:
           </p>
           <Code>{`max bid = value × aggression × need × overseas-bias × luck`}</Code>
           <ul className="mt-2 space-y-1 text-sm text-muted">
@@ -127,9 +123,10 @@ function AuctionMath() {
   CSK (Balanced, batters full):        10 × 1.00 × 0.7 × 1 =  7.0
   → MI wins, pays ≈ 7.1 cr (just over CSK), not its full 20.3`}</Code>
           <p className="mt-3 text-sm leading-relaxed text-muted">
-            That's one mock auction. Run it ~300 times (reshuffled slightly) and average → each team's
-            typical spend & squad, and each star's win-share ("Bumrah → MI 62%, CSK 21%" = your odds in
-            a bidding war).
+            Two passes so the pool is shared fairly: every team first fills to a <b>20-man minimum</b>,
+            then tops up toward the <b>25 cap</b>. That's one mock auction. Run it ~300 times (reshuffled
+            slightly) and average → each team's typical spend &amp; squad, and each star's win-share
+            ("Bumrah → MI 62%, CSK 21%" = your odds in a bidding war).
           </p>
         </div>
 
