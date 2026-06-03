@@ -248,6 +248,62 @@ MEGA_RETENTIONS_2025: dict[str, list[tuple[str, float]]] = {
 }
 
 
+def _export_auction_pool(
+    collection: str,
+    out_dir: Path,
+    taxonomy: dict[str, dict],
+    activity: dict[str, dict],
+    teams: dict[str, str],
+) -> int:
+    """Lightweight, BIG auction pool for IPL — every ACTIVE rated player
+    (scout_ratings cutoff is ~6 balls, vs 300 for players.json), so the
+    sim has enough bodies for 10 squads of 18–25. {cid, name, role,
+    country, is_overseas, team, value}."""
+    src = METRIC_DIR / f"scout_ratings_{collection}.json"
+    if not src.exists():
+        return 0
+    rows = json.loads(src.read_text())
+    best: dict[str, dict] = {}
+    for r in rows:
+        cid = r.get("cricsheet_id")
+        v = r.get("value")
+        if cid is None or v is None:
+            continue
+        cur = best.get(cid)
+        if cur is None or v > cur["value"]:
+            best[cid] = {"value": v, "name": r.get("unique_name")}
+    role_map = {
+        "wk_batter": "keeper",
+        "allrounder": "all_rounder",
+        "bowler": "bowler",
+        "batter": "batter",
+    }
+    out = []
+    for cid, b in best.items():
+        name = b["name"]
+        if not name:
+            continue
+        act = activity.get(name, {})
+        if not act.get("active"):
+            continue  # active only
+        tax = taxonomy.get(cid, {})
+        country = tax.get("country")
+        out.append(
+            {
+                "cricsheet_id": cid,
+                "name": name,
+                "value": b["value"],
+                "role": role_map.get(tax.get("primary_role"), "batter"),
+                "country": country,
+                "is_overseas": bool(country) and country != "IND",
+                "team": teams.get(name),
+            }
+        )
+    out.sort(key=lambda p: p["value"], reverse=True)
+    _write(out_dir / "auction_pool.json", out)
+    return len(out)
+
+
 def _export_retentions(players: list[dict], out_dir: Path) -> None:
     """Resolve the real 2025 mega retentions to cricsheet_ids and write
     ipl/retentions.json. Names matched on name / full_name (case-insensitive)."""
@@ -702,6 +758,10 @@ def export(
             _write(out_dir / "players.json", players)
             if col == "ipl":
                 _export_retentions(players, out_dir)
+                n_pool = _export_auction_pool(
+                    col, out_dir, taxonomy, activity, _current_teams(con, col)
+                )
+                logger.info(f"  auction_pool: {n_pool} active rated players")
             match_counts = _match_counts(con, col)
             n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
             for win in windows_by_col.get(col, []):

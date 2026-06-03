@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Gavel, Dices, Plane, Calculator, X, Users } from "lucide-react";
-import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
-import { getRatings, getRetentions } from "@/lib/data";
+import { getAuctionPool, getRetentions } from "@/lib/data";
 import {
   buildPool,
   simulateAuction,
@@ -168,15 +167,14 @@ function NumberField({ label, value, onChange, min = 0, max = 999, step = 1, suf
 
 export function Auction() {
   const navigate = useNavigate();
-  // Auction is IPL-only — the ten franchises + retentions are IPL concepts,
-  // so it always uses IPL data regardless of the global collection.
-  const { players } = usePlayers("ipl");
-  const ratings = useAsync(() => getRatings("ipl"), []);
+  // Auction is IPL-only — the ten franchises + retentions are IPL concepts.
+  // Uses the big auction_pool (every active rated player), not players.json.
+  const poolData = useAsync(() => getAuctionPool("ipl"), []);
   const retentions = useAsync(() => getRetentions("ipl"), []);
 
   const pool = useMemo<PoolPlayer[]>(
-    () => (ratings.data && players.length ? buildPool(players, ratings.data) : []),
-    [ratings.data, players],
+    () => (poolData.data ? buildPool(poolData.data) : []),
+    [poolData.data],
   );
 
   // real 2025 retention ids + prices per team, from retentions.json
@@ -211,7 +209,7 @@ export function Auction() {
 
       <AuctionMath />
 
-      {ratings.loading || retentions.loading ? (
+      {poolData.loading || retentions.loading ? (
         <Spinner label="Pricing the pool…" />
       ) : pool.length === 0 ? (
         <Empty>No rated IPL pool available.</Empty>
@@ -241,7 +239,7 @@ function Simulate({
   const [teams, setTeams] = useState(IPL_TEAMS_DEFAULT);
   const [mode, setSimMode] = useState<AuctionMode>("mega");
   const [purse, setPurse] = useState(120);
-  const [squadSize, setSquadSize] = useState(18);
+  const [squadSize, setSquadSize] = useState(22);
   const [overseasCap, setOverseasCap] = useState(8);
   const [trials, setTrials] = useState(300);
   const [focus, setFocus] = useState(0);
