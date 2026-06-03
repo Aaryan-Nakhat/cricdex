@@ -127,5 +127,23 @@ export interface AuctionPoolRow {
   team: string | null;
 }
 export const getAuctionPool = (c: string) => getJSON<AuctionPoolRow[]>(`${c}/auction_pool.json`);
+
+export interface ScoutPlayer {
+  cricsheet_id: string;
+  name: string;
+  role: "batter" | "bowler" | "all_rounder" | "keeper";
+  bowling_category: string | null;
+  batting_position: string | null;
+  country: string | null;
+  value: number;
+  z: number; // skill standing within the tier (mean 0, sd 1)
+  last_match_date: string | null;
+}
+export interface ScoutIndex {
+  ipl: ScoutPlayer[];
+  smat: ScoutPlayer[];
+  bbl: ScoutPlayer[];
+}
+export const getScoutIndex = (c: string) => getJSON<ScoutIndex>(`${c}/scout_index.json`);
 export const getCohorts = (c: string, cid: string) =>
   getJSON<Cohorts>(`${c}/cohorts/${cid}.json`);

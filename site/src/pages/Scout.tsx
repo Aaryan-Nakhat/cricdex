@@ -1,107 +1,98 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Network, Users, Handshake, Repeat } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { Network, Users, Sprout, Plane } from "lucide-react";
 import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
-import { getCohorts, type Cohorts } from "@/lib/data";
+import { getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, InfoTip, Collapsible } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, Collapsible } from "@/components/ui";
+import { fmt } from "@/lib/utils";
+
+const POS = {
+  opener: "Opener",
+  no3: "No. 3",
+  middle: "Middle",
+  finisher: "Finisher",
+  lower: "Lower",
+  tailender: "Tailender",
+} as Record<string, string>;
+
+// similar = same role (+ same bowling type for bowlers), nearest skill standing
+function similarTo(sel: ScoutPlayer, pool: ScoutPlayer[]): { p: ScoutPlayer; sim: number }[] {
+  return pool
+    .filter((p) => p.cricsheet_id !== sel.cricsheet_id && p.role === sel.role)
+    .filter((p) => sel.role !== "bowler" || p.bowling_category === sel.bowling_category)
+    .map((p) => ({ p, sim: Math.max(0, 1 - Math.abs(p.z - sel.z) / 2.5) }))
+    .sort((a, b) => b.sim - a.sim)
+    .slice(0, 8);
+}
 
 function ScoutMath() {
   return (
-    <Collapsible title="How the scout graph works (plain English)" icon={<Network className="h-4 w-4" />}>
+    <Collapsible title="How the scout works (plain English)" icon={<Network className="h-4 w-4" />}>
       <div className="space-y-3 text-sm leading-relaxed text-muted">
         <p>
-          Every player is a <b>dot</b>. We draw two kinds of lines between them, straight from the
-          ball-by-ball data:
+          Pick an active IPL player. We find players of the <b>same archetype</b> (same role; for
+          bowlers, same seam/spin type) at three levels and rank them by how close their{" "}
+          <b>skill standing</b> is to your pick.
         </p>
         <ul className="space-y-1.5">
-          <li>• <b className="text-fg">faced</b> — this batter faced that bowler (a lot)</li>
-          <li>• <b className="text-fg">teammate</b> — they played in the same XI</li>
+          <li>• <b className="text-fg">IPL peers</b> — who else in the IPL is most like them.</li>
+          <li>• <b className="text-fg">Uncapped (SMAT)</b> — domestic Indian prospects of the same mould — the "next one".</li>
+          <li>• <b className="text-fg">Overseas (BBL)</b> — Big Bash players of the same mould.</li>
         </ul>
-        <p>Then we just count overlaps — no skill model involved here, only who-met-whom:</p>
-        <ul className="space-y-1.5">
-          <li>
-            • <b className="text-fg">Faced the same bowlers</b> — batters who battled the same attacks.
-            Shared-bowler count = how alike their on-field challenge was (a batting-style twin).
-          </li>
-          <li>
-            • <b className="text-fg">Teammate overlap</b> — who shared the most XIs with this player.
-          </li>
-          <li>
-            • <b className="text-fg">Find a replacement</b> — graph-similar players, then filtered by
-            role/recency. Because "shared opponents" alone can pair a seamer with a leg-spinner, the{" "}
-            <b>same bowling type only</b> toggle keeps replacements seam↔seam or spin↔spin (using the
-            Gemini-classified type).
-          </li>
-        </ul>
-        <p className="rounded-lg border border-willow/20 bg-willow/5 px-3 py-2 text-xs">
-          <b className="text-willow">Note:</b> "faced the same bowlers" measures shared <i>experience</i>,
-          not similar skill — so two very different batters can be high if they came up against the same
-          attacks.
+        <p>
+          "Skill standing" is the player's Bayesian value expressed as a z-score <i>within its own
+          competition</i> (mean 0, sd 1), so a star in SMAT and a star in the IPL line up even though
+          the raw numbers aren't comparable across tiers. Similarity = how close those standings are.
         </p>
       </div>
     </Collapsible>
   );
 }
 
-function TypeBadge({ row }: { row: Record<string, unknown> }) {
-  const cat = row.bowling_category as string | undefined;
-  const role = row.primary_role as string | undefined;
-  return (
-    <span className="flex items-center gap-1">
-      {role && <Badge>{String(role).replace("_", "-")}</Badge>}
-      {cat === "seam" && <Badge tone="ball">seam</Badge>}
-      {cat === "spin" && <Badge tone="willow">spin</Badge>}
-    </span>
-  );
-}
-
-function CohortColumn({
+function TierPanel({
   title,
   icon,
   subtitle,
   rows,
-  metricKey,
-  metricLabel,
-  onPick,
+  linkable,
+  navigate,
 }: {
-  title: React.ReactNode;
+  title: string;
   icon: React.ReactNode;
   subtitle: string;
-  rows: Record<string, unknown>[];
-  metricKey: string;
-  metricLabel: string;
-  onPick: (cid: string) => void;
+  rows: { p: ScoutPlayer; sim: number }[];
+  linkable: boolean;
+  navigate: (path: string) => void;
 }) {
   return (
     <Card>
       <CardHeader title={<span className="flex items-center gap-2">{icon}{title}</span>} subtitle={subtitle} />
       <div className="p-2">
         {rows.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted">No matching cohort.</div>
+          <div className="px-3 py-6 text-center text-sm text-muted">No close match of this archetype.</div>
         ) : (
-          rows.slice(0, 12).map((r, i) => {
-            const cid = r.cricsheet_id ? String(r.cricsheet_id) : null;
-            return (
-              <button
-                key={i}
-                disabled={!cid}
-                onClick={() => cid && onPick(cid)}
-                className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-surface disabled:opacity-60"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="stat-num w-5 shrink-0 text-xs text-muted">{i + 1}</span>
-                  <span className="truncate text-fg">{String(r.name)}</span>
-                  <TypeBadge row={r} />
+          rows.map(({ p, sim }, i) => (
+            <button
+              key={p.cricsheet_id}
+              disabled={!linkable}
+              onClick={() => linkable && navigate(`/player?cid=${p.cricsheet_id}`)}
+              className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-surface disabled:cursor-default"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="stat-num w-5 shrink-0 text-xs text-muted">{i + 1}</span>
+                <span className="truncate text-fg">{p.name}</span>
+                {p.country && <span className="shrink-0 text-[11px] text-muted">{p.country}</span>}
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="stat-num text-xs text-muted">{p.last_match_date?.slice(0, 4)}</span>
+                <span className="w-12 text-right">
+                  <Badge tone={sim > 0.8 ? "accent" : sim > 0.6 ? "willow" : "muted"}>{Math.round(sim * 100)}%</Badge>
                 </span>
-                <span className="stat-num shrink-0 text-xs text-muted">
-                  {String(r[metricKey] ?? "")} {metricLabel}
-                </span>
-              </button>
-            );
-          })
+              </span>
+            </button>
+          ))
         )}
       </div>
     </Card>
@@ -109,104 +100,74 @@ function CohortColumn({
 }
 
 export function Scout() {
-  const { collection } = useStore();
-  const { options, byId } = usePlayers(collection);
   const navigate = useNavigate();
+  const { options } = usePlayers("ipl"); // nice full-name search
+  const idx = useAsync<ScoutIndex>(() => getScoutIndex("ipl"), []);
   const [cid, setCid] = useState<string | null>(null);
-  const [sameType, setSameType] = useState(true);
 
-  const { data, loading } = useAsync<Cohorts | null>(
-    () => (cid ? getCohorts(collection, cid) : Promise.resolve(null)),
-    [collection, cid],
-  );
+  const iplById = useMemo(() => {
+    const m = new Map<string, ScoutPlayer>();
+    for (const p of idx.data?.ipl ?? []) m.set(p.cricsheet_id, p);
+    return m;
+  }, [idx.data]);
 
-  const player = cid ? byId.get(cid) : null;
-  const playerCat = player?.bowling_category ?? null;
-
-  // "Same bowling type" makes find-replacement actually useful: a seamer
-  // should be replaced by seamers, not Amit Mishra.
-  const replacements = useMemo(() => {
-    const rows = data?.find_replacement ?? [];
-    if (!sameType || !playerCat) return rows;
-    return rows.filter((r) => !r.bowling_category || r.bowling_category === playerCat);
-  }, [data, sameType, playerCat]);
+  // only IPL players that exist in the scout index are pickable
+  const pickOptions = useMemo(() => options.filter((o) => iplById.has(o.value)), [options, iplById]);
+  const sel = cid ? iplById.get(cid) : null;
 
   return (
     <>
       <PageTitle
-        title="Scout graph"
+        title="Scout"
         icon={<Network className="h-6 w-6" />}
-        desc="A Neo4j graph links players through who they faced and who they played alongside. Find stylistic twins (same bowlers troubled them) and ready-made replacements for an unavailable player."
+        desc="Pick an active IPL player and find others of the same mould at three levels — IPL peers, uncapped Indian prospects (SMAT), and overseas options (BBL) — ranked by how close their skill standing is."
       />
 
       <ScoutMath />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Combobox options={options} value={cid} onChange={setCid} placeholder="Search a player…" className="max-w-md flex-1" />
-        {player && (playerCat || player.primary_role) && (
+        <Combobox options={pickOptions} value={cid} onChange={setCid} placeholder="Search an active IPL player…" className="max-w-md flex-1" />
+        {sel && (
           <div className="flex items-center gap-2 text-sm text-muted">
-            <span>this player:</span>
-            <TypeBadge row={{ primary_role: player.primary_role, bowling_category: player.bowling_category }} />
+            <Badge tone="accent">{sel.role.replace("_", "-")}</Badge>
+            {sel.role === "bowler" && sel.bowling_category && (
+              <Badge tone={sel.bowling_category === "spin" ? "willow" : "ball"}>{sel.bowling_category}</Badge>
+            )}
+            {sel.batting_position && <Badge>{POS[sel.batting_position] ?? sel.batting_position}</Badge>}
+            <span className="text-xs">standing {fmt(sel.z, 2)}</span>
           </div>
         )}
       </div>
 
-      {cid && (
-        <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface/50 px-3 py-2 text-sm text-muted">
-          <input
-            type="checkbox"
-            checked={sameType}
-            onChange={(e) => setSameType(e.target.checked)}
-            className="accent-[#34d399]"
-          />
-          Replacements: same bowling type only
-          <InfoTip title="Why">
-            Find-replacement walks the graph by shared opponents, which can surface a spinner as a
-            seamer's "twin". This filter keeps replacements to the same bowling category (seam/spin)
-            as the selected player. Off = raw graph similarity.
-          </InfoTip>
-        </label>
-      )}
-
-      {!cid ? (
-        <Empty>Pick a player to traverse their cohort.</Empty>
-      ) : loading ? (
-        <Spinner label="Querying the graph…" />
-      ) : !data ? (
-        <Empty>No graph cohort for this player.</Empty>
+      {idx.loading ? (
+        <Spinner label="Loading scout index…" />
+      ) : !sel ? (
+        <Empty>Pick an IPL player to scout look-alikes across IPL, SMAT and the BBL.</Empty>
       ) : (
         <div className="grid grid-cols-1 gap-5 animate-fade-up lg:grid-cols-3">
-          <CohortColumn
-            title={<>Faced the same bowlers</>}
+          <TierPanel
+            title="IPL peers"
             icon={<Users className="h-4 w-4 text-accent" />}
-            subtitle="Batting affinity — troubled by the same attacks"
-            rows={data.co_faced}
-            metricKey="shared_bowlers"
-            metricLabel="shared"
-            onPick={(c) => navigate(`/player?cid=${c}`)}
+            subtitle="Most-similar active IPL players"
+            rows={similarTo(sel, idx.data!.ipl)}
+            linkable
+            navigate={navigate}
           />
-          <CohortColumn
-            title={<>Teammate overlap</>}
-            icon={<Handshake className="h-4 w-4 text-willow" />}
-            subtitle="Played the most alongside this player"
-            rows={data.teammates}
-            metricKey="shared_teammates"
-            metricLabel="games"
-            onPick={(c) => navigate(`/player?cid=${c}`)}
+          <TierPanel
+            title="Uncapped · SMAT"
+            icon={<Sprout className="h-4 w-4 text-willow" />}
+            subtitle="Domestic Indian prospects of the same mould"
+            rows={similarTo(sel, idx.data!.smat)}
+            linkable={false}
+            navigate={navigate}
           />
-          <CohortColumn
-            title={
-              <span className="flex items-center gap-1.5">
-                Find a replacement
-                {sameType && playerCat && <Badge tone="accent">{playerCat} only</Badge>}
-              </span>
-            }
-            icon={<Repeat className="h-4 w-4 text-accent" />}
-            subtitle="Closest available substitutes by role + graph similarity"
-            rows={replacements}
-            metricKey="shared"
-            metricLabel="shared"
-            onPick={(c) => navigate(`/player?cid=${c}`)}
+          <TierPanel
+            title="Overseas · BBL"
+            icon={<Plane className="h-4 w-4 text-accent" />}
+            subtitle="Big Bash players of the same mould"
+            rows={similarTo(sel, idx.data!.bbl)}
+            linkable={false}
+            navigate={navigate}
           />
         </div>
       )}
