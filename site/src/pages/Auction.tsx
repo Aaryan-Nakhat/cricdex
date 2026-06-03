@@ -418,10 +418,10 @@ function Simulate({
                   <td className="td font-bold text-fg">{t.team}</td>
                   <td className="td"><Badge tone="accent">{t.personality}</Badge></td>
                   <td className="td stat-num text-right text-muted">{t.retained}</td>
-                  <td className="td stat-num text-right">{fmt(t.avgBought, 1)}</td>
+                  <td className="td stat-num text-right">{Math.round(t.avgBought)}</td>
                   <td className="td stat-num text-right">{fmt(t.avgSpend, 1)} cr</td>
                   <td className="td stat-num text-right text-accent-glow">{fmt(t.avgValue, 1)}</td>
-                  <td className="td stat-num text-right">{fmt(t.avgOverseas, 1)}</td>
+                  <td className="td stat-num text-right">{Math.round(t.avgOverseas)}</td>
                 </tr>
               ))}
             </tbody>

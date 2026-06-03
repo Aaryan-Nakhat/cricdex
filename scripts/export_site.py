@@ -719,8 +719,25 @@ def export(
     finally:
         con.close()
 
-    _write(SITE_DATA / "collections.json", index)
-    logger.info(f"wrote site/data/ for {len(index)} collections → {SITE_DATA}")
+    # Merge into any existing index so a single-collection run (-c ipl)
+    # doesn't drop the other collections from the dropdown. Preserve the
+    # canonical order; refreshed entries win.
+    existing: dict[str, dict] = {}
+    idx_path = SITE_DATA / "collections.json"
+    if idx_path.exists():
+        try:
+            for e in json.loads(idx_path.read_text()):
+                existing[e["collection"]] = e
+        except Exception:  # noqa: BLE001
+            pass
+    for e in index:
+        existing[e["collection"]] = e
+    ordered = [existing[c] for c in DEFAULT_COLLECTIONS if c in existing]
+    ordered += [e for c, e in existing.items() if c not in DEFAULT_COLLECTIONS]
+    _write(idx_path, ordered)
+    logger.info(
+        f"wrote site/data/ for {len(index)} collections; index has {len(ordered)} → {SITE_DATA}"
+    )
 
 
 if __name__ == "__main__":
