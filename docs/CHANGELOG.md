@@ -43,6 +43,12 @@ rebuilt as more realistic, self-contained tools.
   `_export_scout_index` (3-tier z-standing), plus real-2025 retention
   lists; `collections.json` merge so single-collection runs don't clobber
   the index.
+- **Intent Curve leaderboard** — fixed a misleading ranking. The metric is
+  a per-innings *shape*, but the web table ranked the raw long form, which
+  duplicated each batter across buckets and let late-innings buckets (plain
+  set-phase strike rate) dominate. Now pivoted to one row per batter, ranked
+  by **early SR** (balls-weighted SR over balls 1–10 — who attacks from ball
+  one), with the full 6-bucket curve drawn as an inline sparkline.
 
 ---
 

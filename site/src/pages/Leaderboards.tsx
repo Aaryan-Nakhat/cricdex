@@ -17,6 +17,34 @@ const PERIOD_LABEL: Record<string, string> = {
   last1y: "Last 1 yr",
 };
 
+// Intent-curve x-axis: SR per ball-faced bucket, innings order.
+const INTENT_BUCKET_LABELS = ["0–5", "6–10", "11–20", "21–30", "31–50", "51+"];
+
+// Inline mini bar-chart of a batter's 6-point intent curve, scaled to their
+// own peak so the shape (ramp / fade) reads at a glance. Missing buckets
+// (not enough balls) render as a faint stub. Hover for the per-bucket SRs.
+function Sparkline({ values }: { values: (number | null)[] }) {
+  if (!values || values.every((v) => v == null)) return <span className="text-muted">—</span>;
+  const max = Math.max(...values.filter((v): v is number => v != null), 1);
+  const title = values
+    .map((v, i) => `${INTENT_BUCKET_LABELS[i]}: ${v == null ? "—" : Math.round(v)}`)
+    .join("   ");
+  return (
+    <span className="flex h-7 items-end gap-[3px]" title={title}>
+      {values.map((v, i) => (
+        <span
+          key={i}
+          className={cn(
+            "w-[7px] rounded-sm",
+            v == null ? "bg-border/40" : "bg-gradient-to-t from-accent-dim to-accent-glow",
+          )}
+          style={{ height: v == null ? "12%" : `${Math.max(14, (v / max) * 100)}%` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function Leaderboards() {
   const { collection, meta } = useStore();
   const navigate = useNavigate();
@@ -44,13 +72,25 @@ export function Leaderboards() {
   const filtered = useMemo(() => applyFilters(data ?? [], filters), [data, filters]);
 
   const cols: Col<Record<string, unknown>>[] = [
-    ...metric.columns.map((c) => ({
-      key: c.key,
-      label: c.label,
-      digits: c.digits,
-      primary: c.primary,
-      align: (c.digits !== undefined ? "right" : "left") as "left" | "right",
-    })),
+    ...metric.columns.map((c) =>
+      c.key === "curve"
+        ? {
+            key: c.key,
+            label: c.label,
+            align: "left" as const,
+            sortable: false,
+            render: (row: Record<string, unknown>) => (
+              <Sparkline values={(row.curve as (number | null)[]) ?? []} />
+            ),
+          }
+        : {
+            key: c.key,
+            label: c.label,
+            digits: c.digits,
+            primary: c.primary,
+            align: (c.digits !== undefined ? "right" : "left") as "left" | "right",
+          },
+    ),
     { key: "matches", label: "Mts", digits: 0, align: "right" as const },
   ];
 

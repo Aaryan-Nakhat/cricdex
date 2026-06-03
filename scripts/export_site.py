@@ -647,6 +647,48 @@ def _activity_map(
 WINDOWS: dict[str, int] = {"last3y": 1095, "last1y": 365}
 
 
+# Ball-faced buckets in innings order; the index is the x-axis of the curve.
+_INTENT_BUCKETS = ["01_0-5", "02_6-10", "03_11-20", "04_21-30", "05_31-50", "06_51+"]
+
+
+def _pivot_intent_curve(rows: list[dict]) -> list[dict]:
+    """Reshape intent_curve from long (one row per batter*bucket) to one row
+    per batter: the 6-point SR curve as an array (for an inline sparkline), an
+    `early_sr` scalar to rank by, and totals.
+
+    The raw long form fed the generic 'sort by primary column' leaderboard,
+    which (a) duplicated each batter across up to 6 rows, (b) let late-innings
+    buckets dominate the top — i.e. ranked plain strike rate once set, not
+    intent — and (c) scattered a batter's buckets so the curve was unreadable.
+    Ranking by early-phase SR surfaces the part that was buried (who attacks
+    from ball one) while the sparkline keeps the full shape visible.
+    """
+    by_batter: dict[str, dict[str, dict]] = {}
+    for r in rows:
+        by_batter.setdefault(r["batter"], {})[r["ball_bucket"]] = r
+    out: list[dict] = []
+    for batter, buckets in by_batter.items():
+        curve = [round(buckets[b]["sr"], 1) if b in buckets else None for b in _INTENT_BUCKETS]
+        # Early intent = SR over the first 10 balls (buckets 0-5 + 6-10),
+        # weighted by balls so it's not a naive mean of two bucket SRs.
+        e_runs = sum(int(buckets[b]["runs"]) for b in _INTENT_BUCKETS[:2] if b in buckets)
+        e_balls = sum(int(buckets[b]["balls"]) for b in _INTENT_BUCKETS[:2] if b in buckets)
+        if e_balls == 0:
+            continue  # no early-phase evidence → can't rank fairly
+        present = [c for c in curve if c is not None]
+        out.append(
+            {
+                "batter": batter,
+                "early_sr": round(100.0 * e_runs / e_balls, 1),
+                "peak_sr": max(present) if present else None,
+                "balls": sum(int(v["balls"]) for v in buckets.values()),
+                "curve": curve,
+            }
+        )
+    out.sort(key=lambda r: r["early_sr"], reverse=True)
+    return out
+
+
 def _export_leaderboards(
     collection: str,
     out_dir: Path,
@@ -668,6 +710,11 @@ def _export_leaderboards(
         rows = json.loads(src.read_text())
         if isinstance(rows, dict):
             rows = rows.get("rows", [])
+        # intent_curve is a per-(batter,bucket) shape, not a per-player
+        # ranking — pivot to one row/batter (curve array + early_sr) so it
+        # ranks honestly and the table stays one-row-per-player.
+        if slug == "intent_curve":
+            rows = _pivot_intent_curve(rows)
         # Tag each row with match count (for the min-matches gate) and the
         # Gemini taxonomy (role / bowling type / country / position) so the
         # UI filter bar works per-row without a ball cutoff.

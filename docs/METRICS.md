@@ -61,6 +61,13 @@ flat-medium = grinder; falling = tires.
 **Filter:** `min_balls_in_bucket` (default 200) so single innings don't
 dominate.
 
+**Web leaderboard:** intent_curve is a *shape*, not a per-player ranking,
+so the static site pivots it to one row per batter — ranked by **early SR**
+(the balls-weighted SR over balls 1–10, i.e. who comes out firing) with the
+full 6-bucket curve drawn as an inline sparkline. A naive sort on raw bucket
+SR instead duplicated each batter across buckets and let late-innings
+buckets (plain strike rate, once set) dominate the top.
+
 ---
 
 ## Dot-Ball Recovery — `cricdex.metrics.batter.dot_ball_recovery`
