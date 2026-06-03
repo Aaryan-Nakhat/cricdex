@@ -180,6 +180,98 @@ IPL_TEAM_CODE: dict[str, str] = {
 }
 
 
+# Real IPL 2025 mega-auction retentions (team -> [(name, price_cr)]), from
+# the official lists. Names are matched against player name / full_name at
+# export; the few below the ball cutoff (Mayank Yadav, Prabhsimran, Ramandeep,
+# Pathirana) simply drop out. Used as the editable default in the sim so it
+# isn't foolish (GT keeps Sai Sudharsan, RCB keeps Kohli, etc.).
+MEGA_RETENTIONS_2025: dict[str, list[tuple[str, float]]] = {
+    "CSK": [
+        ("Ruturaj Gaikwad", 18),
+        ("Ravindra Jadeja", 18),
+        ("Matheesha Pathirana", 13),
+        ("Shivam Dube", 12),
+        ("MS Dhoni", 4),
+    ],
+    "MI": [
+        ("Jasprit Bumrah", 18),
+        ("SA Yadav", 16.35),
+        ("Hardik Pandya", 16.35),
+        ("Rohit Sharma", 16.30),
+        ("Tilak Varma", 8),
+    ],
+    "RCB": [("Virat Kohli", 21), ("Rajat Patidar", 11), ("Yash Dayal", 5)],
+    "KKR": [
+        ("Rinku Singh", 13),
+        ("Varun Chakravarthy", 12),
+        ("Sunil Narine", 12),
+        ("Andre Russell", 12),
+        ("Harshit Rana", 4),
+        ("Ramandeep Singh", 4),
+    ],
+    "DC": [
+        ("Axar Patel", 16.5),
+        ("Kuldeep Yadav", 13.25),
+        ("Tristan Stubbs", 10),
+        ("Abishek Porel", 4),
+    ],
+    "GT": [
+        ("Rashid Khan", 18),
+        ("Shubman Gill", 16.5),
+        ("Sai Sudharsan", 8.5),
+        ("Rahul Tewatia", 4),
+        ("M Shahrukh Khan", 4),
+    ],
+    "SRH": [
+        ("Heinrich Klaasen", 23),
+        ("Pat Cummins", 18),
+        ("Abhishek Sharma", 14),
+        ("Travis Head", 14),
+        ("Nithish Kumar Reddy", 6),
+    ],
+    "RR": [
+        ("Sanju Samson", 18),
+        ("Yashasvi Jaiswal", 18),
+        ("Riyan Parag", 14),
+        ("Dhruv Jurel", 14),
+        ("Shimron Hetmyer", 11),
+        ("Sandeep Sharma", 4),
+    ],
+    "LSG": [
+        ("N Pooran", 21),
+        ("Ravi Bishnoi", 11),
+        ("Mayank Yadav", 11),
+        ("Mohsin Khan", 4),
+        ("A Badoni", 4),
+    ],
+    "PBKS": [("Shashank Singh", 5.5), ("Prabhsimran Singh", 4)],
+}
+
+
+def _export_retentions(players: list[dict], out_dir: Path) -> None:
+    """Resolve the real 2025 mega retentions to cricsheet_ids and write
+    ipl/retentions.json. Names matched on name / full_name (case-insensitive)."""
+    by_name: dict[str, dict] = {}
+    for p in players:
+        by_name.setdefault(p["name"].lower(), p)
+        if p.get("full_name"):
+            by_name.setdefault(p["full_name"].lower(), p)
+    mega: dict[str, list[dict]] = {}
+    missing: list[str] = []
+    for team, entries in MEGA_RETENTIONS_2025.items():
+        rows = []
+        for name, price in entries:
+            p = by_name.get(name.lower())
+            if p:
+                rows.append({"cricsheet_id": p["cricsheet_id"], "name": p["name"], "price": price})
+            else:
+                missing.append(f"{team}:{name}")
+        mega[team] = rows
+    if missing:
+        logger.info(f"retentions unmatched (below cutoff): {missing}")
+    _write(out_dir / "retentions.json", {"mega": mega})
+
+
 def _current_teams(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, str]:
     """unique_name -> current franchise code, from the team in each
     player's most-recent match. Only meaningful for IPL (the 10 franchises);
@@ -608,6 +700,8 @@ def export(
             meta["windows"] = windows_by_col.get(col, [])
             _write(out_dir / "meta.json", meta)
             _write(out_dir / "players.json", players)
+            if col == "ipl":
+                _export_retentions(players, out_dir)
             match_counts = _match_counts(con, col)
             n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
             for win in windows_by_col.get(col, []):

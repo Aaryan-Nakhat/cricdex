@@ -15,20 +15,29 @@ export interface PoolPlayer {
   vpc: number; // value per credit
 }
 
-const ROLE_FLOOR: Record<Role, number> = {
-  batter: 0.5,
-  bowler: 0.5,
-  all_rounder: 0.8,
-  keeper: 0.6,
+// All-rounders / keepers carry a small scarcity premium.
+const ROLE_MULT: Record<Role, number> = {
+  batter: 1.0,
+  bowler: 1.0,
+  all_rounder: 1.15,
+  keeper: 1.05,
 };
+// Calibrated to real IPL crore: the Bayes `value` is compressed (~ -0.27..+0.48),
+// so amplify exponentially. value 0.48 -> ~26cr (Klaasen/Pant tier), 0.33 -> ~11,
+// 0.13 -> ~3.5, -0.27 -> floor 0.3. Anchored to the 2025 auction/retention prices.
+const PV_BASE = 1.6;
+const PV_SCALE = 5.8;
+const PV_MAX = 27;
+
+// IPL base-price set bands (cr) — what a player ENTERS the auction at.
 const PRICE_TIERS = [0.3, 0.5, 0.75, 1.0, 1.5, 2.0];
 
 function priceTier(pv: number): number {
   if (pv < 2) return PRICE_TIERS[0];
-  if (pv < 3) return PRICE_TIERS[1];
-  if (pv < 5) return PRICE_TIERS[2];
-  if (pv < 7) return PRICE_TIERS[3];
-  if (pv < 10) return PRICE_TIERS[4];
+  if (pv < 4) return PRICE_TIERS[1];
+  if (pv < 7) return PRICE_TIERS[2];
+  if (pv < 11) return PRICE_TIERS[3];
+  if (pv < 16) return PRICE_TIERS[4];
   return PRICE_TIERS[5];
 }
 
@@ -69,7 +78,10 @@ export function buildPool(players: PlayerRow[], ratings: RatingRow[]): PoolPlaye
 
     const role = roleOf(p);
     const country = p.country ?? "—";
-    const pv = Math.max(0.5, Math.min(14, Math.exp(value) * ROLE_FLOOR[role] * 4));
+    const pv = Math.max(
+      0.3,
+      Math.min(PV_MAX, PV_BASE * Math.exp(PV_SCALE * value) * ROLE_MULT[role]),
+    );
     const base = priceTier(pv);
     out.push({
       cricsheet_id: r.cricsheet_id,
@@ -201,15 +213,37 @@ function rng(seed: number): () => number {
 
 export type AuctionMode = "mega" | "mini";
 
-// retention cost slabs (cr) per retained slot, descending. Mega keeps a small
-// core at premium slabs; mini keeps most of the squad at a flat notional cost.
-const MEGA_SLABS = [16, 13, 11, 7, 4];
-const MINI_FLAT = 5;
+// How many a team keeps by default. Mega ≈ real 2025 retention size; Mini =
+// keep most of the squad (only a few slots auctioned).
+export const MINI_RETAIN = 12;
+// Cost (cr) for a retained player with no known real price: IPL slabs for the
+// first few, then a floor — used for Mini defaults / user-added retentions.
+const SLABS = [18, 14, 11, 18, 14];
+function slabCost(i: number): number {
+  return SLABS[i] ?? 4;
+}
 
-export const MODE_RETAIN: Record<AuctionMode, number> = { mega: 5, mini: 12 };
-
-function retentionCost(mode: AuctionMode, i: number): number {
-  return mode === "mega" ? (MEGA_SLABS[i] ?? 4) : MINI_FLAT;
+/** Default retentions per team. Mega = the real 2025 lists (passed in as
+ * megaIds); Mini = each team's top-{MINI_RETAIN} active players by value. */
+export function defaultRetentions(
+  pool: PoolPlayer[],
+  teamCfg: { team: string }[],
+  mode: AuctionMode,
+  megaIds: Record<string, string[]>,
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const { team } of teamCfg) {
+    if (mode === "mega") {
+      out[team] = (megaIds[team] ?? []).filter((id) => pool.some((p) => p.cricsheet_id === id));
+    } else {
+      out[team] = pool
+        .filter((p) => p.team === team)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, MINI_RETAIN)
+        .map((p) => p.cricsheet_id);
+    }
+  }
+  return out;
 }
 
 export interface SimOpts {
@@ -218,6 +252,8 @@ export interface SimOpts {
   overseasCap: number;
   trials: number;
   mode: AuctionMode;
+  retentions: Record<string, string[]>; // team -> retained cricsheet_ids (editable)
+  realPrices: Record<string, number>; // cricsheet_id -> real retention price (cr)
 }
 
 interface FranchiseBase {
@@ -260,23 +296,21 @@ function buildFranchises(
   teamCfg: { team: string; personality: string }[],
   opts: SimOpts,
 ): { bases: FranchiseBase[]; auctionPool: PoolPlayer[] } {
-  const retainN = MODE_RETAIN[opts.mode];
+  const byId = new Map(pool.map((p) => [p.cricsheet_id, p]));
   const retainedIds = new Set<string>();
   const bases: FranchiseBase[] = teamCfg.map(({ team, personality }) => {
-    const roster = pool
-      .filter((p) => p.team === team)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, retainN);
+    const ids = opts.retentions[team] ?? [];
+    const retained = ids.map((id) => byId.get(id)).filter((p): p is PoolPlayer => !!p);
     let retainSpend = 0;
     let retainOverseas = 0;
-    roster.forEach((p, i) => {
+    retained.forEach((p, i) => {
       retainedIds.add(p.cricsheet_id);
-      retainSpend += retentionCost(opts.mode, i);
+      // real retention price if known, else an IPL slab estimate
+      retainSpend += opts.realPrices[p.cricsheet_id] ?? slabCost(i);
       if (p.is_overseas) retainOverseas++;
     });
-    return { team, personality, retained: roster, retainSpend, retainOverseas };
+    return { team, personality, retained, retainSpend, retainOverseas };
   });
-  // everyone active and not retained goes under the hammer (incl. free agents)
   const auctionPool = pool.filter((p) => !retainedIds.has(p.cricsheet_id));
   return { bases, auctionPool };
 }
