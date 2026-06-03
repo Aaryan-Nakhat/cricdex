@@ -248,30 +248,91 @@ MEGA_RETENTIONS_2025: dict[str, list[tuple[str, float]]] = {
 }
 
 
+# t20s_male is deliberately excluded — it's polluted with associate-nation
+# matches where value inflates against minnows. Overseas IPL players already
+# come through `ipl`; free agents are Aus (BBL) + uncapped Indians (SMAT).
+AUCTION_POOL_COLLECTIONS = ["ipl", "bbl", "indian_domestic_male"]
+AUCTION_RECENCY_DAYS = 1100  # ~3 years of activity in ANY of those comps
+AUCTION_POOL_CAP = 600  # top-N by value (keeps the sim snappy + relevant)
+# Nations whose players actually feature in an IPL auction. Excludes PAK
+# (no IPL since 2008) and associate sides (Uganda etc.) whose Bayes value is
+# inflated against minnows — they'd otherwise flood the top of the pool.
+AUCTION_COUNTRIES = {
+    "IND",
+    "AUS",
+    "ENG",
+    "RSA",
+    "ZAF",
+    "NZL",
+    "SRI",
+    "LKA",
+    "BAN",
+    "AFG",
+    "WIN",
+    "WI",
+    "IRE",
+}
+AUCTION_MIN_BALLS = 150  # drop tiny-sample players whose Bayes value is inflated
+
+
 def _export_auction_pool(
-    collection: str,
+    con: duckdb.DuckDBPyConnection,
     out_dir: Path,
     taxonomy: dict[str, dict],
-    activity: dict[str, dict],
     teams: dict[str, str],
 ) -> int:
-    """Lightweight, BIG auction pool for IPL — every ACTIVE rated player
-    (scout_ratings cutoff is ~6 balls, vs 300 for players.json), so the
-    sim has enough bodies for 10 squads of 18–25. {cid, name, role,
-    country, is_overseas, team, value}."""
-    src = METRIC_DIR / f"scout_ratings_{collection}.json"
-    if not src.exists():
-        return 0
-    rows = json.loads(src.read_text())
+    """Cross-collection auction pool — the whole active T20 world an IPL
+    auction draws from, not just IPL. Overseas players surface via BBL /
+    men's T20Is, uncapped Indians via SMAT. Deduped by player; IPL players
+    keep their franchise (retainable), everyone else is a free agent."""
+    import datetime as _dt
+
+    # Value isn't comparable across tiers (a number vs weak SMAT attacks ≠ vs
+    # IPL), so penalise lower tiers and take each player's best PENALISED value.
+    TIER_PENALTY = {"ipl": 0.0, "bbl": 0.07, "indian_domestic_male": 0.20}
     best: dict[str, dict] = {}
-    for r in rows:
-        cid = r.get("cricsheet_id")
-        v = r.get("value")
-        if cid is None or v is None:
+    max_balls: dict[str, int] = {}
+    for col in AUCTION_POOL_COLLECTIONS:
+        f = METRIC_DIR / f"scout_ratings_{col}.json"
+        if not f.exists():
             continue
-        cur = best.get(cid)
-        if cur is None or v > cur["value"]:
-            best[cid] = {"value": v, "name": r.get("unique_name")}
+        pen = TIER_PENALTY.get(col, 0.1)
+        for r in json.loads(f.read_text()):
+            cid, v = r.get("cricsheet_id"), r.get("value")
+            if cid is None or v is None:
+                continue
+            max_balls[cid] = max(max_balls.get(cid, 0), int(r.get("balls") or 0))
+            eff = v - pen
+            cur = best.get(cid)
+            if cur is None or eff > cur["value"]:
+                best[cid] = {"value": eff, "name": r.get("unique_name")}
+    # drop tiny-sample players (inflated value)
+    best = {cid: b for cid, b in best.items() if max_balls.get(cid, 0) >= AUCTION_MIN_BALLS}
+    name_to_cid = {b["name"]: cid for cid, b in best.items() if b["name"]}
+
+    last: dict[str, str] = {}
+    for col in AUCTION_POOL_COLLECTIONS:
+        safe = _safe(col)
+        for nm, d in con.execute(
+            f"""
+            SELECT nm, MAX(match_date) FROM (
+                SELECT batter AS nm, match_date FROM balls_{safe}
+                UNION ALL SELECT bowler, match_date FROM balls_{safe}
+            ) WHERE nm IS NOT NULL GROUP BY 1
+            """
+        ).fetchall():
+            cid = name_to_cid.get(nm)
+            if cid and d:
+                ds = str(d)[:10]
+                if cid not in last or ds > last[cid]:
+                    last[cid] = ds
+
+    asof = max(last.values()) if last else None
+    cutoff = (
+        (_dt.date.fromisoformat(asof) - _dt.timedelta(days=AUCTION_RECENCY_DAYS)).isoformat()
+        if asof
+        else None
+    )
     role_map = {
         "wk_batter": "keeper",
         "allrounder": "all_rounder",
@@ -281,13 +342,15 @@ def _export_auction_pool(
     out = []
     for cid, b in best.items():
         name = b["name"]
-        if not name:
-            continue
-        act = activity.get(name, {})
-        if not act.get("active"):
-            continue  # active only
+        ld = last.get(cid)
+        if not name or not ld or (cutoff and ld < cutoff):
+            continue  # active somewhere in the last ~3 years
         tax = taxonomy.get(cid, {})
         country = tax.get("country")
+        team = teams.get(name)  # IPL franchise, else None (free agent)
+        # IPL players always qualify; free agents only from IPL-relevant nations
+        if not team and country not in AUCTION_COUNTRIES:
+            continue
         out.append(
             {
                 "cricsheet_id": cid,
@@ -296,10 +359,11 @@ def _export_auction_pool(
                 "role": role_map.get(tax.get("primary_role"), "batter"),
                 "country": country,
                 "is_overseas": bool(country) and country != "IND",
-                "team": teams.get(name),
+                "team": team,
             }
         )
     out.sort(key=lambda p: p["value"], reverse=True)
+    out = out[:AUCTION_POOL_CAP]
     _write(out_dir / "auction_pool.json", out)
     return len(out)
 
@@ -758,10 +822,8 @@ def export(
             _write(out_dir / "players.json", players)
             if col == "ipl":
                 _export_retentions(players, out_dir)
-                n_pool = _export_auction_pool(
-                    col, out_dir, taxonomy, activity, _current_teams(con, col)
-                )
-                logger.info(f"  auction_pool: {n_pool} active rated players")
+                n_pool = _export_auction_pool(con, out_dir, taxonomy, _current_teams(con, col))
+                logger.info(f"  auction_pool: {n_pool} active players (cross-collection)")
             match_counts = _match_counts(con, col)
             n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
             for win in windows_by_col.get(col, []):
