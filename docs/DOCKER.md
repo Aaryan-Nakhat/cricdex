@@ -1,8 +1,9 @@
 # Docker design notes
 
 End goal: anyone can `git clone && cp .env.example .env && make docker-up`
-and have the whole stack — vector store, ETL CLIs, and the API server —
-running with no manual provisioning. This file captures the design choices
+and have the whole stack — the ETL CLIs and the API server — running with
+no manual provisioning. The stack is file-driven (DuckDB + exported JSON);
+there is no vector or graph database. This file captures the design choices
 behind the image and Compose layout so the next person extending it
 doesn't have to rediscover them.
 
@@ -13,49 +14,35 @@ Single Python image built in two stages:
 1. **`deps`** — uses the official `ghcr.io/astral-sh/uv` binary on a
    `python:3.12-slim` base, copies `pyproject.toml`, runs `uv sync
    --no-install-project --no-dev` so dependency resolution is cached.
-2. **`app`** — copies `src/` + `scripts/`, then pre-downloads the
-   `Snowflake/snowflake-arctic-embed-l-v2.0` weights into `/app/hf-cache`.
-   Makes the first `embed_rules.py` call inside the container instant
-   instead of waiting on a ~2 GB download. (The Matryoshka truncation
-   to 384-dim happens at index/query time, not at download time, so the
-   cached weights are full-size.)
+2. **`app`** — copies `src/` + `scripts/`. No model weights are baked in;
+   the stack is file-driven and needs no embedding model at runtime.
 
-The build sets `HF_HUB_DISABLE_IMPLICIT_TOKEN=1` so the model download
-runs anonymously even if the build context inherits any token from the
-host. The container itself doesn't need an HF token at runtime.
-
-Buildkit cache mounts (`--mount=type=cache,target=/root/.cache/uv` and
-`/opt/hf-cache`) make incremental rebuilds fast.
+Buildkit cache mounts (`--mount=type=cache,target=/root/.cache/uv`) make
+incremental rebuilds fast.
 
 ## Compose layout
 
-Only two services come up by default:
+Only one service comes up by default:
 
-- **`qdrant`** — official `qdrant/qdrant:v1.12.x`. Persists to a named
-  volume so the index survives `docker compose down`.
-- **`cricdex`** — the app image. Reads `.env` for secrets, then overrides
-  `QDRANT_URL` to `http://qdrant:6333` so the app talks to the compose
-  service instead of trying to spin up an embedded local Qdrant.
+- **`cricdex`** — the app image. Reads `.env` for secrets and serves the
+  FastAPI app; the ETL CLIs run as one-shot tasks against the same image.
 
-Postgres / Redis / Neo4j are present in the file as commented-out
-placeholders. Uncomment as those modules (scout, cache, graph) come
-online so the stack stays minimal during early-Phase work.
+Postgres / Redis are present in the file as commented-out placeholders.
+Uncomment as the cache module comes online so the stack stays minimal
+during early-Phase work. There is no vector or graph DB service.
 
 ### Volume strategy
 
 | Volume | Type | Purpose |
 |---|---|---|
-| `qdrant_data` | named | Vector index. Survives container recreation. |
-| `./data` → `/app/data` | bind | Raw PDFs, parsed JSONL, curated JSONL, Cricsheet downloads, Parquet snapshots. Editable from the host. |
+| `./data` → `/app/data` | bind | Cricsheet downloads, DuckDB, metrics / ratings JSON, curated JSON, exported snapshots. Editable from the host. |
 | `./src` → `/app/src` | bind (dev) | Hot-reload of code. Drop this mount in prod images. |
 | `./scripts` → `/app/scripts` | bind (dev) | Same rationale. |
 
 ### Network
 
-Compose creates a default bridge network. Inside the container the app
-reaches Qdrant as `qdrant:6333`. Outside the container, the same Qdrant
-HTTP API is exposed on the host at `localhost:6333` for ad-hoc
-inspection.
+Compose creates a default bridge network. The `cricdex` app exposes its
+FastAPI port on the host for ad-hoc inspection.
 
 ## Running pipelines vs running the server
 
@@ -85,7 +72,7 @@ API container. `exec` is fine for interactive work and is exposed via
 
 ## Why not Compose `profiles`?
 
-We may move to profiles (`docker compose --profile scout up`) once we
+We may move to profiles (`docker compose --profile cache up`) once we
 have many optional services. For now the stack is small enough that
 explicit comments + uncomment-on-demand is simpler and easier to read.
 
@@ -96,6 +83,6 @@ The same image is the deployment artefact. Two paths anticipated:
 - **Oracle Cloud Free Tier ARM** — single VM, `docker compose up` with
   the production overlay (drops the dev source mounts, sets explicit
   resource limits, enables logging driver).
-- **Cloudflare Workers + remote Qdrant** — the API can also be packaged
-  as a small Worker that proxies to a managed Qdrant. Out of scope until
-  the API surface stabilises.
+- **Cloudflare Workers** — the API can also be packaged as a small Worker
+  that serves the exported JSON snapshot. Out of scope until the API
+  surface stabilises.

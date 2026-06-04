@@ -5,10 +5,8 @@
 > `site/src/lib/auction.ts`) and on the CLI / TUI / Streamlit (Python,
 > `cricdex.web_parity`), from the **same** exported JSON and with a
 > bit-exact seeded RNG, so a run reproduces everywhere trial-for-trial
-> (locked by `test_scripts/test_web_parity.py`). The exact **MILP single-
-> squad optimiser** (see `docs/STUDY_GUIDE.md` §8) is kept as an advanced
-> tool — `cricdex auction solve` — for the "best XV on a fixed budget"
-> knapsack, a different question from this market sim.
+> (locked by `test_scripts/test_web_parity.py`). It is driven from the CLI
+> by `cricdex auction room`.
 
 The room answers one question a real franchise faces:
 
