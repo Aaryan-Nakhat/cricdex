@@ -250,9 +250,24 @@ export interface TeamState {
   personality: string;
   retained: PoolPlayer[];
   bought: PoolPlayer[];
+  boughtPrices: number[]; // price paid per bought player, aligned with `bought`
   spent: number; // auction spend only
   overseas: number; // retained + bought
   counts: Record<Role, number>;
+}
+
+// Per-player landing summary across all trials — powers the "where did X go?"
+// search after a run.
+export interface PlayerOutcome {
+  cricsheet_id: string;
+  name: string;
+  role: Role;
+  is_overseas: boolean;
+  status: "retained" | "sold" | "unsold";
+  team: string | null; // retained team, or most-likely buyer, else null
+  soldPct: number; // % of trials bought (0 for retained/unsold)
+  avgPrice: number; // avg price across trials bought (retention cost if retained)
+  winners: { team: string; pct: number }[]; // top buyers by trial-share
 }
 
 export interface SimResult {
@@ -269,6 +284,7 @@ export interface SimResult {
     avgOverseas: number;
   }[];
   marquee: { player: PoolPlayer; winners: { team: string; pct: number }[] }[];
+  outcomes: PlayerOutcome[]; // every retained + auctioned player's landing
   sampleDraft: TeamState[];
 }
 
@@ -306,6 +322,7 @@ function freshState(b: FranchiseBase): TeamState {
     personality: b.personality,
     retained: b.retained,
     bought: [],
+    boughtPrices: [],
     spent: 0,
     overseas: b.retainOverseas,
     counts,
@@ -328,6 +345,7 @@ function oneTrial(
   const buy = (i: number, player: PoolPlayer, price: number) => {
     const st = states[i];
     st.bought.push(player);
+    st.boughtPrices.push(price);
     st.spent += price;
     st.counts[player.role]++;
     if (player.is_overseas) st.overseas++;
@@ -423,6 +441,9 @@ export function simulateAuction(
   const marqueeWins = new Map<string, Map<string, number>>();
   const top = usePool.slice(0, 20);
   for (const p of top) marqueeWins.set(p.cricsheet_id, new Map());
+  // per-player landing accumulators (every auctioned player)
+  const buys = new Map<string, { count: number; priceSum: number; teams: Map<string, number> }>();
+  for (const p of usePool) buys.set(p.cricsheet_id, { count: 0, priceSum: 0, teams: new Map() });
 
   let sampleDraft: TeamState[] = [];
   for (let t = 0; t < opts.trials; t++) {
@@ -433,13 +454,57 @@ export function simulateAuction(
       agg[i].spend += st.spent;
       agg[i].value += agg[i].retVal + st.bought.reduce((s, p) => s + p.projected_value, 0);
       agg[i].overseas += st.overseas;
-      for (const p of st.bought) {
+      st.bought.forEach((p, k) => {
         const m = marqueeWins.get(p.cricsheet_id);
         if (m) m.set(st.team, (m.get(st.team) ?? 0) + 1);
-      }
+        const b = buys.get(p.cricsheet_id);
+        if (b) {
+          b.count++;
+          b.priceSum += st.boughtPrices[k];
+          b.teams.set(st.team, (b.teams.get(st.team) ?? 0) + 1);
+        }
+      });
     });
   }
   const n = opts.trials;
+  const topWinners = (tm: Map<string, number>) =>
+    [...tm.entries()]
+      .map(([team, c]) => ({ team, pct: (c / n) * 100 }))
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 3);
+  // outcomes = retained (in team order) then every auctioned player (pool order)
+  const outcomes: PlayerOutcome[] = [];
+  bases.forEach((b) => {
+    b.retained.forEach((p, i) => {
+      const cost = opts.mode !== "mini" ? (opts.realPrices[p.cricsheet_id] ?? slabCost(i)) : 0;
+      outcomes.push({
+        cricsheet_id: p.cricsheet_id,
+        name: p.name,
+        role: p.role,
+        is_overseas: p.is_overseas,
+        status: "retained",
+        team: b.team,
+        soldPct: 0,
+        avgPrice: cost,
+        winners: [],
+      });
+    });
+  });
+  for (const p of usePool) {
+    const b = buys.get(p.cricsheet_id)!;
+    const winners = topWinners(b.teams);
+    outcomes.push({
+      cricsheet_id: p.cricsheet_id,
+      name: p.name,
+      role: p.role,
+      is_overseas: p.is_overseas,
+      status: b.count > 0 ? "sold" : "unsold",
+      team: winners.length ? winners[0].team : null,
+      soldPct: (b.count / n) * 100,
+      avgPrice: b.count > 0 ? b.priceSum / b.count : 0,
+      winners,
+    });
+  }
   return {
     mode: opts.mode,
     bases,
@@ -461,6 +526,7 @@ export function simulateAuction(
         .slice(0, 3);
       return { player: p, winners };
     }),
+    outcomes,
     sampleDraft,
   };
 }

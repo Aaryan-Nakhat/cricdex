@@ -197,6 +197,7 @@ def _fresh_state(b: dict) -> dict:
         "personality": b["personality"],
         "retained": b["retained"],
         "bought": [],
+        "bought_prices": [],  # aligned with bought
         "spent": 0.0,
         "overseas": b["retain_overseas"],
         "counts": counts,
@@ -216,6 +217,7 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
     def buy(i: int, player: dict, price: float) -> None:
         st = states[i]
         st["bought"].append(player)
+        st["bought_prices"].append(price)
         st["spent"] += price
         st["counts"][player["role"]] += 1
         if player["is_overseas"]:
@@ -309,6 +311,10 @@ def simulate_auction(pool: list[dict], team_cfg: list[dict], opts: dict) -> dict
     ]
     top = use_pool[:20]
     marquee_wins: dict[str, dict[str, int]] = {p["cricsheet_id"]: {} for p in top}
+    # per-player landing accumulators (every auctioned player)
+    buys: dict[str, dict] = {
+        p["cricsheet_id"]: {"count": 0, "price_sum": 0.0, "teams": {}} for p in use_pool
+    }
     sample_draft: list[dict] = []
     n = opts["trials"]
     for t in range(n):
@@ -320,10 +326,15 @@ def simulate_auction(pool: list[dict], team_cfg: list[dict], opts: dict) -> dict
             agg[i]["spend"] += st["spent"]
             agg[i]["value"] += agg[i]["ret_val"] + sum(p["projected_value"] for p in st["bought"])
             agg[i]["overseas"] += st["overseas"]
-            for p in st["bought"]:
+            for k, p in enumerate(st["bought"]):
                 m = marquee_wins.get(p["cricsheet_id"])
                 if m is not None:
                     m[st["team"]] = m.get(st["team"], 0) + 1
+                b = buys.get(p["cricsheet_id"])
+                if b is not None:
+                    b["count"] += 1
+                    b["price_sum"] += st["bought_prices"][k]
+                    b["teams"][st["team"]] = b["teams"].get(st["team"], 0) + 1
     teams = [
         {
             "team": a["team"],
@@ -345,11 +356,58 @@ def simulate_auction(pool: list[dict], team_cfg: list[dict], opts: dict) -> dict
             reverse=True,
         )[:3]
         marquee.append({"player": p, "winners": winners})
+
+    def _top_winners(tm: dict[str, int]) -> list[dict]:
+        return sorted(
+            ({"team": k, "pct": c / n * 100} for k, c in tm.items()),
+            key=lambda w: w["pct"],
+            reverse=True,
+        )[:3]
+
+    # outcomes = retained (in team order) then every auctioned player (pool order)
+    outcomes: list[dict] = []
+    for b in bases:
+        for i, p in enumerate(b["retained"]):
+            cost = (
+                opts["real_prices"].get(p["cricsheet_id"], slab_cost(i))
+                if opts["mode"] != "mini"
+                else 0
+            )
+            outcomes.append(
+                {
+                    "cricsheet_id": p["cricsheet_id"],
+                    "name": p["name"],
+                    "role": p["role"],
+                    "is_overseas": p["is_overseas"],
+                    "status": "retained",
+                    "team": b["team"],
+                    "soldPct": 0,
+                    "avgPrice": cost,
+                    "winners": [],
+                }
+            )
+    for p in use_pool:
+        b = buys[p["cricsheet_id"]]
+        winners = _top_winners(b["teams"])
+        outcomes.append(
+            {
+                "cricsheet_id": p["cricsheet_id"],
+                "name": p["name"],
+                "role": p["role"],
+                "is_overseas": p["is_overseas"],
+                "status": "sold" if b["count"] > 0 else "unsold",
+                "team": winners[0]["team"] if winners else None,
+                "soldPct": b["count"] / n * 100,
+                "avgPrice": b["price_sum"] / b["count"] if b["count"] > 0 else 0,
+                "winners": winners,
+            }
+        )
     return {
         "mode": opts["mode"],
         "bases": bases,
         "pool_size": len(auction_pool),
         "teams": teams,
         "marquee": marquee,
+        "outcomes": outcomes,
         "sample_draft": sample_draft,
     }

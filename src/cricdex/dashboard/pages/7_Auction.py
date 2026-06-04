@@ -171,6 +171,42 @@ marq_df = pd.DataFrame(
 )
 st.dataframe(marq_df, hide_index=True, use_container_width=True)
 
+st.subheader("Find a player")
+q = st.text_input(
+    "Where did anyone land, for how much, or did they go unsold?",
+    placeholder="Search a player…",
+    key="auction_search",
+)
+if q and len(q.strip()) >= 2:
+    needle = q.strip().lower()
+    hits = [o for o in res["outcomes"] if needle in o["name"].lower()]
+    if not hits:
+        st.info(f"No player matches '{q}'.")
+    else:
+        srows = []
+        for o in hits[:50]:
+            if o["status"] == "retained":
+                where = f"{o['team']} · retained"
+            elif o["status"] == "unsold":
+                where = "went unsold"
+            else:
+                where = ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in o["winners"])
+            srows.append(
+                {
+                    "Player": o["name"],
+                    "Role": o["role"].replace("_", "-"),
+                    "Status": o["status"],
+                    "Avg price (cr)": None if o["status"] == "unsold" else round(o["avgPrice"], 1),
+                    "Sold %": round(o["soldPct"]) if o["status"] == "sold" else None,
+                    "Where": where,
+                }
+            )
+        st.dataframe(pd.DataFrame(srows), hide_index=True, use_container_width=True)
+        if len(hits) > 50:
+            st.caption(f"{len(hits) - 50} more — refine the search.")
+else:
+    st.caption("Type 2+ letters — searches every retained, sold & unsold player in this run.")
+
 st.subheader("A representative squad")
 draft_team = st.selectbox("Team", [s["team"] for s in res["sample_draft"]])
 st_state = next(s for s in res["sample_draft"] if s["team"] == draft_team)

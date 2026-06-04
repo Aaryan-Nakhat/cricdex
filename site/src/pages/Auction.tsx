@@ -245,6 +245,7 @@ function Simulate({
   const [overseasCap, setOverseasCap] = useState(8);
   const [trials, setTrials] = useState(300);
   const [focus, setFocus] = useState(0);
+  const [q, setQ] = useState(""); // player-lookup search
   const [result, setResult] = useState<SimResult | null>(null);
   const [running, setRunning] = useState(false);
   // a player drafted in from the Scout room (?draft=), and which team keeps him
@@ -507,6 +508,85 @@ function Simulate({
               ))}
             </tbody>
           </table>
+        </div>
+      </Card>
+
+      {/* player lookup — works for both mega & mini */}
+      <Card className="overflow-hidden">
+        <CardHeader title="Find a player" subtitle="Where did anyone land, for how much, or did they go unsold?" />
+        <div className="p-3">
+          <input
+            className="input w-full max-w-sm"
+            placeholder="Search a player…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          {q.trim().length < 2 ? (
+            <p className="mt-2 text-xs text-muted">
+              Type 2+ letters — searches every retained, sold &amp; unsold player in this run.
+            </p>
+          ) : (
+            (() => {
+              const needle = q.trim().toLowerCase();
+              const hits = result.outcomes.filter((o) => o.name.toLowerCase().includes(needle));
+              if (hits.length === 0)
+                return <p className="mt-3 text-sm text-muted">No player matches “{q}”.</p>;
+              return (
+                <div className="mt-3 overflow-auto" style={{ maxHeight: "45vh" }}>
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr>
+                        <th className="th">Player</th>
+                        <th className="th">Role</th>
+                        <th className="th">Status</th>
+                        <th className="th text-right">Avg price</th>
+                        <th className="th text-right">Sold %</th>
+                        <th className="th">Where</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hits.slice(0, 40).map((o) => (
+                        <tr key={o.cricsheet_id} className="hover:bg-surface/50">
+                          <td className="td font-medium text-fg">{o.name}</td>
+                          <td className="td"><Badge tone={ROLE_TONE[o.role]}>{o.role.replace("_", "-")}</Badge></td>
+                          <td className="td">
+                            {o.status === "retained" ? (
+                              <Badge tone="willow">retained</Badge>
+                            ) : o.status === "unsold" ? (
+                              <Badge tone="ball">unsold</Badge>
+                            ) : (
+                              <Badge tone="accent">sold</Badge>
+                            )}
+                          </td>
+                          <td className="td stat-num text-right">{o.status === "unsold" ? "—" : `${fmt(o.avgPrice, 1)} cr`}</td>
+                          <td className="td stat-num text-right">{o.status === "sold" ? `${o.soldPct.toFixed(0)}%` : "—"}</td>
+                          <td className="td">
+                            {o.status === "retained" ? (
+                              <span className="text-xs"><b className="text-fg">{o.team}</b> · retained</span>
+                            ) : o.status === "unsold" ? (
+                              <span className="text-xs text-muted">went unsold</span>
+                            ) : (
+                              <span className="flex flex-wrap gap-1.5">
+                                {o.winners.map((w) => (
+                                  <span key={w.team} className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-1.5 py-0.5 text-xs">
+                                    <span className="font-semibold text-fg">{w.team}</span>
+                                    <span className="text-muted">{w.pct.toFixed(0)}%</span>
+                                  </span>
+                                ))}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {hits.length > 40 && (
+                    <p className="mt-2 text-xs text-muted">{hits.length - 40} more — refine the search.</p>
+                  )}
+                </div>
+              );
+            })()
+          )}
         </div>
       </Card>
 

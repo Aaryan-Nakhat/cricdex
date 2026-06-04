@@ -78,6 +78,14 @@ const out = {
     id: m.player.cricsheet_id,
     winners: m.winners.map((w) => ({ team: w.team, pct: w.pct })),
   })),
+  outcomes: res.outcomes.map((o) => ({
+    id: o.cricsheet_id,
+    status: o.status,
+    team: o.team,
+    soldPct: o.soldPct,
+    avgPrice: o.avgPrice,
+    winners: o.winners.map((w) => ({ team: w.team, pct: w.pct })),
+  })),
   sampleDraft: res.sampleDraft.map((s) => ({
     team: s.team,
     bought: s.bought.map((p) => p.cricsheet_id),

@@ -116,6 +116,18 @@ def test_web_parity():
         for m in res["marquee"]
     ]
     _approx_eq(py_marquee, js["marquee"], "marquee")
+    py_outcomes = [
+        {
+            "id": o["cricsheet_id"],
+            "status": o["status"],
+            "team": o["team"],
+            "soldPct": o["soldPct"],
+            "avgPrice": o["avgPrice"],
+            "winners": [{"team": w["team"], "pct": w["pct"]} for w in o["winners"]],
+        }
+        for o in res["outcomes"]
+    ]
+    _approx_eq(py_outcomes, js["outcomes"], "outcomes")
     py_draft = [
         {
             "team": s["team"],
