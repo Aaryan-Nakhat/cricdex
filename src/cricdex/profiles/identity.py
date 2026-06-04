@@ -60,6 +60,38 @@ def _player_universe(
     return [r[0] for r in rows]
 
 
+def _alias_map(collection: str, db_path: Path | str = DEFAULT_DB_PATH) -> dict[str, str]:
+    """Cricsheet People Register name variations → the canonical Cricsheet name,
+    restricted to players who actually appear in this collection.
+
+    Lets aliases / full names ("Jasprit Bumrah", "J Bumrah", "J B") resolve to
+    the scorecard name the ball-by-ball data keys off ("JJ Bumrah"). The
+    Register ships 8.8k such variations; without this, search only matched the
+    terse scorecard spellings.
+    """
+    universe = set(_player_universe(collection, db_path=db_path))
+    if not universe or not Path(db_path).exists():
+        return {}
+    universe_lower = {n.lower() for n in universe}
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+        if "people" not in tables or "people_names" not in tables:
+            return {}
+        rows = con.execute(
+            "SELECT pn.name AS alias, p.name AS canonical "
+            "FROM people_names pn JOIN people p ON pn.identifier = p.identifier "
+            "WHERE pn.name IS NOT NULL AND p.name IS NOT NULL"
+        ).fetchall()
+    out: dict[str, str] = {}
+    for alias, canonical in rows:
+        # Only keep aliases whose canonical plays in this collection, and don't
+        # let an alias shadow a real scorecard name.
+        al = alias.lower()
+        if canonical in universe and al not in universe_lower:
+            out.setdefault(al, canonical)
+    return out
+
+
 def resolve_name(
     query: str,
     collection: str = "ipl",
@@ -86,21 +118,36 @@ def resolve_name(
     if not universe:
         return None, []
 
-    # Exact (case-insensitive) check first.
     q_lower = query.strip().lower()
+    # Exact scorecard-name match first.
     for name in universe:
         if name.lower() == q_lower:
             return name, [NameMatch(name=name, score=100)]
 
-    # Fuzzy.
+    # Exact Register-alias match next ("Jasprit Bumrah" → "JJ Bumrah").
+    aliases = _alias_map(collection, db_path=db_path)
+    if q_lower in aliases:
+        return aliases[q_lower], [NameMatch(name=aliases[q_lower], score=100)]
+
+    # Fuzzy over scorecard names AND aliases; alias hits map back to canonical.
+    choices = list(universe) + list(aliases.keys())
     raw = process.extract(
         query,
-        universe,
+        choices,
         scorer=fuzz.WRatio,
-        limit=top_k,
+        limit=top_k * 3,
         score_cutoff=score_cutoff,
     )
-    suggestions = [NameMatch(name=match, score=int(round(score))) for match, score, _ in raw]
+    suggestions: list[NameMatch] = []
+    seen: set[str] = set()
+    for match, score, _ in raw:
+        canonical = aliases.get(match.lower(), match)  # alias key → canonical
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        suggestions.append(NameMatch(name=canonical, score=int(round(score))))
+        if len(suggestions) >= top_k:
+            break
     # Treat very-high scores (>=95) as effectively exact — saves the
     # user one confirmation click on the "MS Dhoni" / "M S Dhoni" case.
     if suggestions and suggestions[0].score >= 95:
