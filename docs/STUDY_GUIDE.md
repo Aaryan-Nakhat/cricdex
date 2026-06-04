@@ -2,8 +2,8 @@
 
 A deep-dive technical reference covering every algorithm, design
 choice, and data pipeline in this repository. Written so a reader
-who hasn't touched Bayesian inference or reinforcement learning can
-still follow along and present the work to others.
+who hasn't touched Bayesian inference can still follow along and
+present the work to others.
 
 Sections are roughly ordered shallow → deep. If you want to skim,
 the **Overview** and **Architecture** sections give the high-level
@@ -15,17 +15,16 @@ picture; the algorithm chapters (5–9) are the meat.
 
 1. Project overview — what CricDex is, what problem it solves
 2. Architecture — module layout, data flow, how pieces fit
-3. Data layer — Cricsheet, People Register, Wikidata, Rules PDFs
+3. Data layer — Cricsheet, People Register, Wikidata
 4. The 10 novel cricket metrics — formula + intuition each
 5. Bayesian scout ratings — hierarchical NegBin + dismissal Binomial, NumPyro, ADVI vs NUTS
 6. NGI / Net Game Impact — XGBoost win-prob + isotonic calibration + ΔWP
-7. Scout graph — Neo4j model + cohort traversal + archetype detection
-8. Auction stack — MILP solver, Monte Carlo simulator, GRPO RL, advisor
-9. Rules Q&A — embeddings, BM25, RRF fusion, cross-encoder rerank
-10. Wikidata bridge — P2697 statsguru ID + Entity API workaround
-11. Surfaces — CLI / TUI / Streamlit / API
-12. Deployment + CI/CD
-13. vNext / TODOs — what didn't make v1 and why
+7. Scout — cross-competition look-alikes + cosine style twins
+8. Auction room — real-rules Monte-Carlo, shared with the web via web_parity
+9. Wikidata bridge — P2697 statsguru ID + Entity API workaround
+10. Surfaces — web (canonical) + CLI / TUI / Streamlit / API at parity
+11. Deployment + CI/CD
+12. vNext / TODOs — what didn't make v1 and why
 
 ---
 
@@ -34,7 +33,7 @@ picture; the algorithm chapters (5–9) are the meat.
 **CricDex** is an open cricket intelligence platform that sits on top
 of publicly available cricket data (primarily
 [Cricsheet's](https://cricsheet.org/) ball-by-ball JSON dumps) and
-emits five things — all from Cricsheet ball-by-ball, no live feeds or
+emits four things — all from Cricsheet ball-by-ball, no live feeds or
 scrapes:
 
 1. **Novel sabermetrics** — context-adjusted player metrics that
@@ -43,21 +42,20 @@ scrapes:
    skill scores fit with NumPyro/JAX (scoring + survival for batters,
    economy + strike for bowlers) so a player who only ever faced weak
    attacks doesn't outrank one who's faced everyone.
-3. **A scout graph** — per-collection Neo4j of every player + their
-   FACED bowling edges, TEAMMATE_OF overlaps, and PLAYED_IN matches.
-   Powers "find me a substitute for Bumrah".
-4. **Auction tooling** — MILP squad optimiser, Monte-Carlo price
-   simulator (real IPL teams), GRPO reinforcement-learning self-play,
-   war-room substitute advisor.
-5. **Rules Q&A** — natural-language search over verified rulebook
-   PDFs (MCC Laws, ICC Playing Conditions, IPL, BBL/WBBL, Cricket
-   Australia domestic, ICC Codes) with citations.
+3. **Scout** — cross-competition look-alikes across six pools (IPL,
+   SMAT, BBL, SA20, CPL, T20 Blast) ranked by within-tier Bayesian
+   skill-standing z-score, plus cosine style-twins on the Player
+   Profile. File-driven (DuckDB + exported JSON; no graph database).
+4. **Auction room** — a real-rules IPL auction Monte-Carlo over a
+   cross-collection pool with editable retentions, overseas cap,
+   second-price clearing and a two-phase fill.
 
-The distribution is **terminal-first**. A single `cricdex` console
-script fronts all of it. A Streamlit dashboard is the parallel
-browser surface; a Textual TUI is the in-terminal cockpit. The same
-library functions back all three surfaces, so behaviour stays in
-lockstep.
+The web app is the **canonical surface**; a single `cricdex` console
+script, a Streamlit dashboard, and a Textual TUI mirror the same
+analytical pages. Scout and the Auction room run identical logic on
+every surface via `cricdex.web_parity` (a Python port of the web's
+TypeScript, locked by `test_scripts/test_web_parity.py`), so behaviour
+stays in lockstep.
 
 **Why open?** Existing cricket platforms (Cricbuzz, CricViz, ESPN)
 hide methodology behind paywalls. CricDex publishes the formulas, the
@@ -79,27 +77,28 @@ Top-level layout:
 ```
 src/cricdex/
 ├── api/                   FastAPI REST surface + /docs
-├── auction/               MILP solver + MC sim + GRPO RL + advisor
+├── auction/               real-rules Monte-Carlo pool builder
 ├── cli/                   typer console script (one file per command group)
 ├── comparator/            Side-by-side metric table + skill head-to-head
 ├── config.py              Pydantic settings + DATA_DIR resolution
-├── dashboard/             Streamlit pages (10 of them, mirror the TUI)
+├── dashboard/             Streamlit pages (mirror the web + TUI)
 ├── llm/                   Gemini wrapper (work-proxy URL or personal key)
 ├── metrics/               The 10 novel metrics + dismissal_fingerprint
 ├── people/                Cricsheet People Register loader
 ├── profiles/              Single-player JSON assembler (used by all surfaces)
 ├── records/               9 record SQL queries + on-this-day digest
-├── rules/                 verified PDFs → 11k clauses → Qdrant + RAG
 ├── scout/
-│   ├── graph/             Neo4j writer + similar.py cohort traversal (per-collection)
 │   ├── ingest/            Cricsheet → DuckDB; Wikidata enrichment
 │   ├── ratings/           NumPyro hierarchical Bayes (dismissal-aware)
 │   └── search/            Cosine style-twin
+├── web_parity/            Python port of the web's TS auction + scout
 └── venues/                Per-venue conditions (innings totals, phase rates)
 ```
 
 Everything is Cricsheet-derived. There are no live-feed, scrape, or
-non-Cricsheet-source modules — those were intentionally removed.
+non-Cricsheet-source modules — those were intentionally removed — and
+the stack is file-driven (DuckDB + exported JSON; no vector or graph
+database).
 
 **Data flow**:
 
@@ -111,27 +110,17 @@ Cricsheet JSON ──> scripts/ingest_cricsheet.py ──> DuckDB (~600 MB)
    metrics/*.py            scout/ratings              records/         venues/
    (10 metrics JSON)       (Bayes JSON)               (on-this-day)    (innings/phase)
         │                         │
-        │                         └────> scout/graph/writer
-        │                                    (Neo4j FACED + TEAMMATE)
-        ▼
-   profiles/builder.py  ──> JSON per player
-                          │
-                          ▼
-              CLI / TUI / Streamlit / FastAPI
+        ▼                         ▼
+   profiles/builder.py     scripts/export_site.py ──> site/public/data/*.json
+        │                         (auction pool + retentions + scout index)
+        ▼                                  │
+              ┌────────────────────────────┘
+              ▼
+   web (canonical) + CLI / TUI / Streamlit / FastAPI
+   (scout + auction run web_parity over the same exported JSON)
 
 People Register (cricsheet) ──> cross-source ID bridge ──> Wikidata enrichment
                                                               (DOB, photo, socials)
-
-Rules PDFs (21) ──> rules/ingest+parse ──> rules/embed
-                                              │
-                                              ▼
-                              Qdrant (snowflake-arctic-embed-l-v2 @ 384-dim)
-                                              │
-                                              ▼
-                              rules/retrieval (BM25 + dense + RRF + Jina)
-                                              │
-                                              ▼
-                              rules/qa (Gemini-synthesised answer)
 ```
 
 Single canonical storage root: `~/.cricdex/data/` (or
@@ -178,35 +167,10 @@ names that collide: `Rashid Khan` → Afghanistan (not Nepal),
 
 `cricdex data ingest wikidata` enriches each cricketer with DOB,
 country / birthplace Q-ids, profile photo URL, Twitter / Instagram
-handles, and ESPNcricinfo / Cricbuzz IDs. See §10 for the technical
+handles, and ESPNcricinfo / Cricbuzz IDs. See §9 for the technical
 bridge (the SPARQL endpoint blocks GCP IPs so we use the action API
 with a P2697-statsguru-ID search instead). 289 / 300 active players
 are enriched today.
-
-### 3.4 Rules PDFs
-
-21 official rulebook PDFs span: MCC Laws of Cricket 2022; ICC
-Playing Conditions (Tests, ODIs, T20Is — men's + women's); IPL 2024
-PCs; The Hundred 2023; BBL + WBBL 2024; SA20 2023; Cricket Australia
-domestic (Marsh One-Day Cup, Sheffield Shield, BBL); ICC Code of
-Conduct; ICC Anti-Corruption Code. Total ~11k clauses parsed via
-`pdfplumber` into `data/rules/parsed/*.jsonl`. Each clause:
-
-```json
-{
-  "source_id": "icc_pc_men_t20i_2025",
-  "edition": "2025",
-  "page": 47,
-  "law_number": "21.5.2",
-  "parent_chain": ["21. Wide Ball", "21.5 Definition"],
-  "title": "Adjudication of wides at the start of an over",
-  "text": "If the ball passes wider than the wide guideline ..."
-}
-```
-
-A separate `data/rules/curated/` directory holds hand-curated
-supplementary clauses for gaps the PDFs leave (IPL Impact Player
-rule, etc.).
 
 ---
 
@@ -740,462 +704,140 @@ probability per match they play.
 
 ---
 
-## 7. Scout graph — `scout/graph/`
+## 7. Scout — cross-competition look-alikes
 
-Neo4j stores three edge types so we can answer "show me players in
-the same competitive neighbourhood as Bumrah" without ad-hoc SQL.
+Scout answers "who plays like X, that I could realistically sign?"
+across six competition pools (IPL, SMAT, BBL, SA20, CPL, T20 Blast).
+It is **file-driven** — DuckDB + an exported JSON index, no graph
+database — and shares one implementation with the web via
+`cricdex.web_parity` (a Python port of `site/src/pages/Scout.tsx`,
+locked by `test_scripts/test_web_parity.py`).
 
-### 7.1 Schema
+### 7.1 The look-alike formula
 
-**Nodes — `Player`:**
-```
-cricsheet_id (PK), unique_name, key_cricinfo, key_cricbuzz,
-unresolved, balls_faced, balls_bowled, last_match_date,
-role, bowling_style, bowling_style_source, middle_overs_pct
-```
+The hard part of cross-competition comparison is that raw numbers
+aren't comparable — a SMAT strike rate and an IPL strike rate measure
+different attacks. So each player is reduced to a **within-tier
+skill-standing z-score** off the dismissal-aware Bayes skill (§5): how
+many standard deviations above his own competition's mean does he
+stand? A SMAT prospect and an IPL star can then be lined up despite
+incomparable raw stats. Candidates must also share the picked player's
+**archetype** (role + seam/spin from the Gemini taxonomy).
 
-**Nodes — `Match`, `Venue`** (lighter; used for graph context).
+### 7.2 The three tiers + pricing
 
-**Edges:**
-- `FACED` — batter → bowler, properties `balls_faced`, `runs_scored`,
-  `dismissals`.
-- `TEAMMATE_OF` — unordered pair (dedupe via `LEAST/GREATEST`),
-  property `matches_together`.
-- `PLAYED_IN` — player → match, property `team`.
-- `AT` — match → venue.
+For an active IPL pick, Scout surfaces three tiers in order: similar
+**IPL peers**, then uncapped **SMAT** prospects, then overseas options
+(**BBL / SA20 / CPL / T20 Blast**). Each row carries:
 
-### 7.2 Role classifier
+- an **estimated crore price** from the Auction room's skill→price
+  curve (a shared `estValue`, tier-discounted so SMAT/BBL is comparable
+  to IPL),
+- the **saving** vs the picked player (budget swap),
+- an uncapped-**gem** flag for SMAT prospects with high standing on
+  below-median exposure (the moneyball signal),
+- **role / batting-slot** filters to narrow or re-target a tier,
+- a one-click **Draft** that drops the prospect into the Auction room
+  as a retention (`/auction?draft=<id>`).
 
-A player's `role` is decided at graph-population time:
-- `all_rounder` if `balls_bowled ≥ 60 AND balls_faced ≥ 60`
-- else `bowler` if `balls_bowled ≥ balls_faced`
-- else `batter`
+The scout index emits per-player `balls` for the gem cutoff. The CLI
+entry point is `cricdex scout look-alikes`; the same view ships on the
+web, Streamlit, and the TUI **Scout** tab.
 
-This is intentionally lenient — `60` is a low threshold so part-time
-options surface. **But** it mis-tags Bumrah as `all_rounder` because
-he batted ~86 times. So `role` is unreliable for downstream cohort
-selection, which is why §7.4 uses ball-volume directly.
+### 7.3 Cosine style-twins (Player Profile)
 
-### 7.3 Bowling-style classifier — `writer.py`
-
-For every bowler, classify into `pace | spin | unknown`. Three-way
-priority:
-
-1. **Curated override** (`data/curated/bowling_styles.json`): hand-
-   maintained list for known mis-classifications (HV Patel, DJ
-   Bravo, G Coetzee, V Vyshak, A Madhwal, T Deshpande, etc., all
-   pace).
-2. **Middle-overs heuristic**: pace bowlers bowl the powerplay +
-   death; spinners bowl the middle. Compute `mid_pct =
-   middle_balls / balls_bowled`. `spin` if `≥ 0.55`, `pace` if
-   `< 0.50`, `unknown` borderline. Requires `balls_bowled ≥ 120`
-   else tagged `insufficient_balls`.
-3. **Fallback** `unknown`.
-
-**Why heuristic and not "look it up"?** Wikidata's P5125 (bowling
-style) is sparse for cricketers, and ESPNcricinfo (the only source
-with reliable style tags) blocks GCP IPs (see §10). The heuristic
-gets ~85% accuracy; curated overrides cover the rest.
-
-### 7.4 Cohort traversal — `similar.py`
-
-The interesting algorithmic bit. The function `co_faced_bowlers`
-returns *similar players* by graph traversal:
-- bowler target → walk `(p)<-FACED-(batter)-FACED->(q)`, count
-  distinct shared batters per `q`, sort by count.
-- batter target → walk `(p)-FACED->(b)<-FACED-(q)`, count distinct
-  shared bowlers, sort.
-
-**The auto-flip.** This was a v1b fix. Two earlier heuristics
-failed:
-- `role == 'bowler'` failed because Bumrah's `role` is `all_rounder`
-  (lenient threshold).
-- `bowling_style IN ['pace','spin']` failed because Kohli and Rohit
-  crossed the 120-ball middle-overs threshold and got tagged as
-  `spin`.
-
-The fix uses raw ball volume:
-
-```python
-target_is_bowler = target_bb > target_bf   # actual ratio
-cohort_pred = (
-    "q.balls_bowled > q.balls_faced" if target_is_bowler
-    else "q.balls_faced >= q.balls_bowled"
-)
-```
-
-Unambiguous. Bumrah's `balls_bowled = 7100 > balls_faced = 86`; he's
-a bowler. Kohli's `balls_faced = 6754 > balls_bowled = 251`; he's a
-batter. Cohort surface matches archetype every time.
+Separately from the cross-competition look-alikes, every Player Profile
+shows **cosine style-twins** — feature-space nearest neighbours over
+the metric + rating vector (`scout/search/`). These are purely
+descriptive ("who has a similar shot/skill profile") and have never
+relied on a graph.
 
 ---
 
-## 8. Auction stack — `auction/`
+## 8. Auction room — `auction/` + `web_parity/auction.py`
 
-Four interlocking pieces. They share `real_pool.build_pool()` for
-the player pool but serve different decision contexts.
+The auction is a **real-rules IPL auction Monte-Carlo** — a market
+simulation, not a squad optimiser. The same logic runs in the browser
+(`site/src/lib/auction.ts`) and on the CLI / TUI / Streamlit (Python,
+`cricdex.web_parity`), over the **same** exported JSON and with a
+**bit-exact seeded LCG RNG**, so a run reproduces everywhere
+trial-for-trial (locked by `test_scripts/test_web_parity.py`). The CLI
+entry point is `cricdex auction room`. The plain-words walkthrough is
+in [`AUCTION_MATH.md`](AUCTION_MATH.md); this section is the technical
+summary.
 
-### 8.1 MILP squad solver — `auction/solver.py`
+### 8.1 Skill → crore price
 
-**Problem.** Pick `squad_size=25` players to maximise total
-`projected_value` subject to a purse + role + overseas
-constraints. Integer Linear Programming (specifically MILP because
-the `x_i` are binary).
-
-**Decision variables.** `x_i ∈ {0, 1}` for each player `i` (1 = pick).
-
-**Objective.**
-```
-maximise  Σ value_i · x_i
-```
-Equivalently `minimise  Σ -value_i · x_i`, which is what scipy
-wants.
-
-**Constraints.**
-- Budget: `Σ price_i · x_i ≤ purse`
-- Overseas cap: `Σ overseas_i · x_i ≤ overseas_cap`
-- Squad size (equality): `Σ x_i = squad_size`
-- Per-role minimums: for each role `r`, `Σ x_i · [role_i==r] ≥
-  role_mins[r]`
-
-**Engine.** `scipy.optimize.milp` with HiGHS backend. No OR-Tools
-dependency — keeps the install lean.
-
-**Why MILP, not greedy?** Greedy picking-highest-value-first can hit
-infeasible role minimums or overshoot budget. MILP gives the
-optimal solution in seconds for a 429-player pool.
-
-```python
-c = -value  # flip sign: milp minimises
-constraints = [
-    LinearConstraint(price.reshape(1,-1), ub=purse),
-    LinearConstraint(overseas.reshape(1,-1), ub=overseas_cap),
-    LinearConstraint([1.0]*n, lb=squad_size, ub=squad_size),
-]
-for role, vec in role_vec.items():
-    if role_mins.get(role, 0) > 0:
-        constraints.append(LinearConstraint(vec.reshape(1,-1), lb=role_mins[role]))
-res = milp(c=c, constraints=constraints, integrality=[1]*n,
-           bounds=Bounds(lb=[0]*n, ub=[1]*n))
-picks = [i for i, x in enumerate(res.x) if x > 0.5]
-```
-
-### 8.2 Monte Carlo auction simulator — `auction/simulator.py`
-
-**Problem.** What's the *distribution* of sale prices for each
-player given a pool of franchise bidders with different
-personalities?
-
-**Method.** Monte Carlo — simulate the auction many times (default
-`n_sims=200`) with randomised bid jitter, count outcomes.
-
-**What's Monte Carlo?** Run a random simulation, gather statistics,
-repeat. Named after the casino because it's roulette-style sampling.
-For analytics with no closed-form solution it's the workhorse.
-
-**Per-player price draw.** Shuffle the pool. For each player,
-every franchise computes a `bid_ceiling`:
-
-```python
-def _bid_ceiling(franchise, player, rng):
-    if franchise["slots_left"] <= 0: return 0.0
-    if franchise["need"][player["role"]] <= 0 and tight_slots: return 0.0
-    if player["is_overseas"] and franchise["overseas_left"] <= 0: return 0.0
-    jitter = rng.gauss(1.0, franchise["risk"])
-    ceiling = player["projected_value"] * franchise["aggression"] * jitter
-    return min(franchise["purse"], max(0.0, ceiling))
-```
-
-**Clearing rule** — second-price + 0.1 tick:
-```
-sale_price = max(player.price, second_ceiling + 0.1) capped at top_ceiling
-```
-
-**Franchise behaviour model.** Six hand-tuned archetype dicts in
-`real_pool.FRANCHISE_ARCHETYPES`:
-- `MarqueeChaser` (aggression=1.35, risk=0.20)
-- `ValueHunter` (0.85 / 0.30)
-- `OverseasHeavy` (1.15 / 0.18, overseas slots = 8)
-- `IndianFocus` (1.05 / 0.15, overseas slots = 3)
-- `AllRounderStack` (1.10 / 0.22, role_min all_rounder = 6)
-- `Balanced` (1.00 / 0.15)
-
-Output: per-player `mean_price`, `price_p10`, `price_p90`,
-`sold_pct` across simulations.
-
-### 8.3 GRPO reinforcement-learning self-play — `auction/grpo.py`
-
-**Problem.** Train a single agent to bid optimally in a multi-round
-auction.
-
-**What's reinforcement learning?** An agent observes a *state*,
-picks an *action*, gets a *reward*, transitions to a new state.
-Train it to pick actions that maximise long-term reward. For
-auctions: state = "you have 60 cr left, 18 slots open, Kohli is up,
-your competitors have X/Y/Z purses"; action = "bid 12 cr / pass /
-bid 8 cr".
-
-**Why GRPO and not the more famous PPO?**
-
-PPO (Proximal Policy Optimization) is the standard policy-gradient
-algorithm. It uses two networks: a *policy* (picks actions) and a
-*value head* (estimates how good the current state is). The value
-head provides a *baseline* for the advantage `A = R − V(s)` that
-reduces variance.
-
-GRPO (Group Relative Policy Optimization, introduced by DeepSeek
-in 2024 for math/code reasoning RL) drops the value head entirely.
-Instead it samples **G trajectories from the same state**, computes
-each one's total return, and z-scores those returns within the
-group to get a baseline-free advantage:
+The pool has skill but no cost, so step zero invents a fair price from
+skill, calibrated to recent real auctions:
 
 ```
-A_i = (R_i − mean(R_group)) / (std(R_group) + ε)
+value = clamp(1.6 · e^(5.8 · skill) · roleMult, 0.3, 27)
 ```
 
-**Why drop the value head?**
-- Value heads are hard to fit on sparse / terminal-heavy rewards
-  (which auction is — most balls give 0 reward, terminal squad
-  bonus is huge).
-- Group sampling is a low-variance baseline by construction
-  (z-score is zero-mean by definition).
-- ~30% fewer parameters / faster training.
+The `5.8` stretches the curve so the spread matches recent money (top
+names ~27 cr, the 2025 ceiling; median ~3–4 cr); `roleMult` weights up
+scarcer all-rounders / keepers. A **recency decay** then subtracts a
+penalty scaled by months since the player's last match (capped at
+−0.30) so dormant/retired names don't top the buys. The opening **base
+price** snaps to the real IPL bands (0.3 / 0.5 / 0.75 / 1.0 / 1.5 / 2.0
+cr).
 
-**The objective** (same clipped surrogate as PPO):
-```
-ratio       = exp(log_p_new(a) − log_p_old(a))
-L_policy    = -E[min(ratio · A, clip(ratio, 1−ε, 1+ε) · A)]
-L           = L_policy − β · H(policy)
-```
+### 8.2 The cross-collection pool
 
-The clip prevents the policy from moving too far in one update
-(stability). `β · H` adds entropy regularisation so the policy
-doesn't collapse to a single action prematurely.
+The pool is the active T20 world, not just past IPL squads:
 
-**Architecture.** Tiny MLP: `state_dim=16 → 64 → 64 → n_actions=11`
-with Tanh activations. Small because the auction state space is
-small.
+- **IPL players** — retainable, each carrying his current franchise.
+- **Free agents** — overseas via BBL / SA20 / CPL / T20 Blast, and
+  uncapped Indians via SMAT.
 
-**Hyperparameters.** `epochs=200, group_size=8, lr=3e-4,
-entropy_beta=0.01, clip_eps=0.2, grad_norm=0.5`.
+Guardrails: active only (last ~3 yrs), ≥150 balls of evidence,
+associate/non-IPL-nation noise excluded, and a **tier penalty** applied
+to cross-tier skill before pricing (BBL −0.07, SA20 −0.07, CPL −0.10,
+T20 Blast −0.10, SMAT −0.20; IPL 0).
 
-```python
-for epoch in range(epochs):
-    for _ in range(group_size):
-        obs, act, logp, rew = _rollout(env, policy)
-        group_obs.append(obs); group_act.append(act)
-        group_logp.append(logp); group_R.append(rew.sum())
+### 8.3 Retentions, then bidding
 
-    R = np.array(group_R, dtype=np.float32)
-    adv = (R - R.mean()) / (R.std() + 1e-6)         # GRPO advantage
-    flat_adv = np.concatenate([np.full(len(o), adv[i])
-                              for i, o in enumerate(group_obs)])
+**Retentions** are editable per team. Mega = the real 2025 retention
+lists (~5 players), slab-priced (18 / 14 / 11 / 18 / 14 cr capped, 4 cr
+uncapped) from the 120 cr purse; Mini = teams keep most of their squad
+free and bid only a small leftover purse. Retained players leave the
+pool and count toward the overseas cap (8).
 
-    logits = policy(x); dist = Categorical(logits=logits)
-    ratio = torch.exp(dist.log_prob(a) - old_logp)
-    unclipped = ratio * adv_t
-    clipped = torch.clamp(ratio, 1-clip_eps, 1+clip_eps) * adv_t
-    policy_loss = -torch.min(unclipped, clipped).mean()
-    loss = policy_loss - entropy_beta * dist.entropy().mean()
-```
+**Bidding** runs player-by-player, stars first. Each team's max bid is
+`value × aggression × need × overseas-bias × luck`, bounded by
+remaining money / squad cap / overseas cap. The highest max bid wins
+but pays just **above the second-highest** (second-price clearing). A
+**two-phase fill** runs the auction so the pool is shared fairly: round
+1 fills every team to a 20-man minimum, round 2 tops up toward the 25
+cap, and a safety pass guarantees no team is left below 20.
 
-### 8.4 The RL environment — `auction/rl_env.py`
+### 8.4 ~300 trials + post-sim search
 
-**State (16 dims).** Own purse-norm, slots-left-norm, per-role need
-(4), overseas-left-norm, current-player one-hot role (4) + overseas
-flag + price-norm + value-norm, max-opponent-ceiling, pool-remaining
-fraction.
-
-**Action (11 discrete buckets).** `0` = pass; `k ≥ 1` →
-`bid = max(player.price, k × 0.3 × projected_value)`.
-
-**Per-step reward.**
-- Win: `+(projected_value − sale_price)`
-- Illegal bid (over purse): `−5.0`
-- Otherwise: `0`
-
-**Terminal bonus** — *critical*. Without it the agent learns to
-always pass (no reward for taking on cost). With it:
-```
-terminal_reward = +0.5 × Σ acquired_value − 5.0 × unfilled_role_slots
-```
-
-The training log shows entropy falling from ~2.39 (uniform over 11
-buckets) toward 1.0-1.5 (decided policy) and mean episode return
-crossing 0 around epoch 4000 — that's where the agent figures out
-which Indian high-skill players are worth committing to.
-
-### 8.5 Project Bayes skill → IPL crore value — `auction/real_pool.py`
-
-How do we turn a Bayes skill score into a "this player is worth
-8 cr" number?
-
-```python
-def _project_value(skill, role, value_scale=10.0):
-    floor = ROLE_FLOOR.get(role, 0.5)   # batter/bowler 0.5; all_rounder 0.8
-    return round(math.exp(skill) * floor * value_scale, 2)
-```
-
-Log-skill is a multiplicative effect — `skill=+0.30` (marquee) gives
-`exp(0.30) ≈ 1.35` and `× 0.5 × 10 = 6.7 cr`. Multiply by role floor
-(all-rounders bid up because they're scarce) and a global
-`value_scale=10` so marquee batters land around 8-12 cr.
-
-**Base price tier:** the highest IPL tier `≤ value/6.0` from
-`[0.30, 0.50, 0.75, 1.0, 1.5, 2.0]`. Approximates the real auction's
-floor-price ladder.
-
-**Nationality:** dominant team in `balls_t20s_male` (men's T20Is) →
-country code; defaults `IN` if absent. Manual overrides for
-namesake collisions.
-
-### 8.6 War-room advisor — `auction/advisor.py`
-
-**Problem.** "Bumrah is gone for 18 cr, I have 8 cr left, 1 bowler
-slot. Find me a substitute."
-
-**Method.** Combine relational similarity (graph cohort) with
-absolute quality (Bayes-projected value).
-
-```
-shared_norm   = shared / max(shared)        ∈ [0, 1]
-value_norm    = projected_value / max(value) ∈ [0, 1]
-composite     = 0.5 × shared_norm + 0.5 × value_norm
-```
-
-Pipeline:
-1. `similar.find_replacement(target, top_k=50)` — graph cohort,
-   archetype-locked.
-2. Inner-join with `real_pool.build_pool()` on `cricsheet_id`.
-3. Filter `price ≤ budget` and optional `role` / `bowling_style`.
-4. Normalise + score + sort.
-
-The 50/50 weighting between graph proximity and Bayes value is a
-deliberate v1 default — graph alone surfaces too many low-value
-"played the same opponents" matches; value alone surfaces marquee
-names you can't afford. The 50/50 mix gets actionable shortlists.
+One mock auction is run ~300 times with the bid order reshuffled each
+time, then averaged: each team's typical spend / squad size / value /
+overseas count, and for each star the **% of trials each team won him**
+("Bumrah → MI 62%, CSK 21%"). The sim emits a per-player `outcomes`
+summary across all trials, which powers a **post-sim search** (web,
+Streamlit, and the TUI Sim tab): after a run, look up any player —
+retained (by which team), sold (most-likely buyers, sold-%, avg price),
+or unsold. The RNG is seeded, so identical settings reproduce identical
+results.
 
 ---
 
-## 9. Rules Q&A — `rules/`
-
-The hardest pipeline in the repo to get right because retrieval
-quality cascades into LLM hallucination.
-
-### 9.1 The corpus
-
-21 PDFs → `data/rules/parsed/*.jsonl` (one row per clause via
-`pdfplumber`). Plus `data/rules/curated/*.jsonl` for hand-authored
-clauses covering gaps (IPL Impact Player rule, etc.). Total ~11k
-clauses indexed in Qdrant.
-
-### 9.2 Embedding model — Snowflake-arctic-embed-l-v2
-
-**Why this model?**
-- Multilingual (100+ languages, important when an IPL PC quotes a
-  Hindi phrase or a player name).
-- 8192-token context (long clauses don't get truncated).
-- Matryoshka Representation Learning (MRL) trained — see below.
-- Open-source under Apache-2.
-
-**Matryoshka truncation.** MRL is a training technique where the
-model is trained so that the **first N dimensions** of each
-embedding work as a valid embedding on their own. Take the 1024-dim
-vector, slice it to 384, and you get 96% of the retrieval quality
-with 2.7× faster cosine + 2.7× smaller index.
-
-```python
-EMBED_MODEL = "Snowflake/snowflake-arctic-embed-l-v2.0"
-EMBED_DIM = 384
-
-model = SentenceTransformer(EMBED_MODEL, trust_remote_code=True,
-                            truncate_dim=EMBED_DIM)
-client.create_collection(collection_name=COLLECTION,
-    vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE))
-```
-
-The Qdrant index is 57 MB for 11k clauses at 384-dim.
-
-### 9.3 Hybrid retrieval — `rules/retrieval.py`
-
-Three-stage pipeline:
-
-**Stage 1 — Dense retrieval.** Encode query → Qdrant top-K cosine
-search. Captures semantic similarity (synonyms, paraphrasing).
-
-**Stage 2 — Sparse retrieval (BM25).** `rank_bm25.BM25Okapi` over
-lowercased `title + text` tokens. Captures exact term matches that
-embeddings sometimes blur ("18.4" or "twelfth man" are literal
-phrases that dense models can't outrank with paraphrases).
-
-**Stage 3 — RRF fusion.** Reciprocal Rank Fusion combines the two
-rankings:
-
-```
-score(doc) = Σ 1 / (k_const + rank_in_ranking)
-```
-
-With `k_const=60` (folklore default). De-duped via `(source_id,
-law_number, page)` so the same clause doesn't get inflated.
-
-```python
-def rrf_fuse(dense_hits, sparse_hits, top_k=10, k_const=60):
-    scores, payloads = {}, {}
-    for rank, (_, p) in enumerate(dense_hits):
-        k = (p["source_id"], p["law_number"], p.get("page"))
-        scores[k] = scores.get(k, 0.0) + 1.0/(k_const + rank + 1)
-    for rank, (_, p) in enumerate(sparse_hits):
-        k = (p["source_id"], p["law_number"], p.get("page"))
-        scores[k] = scores.get(k, 0.0) + 1.0/(k_const + rank + 1)
-    return sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
-```
-
-**Stage 4 — Cross-encoder rerank.** Jina's
-`jina-reranker-v2-base-multilingual` is a cross-encoder model — it
-takes `(query, passage)` *together* and emits a single relevance
-score. Slower than bi-encoders (one forward pass per pair) but much
-more accurate because the model can attend across query and passage
-jointly. We cut `top_k × 3` fused candidates down to `top_k=8` after
-reranking. Falls back to RRF order on HTTP error so a flaky API
-doesn't kill QA.
-
-### 9.4 Answer synthesis — `rules/qa.py`
-
-The retrieval output is `top_k=8` clauses. They get formatted and
-passed to Gemini with a strict citation contract:
-
-```
-You answer cricket rule questions using ONLY the supplied passages.
-- Every factual claim MUST be cited [source_id §law_number].
-- Multiple sources should each get their own bracket.
-- If passages partially cover, start with "Partial coverage in the parsed corpus:"
-- If they don't cover at all: "This rule is not in CricDex's currently parsed corpus..."
-```
-
-Format-filter: the `formats` query parameter
-(`'ipl'`, `'t20i'`, `'mcc_laws'`, ...) maps to a list of `source_id`s
-that Qdrant filters with. So "impact player rule in IPL" with
-`formats=['ipl']` only searches IPL-tagged clauses.
-
-Citation parsing: the LLM output is regex-scanned for
-`[source_id §law]` brackets and converted to publisher labels
-(`"IPL 2024 Playing Conditions, clause 21.5.2"` with a publisher
-URL) before display.
-
----
-
-## 10. Wikidata bridge — `scout/ingest/wikidata.py`
+## 9. Wikidata bridge — `scout/ingest/wikidata.py`
 
 The data layer ran into a fun infrastructure problem worth knowing
 about.
 
-### 10.1 The blocker
+### 9.1 The blocker
 
 Wikidata's SPARQL endpoint (`query.wikidata.org`) returns HTTP 429
 (Too Many Requests) from any GCP / AWS / datacenter IP — they have
 a separate rate-limit pool for datacenter traffic. Our VM is on GCP.
 
-### 10.2 The bridge
+### 9.2 The bridge
 
 Two pieces of fortune:
 1. The Wikidata **action API** (`www.wikidata.org/w/api.php`) is on
@@ -1222,7 +864,7 @@ def _qid_via_statsguru(statsguru_id, cx):
 This 1:1 maps Cricsheet `key_cricinfo` → Wikidata Q-id without ever
 touching SPARQL. 289 / 300 active IPL players resolved this way.
 
-### 10.3 Fallback — name search
+### 9.3 Fallback — name search
 
 For the 11 misses we fall back to `wbsearchentities` (free-text
 name search), filtered to entries whose descriptions mention
@@ -1230,7 +872,7 @@ name search), filtered to entries whose descriptions mention
 players named with initials (`"Z Khan"`) because Wikidata search
 matches initials poorly.
 
-### 10.4 What we fetch
+### 9.4 What we fetch
 
 For each Q-id we hit the entity API
 (`Special:EntityData/{qid}.json`) and extract claims at fixed
@@ -1251,51 +893,53 @@ every 25 players so a crash doesn't lose progress.
 
 ---
 
-## 11. Surfaces — terminal-first distribution
+## 10. Surfaces — web canonical, the rest at parity
 
-### 11.1 CLI — `cricdex/cli/`
+The React web app is the source of truth; the CLI, TUI, and Streamlit
+dashboard mirror its analytical pages, and Scout + the Auction room run
+identical logic on every surface via `cricdex.web_parity`.
 
-`typer`-backed console script. 13 subcommands; full reference in
-`docs/CLI.md`. Every command renderer uses the shared
-`_render.py` helpers (Rich Panels, `pretty_table`, `bayes_sentence`,
-`wikidata_block`, `sparkline`, `spinner`) and pulls explainer
-strings from `_copy.py` so the prose stays at parity with the
-Streamlit dashboard.
+### 10.1 CLI — `cricdex/cli/`
 
-### 11.2 TUI — `cricdex/cli/tui.py`
+`typer`-backed console script; full reference in `docs/CLI.md`. Every
+command renderer uses the shared `_render.py` helpers (Rich Panels,
+`pretty_table`, `bayes_sentence`, `wikidata_block`, `sparkline`,
+`spinner`) and pulls explainer strings from `_copy.py` so the prose
+stays at parity with the Streamlit dashboard.
 
-Textual app. 10 tabs:
+### 10.2 TUI — `cricdex/cli/tui.py`
+
+Textual app whose tabs mirror the web pages:
 1. Leaderboard
-2. Rules
-3. Records
-4. Compare
-5. Venues
-6. Auction (Solve + Recommend in same panel)
-7. Profile
-8. Auction Sim
-9. Twins
-10. Update Data — buttons that shell into `data_cmd.run_ingest`
+2. Records
+3. Compare
+4. Venues
+5. Profile
+6. Scout
+7. Auction (Sim) — with the post-sim player search + Mega/Mini toggle
+8. Update Data — buttons that shell into `data_cmd.run_ingest`
 
 Default behaviour: `cricdex` (no args) launches TUI. `cricdex
 --help` lists subcommands as before.
 
-### 11.3 Streamlit dashboard — `cricdex/dashboard/`
+### 10.3 Streamlit dashboard — `cricdex/dashboard/`
 
-10 pages mirroring the TUI tabs 1-to-1. Same `_widgets.py` helpers
-(`collection_picker`, `fuzzy_player_input`, `provenance_banner`)
-across pages so the chrome stays uniform.
+Pages mirroring the web + TUI: Leaderboards, Player Profile, Compare,
+Head-to-head, Scout, Auction room, Records, Venues, Update Data. Same
+`_widgets.py` helpers (`collection_picker`, `fuzzy_player_input`,
+`provenance_banner`) across pages so the chrome stays uniform.
 
-### 11.4 FastAPI — `cricdex/api/`
+### 10.4 FastAPI — `cricdex/api/`
 
-12 REST endpoints + OpenAPI at `/docs`. Public surface for
-programmatic access. Currently no auth (vNext §E.2 — Cloudflare
-Worker + API keys table).
+REST endpoints (records / venues / players / compare) + OpenAPI at
+`/docs`. Public surface for programmatic access. Currently no auth
+(vNext §E.2 — Cloudflare Worker + API keys table).
 
 ---
 
-## 12. Deployment + CI/CD
+## 11. Deployment + CI/CD
 
-### 12.1 GitHub Actions
+### 11.1 GitHub Actions
 
 Workflows in `.github/workflows/`:
 
@@ -1306,21 +950,21 @@ Workflows in `.github/workflows/`:
 - `refresh-data.yml` — manual ("Run workflow"): re-ingest + recompute +
   re-cook the snapshot, then redeploy.
 
-### 12.2 Docker
+### 11.2 Docker
 
-`docker-compose.yml` brings up Qdrant + the app for local dev / the
-pipeline. Pre-bakes the Snowflake-arctic-embed-l-v2 weights so the
-container doesn't need `HF_TOKEN`. `make docker-up` builds + runs it.
+`docker-compose.yml` brings up the app for local dev / the pipeline.
+The stack is file-driven (DuckDB + exported JSON), so there is no
+vector or graph DB service. `make docker-up` builds + runs it.
 
-### 12.3 Off-VM persistence
+### 11.3 Off-VM persistence
 
-`data/` is gitignored. The DuckDB + Qdrant + metrics + Bayes JSONs
-are the only copies on disk. `make backup WHAT=all` tarballs them
-and pushes to Cloudflare R2 (always-free 10 GB / zero egress).
+`data/` is gitignored. The DuckDB + metrics + Bayes JSONs are the only
+copies on disk. `make backup WHAT=all` tarballs them and pushes to
+Cloudflare R2 (always-free 10 GB / zero egress).
 
 ---
 
-## 13. vNext / TODO
+## 12. vNext / TODO
 
 Items intentionally left out of v0.1.0. Grouped by what unblocks
 them; see `docs/VNEXT.md` for the full table and
@@ -1344,13 +988,11 @@ they're out of scope.
 ### Group B — auction-v2 (GPU compute)
 
 - **Multi-agent PettingZoo self-play** — every franchise slot trains
-  its own policy concurrently (currently one learner + 5 MC
-  opponents).
+  its own policy concurrently (the shipped room uses fixed bidding
+  archetypes, not learned policies).
 - **Bid-history-mined personality YAMLs** — replace the hand-
   authored archetypes with personalities extracted from real IPL
   auction bid logs.
-- **GRPO reward-shape A/B** + the real 8000-epoch converged run
-  (currently smoke-trained only).
 
 ### Group C — year-2 advanced (CV)
 
@@ -1365,48 +1007,41 @@ they're out of scope.
 - **GraphQL** layer (Strawberry on top of existing FastAPI).
 - **Auth + rate-limit** — Cloudflare Worker + API keys table.
   Mandatory before any public deploy.
-- **HF Datasets publish** — `cricdex-rules-clauses` open-benchmark.
 - **Public deploy** — HuggingFace Spaces or Oracle Cloud Always Free.
 
 ### Group F — maintenance cadence
 
 Rolling work the v1 release surfaces but doesn't automate:
-- Rule corpus refresh whenever a PC drops a new edition (`cricdex
-  data ingest rules --force`).
 - People Register monthly refresh.
 - Cricsheet ETL on new-match drops.
 - Metrics + records JSON refresh after Cricsheet updates.
-- WP / Bayes / GRPO refits when underlying data shifts materially.
+- WP / Bayes refits when underlying data shifts materially.
 
 ---
 
 ## Appendix A — How the pieces connect
 
-A worked example: "Who could replace Bumrah for under 8 cr?"
+A worked example: "Who plays like Kohli that I could realistically
+sign?"
 
-1. **CLI / TUI** call `auction.advisor.recommend_substitutes("JJ
-   Bumrah", budget=8)`.
-2. Advisor calls `scout.graph.similar.find_replacement("JJ Bumrah",
-   top_k=50)`.
-3. `find_replacement` reads Bumrah's Player node from Neo4j, finds
-   `balls_bowled=7100 > balls_faced=86`, sets archetype=`bowler`,
-   runs the Cypher query
-   `MATCH (Bumrah)<-FACED-(batter)-FACED->(q) WHERE q.balls_bowled
-   > q.balls_faced` and returns the top-50 by `COUNT(DISTINCT
-   batter)`.
-4. Advisor inner-joins those 50 with `real_pool.build_pool()` on
-   `cricsheet_id`. The pool has each player's `projected_value =
-   exp(bayes_skill) × role_floor × 10`.
-5. Filter `price ≤ 8`, normalise `shared` and `projected_value`,
-   compute `composite = 0.5 × shared_norm + 0.5 × value_norm`,
-   sort, return top-5.
-6. Returned to the CLI which renders a Rich Panel + a
-   `pretty_table` with bolded names + composite score, plus a
-   footnote on the formula.
+1. **CLI / TUI / web** call the Scout look-alike search for "V Kohli"
+   in `cricdex.web_parity` (the same code the React `Scout.tsx` page
+   runs), reading the exported `scout_index.json`.
+2. Kohli's archetype (role + seam/spin) is read from the Gemini
+   taxonomy, and his **within-tier skill-standing z-score** is computed
+   off the dismissal-aware Bayes fit (§5).
+3. Candidates sharing his archetype are ranked by how close their own
+   within-tier z-score is, surfaced as three tiers: IPL peers → uncapped
+   SMAT → overseas BBL / SA20 / CPL / Blast.
+4. Each row gets an **estimated crore price** from the shared
+   skill→price curve (`estValue`, tier-discounted), the **saving** vs
+   Kohli, and an uncapped-**gem** flag where applicable.
+5. The CLI renders a Rich Panel + a `pretty_table`; the web renders the
+   same rows; a one-click **Draft** can push a prospect into the Auction
+   room.
 
-Every step traces back to the underlying Cricsheet ball-by-ball +
-the Bayes fit. No magic, no proprietary feeds, no opaque
-"impact score".
+Every step traces back to the underlying Cricsheet ball-by-ball + the
+Bayes fit. No magic, no proprietary feeds, no opaque "impact score".
 
 ---
 
@@ -1414,10 +1049,10 @@ the Bayes fit. No magic, no proprietary feeds, no opaque
 
 - **WPA** — Win Probability Added. Per-event change in
   P(team wins). Borrowed from baseball.
-- **MILP** — Mixed-Integer Linear Programming. Linear objective +
-  constraints with some variables forced to integer values.
-- **GRPO** — Group Relative Policy Optimization (DeepSeek 2024).
-  PPO without a value head; baseline from group z-score.
+- **Monte-Carlo** — Run a random simulation many times, gather
+  statistics. Used for the auction room's price/odds estimates.
+- **Second-price clearing** — The winner pays just above the
+  second-highest bid, not their own max. Real auction behaviour.
 - **NumPyro** — JAX-backed probabilistic programming language.
 - **NegBin** — Negative Binomial distribution. Poisson with extra
   over-dispersion parameter.
@@ -1425,16 +1060,8 @@ the Bayes fit. No magic, no proprietary feeds, no opaque
   Approximate Bayes via gradient descent on a surrogate
   distribution.
 - **NUTS** — No-U-Turn Sampler. Adaptive Hamiltonian Monte Carlo.
-- **MRL** — Matryoshka Representation Learning. Train embeddings
-  so the first N dims of each vector are themselves a valid
-  embedding.
-- **RRF** — Reciprocal Rank Fusion. Combine rankings via
-  `Σ 1/(k + rank)`.
-- **BM25** — Best Match 25. Classical sparse term-weighting
-  retrieval; an evolution of TF-IDF.
-- **Cross-encoder** — Model that takes `(query, passage)` together
-  and emits a single relevance score. More accurate than bi-encoder
-  embeddings; slower because one forward pass per pair.
+- **web_parity** — The Python port of the web's TypeScript auction +
+  scout logic, locked bit-exact by `test_scripts/test_web_parity.py`.
 - **Statsguru ID / P2697** — ESPNcricinfo player ID, used as the
   Wikidata bridge property.
 

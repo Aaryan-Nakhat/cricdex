@@ -36,25 +36,13 @@ FastAPI app at `cricdex.api.main:app`, served on port 8080 inside the
 | GET | `/v1/venues?collection=&min_matches=` | Every venue with ≥N matches, sorted by sample size. |
 | GET | `/v1/venues/{venue}/profile?collection=` | Per-venue innings totals + chase/set winrate + phase rates + dismissal mix. |
 
-### Players + scout
+### Players
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/v1/players/{name}?collection=` | Full profile: IDs + Wikidata + career + every metric + Bayes + style twins. |
-| GET | `/v1/players/{name}/style-twins?role=&k=&collection=` | k-NN over the metric+rating vector. |
+| GET | `/v1/players/{name}/style-twins?role=&k=&collection=` | k-NN over the metric+rating vector (cosine style twins). |
 | POST | `/v1/compare` body `{players, collection}` | Side-by-side comparison rows. |
-
-### Rules QA
-
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/v1/rules/ask` body `{query, formats?, top_k}` | RAG QA with citations (`[source_id §law_number]`). Supports format filter (`ipl`, `t20i`, `mcc_laws`, `code_of_conduct`, …). |
-
-### Auction
-
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/v1/auction/solve` body `{pool, purse, squad_size, overseas_cap, role_mins}` | MILP squad optimiser. Returns selected players + totals or an infeasibility reason. |
 
 ## Quick curl examples
 
@@ -67,9 +55,9 @@ curl -s "localhost:8080/v1/venues/Wankhede%20Stadium%2C%20Mumbai/profile?collect
 
 curl -s localhost:8080/v1/players/V%20Kohli?collection=ipl | jq '.career'
 
-curl -s -X POST localhost:8080/v1/rules/ask \
+curl -s -X POST localhost:8080/v1/compare \
     -H 'content-type: application/json' \
-    -d '{"query":"impact player rule","formats":["ipl"]}' | jq '.answer'
+    -d '{"players":["V Kohli","RG Sharma"],"collection":"ipl"}' | jq '.rows'
 ```
 
 ## Future shape
