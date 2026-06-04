@@ -32,23 +32,14 @@ def run() -> None:
 
     if not cfg.get("gemini_api_key") and not cfg.get("gemini_tmp_url"):
         c.print(
-            "\n[bold]Gemini key[/bold] — needed for rules Q&A. "
-            "Skip if you only want metrics / scout / auction."
+            "\n[bold]Gemini key (optional)[/bold] — only for taxonomy enrichment "
+            "(player role / seam-spin / country). Skip for metrics / scout / auction."
         )
         key = typer.prompt(
-            "paste personal GEMINI_API_KEY (or hit Enter to skip)", default="", show_default=False
+            "paste GEMINI_API_KEY (or hit Enter to skip)", default="", show_default=False
         )
         if key.strip():
             cfg["gemini_api_key"] = key.strip()
-
-    if not cfg.get("jina_api_key"):
-        c.print(
-            "\n[bold]Jina key (optional)[/bold] — enables cross-encoder rerank "
-            "on rule retrieval. Free tier ~1M tokens. Skip if you don't care."
-        )
-        key = typer.prompt("paste JINA_API_KEY (or Enter to skip)", default="", show_default=False)
-        if key.strip():
-            cfg["jina_api_key"] = key.strip()
 
     if cfg:
         _write(cfg)
@@ -58,9 +49,6 @@ def run() -> None:
     c.print("  [cyan]cricdex data status[/cyan]                     check what's on disk")
     c.print(
         "  [cyan]cricdex data ingest cricsheet -c ipl[/cyan]    fetch IPL ball-by-ball (~600 MB)"
-    )
-    c.print(
-        "  [cyan]cricdex data ingest rules[/cyan]                fetch + embed 11k rule clauses"
     )
     c.print("  [cyan]cricdex leaderboard ngi -c ipl[/cyan]           your first analytical query")
     c.print("  [cyan]cricdex tui[/cyan]                              full interactive UI")

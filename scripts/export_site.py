@@ -870,13 +870,6 @@ def _export_profiles_and_cohorts(
 ) -> tuple[int, int]:
     from cricdex.profiles import builder
 
-    try:
-        from cricdex.scout.graph import similar
-
-        graph_ok = True
-    except ImportError:
-        graph_ok = False
-
     n_prof = n_cohort = 0
     for p in players:
         name = p["name"]
@@ -895,24 +888,6 @@ def _export_profiles_and_cohorts(
             n_prof += 1
         except Exception as e:  # noqa: BLE001
             logger.warning(f"profile failed {name}: {e}")
-
-        if graph_ok:
-            try:
-                cohort = {
-                    "co_faced": _tag(
-                        similar.co_faced_bowlers(name, top_k=12, collection=collection), taxonomy
-                    ),
-                    "teammates": _tag(
-                        similar.teammate_overlap(name, top_k=12, collection=collection), taxonomy
-                    ),
-                    "find_replacement": _tag(
-                        similar.find_replacement(name, top_k=12, collection=collection), taxonomy
-                    ),
-                }
-                _write(out_dir / "cohorts" / f"{cid}.json", cohort)
-                n_cohort += 1
-            except Exception:  # noqa: BLE001
-                pass
     return n_prof, n_cohort
 
 
