@@ -154,40 +154,6 @@ def profile(
         )
         _render.footnote(bowl_fp.get("read", ""))
 
-    # Graph cohort (Neo4j) — optional, soft-fails if extra not installed
-    _render.section("Graph cohort (Neo4j)")
-    _render.footnote(_copy.GRAPH_COHORT_INTRO)
-    try:
-        from cricdex.scout.graph import similar
-
-        with _render.spinner("traversing scout graph"):
-            cf_rows = similar.co_faced_bowlers(name, top_k=8, collection=collection)
-        if cf_rows:
-            _render.pretty_table(
-                cf_rows,
-                title="Co-faced bowlers cohort",
-                formatters={"score": _fmt_distance},
-            )
-        else:
-            _render.footnote(
-                "no co-faced cohort — populate scout graph "
-                f"(`cricdex data ingest graph -c {collection}`)"
-            )
-        with _render.spinner("loading teammate overlap"):
-            tm_rows = similar.teammate_overlap(name, top_k=8, collection=collection)
-        if tm_rows:
-            _render.pretty_table(
-                tm_rows,
-                title="Teammate overlap cohort",
-                formatters={"score": _fmt_distance},
-            )
-    except ImportError:
-        _render.footnote(
-            "neo4j extra not installed — `uv sync --extra graph` to unlock graph cohort"
-        )
-    except Exception as e:  # noqa: BLE001
-        _render.footnote(f"graph cohort skipped: {e}")
-
     _render.hint("`cricdex tui` for an interactive view, `cricdex dashboard` for the browser UI.")
 
 

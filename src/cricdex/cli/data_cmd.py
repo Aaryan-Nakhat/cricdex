@@ -69,10 +69,8 @@ def _skip_if_exists(path: Path, label: str, force: bool) -> bool:
 
 SLICES: tuple[str, ...] = (
     "cricsheet",
-    "rules",
     "ratings",
     "metrics",
-    "graph",
     "wikidata",
 )
 
@@ -93,14 +91,6 @@ def run_ingest(slice_: str, collection: str = "ipl", force: bool = False) -> str
             return f"cricsheet duckdb already present at {out} (pass force=True to regenerate)"
         cricsheet.build(collection=collection, force=force)
         return f"wrote {out}"
-    if slice_ == "rules":
-        from cricdex.rules import embed, parse
-        from cricdex.rules import ingest as r_ingest
-
-        r_ingest.download_all()
-        parse.parse_all()
-        embed.embed_all()
-        return "rules: download + parse + embed done"
     if slice_ == "ratings":
         from cricdex.scout.ratings import bayesian
 
@@ -118,11 +108,6 @@ def run_ingest(slice_: str, collection: str = "ipl", force: bool = False) -> str
         cmd = [sys.executable, "scripts/compute_metrics.py", "all", "-c", collection]
         proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
         return f"compute_metrics.py exit={proc.returncode}\n{proc.stdout.strip()}"
-    if slice_ == "graph":
-        from cricdex.scout.graph import writer
-
-        summary = writer.populate(collection=collection)
-        return f"graph populated: {summary}"
     if slice_ == "wikidata":
         from cricdex.scout.ingest import wikidata
 
