@@ -83,13 +83,13 @@ function AuctionMath() {
           </p>
           <ul className="mt-2 space-y-1 text-sm text-muted">
             <li>• <b className="text-fg">IPL players</b> — retainable, carry their current franchise.</li>
-            <li>• <b className="text-fg">Free agents</b> — overseas via the <b>BBL</b>, <b>SA20</b> &amp; <b>CPL</b>, uncapped Indians via <b>SMAT</b>.</li>
+            <li>• <b className="text-fg">Free agents</b> — overseas via the <b>BBL</b>, <b>SA20</b>, <b>CPL</b> &amp; <b>T20 Blast</b>, uncapped Indians via <b>SMAT</b>.</li>
             <li>• Active only (last ~3 years), ≥150 balls (cuts tiny-sample flukes).</li>
             <li>• Excludes men's-T20I associate noise + non-IPL nations (PAK).</li>
           </ul>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             Value isn't comparable across tiers (runs vs weak attacks ≠ vs IPL), so lower tiers are
-            penalised (BBL/SA20 −0.07, CPL −0.10, SMAT −0.20) before pricing.
+            penalised (BBL/SA20 −0.07, CPL/Blast −0.10, SMAT −0.20) before pricing.
           </p>
         </div>
 

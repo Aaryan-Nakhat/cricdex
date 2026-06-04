@@ -77,6 +77,7 @@ COLLECTIONS: dict[str, str] = {
     "lpl": "lpl_male_json.zip",
     "cpl": "cpl_male_json.zip",
     "sa20": "sat_json.zip",  # Cricsheet codes SA20 as "sat"
+    "blast": "ntb_male_json.zip",  # T20 Blast (Cricsheet codes it "ntb")
     "ilt20": "ilt20_male_json.zip",
     "mlc": "mlc_male_json.zip",
     "t20s_male": "t20s_male_json.zip",

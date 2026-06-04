@@ -48,9 +48,10 @@ TIER_TITLE = {
     "bbl": "Overseas · BBL",
     "sa20": "Overseas · SA20",
     "cpl": "Overseas · CPL",
+    "blast": "Overseas · T20 Blast",
 }
-TIER_ORDER = ["ipl", "smat", "bbl", "sa20", "cpl"]
-DRAFTABLE_TIERS = ["smat", "bbl", "sa20", "cpl"]
+TIER_ORDER = ["ipl", "smat", "bbl", "sa20", "cpl", "blast"]
+DRAFTABLE_TIERS = ["smat", "bbl", "sa20", "cpl", "blast"]
 
 
 @st.cache_data(ttl=600, show_spinner=False)

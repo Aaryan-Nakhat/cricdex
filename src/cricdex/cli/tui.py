@@ -74,6 +74,7 @@ SCOUT_TIER_OPTIONS = [
     ("Overseas · BBL", "bbl"),
     ("Overseas · SA20", "sa20"),
     ("Overseas · CPL", "cpl"),
+    ("Overseas · T20 Blast", "blast"),
 ]
 SCOUT_ROLE_OPTIONS = [
     ("(pick's role)", ""),

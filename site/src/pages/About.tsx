@@ -55,10 +55,10 @@ const SECTIONS: Section[] = [
     title: "Scout — cross-tier look-alikes",
     body: (
       <>
-        Pick an active IPL player and find others of the <em>same mould</em> across five pools:{" "}
+        Pick an active IPL player and find others of the <em>same mould</em> across six pools:{" "}
         <strong>IPL peers</strong>, uncapped Indian prospects from the <strong>SMAT</strong>, and
         overseas options from the <strong>BBL</strong> (Australia), <strong>SA20</strong> (South
-        Africa) and <strong>CPL</strong> (West Indies). Matches share the same role (and seam/spin type
+        Africa), <strong>CPL</strong> (West Indies) and the <strong>T20 Blast</strong> (England). Matches share the same role (and seam/spin type
         for bowlers) and are ranked by how close their <em>skill standing</em> is — each player's
         Bayesian value as a z-score within its own competition, so a SMAT star and an IPL star line up
         even though raw numbers aren't comparable across tiers. Each match carries an{" "}
@@ -76,9 +76,9 @@ const SECTIONS: Section[] = [
     body: (
       <>
         A Monte-Carlo of a real IPL auction. The pool spans the active T20 world it draws from — IPL
-        players plus free agents from the <strong>BBL</strong>, <strong>SA20</strong> and{" "}
-        <strong>CPL</strong> (overseas) and the <strong>SMAT</strong> (uncapped Indians) — priced in
-        crore from the skill model and decayed for staleness. Each
+        players plus free agents from the <strong>BBL</strong>, <strong>SA20</strong>,{" "}
+        <strong>CPL</strong> and <strong>T20 Blast</strong> (overseas) and the <strong>SMAT</strong>{" "}
+        (uncapped Indians) — priced in crore from the skill model and decayed for staleness. Each
         franchise first <strong>retains</strong> its core (Mega = the real 2025 lists, ~5; Mini = keep
         most of the squad — both editable), then the ten teams bid for the rest by their own
         personality (marquee-chaser, value-hunter, overseas-heavy…), hundreds of times, filling 20–25-man

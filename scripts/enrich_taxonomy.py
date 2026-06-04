@@ -20,18 +20,25 @@ from __future__ import annotations
 import json
 import os
 import time
-from pathlib import Path
 
 import httpx
 import typer
 from loguru import logger
 
-ROOT = Path(__file__).resolve().parent.parent
+from cricdex.config import ROOT  # importing config loads .env (LLM_*)
+
 SITE_DATA = ROOT / "site" / "public" / "data"
 CACHE = ROOT / "data" / "curated" / "player_taxonomy.json"
 
-LLM_BASE = os.environ.get("LLM_API_BASE", "https://llm-proxy.example.com")
-URL = f"{LLM_BASE}/v1/generate_json"
+# Prefer the LLM_* vars (a full llm base, e.g.
+# https://llm-proxy.example.com/v1); fall back to
+# the older LLM_API_BASE (which lacks the /v1 suffix).
+_TMP_BASE = os.environ.get("LLM_API_BASE")
+if _TMP_BASE:
+    URL = f"{_TMP_BASE.rstrip('/')}/generate_json"
+else:
+    LLM_BASE = os.environ.get("LLM_API_BASE", "https://llm-proxy.example.com")
+    URL = f"{LLM_BASE}/v1/generate_json"
 MODEL = "llm-model"
 
 SYS = (
@@ -103,9 +110,9 @@ def run(
     limit: int = typer.Option(0, "--limit", help="max players this run (0 = all missing)"),
     sleep: float = typer.Option(0.4, "--sleep", help="pause between calls (s)"),
 ) -> None:
-    key = os.environ.get("LLM_API_KEY")
+    key = os.environ.get("LLM_API_KEY") or os.environ.get("LLM_API_KEY")
     if not key:
-        raise SystemExit("set LLM_API_KEY (LLM key) in the env")
+        raise SystemExit("set LLM_API_KEY (or LLM_API_KEY) in the env")
 
     players = _collect_players()
     cache = _load_cache()

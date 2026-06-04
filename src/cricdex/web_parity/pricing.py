@@ -34,6 +34,7 @@ TIER_PENALTY: dict[str, float] = {
     "bbl": 0.07,
     "sa20": 0.07,
     "cpl": 0.1,
+    "blast": 0.1,
 }
 
 
