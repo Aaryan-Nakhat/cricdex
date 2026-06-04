@@ -112,6 +112,8 @@ DEFAULT_COLLECTIONS = [
     "t20s_male",
     "indian_domestic_male",
     "recently_played_30_male",
+    "sa20",
+    "cpl",
 ]
 
 
@@ -251,7 +253,7 @@ MEGA_RETENTIONS_2025: dict[str, list[tuple[str, float]]] = {
 # t20s_male is deliberately excluded — it's polluted with associate-nation
 # matches where value inflates against minnows. Overseas IPL players already
 # come through `ipl`; free agents are Aus (BBL) + uncapped Indians (SMAT).
-AUCTION_POOL_COLLECTIONS = ["ipl", "bbl", "indian_domestic_male"]
+AUCTION_POOL_COLLECTIONS = ["ipl", "bbl", "indian_domestic_male", "sa20", "cpl"]
 AUCTION_RECENCY_DAYS = 1100  # ~3 years of activity in ANY of those comps
 AUCTION_POOL_CAP = 600  # top-N by value (keeps the sim snappy + relevant)
 # Nations whose players actually feature in an IPL auction. Excludes PAK
@@ -289,7 +291,13 @@ def _export_auction_pool(
 
     # Value isn't comparable across tiers (a number vs weak SMAT attacks ≠ vs
     # IPL), so penalise lower tiers and take each player's best PENALISED value.
-    TIER_PENALTY = {"ipl": 0.0, "bbl": 0.07, "indian_domestic_male": 0.20}
+    TIER_PENALTY = {
+        "ipl": 0.0,
+        "bbl": 0.07,
+        "sa20": 0.07,  # SA20 — strong overseas league, ~BBL
+        "cpl": 0.10,  # CPL — slightly weaker than BBL/SA20
+        "indian_domestic_male": 0.20,
+    }
     best: dict[str, dict] = {}
     max_balls: dict[str, int] = {}
     for col in AUCTION_POOL_COLLECTIONS:
@@ -385,7 +393,13 @@ def _export_scout_index(
     import datetime as _dt
     import statistics as _st
 
-    tiers = {"ipl": "ipl", "smat": "indian_domestic_male", "bbl": "bbl"}
+    tiers = {
+        "ipl": "ipl",
+        "smat": "indian_domestic_male",
+        "bbl": "bbl",
+        "sa20": "sa20",
+        "cpl": "cpl",
+    }
     role_map = {
         "wk_batter": "keeper",
         "allrounder": "all_rounder",

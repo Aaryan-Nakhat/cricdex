@@ -28,7 +28,13 @@ PRICE_TIERS = [0.3, 0.5, 0.75, 1.0, 1.5, 2.0]
 
 # Cross-tier value discount — runs in a weaker comp aren't worth IPL crore.
 # Mirrors the export-time penalty so Scout's est. prices agree with the pool.
-TIER_PENALTY: dict[str, float] = {"ipl": 0.0, "smat": 0.2, "bbl": 0.07}
+TIER_PENALTY: dict[str, float] = {
+    "ipl": 0.0,
+    "smat": 0.2,
+    "bbl": 0.07,
+    "sa20": 0.07,
+    "cpl": 0.1,
+}
 
 
 def price_tier(pv: float) -> float:

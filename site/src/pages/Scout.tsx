@@ -25,6 +25,24 @@ const ROLE_OPTS: { value: Role; label: string }[] = [
   { value: "bowler", label: "Bowler" },
 ];
 
+// The look-alike tiers, rendered one panel each. IPL peers are profile-linkable;
+// the rest are free agents you can draft. SMAT carries the uncapped-gem flag.
+const TIERS: {
+  key: keyof ScoutIndex;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  linkable: boolean;
+  draftable: boolean;
+  gem: boolean;
+}[] = [
+  { key: "ipl", title: "IPL peers", subtitle: "Most-similar active IPL players", icon: <Users className="h-4 w-4 text-accent" />, linkable: true, draftable: false, gem: false },
+  { key: "smat", title: "Uncapped · SMAT", subtitle: "Domestic Indian prospects of the same mould", icon: <Sprout className="h-4 w-4 text-willow" />, linkable: false, draftable: true, gem: true },
+  { key: "bbl", title: "Overseas · BBL", subtitle: "Big Bash (Australia) of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
+  { key: "sa20", title: "Overseas · SA20", subtitle: "SA20 (South Africa) of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
+  { key: "cpl", title: "Overseas · CPL", subtitle: "Caribbean Premier League of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
+];
+
 // Uncapped "gem": punches above its sample — high standing on low exposure.
 const GEM_Z = 0.6;
 function isGem(p: ScoutPlayer, medianBalls: number): boolean {
@@ -62,7 +80,7 @@ function ScoutMath() {
         <ul className="space-y-1.5">
           <li>• <b className="text-fg">IPL peers</b> — who else in the IPL is most like them.</li>
           <li>• <b className="text-fg">Uncapped (SMAT)</b> — domestic Indian prospects of the same mould — the "next one".</li>
-          <li>• <b className="text-fg">Overseas (BBL)</b> — Big Bash players of the same mould.</li>
+          <li>• <b className="text-fg">Overseas</b> — Big Bash (BBL), SA20 &amp; CPL players of the same mould.</li>
         </ul>
         <p>
           "Skill standing" is the player's Bayesian value expressed as a z-score <i>within its own
@@ -272,42 +290,21 @@ export function Scout() {
         <Empty>Pick an IPL player to scout look-alikes across IPL, SMAT and the BBL.</Empty>
       ) : (
         <div className="grid grid-cols-1 gap-5 animate-fade-up lg:grid-cols-3">
-          <TierPanel
-            title="IPL peers"
-            icon={<Users className="h-4 w-4 text-accent" />}
-            subtitle="Most-similar active IPL players"
-            rows={similarTo(sel, idx.data!.ipl, roleSel, posSel)}
-            tier="ipl"
-            selPrice={selPrice}
-            gemMedian={null}
-            linkable
-            draftable={false}
-            navigate={navigate}
-          />
-          <TierPanel
-            title="Uncapped · SMAT"
-            icon={<Sprout className="h-4 w-4 text-willow" />}
-            subtitle="Domestic Indian prospects of the same mould"
-            rows={similarTo(sel, idx.data!.smat, roleSel, posSel)}
-            tier="smat"
-            selPrice={selPrice}
-            gemMedian={gemMedian}
-            linkable={false}
-            draftable
-            navigate={navigate}
-          />
-          <TierPanel
-            title="Overseas · BBL"
-            icon={<Plane className="h-4 w-4 text-accent" />}
-            subtitle="Big Bash players of the same mould"
-            rows={similarTo(sel, idx.data!.bbl, roleSel, posSel)}
-            tier="bbl"
-            selPrice={selPrice}
-            gemMedian={null}
-            linkable={false}
-            draftable
-            navigate={navigate}
-          />
+          {TIERS.map((t) => (
+            <TierPanel
+              key={t.key}
+              title={t.title}
+              icon={t.icon}
+              subtitle={t.subtitle}
+              rows={similarTo(sel, idx.data![t.key], roleSel, posSel)}
+              tier={t.key}
+              selPrice={selPrice}
+              gemMedian={t.gem ? gemMedian : null}
+              linkable={t.linkable}
+              draftable={t.draftable}
+              navigate={navigate}
+            />
+          ))}
         </div>
       )}
     </>

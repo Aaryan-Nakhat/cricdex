@@ -42,7 +42,15 @@ POS = {
     "lower": "Lower",
     "tailender": "Tailender",
 }
-TIER_TITLE = {"ipl": "IPL peers", "smat": "Uncapped · SMAT", "bbl": "Overseas · BBL"}
+TIER_TITLE = {
+    "ipl": "IPL peers",
+    "smat": "Uncapped · SMAT",
+    "bbl": "Overseas · BBL",
+    "sa20": "Overseas · SA20",
+    "cpl": "Overseas · CPL",
+}
+TIER_ORDER = ["ipl", "smat", "bbl", "sa20", "cpl"]
+DRAFTABLE_TIERS = ["smat", "bbl", "sa20", "cpl"]
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -96,20 +104,23 @@ def _tier_df(tier: str) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-cols = st.columns(3)
-for col, tier in zip(cols, ("ipl", "smat", "bbl"), strict=True):
-    with col:
-        st.subheader(TIER_TITLE[tier])
-        df = _tier_df(tier)
-        if df.empty:
-            st.info("No close match of this archetype.")
-        else:
-            st.dataframe(df, hide_index=True, use_container_width=True)
+# 5 tiers laid out in rows of up to 3 columns.
+for start in range(0, len(TIER_ORDER), 3):
+    chunk = TIER_ORDER[start : start + 3]
+    cols = st.columns(len(chunk))
+    for col, tier in zip(cols, chunk, strict=True):
+        with col:
+            st.subheader(TIER_TITLE[tier])
+            df = _tier_df(tier)
+            if df.empty:
+                st.info("No close match of this archetype.")
+            else:
+                st.dataframe(df, hide_index=True, use_container_width=True)
 
 # --- draft handoff: same effect as the web's ?draft= -----------------------
 st.divider()
 prospects: dict[str, str] = {}
-for tier in ("smat", "bbl"):
+for tier in DRAFTABLE_TIERS:
     for r in similar_to(sel, idx[tier], role, pos):
         prospects[f"{r['name']} ({tier.upper()})"] = r["cricsheet_id"]
 chosen = st.multiselect(

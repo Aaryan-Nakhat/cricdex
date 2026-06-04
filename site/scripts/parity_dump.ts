@@ -55,7 +55,7 @@ function similarTo(s: ScoutPlayer, arr: ScoutPlayer[], role: string, pos: string
     .slice(0, 8);
 }
 const scoutOut: Record<string, { id: string; sim: number; price: number }[]> = {};
-for (const tier of ["ipl", "smat", "bbl"] as PriceTier[]) {
+for (const tier of ["ipl", "smat", "bbl", "sa20", "cpl"] as PriceTier[]) {
   scoutOut[tier] = similarTo(sel, scout[tier] as ScoutPlayer[], sel.role, "").map(({ p, sim }) => ({
     id: p.cricsheet_id,
     sim,

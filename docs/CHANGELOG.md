@@ -36,6 +36,13 @@ views, no longer the default path.
   per-player `outcomes` summary the sim emits across all trials (parity-locked
   TS ⇄ Python). The TUI Sim tab also gained the Mega/Mini toggle.
 
+- **More leagues — SA20 + CPL.** Ingested SA20 (South Africa) and CPL (West
+  Indies) and folded them into the cross-collection auction pool (free agents,
+  tier-discounted SA20 −0.07 / CPL −0.10) and the Scout as two new look-alike
+  tiers, so Scout/Auction now span IPL + SMAT + BBL + SA20 + CPL (was BBL-only
+  overseas). Both are browsable collections too. Fixed the SA20 download
+  filename (Cricsheet codes it `sat`).
+
 ### Changed
 
 - **Auction room (web) — real-rules IPL auction sim.** Replaced the
