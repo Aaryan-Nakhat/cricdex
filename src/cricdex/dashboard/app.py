@@ -45,8 +45,14 @@ the Scout + Auction run the *same* logic as the site via `cricdex.web_parity`
 | **Head-to-head** | P(A is better than B) from the Bayesian posteriors | scout ratings |
 | **Scout** | Cross-competition look-alikes (IPL / SMAT / BBL / SA20 / CPL / Blast) + est. price, savings, gem flag, draft | exported scout index via `cricdex.web_parity` |
 | **Auction** | Real-rules IPL auction Monte-Carlo (retain → bid), web-identical | exported pool via `cricdex.web_parity` |
-| **Records** | Highest score, fastest fifty, most sixes, on-this-day | Cricsheet ball-by-ball |
-| **Venues** | Per-venue totals, chase vs set, phase run-rates | Cricsheet ball-by-ball |
+| **Records** | Highest score, fastest fifty, most sixes, on-this-day | exported `records.json` |
+| **Venues** | Per-venue totals, chase vs set, phase run-rates | exported `venues.json` |
+| **Update Data** | Refresh a collection → re-export the JSON every page reads | local pipeline → exported JSON |
+
+All read-only pages read the **exported JSON** (the same files the web app
+fetches); **Update Data** is the one page that *writes* — it re-ingests +
+re-exports so the rest stay in sync. Best of both worlds: edit once, read
+everywhere.
 
 ---
 

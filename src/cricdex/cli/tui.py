@@ -1,9 +1,11 @@
 """Textual TUI — `cricdex tui` (also `cricdex` with no subcommand).
 
-Tabs mirror the React web app's analytical pages — nothing more:
-Leaders / Records / Compare / H2H / Venues / Profile / Auction / Scout. Auction +
-Scout run the web-identical `cricdex.web_parity` (same as the live site).
-(No Rules / Update / graph here — the web app doesn't have them.)
+Tabs mirror the React web app's analytical pages plus a local refresh:
+Leaders / Records / Compare / H2H / Venues / Profile / Auction / Scout / Update.
+The data tabs read the SAME exported JSON the React web app + Streamlit pages
+read (`site/public/data/<collection>/`). Auction + Scout run the web-identical
+`cricdex.web_parity` (same as the live site). Update re-ingests + re-exports
+that JSON.
 
 Quit: q / Ctrl-C / Esc.
 """
@@ -11,6 +13,8 @@ Quit: q / Ctrl-C / Esc.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from typing import Any
 
 from rich.console import Console
@@ -67,6 +71,55 @@ VENUE_VIEW_OPTIONS = [
     ("Innings totals", "innings"),
     ("Phase run rates", "phases"),
     ("Chase vs set winrate", "chase"),
+]
+
+# --- mirror 3_Records.py RECORD_LABELS / COL_LABELS ----------------------
+RECORD_LABELS: dict[str, str] = {
+    "highest_individual_innings": "Highest individual innings",
+    "fastest_fifty": "Fastest fifties",
+    "fastest_hundred": "Fastest hundreds",
+    "most_sixes_innings": "Most sixes in an innings",
+    "career_run_leaders": "Career run leaders",
+    "best_bowling_innings": "Best bowling figures",
+    "career_wicket_leaders": "Career wicket leaders",
+    "highest_team_totals": "Highest team totals",
+    "highest_runs_in_over": "Most runs in an over",
+}
+COL_LABELS: dict[str, str] = {
+    "batter": "Batter",
+    "bowler": "Bowler",
+    "team": "Team",
+    "batting_team": "Team",
+    "match_date": "Date",
+    "venue": "Venue",
+    "runs": "Runs",
+    "balls": "Balls",
+    "fours": "4s",
+    "sixes": "6s",
+    "wickets": "Wkts",
+    "runs_conceded": "Runs",
+    "match_id": "Match",
+    "total": "Total",
+    "total_runs": "Total",
+    "over_runs": "Runs",
+}
+
+PHASE_ORDER = ["powerplay", "middle", "death"]
+
+# --- mirror 5_Compare.py ROWS (group, label, profile-path, digits) -------
+COMPARE_ROWS: list[tuple[str, str, tuple[str, ...], int]] = [
+    ("Bayesian skill", "Batting · scoring", ("bayes", "bayes_batter", "skill"), 3),
+    ("Bayesian skill", "Batting · survival", ("bayes", "bayes_batter", "survival_skill"), 3),
+    ("Bayesian skill", "Batting value", ("bayes", "bayes_batter", "value"), 3),
+    ("Bayesian skill", "Bowling · economy", ("bayes", "bayes_bowler", "skill"), 3),
+    ("Bayesian skill", "Bowling · strike", ("bayes", "bayes_bowler", "strike_skill"), 3),
+    ("Career", "Runs", ("career", "career_runs"), 0),
+    ("Career", "Balls faced", ("career", "career_balls_faced"), 0),
+    ("Career", "Wickets", ("career", "career_wickets"), 0),
+    ("Metrics", "Pressure SR", ("metrics", "pressure_runs", "pressure_sr_per_100_balls"), 1),
+    ("Metrics", "Counter-attack SR", ("metrics", "counter_attack", "counter_attack_sr"), 1),
+    ("Metrics", "Boundary %", ("metrics", "boundary_dependency", "bdr_pct"), 1),
+    ("Metrics", "Dot recovery", ("metrics", "dot_ball_recovery", "runs_per_6_after_dot"), 2),
 ]
 
 SCOUT_TIER_OPTIONS = [
@@ -219,6 +272,7 @@ class CricDexApp(App):
         "tab-profile",
         "tab-auction-sim",
         "tab-twins",
+        "tab-update",
     ]
 
     def _shift_tab(self, delta: int) -> None:
@@ -255,6 +309,8 @@ class CricDexApp(App):
                 yield from self._auction_sim_panel()
             with TabPane("Scout", id="tab-twins"):
                 yield from self._twins_panel()
+            with TabPane("Update", id="tab-update"):
+                yield from self._update_panel()
         yield Footer()
 
     # ---- status -----------------------------------------------------------
@@ -330,7 +386,7 @@ class CricDexApp(App):
         with Vertical():
             with Horizontal(classes="controls"):
                 yield Label("Key:")
-                yield Input(value="today", id="records-key")
+                yield Input(value="highest_individual_innings", id="records-key", classes="wide")
                 yield Label("Coll:")
                 yield Input(value="ipl", id="records-collection")
                 yield Label("Top N:")
@@ -340,8 +396,9 @@ class CricDexApp(App):
             yield DataTable(id="records-table", zebra_stripes=True)
 
     def _on_run_records(self) -> None:
-        import datetime as _dt
-
+        # Reads the same exported records.json the React app + 3_Records.py read:
+        # {board-name -> [rows]}. The "Key" picks a board; default board is
+        # highest_individual_innings. On an unknown key we list the valid ones.
         table = self.query_one("#records-table", DataTable)
         key = self.query_one("#records-key", Input).value.strip()
         collection = self.query_one("#records-collection", Input).value
@@ -349,24 +406,31 @@ class CricDexApp(App):
             top_n = int(self.query_one("#records-topn", Input).value or "25")
         except ValueError:
             top_n = 25
-        try:
-            from cricdex.records import queries
-
-            if key == "today":
-                today = _dt.date.today()
-                df = queries.on_this_day(month=today.month, day=today.day, collection=collection)
-                rows = df.to_dicts() if hasattr(df, "to_dicts") else df
-            else:
-                fn = getattr(queries, key, None)
-                if not callable(fn):
-                    rows = [{"error": f"unknown record key `{key}`"}]
-                else:
-                    df = fn(collection=collection, top_n=top_n)
-                    rows = df.to_dicts() if hasattr(df, "to_dicts") else df
-        except Exception as e:  # noqa: BLE001
-            _fill_datatable(table, [{"error": str(e)}])
+        path = SITE_DATA / collection / "records.json"
+        if not path.exists():
+            _fill_datatable(
+                table,
+                [{"error": f"missing {path.name}", "fix": "run scripts/export_site.py"}],
+            )
             return
-        _fill_datatable(table, rows)
+        data = json.loads(path.read_text())
+        if not isinstance(data, dict):
+            _fill_datatable(table, [{"error": "records.json is not a board map"}])
+            return
+        valid = [k for k in data if data.get(k)]
+        if key == "today" or not key:
+            key = "highest_individual_innings"
+        if key not in data:
+            _fill_datatable(
+                table,
+                [{"error": f"unknown board `{key}`", "valid_keys": ", ".join(valid)}],
+            )
+            return
+        rows = list(data.get(key) or [])
+        # Records.tsx / 3_Records.py drop the match_id column from the display.
+        rows = [{k: v for k, v in r.items() if k != "match_id"} for r in rows][:top_n]
+        rows = [{COL_LABELS.get(k, k.replace("_", " ")): v for k, v in r.items()} for r in rows]
+        _fill_datatable(table, rows or [{"info": f"no rows for board `{key}`"}], max_cols=10)
 
     # ===== Compare ========================================================
 
@@ -386,23 +450,45 @@ class CricDexApp(App):
             yield DataTable(id="cmp-h2h-table", zebra_stripes=True)
 
     def _on_run_compare(self) -> None:
+        # Reads the same exported profiles/<cid>.json for both players (via
+        # players.json), mirroring 5_Compare.py's side-by-side rows. Keeps the
+        # Bayesian head-to-head P(A>B) block below.
         table = self.query_one("#cmp-table", DataTable)
         h2h_table = self.query_one("#cmp-h2h-table", DataTable)
         a = self.query_one("#cmp-a", Input).value.strip()
         b = self.query_one("#cmp-b", Input).value.strip()
         collection = self.query_one("#cmp-collection", Input).value
-        try:
-            from cricdex.comparator import compare as cmp
 
-            df = cmp.compare([a, b], collection=collection)
-        except Exception as e:  # noqa: BLE001
-            _fill_datatable(table, [{"error": str(e)}])
-            return
-        if df.is_empty():
-            _fill_datatable(table, [{"info": "comparator returned no rows"}])
-            return
-        pdf = df.to_pandas().set_index("player").T.reset_index().rename(columns={"index": "metric"})
-        _fill_datatable(table, pdf.to_dict(orient="records"), max_cols=10)
+        loaded: list[tuple[str, dict]] = []
+        for nm in (a, b):
+            cid = _resolve_cid(collection, nm)
+            prof = _load_profile(collection, cid) if cid else None
+            if prof is None:
+                _fill_datatable(table, [{"error": f"no exported profile for '{nm}'"}])
+                return
+            loaded.append((nm, prof))
+
+        rows: list[dict] = []
+        for group, label, path, digits in COMPARE_ROWS:
+            rows.append(
+                {
+                    "group": group,
+                    "metric": label,
+                    a: _fmt_num(_dig(loaded[0][1], *path), digits),
+                    b: _fmt_num(_dig(loaded[1][1], *path), digits),
+                }
+            )
+        # Strike rate is derived (career_runs / career_balls_faced * 100).
+        rows.insert(
+            7,
+            {
+                "group": "Career",
+                "metric": "Strike rate",
+                a: _fmt_num(_strike_rate(loaded[0][1]), 1),
+                b: _fmt_num(_strike_rate(loaded[1][1]), 1),
+            },
+        )
+        _fill_datatable(table, rows, max_cols=10)
 
         # Bayesian skill head-to-head — P(A > B) per role.
         from cricdex.scout.ratings.head_to_head import head_to_head
@@ -425,23 +511,6 @@ class CricDexApp(App):
                     "verdict": c["verdict"],
                 }
             )
-
-        # Matchup rivalry — bowler-credited dismissals either way.
-        from cricdex.metrics import dismissal_fingerprint as dfp
-
-        for batter, bowler in ((a, b), (b, a)):
-            log = dfp.matchup_log(batter, bowler, collection=collection)
-            if log["total"]:
-                kinds = ", ".join(f"{r['count']}× {r['kind']}" for r in log["rows"])
-                rows_h.append(
-                    {
-                        "role": "rivalry",
-                        f"{a}": "",
-                        f"{b}": "",
-                        f"P({a}>)": "",
-                        "verdict": f"{bowler} dismissed {batter} {log['total']}× ({kinds})",
-                    }
-                )
         _fill_datatable(
             h2h_table,
             rows_h or [{"info": "no overlapping Bayesian ratings for these two"}],
@@ -514,26 +583,94 @@ class CricDexApp(App):
             yield DataTable(id="ven-table", zebra_stripes=True)
 
     def _on_run_venues(self) -> None:
+        # Reads the same exported venues.json the React app + 6_Venues.py read:
+        # {venue -> {innings_totals, phase_run_rates, chase_vs_set}}. Mirrors
+        # 6_Venues.py's per-view derivations.
         table = self.query_one("#ven-table", DataTable)
         venue = self.query_one("#ven-name", Input).value.strip()
         collection = self.query_one("#ven-collection", Input).value
         view = self.query_one("#ven-view", Select).value
-        try:
-            from cricdex.venues import profile as v
+        path = SITE_DATA / collection / "venues.json"
+        if not path.exists():
+            _fill_datatable(
+                table,
+                [{"error": f"missing {path.name}", "fix": "run scripts/export_site.py"}],
+            )
+            return
+        data = json.loads(path.read_text())
+        selected = data.get(venue)
+        if not selected:
+            sample = ", ".join(sorted(data.keys())[:6])
+            _fill_datatable(
+                table,
+                [{"error": f"no venue `{venue}`", "try": f"e.g. {sample}"}],
+            )
+            return
 
-            if view == "innings":
-                df = v.innings_totals(venue, collection)
-            elif view == "phases":
-                df = v.phase_run_rates(venue, collection)
-            else:
-                df = v.chase_vs_set_winrate(venue, collection)
-        except Exception as e:  # noqa: BLE001
-            _fill_datatable(table, [{"error": str(e)}])
-            return
-        if df.is_empty():
-            _fill_datatable(table, [{"info": f"no data for `{view}` at {venue}"}])
-            return
-        _fill_datatable(table, df.to_dicts(), max_cols=10)
+        rows: list[dict] = []
+        if view == "innings":
+            # innings_idx <= 1 AND innings_count >= 3, ordered by innings_idx.
+            totals = [
+                r
+                for r in (selected.get("innings_totals") or [])
+                if (_num(r.get("innings_idx")) or 0) <= 1
+                and (_num(r.get("innings_count")) or 0) >= 3
+            ]
+            totals.sort(key=lambda r: _num(r.get("innings_idx")) or 0)
+            rows = [
+                {
+                    "innings": "Batting first"
+                    if (_num(r.get("innings_idx")) or 0) == 0
+                    else "Chasing",
+                    "sample": int(_num(r.get("innings_count")) or 0),
+                    "avg_runs": round(_num(r.get("avg_runs")) or 0, 1),
+                    "median": round(_num(r.get("median_runs")) or 0),
+                    "avg_wkts": round(_num(r.get("avg_wickets")) or 0, 1),
+                }
+                for r in totals
+            ]
+        elif view == "phases":
+            phase_rows = [
+                r
+                for r in (selected.get("phase_run_rates") or [])
+                if str(r.get("phase")) in PHASE_ORDER
+            ]
+            phase_rows.sort(key=lambda r: PHASE_ORDER.index(str(r.get("phase"))))
+            rows = [
+                {
+                    "phase": str(r.get("phase")).title(),
+                    "rpo": round(_num(r.get("rpo")) or 0, 2),
+                    "dot_pct": round(_num(r.get("dot_pct")) or 0, 1),
+                    "boundary_pct": round(_num(r.get("boundary_pct")) or 0, 1),
+                    "legal_balls": int(_num(r.get("legal_balls")) or 0),
+                }
+                for r in phase_rows
+            ]
+        else:  # chase vs set winrate
+            chase = (selected.get("chase_vs_set") or [{}])[0]
+            decided = _num(chase.get("decided_matches"))
+            first_wins = _num(chase.get("first_innings_team_wins"))
+            first_win_pct = (
+                (first_wins / decided * 100) if (decided and first_wins is not None) else None
+            )
+            if first_win_pct is not None:
+                rows = [
+                    {
+                        "outcome": "Bat first wins",
+                        "pct": round(first_win_pct, 1),
+                        "decided_matches": int(decided),
+                    },
+                    {
+                        "outcome": "Chase wins",
+                        "pct": round(100 - first_win_pct, 1),
+                        "decided_matches": int(decided),
+                    },
+                ]
+        _fill_datatable(
+            table,
+            rows or [{"info": f"no data for `{view}` at {venue}"}],
+            max_cols=10,
+        )
 
     # ===== Auction (Solve + Recommend in same tab — mirrors Streamlit) ====
 
@@ -551,39 +688,63 @@ class CricDexApp(App):
             yield RichLog(id="profile-log", highlight=False, markup=True, wrap=True)
 
     def _on_run_profile(self) -> None:
+        # Reads the same exported profiles/<cid>.json the React app + 8_Player_
+        # Profile.py read. Resolve name -> cricsheet_id via players.json, then
+        # print identity / taxonomy / bayes / career / metrics / style-twins /
+        # dismissal-fingerprint (no graph cohort).
         log = self.query_one("#profile-log", RichLog)
         log.clear()
-        name = self.query_one("#profile-name", Input).value
+        name = self.query_one("#profile-name", Input).value.strip()
         collection = self.query_one("#profile-collection", Input).value
-        try:
-            from cricdex.profiles import builder
-
-            p = builder.build(name, collection)
-        except Exception as e:  # noqa: BLE001
-            log.write(f"[red]error:[/red] {e}")
+        cid = _resolve_cid(collection, name)
+        if cid is None:
+            log.write(f"[red]error:[/red] no exported player matching '{name}' in {collection}")
             return
+        path = SITE_DATA / collection / "profiles" / f"{cid}.json"
+        if not path.exists():
+            log.write(f"[red]error:[/red] no exported profile {path.name} (run export_site.py)")
+            return
+        p = json.loads(path.read_text())
+
+        wd = p.get("wikidata") or {}
+        tax = p.get("taxonomy") or {}
+        act = p.get("activity") or {}
+        ids = p.get("ids") or {}
+        bayes = p.get("bayes") or {}
+        bat = bayes.get("bayes_batter") or {}
+        bowl = bayes.get("bayes_bowler") or {}
+        career = p.get("career") or {}
+        metrics = p.get("metrics") or {}
 
         buf = Console(record=True, width=140, force_terminal=True, highlight=False)
-        buf.print(f"[bold bright_cyan]{p.get('name', name)}[/bold bright_cyan]")
-        ids = p.get("ids") or {}
-        if ids:
-            parts = [
-                f"[dim]{k}=[/dim][cyan]{v}[/cyan]"
-                for k, v in ids.items()
-                if v and k != "unique_name"
-            ]
-            if parts:
-                buf.print(" · ".join(parts))
+        buf.print(
+            f"[bold bright_cyan]{wd.get('label') or p.get('name') or name}[/bold bright_cyan]"
+        )
 
-        wd = _render.load_wikidata(p.get("cricsheet_id"))
-        if wd and wd.get("_status") == "ok":
-            buf.print("\n[bold]Wikidata[/bold]")
-            age = _render._compute_age(wd.get("dob"))
-            buf.print(
-                f"  DOB: {wd.get('dob') or '—'}   Age: {age or '—'}   "
-                f"Country: {wd.get('country_qid') or '—'}   "
-                f"Birthplace: {wd.get('birthplace_qid') or '—'}"
+        # identity chips — taxonomy + activity + value (mirror 8_Player_Profile.py)
+        chips: list[str] = []
+        if act:
+            last = (act.get("last_match_date") or "")[:4]
+            chips.append(
+                "active" if act.get("active") else (f"retired · last {last}" if last else "retired")
             )
+        if tax.get("primary_role"):
+            chips.append(str(tax["primary_role"]).replace("_", "-"))
+        if tax.get("batting_position"):
+            chips.append(str(tax["batting_position"]))
+        if tax.get("country"):
+            chips.append(str(tax["country"]))
+        if _num(bat.get("value")) is not None:
+            chips.append(f"batting value {_num(bat.get('value')):.3f}")
+        if _num(bowl.get("value")) is not None and (_num(bowl.get("balls")) or 0) > 60:
+            chips.append(f"bowling value {_num(bowl.get('value')):.3f}")
+        chips.append(f"id {cid}")
+        buf.print("[dim]" + " · ".join(chips) + "[/dim]")
+
+        dob = wd.get("dob")
+        if dob:
+            age = _render._compute_age(dob)
+            buf.print(f"[dim]Born {dob[:10]}" + (f" · {age} yrs" if age else "") + "[/dim]")
             if wd.get("image_url"):
                 buf.print(f"  [dim]Photo:[/dim] {wd['image_url']}")
             social: list[str] = []
@@ -591,14 +752,13 @@ class CricDexApp(App):
                 social.append(f"𝕏 @{wd['twitter']}")
             if wd.get("instagram"):
                 social.append(f"Instagram @{wd['instagram']}")
-            if wd.get("espn_id"):
-                social.append(f"ESPN({wd['espn_id']})")
-            if wd.get("cricbuzz_id"):
-                social.append(f"Cricbuzz({wd['cricbuzz_id']})")
+            if ids.get("key_cricinfo"):
+                social.append(f"ESPN({ids['key_cricinfo']})")
+            if wd.get("wikidata_qid"):
+                social.append(f"Wikidata({wd['wikidata_qid']})")
             if social:
                 buf.print(f"  [dim]Socials:[/dim] {' · '.join(social)}")
 
-        career = p.get("career") or {}
         if career:
             buf.print("\n[bold]Career totals[/bold]")
             for k in (
@@ -616,27 +776,49 @@ class CricDexApp(App):
                         f"[bold]{career[k]}[/bold]"
                     )
 
-        metrics = p.get("metrics") or {}
         buf.print("\n[bold]Novel metrics[/bold]")
         for slug, hint_txt in _copy.METRIC_HINTS.items():
             payload = metrics.get(slug)
+            if payload is None:
+                continue
             value = _summarise_metric(payload)
             buf.print(
                 f"  [cyan]{slug.replace('_', ' ').title()}:[/cyan] [bold]{value}[/bold]  "
                 f"[dim italic]{hint_txt}[/dim italic]"
             )
 
-        bayes = p.get("bayes") or {}
         buf.print("\n[bold]Bayesian scout-rating[/bold]")
         buf.print(f"  {_render.bayes_sentence(bayes, 'batter', 'Batter skill')}")
         buf.print(f"  {_render.bayes_sentence(bayes, 'bowler', 'Bowler skill')}")
         buf.print(f"  [dim italic]{_copy.BAYES_SCALE}[/dim italic]")
 
-        twins_b = p.get("style_twins_batter") or []
-        if twins_b:
-            buf.print("\n[bold]Style twins (batter)[/bold]")
-            for t in twins_b[:6]:
-                buf.print(f"  • {t.get('name'):<28}  d={t.get('distance', 0):.4f}")
+        # dismissal fingerprint — how they get out / take wickets.
+        fp = p.get("dismissal_fingerprint") or {}
+        for fp_role, fp_title in (("batter", "As batter"), ("bowler", "As bowler")):
+            d = fp.get(fp_role)
+            if d and d.get("rows"):
+                buf.print(
+                    f"\n[bold]Dismissal fingerprint · {fp_title}[/bold] ({d.get('total', 0)})"
+                )
+                for r in d["rows"][:6]:
+                    buf.print(
+                        f"  • {str(r.get('kind', '')).capitalize():<20} "
+                        f"{(_num(r.get('pct')) or 0):.1f}% ({r.get('count')})"
+                    )
+                if d.get("read"):
+                    buf.print(f"  [dim italic]“{d['read']}”[/dim italic]")
+
+        for label, twins in (
+            ("Style twins (batter)", p.get("style_twins_batter")),
+            ("Style twins (bowler)", p.get("style_twins_bowler")),
+        ):
+            if twins:
+                buf.print(f"\n[bold]{label}[/bold]")
+                for t in twins[:6]:
+                    dist = _num(t.get("distance"))
+                    sim = max(0.0, 1 - dist) * 100 if dist is not None else None
+                    sim_s = f"{sim:.1f}% alike" if sim is not None else "—"
+                    buf.print(f"  • {str(t.get('name')):<28}  {sim_s}")
 
         for line in buf.export_text(clear=False, styles=False).splitlines():
             log.write(line)
@@ -898,6 +1080,83 @@ class CricDexApp(App):
         )
         _fill_datatable(table, rows or [{"info": "no close match of this archetype"}])
 
+    # ===== Update — refresh data then re-export the JSON ==================
+
+    def _update_panel(self) -> ComposeResult:
+        with Vertical():
+            with Horizontal(classes="controls"):
+                yield Label("Collection:")
+                yield Input(value="ipl", id="upd-collection")
+                yield Label("Force:")
+                yield Select(
+                    options=[("no", "no"), ("yes", "yes")],
+                    value="no",
+                    id="upd-force",
+                    allow_blank=False,
+                )
+            with Horizontal(classes="controls"):
+                yield Button("Cricsheet", id="upd-cricsheet")
+                yield Button("Ratings", id="upd-ratings")
+                yield Button("Metrics", id="upd-metrics")
+                yield Button("Wikidata", id="upd-wikidata")
+                yield Button("Re-export JSON", id="upd-export", variant="success")
+                yield Button("Full refresh", id="upd-all", variant="primary")
+            yield Static(
+                "Re-ingest → recompute ratings + metrics → re-export the JSON every "
+                "tab reads (the same pipeline the web's nightly Action runs).",
+                classes="intro",
+            )
+            yield RichLog(id="upd-log", highlight=False, markup=True, wrap=True)
+
+    def _on_update(self, button_id: str) -> None:
+        from cricdex.config import ROOT
+
+        log = self.query_one("#upd-log", RichLog)
+        collection = self.query_one("#upd-collection", Input).value.strip() or "ipl"
+        force = self.query_one("#upd-force", Select).value == "yes"
+
+        def _run_slice(slice_: str) -> None:
+            from cricdex.cli.data_cmd import run_ingest
+
+            log.write(f"[cyan]ingest {slice_} ({collection}, force={force}) …[/cyan]")
+            try:
+                msg = run_ingest(slice_, collection=collection, force=force)
+                log.write(f"[green]{slice_} ✓[/green] {msg}")
+            except Exception as e:  # noqa: BLE001
+                log.write(f"[red]{slice_} failed:[/red] {e}")
+
+        def _run_export() -> None:
+            log.write(f"[cyan]export_site.py -c {collection} …[/cyan]")
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "scripts/export_site.py", "-c", collection],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                )
+                if proc.returncode == 0:
+                    log.write("[green]re-exported JSON ✓[/green] — tabs now read the new data.")
+                else:
+                    log.write(f"[red]export failed:[/red] {proc.stderr[-800:]}")
+            except Exception as e:  # noqa: BLE001
+                log.write(f"[red]export failed:[/red] {e}")
+
+        slice_map = {
+            "upd-cricsheet": "cricsheet",
+            "upd-ratings": "ratings",
+            "upd-metrics": "metrics",
+            "upd-wikidata": "wikidata",
+        }
+        if button_id in slice_map:
+            _run_slice(slice_map[button_id])
+        elif button_id == "upd-export":
+            _run_export()
+        elif button_id == "upd-all":
+            for s in ("cricsheet", "ratings", "metrics"):
+                _run_slice(s)
+            _run_export()
+            log.write("[bold green]Full refresh complete.[/bold green] Every tab reads fresh JSON.")
+
     # ===== event dispatch ================================================
 
     def on_select_changed(self, event: Select.Changed) -> None:
@@ -928,9 +1187,75 @@ class CricDexApp(App):
         }
         if event.button.id in handlers:
             handlers[event.button.id]()
+        elif event.button.id and event.button.id.startswith("upd-"):
+            self._on_update(event.button.id)
 
 
 # ---- helpers ----------------------------------------------------------------
+
+
+def _num(v: Any) -> float | None:
+    """Coerce a value to float, treating ''/None/NaN as missing."""
+    if v is None or v == "":
+        return None
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return None
+    return n if n == n else None  # drop NaN
+
+
+def _dig(profile: dict, *path: str) -> Any:
+    """Walk a nested dict path; return the numeric leaf or None (mirror _g+_num)."""
+    cur: Any = profile
+    for p in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(p)
+    return _num(cur)
+
+
+def _fmt_num(v: float | None, digits: int) -> str:
+    """Format like 5_Compare.py / 8_Player_Profile.py: '—', ints, thousands, dp."""
+    if v is None:
+        return "—"
+    if abs(v) >= 1000:
+        return f"{v:,.0f}"
+    if float(v).is_integer():
+        return str(int(v))
+    return f"{v:.{digits}f}"
+
+
+def _strike_rate(profile: dict) -> float | None:
+    r = _dig(profile, "career", "career_runs")
+    b = _dig(profile, "career", "career_balls_faced")
+    return (r / b * 100) if (r is not None and b) else None
+
+
+def _resolve_cid(collection: str, name: str) -> str | None:
+    """Resolve a display name -> cricsheet_id via the exported players.json.
+    Exact match first, then case-insensitive substring (mirror the TUI's twins
+    lookup)."""
+    path = SITE_DATA / collection / "players.json"
+    if not name or not path.exists():
+        return None
+    players = json.loads(path.read_text())
+    by_name = {
+        p["name"]: p["cricsheet_id"] for p in players if p.get("name") and p.get("cricsheet_id")
+    }
+    if name in by_name:
+        return by_name[name]
+    needle = name.lower()
+    return next((cid for n, cid in by_name.items() if needle in n.lower()), None)
+
+
+def _load_profile(collection: str, cid: str | None) -> dict | None:
+    if not cid:
+        return None
+    path = SITE_DATA / collection / "profiles" / f"{cid}.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
 
 
 def _summarise_metric(payload) -> str:
