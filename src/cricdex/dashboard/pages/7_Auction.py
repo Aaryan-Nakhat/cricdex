@@ -1,158 +1,188 @@
-"""Streamlit page: auction squad optimiser (MILP)."""
+"""Streamlit page: Auction room — real-rules IPL auction Monte-Carlo.
+
+Identical to the web Auction room (and locked to it by
+`test_scripts/test_web_parity.py`): same exported pool
+(`site/public/data/ipl/{auction_pool,retentions}.json`), same logic
+(`cricdex.web_parity`), same seeded RNG — so a run here reproduces the
+browser trial-for-trial. Pick Mega/Mini, edit retentions per team, run; see
+who lands each star and how each squad shapes up.
+
+The older MILP squad optimiser remains in the CLI (`cricdex auction solve`)
+for the single-squad knapsack; this page is the canonical, web-identical sim.
+"""
 
 from __future__ import annotations
 
-import io
-
 import pandas as pd
-import polars as pl
 import streamlit as st
 
-from cricdex.auction import real_pool, solver
-from cricdex.config import DATA_DIR
 from cricdex.dashboard._widgets import provenance_banner
+from cricdex.web_parity import (
+    ARCHETYPES,
+    IPL_TEAMS_DEFAULT,
+    build_pool,
+    default_retentions,
+    load_auction_pool,
+    load_retentions,
+    simulate_auction,
+)
+from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Auction", page_icon="💰", layout="wide")
-st.title("💰 CricDex — auction squad optimiser")
+st.title("💰 CricDex — Auction room")
 st.caption(
-    "Mixed-integer programming squad picker. Real-IPL pool is built from "
-    "Cricsheet ball-by-ball + Bayes-skill-driven projected_value. Or upload "
-    "your own pool CSV. War-room substitute advisor below uses the same "
-    "pool + the scout Neo4j graph for proximity."
+    "Monte-Carlo of a real IPL auction. Each franchise retains its core (Mega = the "
+    "real 2025 lists; Mini = keep most of the squad — editable below), then the ten "
+    "teams bid for everyone else by their personality, hundreds of times. Same data + "
+    "logic + seeded RNG as the web app."
 )
-provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.duckdb")
+provenance_banner(source="cricsheet", path=SITE_DATA / "ipl" / "auction_pool.json")
 
-with st.sidebar:
-    pool_source = st.radio(
-        "Pool source",
-        ["Real IPL (Bayes skill-driven)", "Synthetic 60-player sample", "Upload CSV"],
-        index=0,
-    )
-    min_balls = st.slider("Min IPL career balls (real pool only)", 50, 1000, 200, step=50)
-    purse = st.number_input("Purse (cr)", min_value=10.0, max_value=500.0, value=120.0, step=5.0)
-    squad_size = st.slider("Squad size", 11, 30, 25)
-    overseas_cap = st.slider("Overseas cap", 0, 12, 8)
-    # Real pool has no keeper tag yet (deferred — needs Wikidata/Cricinfo
-    # role metadata). Default keeper min to 0 there.
-    is_real = pool_source == "Real IPL (Bayes skill-driven)"
-    keeper_default = 0 if is_real else 2
-    role_mins = {
-        "batter": st.slider("Min batters", 0, 12, 5),
-        "bowler": st.slider("Min bowlers", 0, 12, 5),
-        "all_rounder": st.slider("Min all-rounders", 0, 8, 3),
-        "keeper": st.slider("Min keepers", 0, 4, keeper_default),
-    }
-    uploaded = (
-        st.file_uploader(
-            "Upload pool CSV (name, role, country, is_overseas, price, projected_value)",
-            type="csv",
+ARCH_IDS = [a["id"] for a in ARCHETYPES]
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _load():
+    return load_auction_pool("ipl"), load_retentions("ipl")
+
+
+try:
+    pool_rows, ret = _load()
+except FileNotFoundError as e:
+    st.error(f"{e}")
+    st.stop()
+
+pool = build_pool(pool_rows)
+by_id = {p["cricsheet_id"]: p for p in pool}
+mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
+real_prices = {r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows}
+
+# ---- controls --------------------------------------------------------------
+mode = st.radio(
+    "Auction type",
+    ["mega", "mini"],
+    horizontal=True,
+    format_func=lambda m: "Mega auction" if m == "mega" else "Mini auction",
+)
+c1, c2, c3, c4 = st.columns(4)
+purse = c1.number_input(
+    "Purse / team (cr)",
+    10.0,
+    500.0,
+    value=120.0 if mode == "mega" else 30.0,
+    step=5.0,
+    key=f"purse_{mode}",
+)
+squad_size = c2.number_input("Squad cap", 20, 25, value=25, key="squad")
+overseas_cap = c3.number_input("Overseas cap", 0, 11, value=8, key="overseas")
+trials = c4.number_input("Trials", 50, 1000, value=300, step=50, key="trials")
+
+with st.expander("Franchise personalities"):
+    cols = st.columns(5)
+    teams = []
+    for i, t in enumerate(IPL_TEAMS_DEFAULT):
+        p = cols[i % 5].selectbox(
+            t["team"], ARCH_IDS, index=ARCH_IDS.index(t["personality"]), key=f"pers_{t['team']}"
         )
-        if pool_source == "Upload CSV"
-        else None
-    )
+        teams.append({"team": t["team"], "personality": p})
 
-if pool_source == "Upload CSV" and uploaded is not None:
-    pool = pl.from_pandas(pd.read_csv(uploaded))
-elif pool_source == "Synthetic 60-player sample":
+# default retentions for the mode, plus any prospects drafted from Scout
+base_ret = default_retentions(pool, teams, mode, mega_ids)
+drafted = [c for c in st.session_state.get("drafted", []) if c in by_id]
+if drafted:
+    base_ret[teams[0]["team"]] = list(dict.fromkeys(base_ret[teams[0]["team"]] + drafted))
     st.info(
-        "Using the synthetic random sample pool. Switch to 'Real IPL' for the Bayes-driven cohort."
+        f"{len(drafted)} prospect(s) drafted from Scout → pre-loaded into {teams[0]['team']} "
+        "(move them in the editor below)."
     )
-    pool = solver.sample_pool()
-else:
-    try:
-        pool = real_pool.build_pool(min_balls=min_balls)
-        st.success(
-            f"Real IPL pool — {pool.height} players, "
-            f"median projected_value {pool['projected_value'].median():.2f} cr. "
-            f"Note: MILP has no `keeper` role, so satisfying `Min keepers > 0` will require keeper-tagged data (deferred)."
-        )
-    except FileNotFoundError as e:
-        st.warning(
-            f"Real pool unavailable ({e}). Falling back to synthetic sample. "
-            "Run `make docker-scout-rate COLLECTION=ipl` to generate "
-            "`data/metrics/scout_ratings_ipl.json` first."
-        )
-        pool = solver.sample_pool()
 
-st.subheader("Pool")
-st.dataframe(pool.to_pandas(), use_container_width=True, hide_index=True)
-
-if st.button("Solve"):
-    result = solver.solve(
-        pool,
-        purse=purse,
-        squad_size=squad_size,
-        overseas_cap=overseas_cap,
-        role_mins=role_mins,
-    )
-    if not result["feasible"]:
-        st.error(f"Infeasible: {result.get('reason')}")
-    else:
-        st.success(
-            f"Optimal squad — price {result['total_price']:.2f} cr · "
-            f"value {result['total_value']:.2f}"
+with st.expander("Retentions (editable per team)", expanded=bool(drafted)):
+    retentions = {}
+    cols = st.columns(2)
+    for i, t in enumerate(teams):
+        team = t["team"]
+        # options = all pool ids on this team OR already retained (so drafted free
+        # agents show up too); label with name + projected price.
+        opt_ids = [p["cricsheet_id"] for p in pool if p["team"] == team] + [
+            c for c in base_ret[team] if by_id.get(c) and by_id[c]["team"] != team
+        ]
+        opt_ids = list(dict.fromkeys(opt_ids))
+        sel = cols[i % 2].multiselect(
+            team,
+            opt_ids,
+            default=[c for c in base_ret[team] if c in opt_ids],
+            format_func=lambda c: f"{by_id[c]['name']} ({by_id[c]['projected_value']:.0f}cr)",
+            key=f"ret_{team}_{mode}",
         )
-        st.dataframe(
-            result["selected"].to_pandas(),
-            use_container_width=True,
-            hide_index=True,
-        )
-        buf = io.StringIO()
-        result["selected"].write_csv(buf)
-        st.download_button(
-            "Download squad CSV",
-            data=buf.getvalue(),
-            file_name="cricdex_squad.csv",
-            mime="text/csv",
-        )
+        retentions[team] = sel
 
+run = st.button("🎲 Run simulation", type="primary")
+if not run:
+    st.info("Set the knobs and retentions, then **Run simulation**.")
+    st.stop()
 
-st.divider()
-st.subheader("🎯 War-room advisor — find a substitute")
+res = simulate_auction(
+    pool,
+    teams,
+    {
+        "purse": purse,
+        "squad_size": int(squad_size),
+        "overseas_cap": int(overseas_cap),
+        "trials": int(trials),
+        "mode": mode,
+        "retentions": retentions,
+        "real_prices": real_prices,
+    },
+)
+
+st.subheader("How each squad shapes up")
 st.caption(
-    "Target player went above your budget? Plug their name + remaining purse "
-    "below. The advisor ranks pool players by composite of graph similarity "
-    "(co-faced cohort) and Bayes-driven projected value, filtered to your "
-    "budget and role. Requires Neo4j up + populated."
+    f"{'Mega' if mode == 'mega' else 'Mini'} auction · {res['pool_size']} players under the "
+    f"hammer · averaged over {int(trials)} runs"
 )
-adv_target = st.text_input("Unavailable target (unique_name)", "JJ Bumrah")
-col1, col2, col3 = st.columns(3)
-with col1:
-    adv_budget = st.number_input("Remaining purse (cr)", value=8.0, step=0.5, min_value=0.0)
-with col2:
-    adv_role = st.selectbox("Role", ["", "bowler", "batter", "all_rounder"], index=1)
-with col3:
-    adv_n = st.slider(
-        "Top-N substitutes",
-        3,
-        15,
-        5,
-        help="How many substitute candidates to suggest, sorted by composite score (graph cohort proximity + Bayes-driven projected value).",
-    )
-adv_style = st.selectbox(
-    "Bowling style (bowler replacements only)",
-    ["", "pace", "spin"],
-    index=0,
-    help="Filter bowler candidates by pace vs spin. Source: curated overrides + middle-overs heuristic.",
+teams_df = pd.DataFrame(
+    [
+        {
+            "Team": t["team"],
+            "Personality": t["personality"],
+            "Retained": t["retained"],
+            "Bought": round(t["avg_bought"]),
+            "Auction spend (cr)": round(t["avg_spend"], 1),
+            "Squad value": round(t["avg_value"], 1),
+            "Overseas": round(t["avg_overseas"]),
+        }
+        for t in sorted(res["teams"], key=lambda t: t["avg_value"], reverse=True)
+    ]
 )
-if st.button("Recommend substitutes"):
-    try:
-        from cricdex.auction import advisor as _advisor
+st.dataframe(teams_df, hide_index=True, use_container_width=True)
 
-        rec = _advisor.recommend_substitutes(
-            adv_target,
-            budget=adv_budget,
-            role=adv_role or None,
-            n=adv_n,
-            bowling_style=adv_style or None,
-            pool=pool,
-        )
-        if rec.is_empty():
-            st.warning(
-                "No affordable graph-similar candidates. Try a higher budget, "
-                "wider role filter, or check the target's unique_name."
-            )
-        else:
-            st.dataframe(rec.to_pandas(), use_container_width=True, hide_index=True)
-    except ImportError as e:
-        st.error(f"`neo4j` extra not installed ({e}). Run `uv sync --extra graph`.")
+st.subheader("Who lands the marquee names")
+marq_df = pd.DataFrame(
+    [
+        {
+            "Player": m["player"]["name"],
+            "Role": m["player"]["role"].replace("_", "-"),
+            "Value": round(m["player"]["projected_value"], 1),
+            "Most likely": ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in m["winners"])
+            or "unsold",
+        }
+        for m in res["marquee"]
+    ]
+)
+st.dataframe(marq_df, hide_index=True, use_container_width=True)
+
+st.subheader("A representative squad")
+draft_team = st.selectbox("Team", [s["team"] for s in res["sample_draft"]])
+st_state = next(s for s in res["sample_draft"] if s["team"] == draft_team)
+st.markdown(
+    f"**Retained ({len(st_state['retained'])}):** "
+    + (", ".join(p["name"] for p in st_state["retained"]) or "none")
+)
+st.markdown(
+    f"**Bought ({len(st_state['bought'])}):** "
+    + (", ".join(p["name"] for p in st_state["bought"]) or "no buys in this sample")
+)
+st.caption(
+    f"{len(st_state['retained']) + len(st_state['bought'])} total · "
+    f"{st_state['overseas']} overseas · auction spend {st_state['spent']:.1f} cr"
+)

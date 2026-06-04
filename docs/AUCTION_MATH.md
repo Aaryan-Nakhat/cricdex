@@ -1,9 +1,14 @@
 # How the Auction room works (the math, in plain words)
 
-> This describes the **web** Auction room — a Monte-Carlo of a real IPL
-> auction that runs entirely in your browser. The desktop CLI keeps a
-> separate exact **MILP squad optimiser** (see `docs/STUDY_GUIDE.md` §8);
-> the two are different tools by design.
+> This describes the Auction room — a Monte-Carlo of a real IPL auction.
+> The **same** logic runs on every surface: in the browser (TS,
+> `site/src/lib/auction.ts`) and on the CLI / TUI / Streamlit (Python,
+> `cricdex.web_parity`), from the **same** exported JSON and with a
+> bit-exact seeded RNG, so a run reproduces everywhere trial-for-trial
+> (locked by `test_scripts/test_web_parity.py`). The exact **MILP single-
+> squad optimiser** (see `docs/STUDY_GUIDE.md` §8) is kept as an advanced
+> tool — `cricdex auction solve` — for the "best XV on a fixed budget"
+> knapsack, a different question from this market sim.
 
 The room answers one question a real franchise faces:
 

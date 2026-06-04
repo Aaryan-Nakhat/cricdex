@@ -30,6 +30,13 @@ st.caption(
     "self-play; covers the practitioner-facing question — 'realistic "
     "price band for player X' — in seconds."
 )
+st.info(
+    "ℹ️ This is the legacy DuckDB-driven price-band simulator (kept for the RL "
+    "self-play research path). The **canonical, web-identical** auction — same "
+    "pool, retentions, rules and seeded Monte-Carlo as the live site — is the "
+    "**💰 Auction room** page.",
+    icon="ℹ️",
+)
 provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.duckdb")
 
 # --- sidebar: sim knobs + per-team personality selectors ----------------

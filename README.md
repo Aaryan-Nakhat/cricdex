@@ -47,10 +47,10 @@ All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
 
 | Module | What |
 |---|---|
-| `scout` | Per-collection player graph (Neo4j) + dismissal-aware Bayesian opponent-adjusted ratings (NumPyro/JAX, ADVI + NUTS — scoring + survival for batters, economy + strike for bowlers) + style-twin k-NN. |
+| `scout` | 3-tier cross-competition look-alike finder (IPL/SMAT/BBL) — one implementation shared across web + CLI + Streamlit via `cricdex.web_parity` (locked by `test_web_parity.py`). Backed by dismissal-aware Bayesian opponent-adjusted ratings (NumPyro/JAX, ADVI + NUTS — scoring + survival for batters, economy + strike for bowlers). A per-collection Neo4j player graph + style-twin k-NN power the advanced relational twins. |
 | `metrics` | 10 novel context-adjusted ratings: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary Dependency, Pressure Conversion, Wicket Quality, Crease Longevity, Slow-Start Cost. + per-player/matchup dismissal fingerprint. |
 | `rules` | Natural-language Q&A over verified rulebook PDFs (MCC Laws + ICC PCs + IPL + Hundred + BBL/WBBL + Cricket Australia domestic + ICC Codes + Anti-Corruption). 11k+ clauses indexed in Qdrant. Curated supplementary clauses cover gaps such as the IPL Impact Player rule. |
-| `auction` | MILP squad optimiser via `scipy.optimize.milp` + Monte-Carlo price-band simulator (real IPL teams, editable bidding personalities) + GRPO RL self-play scaffold + war-room substitute advisor (composite of graph similarity + Bayes complete-value + budget). CLI + dashboard war-room. |
+| `auction` | Real-rules IPL auction Monte-Carlo (cross-collection pool, editable Mega/Mini retentions, personalities, second-price clearing) — one implementation shared across web + CLI + TUI + Streamlit via `cricdex.web_parity`, bit-exact seeded RNG, locked by `test_web_parity.py`. Advanced tools: MILP single-squad optimiser via `scipy.optimize.milp`, GRPO RL self-play scaffold, war-room substitute advisor. |
 | `records` | 9 record SQL queries + On-This-Day digest. |
 | `venues` | Per-venue innings totals + chase/set winrate + phase rates + dismissal mix. |
 | `profiles` | Per-player profile assembler aggregating every source CricDex has. |
