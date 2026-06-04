@@ -1,228 +1,303 @@
-"""Streamlit page: side-by-side player comparator."""
+"""Streamlit page: side-by-side player comparator.
+
+Reads the SAME pre-cooked JSON the React web app (`site/src/pages/Compare.tsx`)
+fetches — `site/public/data/<collection>/players.json` for the picker and
+`profiles/<cricsheet_id>.json` for each player's numbers — so the desktop
+dashboard matches the live site instead of recomputing from DuckDB.
+"""
 
 from __future__ import annotations
 
-import duckdb
+import json
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from cricdex.comparator import compare as cmp
-from cricdex.config import DATA_DIR
-from cricdex.dashboard._widgets import collection_picker, provenance_banner
-
-DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
+from cricdex.dashboard._widgets import provenance_banner
+from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Compare", page_icon="🆚", layout="wide")
 st.title("🆚 CricDex — compare players")
 st.caption(
-    "Pick 2–5 players and see every CricDex signal side-by-side: career totals "
-    "(from Cricsheet ball-by-ball), the novel batter metrics + Pressure "
-    "Conversion (bowler), and Bayes scout-rating skills."
+    "Put two to five players side by side across every number — Bayesian skill "
+    "axes, career totals, and the novel metrics. Best value in each row is "
+    "highlighted. Reads the exact same exported JSON the website does."
 )
-provenance_banner(source="cricsheet", path=DUCKDB_PATH)
 
 
-FIELD_NOTES = {
-    "career_runs": "Career runs scored (Cricsheet)",
-    "career_balls": "Career balls faced",
-    "career_sixes": "Career 6s",
-    "career_fours": "Career 4s",
-    "career_matches": "Career matches",
-    "career_wickets": "Career wickets taken",
-    "career_runs_conceded": "Career runs conceded",
-    "career_legal_balls_bowled": "Career legal balls bowled",
-    "pressure_runs": "Runs scored under high required-RR (chase only)",
-    "pressure_runs_sr": "Strike rate under high required-RR",
-    "pct_pressure_balls": "% of career balls played under high required-RR",
-    "dot_ball_recovery": "Recovery efficiency after slow patches (runs in next 6 balls)",
-    "counter_attack_sr": "Strike rate inflation right after a wicket",
-    "bdr_pct": "Boundary dependency — share of runs from 4s + 6s",
-    "pressure_conversion_pct": "Wicket rate after a 4+ consecutive dot streak in the same over",
-    "bayes_skill_batter": "Bayesian batter scoring skill (0 = avg, +0.3 ≈ marquee)",
-    "bayes_survival_batter": "Bayesian batter survival — dismissal resistance (0 = avg, higher = harder to get out)",
-    "bayes_skill_bowler": "Bayesian bowler economy skill (0 = avg, +0.3 ≈ marquee)",
-    "bayes_strike_bowler": "Bayesian bowler strike — wicket-taking (0 = avg, higher = strikes more often)",
-}
-
-
-@st.cache_data
-def list_players(collection: str) -> list[str]:
-    safe = collection.replace("-", "_")
-    if not DUCKDB_PATH.exists():
-        return []
-    con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+def _num(v: object) -> float | None:
+    if v is None or v == "":
+        return None
     try:
-        tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
-        if f"balls_{safe}" not in tables:
-            return []
-        rows = con.execute(
-            f"""
-            SELECT batter AS name, COUNT(*) AS n
-            FROM balls_{safe}
-            WHERE batter IS NOT NULL
-            GROUP BY 1
-            ORDER BY n DESC
-            LIMIT 1500
-            """
-        ).fetchall()
-        return [r[0] for r in rows]
-    finally:
-        con.close()
+        n = float(v)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return n if n == n else None  # drop NaN
 
+
+def _g(profile: dict, *path: str) -> object:
+    cur: object = profile
+    for p in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(p)
+    return cur
+
+
+def _sr(profile: dict) -> float | None:
+    r = _num(_g(profile, "career", "career_runs"))
+    b = _num(_g(profile, "career", "career_balls_faced"))
+    return (r / b * 100) if (r is not None and b) else None
+
+
+# --- mirror Compare.tsx ROWS (group, label, getter, digits, better) ------
+ROWS: list[tuple[str, str, object, int, str]] = [
+    (
+        "Bayesian skill",
+        "Batting · scoring",
+        lambda p: _num(_g(p, "bayes", "bayes_batter", "skill")),
+        3,
+        "high",
+    ),
+    (
+        "Bayesian skill",
+        "Batting · survival",
+        lambda p: _num(_g(p, "bayes", "bayes_batter", "survival_skill")),
+        3,
+        "high",
+    ),
+    (
+        "Bayesian skill",
+        "Batting value",
+        lambda p: _num(_g(p, "bayes", "bayes_batter", "value")),
+        3,
+        "high",
+    ),
+    (
+        "Bayesian skill",
+        "Bowling · economy",
+        lambda p: _num(_g(p, "bayes", "bayes_bowler", "skill")),
+        3,
+        "high",
+    ),
+    (
+        "Bayesian skill",
+        "Bowling · strike",
+        lambda p: _num(_g(p, "bayes", "bayes_bowler", "strike_skill")),
+        3,
+        "high",
+    ),
+    ("Career", "Runs", lambda p: _num(_g(p, "career", "career_runs")), 0, "high"),
+    ("Career", "Balls faced", lambda p: _num(_g(p, "career", "career_balls_faced")), 0, "high"),
+    ("Career", "Strike rate", _sr, 1, "high"),
+    ("Career", "Wickets", lambda p: _num(_g(p, "career", "career_wickets")), 0, "high"),
+    (
+        "Metrics",
+        "Pressure SR",
+        lambda p: _num(_g(p, "metrics", "pressure_runs", "pressure_sr_per_100_balls")),
+        1,
+        "high",
+    ),
+    (
+        "Metrics",
+        "Counter-attack SR",
+        lambda p: _num(_g(p, "metrics", "counter_attack", "counter_attack_sr")),
+        1,
+        "high",
+    ),
+    (
+        "Metrics",
+        "Boundary %",
+        lambda p: _num(_g(p, "metrics", "boundary_dependency", "bdr_pct")),
+        1,
+        "low",
+    ),
+    (
+        "Metrics",
+        "Dot recovery",
+        lambda p: _num(_g(p, "metrics", "dot_ball_recovery", "runs_per_6_after_dot")),
+        2,
+        "high",
+    ),
+]
+GROUPS = ["Bayesian skill", "Career", "Metrics"]
+
+
+def _has_players(collection: str) -> bool:
+    return (SITE_DATA / collection / "players.json").exists() and (
+        SITE_DATA / collection / "profiles"
+    ).is_dir()
+
+
+@st.cache_data(ttl=300)
+def list_collections() -> list[str]:
+    cols_file = SITE_DATA / "collections.json"
+    names: list[str] = []
+    if cols_file.exists():
+        try:
+            names = [c["collection"] for c in json.loads(cols_file.read_text())]
+        except Exception:
+            names = []
+    if not names:
+        names = sorted(p.name for p in SITE_DATA.iterdir() if p.is_dir())
+    return [c for c in names if _has_players(c)]
+
+
+@st.cache_data(ttl=300)
+def name_to_cid(collection: str) -> dict[str, str]:
+    """{display name -> cricsheet_id} from players.json (mirror usePlayers)."""
+    path = SITE_DATA / collection / "players.json"
+    if not path.exists():
+        return {}
+    players = json.loads(path.read_text())
+    return {
+        p["name"]: p["cricsheet_id"] for p in players if p.get("name") and p.get("cricsheet_id")
+    }
+
+
+@st.cache_data(ttl=300)
+def load_profile(collection: str, cid: str) -> dict | None:
+    path = SITE_DATA / collection / "profiles" / f"{cid}.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
+
+
+def _fmt(v: float | None, digits: int) -> str:
+    if v is None:
+        return "—"
+    if abs(v) >= 1000:
+        return f"{v:,.0f}"
+    if float(v).is_integer():
+        return str(int(v))
+    return f"{v:.{digits}f}"
+
+
+collections = list_collections()
+if not collections:
+    st.warning(
+        "No exported players.json / profiles found under site/public/data/. "
+        "Run `uv run python scripts/export_site.py` first."
+    )
+    st.stop()
 
 with st.sidebar:
-    collection = collection_picker(default="ipl", key="compare-collection")
-    pool = list_players(collection)
-    if not pool:
-        st.warning(f"no balls_{collection} table — run docker-ingest-cricsheet first")
-        st.stop()
-    picks = st.multiselect("Players (2-5)", options=pool, max_selections=5)
+    collection = st.selectbox(
+        "Collection",
+        options=collections,
+        index=collections.index("ipl") if "ipl" in collections else 0,
+        key="compare-collection",
+        help="Only collections with exported players.json + profiles are listed.",
+    )
+
+provenance_banner(source="cricsheet", path=SITE_DATA / collection / "meta.json")
+
+names = name_to_cid(collection)
+if not names:
+    st.warning("No players in the exported players.json for this collection.")
+    st.stop()
+
+picks = st.multiselect(
+    "Players (pick 2–5)",
+    options=sorted(names.keys()),
+    max_selections=5,
+    key="compare-players",
+)
 
 if len(picks) < 2:
-    st.info("Pick at least 2 players in the sidebar.")
+    st.info("Pick at least two players to compare.")
     st.stop()
 
-df = cmp.compare(picks, collection=collection)
-if df.is_empty():
-    st.error("No data returned.")
+profiles: list[tuple[str, dict]] = []
+for nm in picks:
+    prof = load_profile(collection, names[nm])
+    if prof:
+        profiles.append((nm, prof))
+
+if len(profiles) < 2:
+    st.error("Could not load at least two profiles from the exported data.")
     st.stop()
 
-pdf = df.to_pandas().set_index("player")
-st.subheader("Side-by-side metrics")
+# --- radar over the 4 bayes axes, min-max normalised across the set ------
+st.subheader("Skill shape")
 st.caption(
-    "Empty cells (—) mean the player didn't clear the metric's min-balls / "
-    "min-matches threshold, or wasn't in the saved top-N for this collection. "
-    "Hover any row label to see what the metric measures."
+    "Four Bayesian axes — Score & Survive (batting), Economy & Strike "
+    "(bowling) — scaled 0–100 across the selected players (relative, not "
+    "absolute). The best of the picked players is pushed to the rim, the worst "
+    "to the centre."
 )
-
-# Pretty render: replace NaN with "—" and attach the FIELD_NOTES tooltip
-# so non-developer viewers know what each row means.
-display = pdf.T.copy()
-display = display.where(display.notna(), "—")
-display = display.replace({None: "—", "": "—"})
-# Streamlit renders dict-of-columns; add a "what is this" column for hover.
-display.insert(0, "what is this", [FIELD_NOTES.get(idx, "") for idx in display.index])
-st.dataframe(display, use_container_width=True)
-
-st.subheader("Radar — relative strength across the picked players")
-st.caption(
-    "Each axis is z-scored across the players you picked, so the chart reads "
-    "as 'who is relatively strongest on which axis'. Larger area = stronger "
-    "on more axes. Z-scores reset every time you change the player picks — "
-    "this is a within-cohort comparison, not a cross-league absolute rank."
-)
-radar_axes = [
-    "pressure_runs",
-    "pressure_runs_sr",
-    "pct_pressure_balls",
-    "dot_ball_recovery",
-    "counter_attack_sr",
-    "bdr_pct",
-    "bayes_skill_batter",
+RADAR_AXES = [
+    ("Score", lambda p: _num(_g(p, "bayes", "bayes_batter", "skill"))),
+    ("Survive", lambda p: _num(_g(p, "bayes", "bayes_batter", "survival_skill"))),
+    ("Economy", lambda p: _num(_g(p, "bayes", "bayes_bowler", "skill"))),
+    ("Strike", lambda p: _num(_g(p, "bayes", "bayes_bowler", "strike_skill"))),
 ]
-radar = pdf[radar_axes].astype(float)
-
-
-# z-score across the picked players so visual differences read as "X is
-# the relative best for that axis." If the axis is all-NaN/zero for these
-# picks we silently drop it from the chart.
-def _z(col: pd.Series) -> pd.Series:
-    col = col.fillna(col.mean())
-    if col.std() == 0 or pd.isna(col.std()):
-        return col * 0
-    return (col - col.mean()) / col.std()
-
-
-z_df = radar.apply(_z, axis=0).fillna(0)
-
+axis_labels = [a for a, _ in RADAR_AXES]
 fig = go.Figure()
-for player, row in z_df.iterrows():
+# precompute per-axis min/max across players (clamped like Compare.tsx)
+scaled: dict[str, list[float]] = {nm: [] for nm, _ in profiles}
+for _, getter in RADAR_AXES:
+    vals = [getter(p) for _, p in profiles]
+    finite = [v for v in vals if v is not None]
+    lo = min(finite + [0.0]) if finite else 0.0
+    hi = max(finite + [0.01]) if finite else 0.01
+    rng = (hi - lo) or 1
+    for (nm, _p), v in zip(profiles, vals, strict=True):
+        scaled[nm].append(0.0 if v is None else (v - lo) / rng * 100)
+for nm, _p in profiles:
+    r = scaled[nm]
     fig.add_trace(
         go.Scatterpolar(
-            r=row.tolist() + [row.iloc[0]],
-            theta=radar_axes + [radar_axes[0]],
+            r=r + [r[0]],
+            theta=axis_labels + [axis_labels[0]],
             fill="toself",
-            name=player,
+            name=nm,
         )
     )
 fig.update_layout(
-    polar={"radialaxis": {"visible": True}},
+    polar={"radialaxis": {"visible": True, "range": [0, 100]}},
     showlegend=True,
-    height=500,
+    height=480,
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Bayesian skill head-to-head (pairwise) -----------------------------
+# --- side-by-side comparison table (grouped, best highlighted) -----------
+st.subheader("Side by side")
+st.caption("Best value in each row is highlighted (greener cell wins each row).")
 
-st.subheader("🎯 Bayesian skill head-to-head")
-st.caption(
-    "How confident are we that one player is genuinely better than another? "
-    "Each player's opponent-adjusted skill is a Bayesian posterior — a mean "
-    "and an uncertainty. We take the difference of the two posteriors and "
-    "report **P(A is better than B)**. A result near 50% means the two are "
-    "statistically indistinguishable given the data (most 'X vs Y' debates "
-    "land here). Skill measures scoring / run-suppression *rate*, not "
-    "dismissal-adjusted value — that's a vNext model upgrade."
+records: list[dict] = []
+best_mask: list[list[bool]] = []
+player_names = [nm for nm, _ in profiles]
+for group in GROUPS:
+    for g, label, getter, digits, better in ROWS:
+        if g != group:
+            continue
+        vals = [getter(p) for _, p in profiles]
+        finite = [v for v in vals if v is not None]
+        best = (max(finite) if better == "high" else min(finite)) if finite else None
+        records.append(
+            {
+                "Group": group,
+                "Metric": label,
+                **{nm: _fmt(v, digits) for nm, v in zip(player_names, vals, strict=True)},
+            }
+        )
+        best_mask.append([v is not None and best is not None and v == best for v in vals])
+
+table = pd.DataFrame(records)
+
+
+def _highlight(row: pd.Series) -> list[str]:
+    i = row.name
+    styles = ["", ""]  # Group, Metric columns
+    for is_best in best_mask[i]:
+        styles.append("color:#34d399;font-weight:700" if is_best else "")
+    return styles
+
+
+st.dataframe(
+    table.style.apply(_highlight, axis=1),
+    use_container_width=True,
+    hide_index=True,
 )
-
-from cricdex.scout.ratings.head_to_head import head_to_head  # noqa: E402
-
-hcol1, hcol2 = st.columns(2)
-player_a = hcol1.selectbox("Player A", options=picks, index=0)
-player_b = hcol2.selectbox("Player B", options=picks, index=1 if len(picks) > 1 else 0)
-
-if player_a == player_b:
-    st.info("Pick two different players for the head-to-head.")
-else:
-    h2h = head_to_head(player_a, player_b, collection=collection)
-    if h2h.get("error"):
-        st.warning(h2h["error"])
-    else:
-        any_role = False
-        for role in ("batter", "bowler", "all_rounder"):
-            c = h2h["comparisons"].get(role)
-            if c is None:
-                continue
-            any_role = True
-            label = role.replace("_", "-").title()
-            st.markdown(f"**{label}**  ·  {c['verdict']}")
-            m1, m2, m3 = st.columns(3)
-            m1.metric(
-                f"{player_a} skill",
-                f"{c['mean_a']:+.3f}",
-                help=f"± {c['sd_a']:.3f} on {c.get('balls_a', '?')} balls",
-            )
-            m2.metric(
-                f"{player_b} skill",
-                f"{c['mean_b']:+.3f}",
-                help=f"± {c['sd_b']:.3f} on {c.get('balls_b', '?')} balls",
-            )
-            m3.metric(f"P({player_a} better)", f"{c['p_a_better']:.0%}")
-            st.progress(c["p_a_better"])
-        if not any_role:
-            st.info(
-                "These two players have no overlapping Bayesian ratings for "
-                f"this collection — run `cricdex data ingest ratings -c {collection}`."
-            )
-
-    # --- matchup rivalry log (raw dismissal counts, both directions) ---
-    st.subheader("⚔️ Head-to-head dismissal log")
-    st.caption(
-        "The raw rivalry record — bowler-credited dismissals of one by the "
-        "other. Counts, not rates (matchups are sparse)."
-    )
-    from cricdex.metrics import dismissal_fingerprint as dfp  # noqa: E402
-
-    found_rivalry = False
-    for batter, bowler in ((player_a, player_b), (player_b, player_a)):
-        log = dfp.matchup_log(batter, bowler, collection=collection)
-        if log["total"]:
-            found_rivalry = True
-            kinds = ", ".join(f"{r['count']}× {r['kind']}" for r in log["rows"])
-            st.markdown(
-                f"**{bowler}** dismissed **{batter}** "
-                f"**{log['total']}×** in {log['balls']} balls — {kinds}"
-            )
-    if not found_rivalry:
-        st.info("No bowler-credited dismissals of each other on record.")
