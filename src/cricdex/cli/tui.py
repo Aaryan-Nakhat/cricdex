@@ -317,12 +317,10 @@ class CricDexApp(App):
 
     def _status_text(self) -> str:
         n = (DATA_DIR / "cricsheet" / "cricsheet.duckdb").exists()
-        r = (DATA_DIR / "rules" / "qdrant").exists()
-        m = (DATA_DIR / "metrics").exists()
+        j = (SITE_DATA / "ipl" / "leaderboards").is_dir()
         return (
-            f"  data: cricsheet [{'✓' if n else '✗'}]  rules [{'✓' if r else '✗'}]  "
-            f"metrics [{'✓' if m else '✗'}]   ·   ← → switch panels  ·   "
-            f"ctrl+p themes  ·   q quit"
+            f"  data: cricsheet [{'✓' if n else '✗'}]  exported-json [{'✓' if j else '✗'}]"
+            f"   ·   ← → switch panels  ·   ctrl+p themes  ·   q quit"
         )
 
     # ===== Leaderboard ====================================================
@@ -691,7 +689,7 @@ class CricDexApp(App):
         # Reads the same exported profiles/<cid>.json the React app + 8_Player_
         # Profile.py read. Resolve name -> cricsheet_id via players.json, then
         # print identity / taxonomy / bayes / career / metrics / style-twins /
-        # dismissal-fingerprint (no graph cohort).
+        # dismissal-fingerprint.
         log = self.query_one("#profile-log", RichLog)
         log.clear()
         name = self.query_one("#profile-name", Input).value.strip()

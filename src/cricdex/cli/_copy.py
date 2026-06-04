@@ -11,9 +11,9 @@ from __future__ import annotations
 
 PROFILE_INTRO = (
     "Everything CricDex knows about one player — cross-source IDs, "
-    "career totals, novel metrics, Bayesian scout-rating skills, top "
-    "style twins, and the graph cohort. All derived live from Cricsheet "
-    "ball-by-ball + the People Register."
+    "career totals, novel metrics, Bayesian scout-rating skills, and top "
+    "style twins. All derived from Cricsheet ball-by-ball + the People "
+    "Register."
 )
 
 WIKIDATA_FOOTER = (
@@ -33,12 +33,6 @@ BAYES_SCALE = (
     "Skill is on the natural-log scale of the NumPyro / JAX "
     "hierarchical Negative-Binomial fit. 0 = league average. +0.30 ≈ "
     "marquee; -0.30 ≈ replacement-level."
-)
-
-GRAPH_COHORT_INTRO = (
-    "Players in the same competitive neighbourhood — derived from the "
-    "scout graph's FACED and TEAMMATE_OF edges. Complements the cosine "
-    "style-twins above with a relational signal."
 )
 
 # Per-metric one-liner — mirrors Streamlit's METRIC_HINTS dict.
@@ -64,9 +58,8 @@ METRIC_HINTS: dict[str, str] = {
         "dismissals."
     ),
     "intent_curve": (
-        "How a batter's strike rate evolves across innings phases "
-        "(0-5 / 6-10 / 11-20 / 21-30 / 31-50 / 51+ balls). Rising = "
-        "grower; flat-high = aggressor; flat-mid = grinder."
+        "Early SR (balls 1-10) — who comes out firing — with the full "
+        "innings strike-rate curve (0-5 … 51+) as the sparkline column."
     ),
     "ngi": (
         "Net Game Impact — WPA-style win-probability delta credited "
@@ -94,14 +87,6 @@ LEADERBOARD_INTRO = (
     "Context-adjusted player rankings. Computed from Cricsheet "
     "ball-by-ball; no scraping, no proprietary feeds. Re-emit with "
     "`cricdex data ingest metrics -c <collection>`."
-)
-
-# --- Rules Q&A -----------------------------------------------------------
-
-RULES_INTRO = (
-    "Natural-language Q&A over 21 verified rulebook PDFs (MCC Laws, "
-    "ICC PCs, IPL, Hundred, BBL/WBBL, SA20, Cricket Australia "
-    "domestic, ICC Codes, Anti-Corruption). 11k+ clauses indexed."
 )
 
 # --- Records -------------------------------------------------------------
@@ -143,32 +128,16 @@ VENUES_INTRO = (
 
 # --- Auction -------------------------------------------------------------
 
-AUCTION_SOLVE_INTRO = (
-    "MILP squad optimiser via `scipy.optimize.milp` over a player "
-    "pool. Maximises total projected value subject to budget + "
-    "squad-size + role + overseas constraints."
-)
-
-AUCTION_RECOMMEND_INTRO = (
-    "War-room substitute advisor — graph similarity × Bayes value × "
-    "remaining purse × role match. Composite-scored shortlist."
-)
-
 AUCTION_SIMULATE_INTRO = (
-    "Monte-Carlo auction price-band simulator. N franchises bid on "
-    "a pool; emits per-player sale-price distributions."
+    "Real-rules IPL auction Monte-Carlo — each franchise retains its core, "
+    "then the ten teams bid for the rest by personality over ~300 trials. "
+    "Same engine as the web (cricdex.web_parity), seeded + reproducible."
 )
 
 # --- Scout ---------------------------------------------------------------
 
 TWINS_INTRO = (
-    "Graph cohort via Neo4j FACED + TEAMMATE_OF edges. `co_faced` = "
-    "bowlers who've bowled to the same set of batters as the target; "
-    "`teammates` = players who've shared a dressing room overlap."
-)
-
-FIND_REPLACEMENT_INTRO = (
-    "Auto-flip role-aware twin search. Detects whether the target is "
-    "primarily a bowler or batter via balls_bowled-vs-balls_faced "
-    "ratio, then surfaces same-archetype candidates only."
+    "Cross-competition look-alikes — pick an active IPL player, see similar "
+    "players across IPL / SMAT / BBL / SA20 / CPL / Blast by within-tier "
+    "skill standing, with est. price, saving-vs-pick and a gem flag."
 )

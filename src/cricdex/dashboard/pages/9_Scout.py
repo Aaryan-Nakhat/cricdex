@@ -7,10 +7,6 @@ Identical to the web Scout room (and locked to it by
 uncapped SMAT prospects, and overseas BBL options, ranked by within-tier
 skill standing — with est. crore price, saving-vs-pick, an uncapped-gem
 flag, role/slot filters, and a draft-to-auction handoff.
-
-The older Neo4j-graph twins / find-replacement live on in the CLI
-(`cricdex scout graph-twins`) for relational queries; this page is the
-canonical, web-identical scout.
 """
 
 from __future__ import annotations
