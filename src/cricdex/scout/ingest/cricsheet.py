@@ -7,9 +7,11 @@ per-match files, flattens into two tables (matches + balls), writes Parquet.
 from __future__ import annotations
 
 import json
+import shutil
 import zipfile
 from pathlib import Path
 
+import duckdb
 import httpx
 import polars as pl
 from loguru import logger
@@ -109,11 +111,18 @@ def download(collection: str, dest: Path, force: bool = False) -> Path:
     return zip_path
 
 
-def extract(zip_path: Path, dest: Path) -> Path:
+def extract(zip_path: Path, dest: Path, force: bool = False) -> Path:
     out_dir = dest / zip_path.stem
-    if out_dir.exists() and any(out_dir.iterdir()):
-        logger.info(f"already extracted: {out_dir}")
+    fresh = out_dir.exists() and any(out_dir.iterdir())
+    # Re-extract when forced OR when the downloaded zip is newer than what we
+    # last extracted — otherwise a refreshed Cricsheet zip is silently ignored
+    # and we keep parsing the stale match set (this is what stalled the nightly
+    # refresh). A stem-name match alone is not enough; compare mtimes.
+    if fresh and not force and zip_path.stat().st_mtime <= out_dir.stat().st_mtime:
+        logger.info(f"already extracted (up to date): {out_dir}")
         return out_dir
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path) as z:
         z.extractall(out_dir)
@@ -309,3 +318,37 @@ def write_parquet(
     logger.info(f"wrote {m_path} ({len(matches)} rows)")
     logger.info(f"wrote {b_path} ({len(balls)} rows)")
     return m_path, b_path
+
+
+def load_to_duckdb(matches_path: Path, balls_path: Path, collection: str, db_path: Path) -> None:
+    """(Re)create the matches_<col> / balls_<col> tables from the parquet."""
+    safe = collection.replace("-", "_")
+    con = duckdb.connect(str(db_path))
+    try:
+        con.execute(
+            f"CREATE OR REPLACE TABLE matches_{safe} AS "
+            f"SELECT * FROM read_parquet('{matches_path}')"
+        )
+        con.execute(
+            f"CREATE OR REPLACE TABLE balls_{safe} AS SELECT * FROM read_parquet('{balls_path}')"
+        )
+    finally:
+        con.close()
+
+
+def build(collection: str, out: Path | None = None, force: bool = False) -> Path:
+    """Full pipeline: download → extract → parse → parquet → DuckDB. Returns the
+    DuckDB path. The single entry point used by both the CLI
+    (`cricdex data ingest cricsheet`) and `scripts/ingest_cricsheet.py`, so they
+    can't drift. `extract` re-runs automatically when the zip is newer."""
+    from cricdex.config import DATA_DIR
+
+    base = out or (DATA_DIR / "cricsheet")
+    zip_path = download(collection, base / "raw", force=force)
+    extracted = extract(zip_path, base / "extracted", force=force)
+    matches, balls = parse_collection(extracted)
+    m_path, b_path = write_parquet(matches, balls, base / "parquet", collection)
+    db_path = base / "cricsheet.duckdb"
+    load_to_duckdb(m_path, b_path, collection, db_path)
+    logger.info(f"duckdb loaded: {db_path}")
+    return db_path

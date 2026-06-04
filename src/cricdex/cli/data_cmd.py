@@ -91,7 +91,7 @@ def run_ingest(slice_: str, collection: str = "ipl", force: bool = False) -> str
         out = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
         if out.exists() and not force:
             return f"cricsheet duckdb already present at {out} (pass force=True to regenerate)"
-        cricsheet.ingest(collection=collection)
+        cricsheet.build(collection=collection, force=force)
         return f"wrote {out}"
     if slice_ == "rules":
         from cricdex.rules import embed, parse

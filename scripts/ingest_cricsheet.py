@@ -41,18 +41,10 @@ def ingest(
     out: Path | None = typer.Option(None, "--out"),
     force: bool = typer.Option(False, "--force"),
 ) -> None:
-    base = out or (DATA_DIR / "cricsheet")
-    raw_dir = base / "raw"
-    extracted_dir = base / "extracted"
-    parquet_dir = base / "parquet"
-    db_path = base / "cricsheet.duckdb"
-
-    zip_path = cricsheet.download(collection, raw_dir, force=force)
-    out_extracted = cricsheet.extract(zip_path, extracted_dir)
-    matches, balls = cricsheet.parse_collection(out_extracted)
-    m_path, b_path = cricsheet.write_parquet(matches, balls, parquet_dir, collection)
-    _load_to_duckdb(m_path, b_path, collection, db_path)
-    logger.info(f"duckdb loaded: {db_path}")
+    # Single shared pipeline (cricsheet.build) so the script + the
+    # `cricdex data ingest cricsheet` CLI can't drift. `extract` auto-reruns
+    # when the downloaded zip is newer, so a refreshed Cricsheet is picked up.
+    cricsheet.build(collection=collection, out=out, force=force)
 
 
 @app.command("indian-domestic")
