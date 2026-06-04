@@ -45,13 +45,10 @@ show up here without restart.
 | **Records** | Highest score, fastest fifty, most sixes, on-this-day | Cricsheet ball-by-ball |
 | **Compare** | 2-5 players side-by-side, radar + tooltipped table | Cricsheet career totals + novel metrics + Bayes scout-rating |
 | **Venues** | Per-venue innings totals, chase vs set, phase-by-phase RR | Cricsheet ball-by-ball |
-| **Auction** | MILP squad optimiser + war-room substitute advisor | Real-IPL pool (Bayes-driven projected_value) + scout graph |
-| **Auction Simulator** | Monte-Carlo of all 10 franchises bidding by personality | Real-IPL pool + GRPO scaffold |
-| **Player Twins** | Per-collection graph cohort + find-replacement | Neo4j scout graph |
+| **Auction** | Real-rules IPL auction Monte-Carlo (retain → bid), web-identical | Cross-collection pool via `cricdex.web_parity` |
+| **Scout** | 3-tier look-alikes (IPL / SMAT / BBL / SA20 / CPL / Blast) + price/gem/draft | Exported scout index via `cricdex.web_parity` |
 | **Player Profile** | Everything CricDex knows about one player | All of the above |
 | **Update Data** | In-app buttons to re-run the ingest / compute pipeline | local pipeline |
-| **Auction Simulator** | Monte-Carlo price-band distribution + GRPO RL agent demo | Same as Auction page |
-| **Player Twins** | "Next Bumrah" / Dhoni's CSK cohort — graph traversal | Scout Neo4j (built from Cricsheet) |
 
 ---
 
