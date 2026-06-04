@@ -28,7 +28,7 @@
 
 - `auction` MILP squad optimiser ✅ + Monte-Carlo price-band simulator ✅ + GRPO RL self-play scaffold ✅ (real 429-player IPL pool, 6 franchise archetypes, terminal squad-quality bonus) + war-room substitute advisor ✅ (`scripts/auction_advisor.py` + dashboard block — composite of graph FACED-cohort similarity, Bayes-driven projected value, role and budget filters). Full PettingZoo multi-agent self-play with personality-extracted franchise YAML remains the year-2 auction-v2 milestone.
 - **Web auction room v2 ✅** (browser-only, diverges from the CLI MILP by design): real-rules IPL auction Monte-Carlo — cross-collection pool (IPL + BBL/SMAT free agents), crore prices recalibrated to recent auctions with recency decay, editable Mega/Mini retentions (real 2025 lists), overseas cap + retention slabs + second-price clearing, two-phase fill to 20–25-man squads. See [`docs/AUCTION_MATH.md`](AUCTION_MATH.md).
-- **Web scout v2 ✅** (browser-only): 3-tier look-alike finder — pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL, ranked by within-tier skill-standing z-score. The Neo4j graph still powers CLI/Streamlit twins.
+- **Web scout v2 ✅** (browser-only): 3-tier look-alike finder — pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL, ranked by within-tier skill-standing z-score. Plus per-row est. crore price + saving-vs-pick (budget swap), an uncapped-gem flag (high standing on low exposure), role/batting-slot filters, and one-click draft into the Auction room. The Neo4j graph still powers CLI/Streamlit twins.
 
 ## Phase 4 (Venues) — ✅ shipped
 
