@@ -13,116 +13,96 @@ import streamlit as st
 st.set_page_config(page_title="CricDex", page_icon="🏏", layout="wide")
 st.title("🏏 CricDex")
 st.caption(
-    "Open cricket intelligence — novel metrics, rule Q&A, scout graph, "
-    "auction war-room. Two surfaces over one data dir."
+    "Open cricket intelligence — novel metrics, cross-competition scouting, and a "
+    "real-rules IPL auction. The desktop mirror of the web app, over one data dir."
 )
 
 st.markdown(
     """
 ### What CricDex is
 
-A terminal-first open cricket-analytics platform. Every number you see
-is derived from public sources — primarily **[Cricsheet](https://cricsheet.org/)
-ball-by-ball JSON archives**, the **[Cricsheet People Register](https://cricsheet.org/register/people.csv)**
-for cross-source identity, and **21 versioned rulebook PDFs** from MCC,
-ICC, IPL, The Hundred, BBL/WBBL, SA20, Cricket Australia domestic, and
-the ICC Codes of Conduct + Anti-Corruption.
+An open cricket-analytics platform built entirely from public
+**[Cricsheet](https://cricsheet.org/) ball-by-ball data** + the
+**[Cricsheet People Register](https://cricsheet.org/register/)** for
+cross-source identity. No scraping, no live feed, no LLM guessing — a
+Python pipeline computes everything offline.
 
-This Streamlit dashboard is one of two surfaces — every page can also
-be queried from the terminal via the `cricdex` CLI
-(`uvx --from cricdex cricdex --help`). Both read `$CRICDEX_HOME/data/`
-(default `~/.cricdex/data/`) so updates from `cricdex data ingest …`
-show up here without restart.
+These pages **mirror the React web app** ([live](https://aaryan-nakhat.github.io/cricdex/));
+the Scout + Auction run the *same* logic as the site via `cricdex.web_parity`
+(locked by a parity test). Every page is also a terminal command
+(`cricdex --help`); both read `$CRICDEX_HOME/data/` (default
+`~/.cricdex/data/`).
 
 ---
 
-### Pages — what each does, what data it uses
+### Pages
 
 | Page | What it answers | Source |
 |---|---|---|
-| **Leaderboards** | Top players by each novel metric — see definitions below | Cricsheet → metric JSONs |
-| **Rules Chat** | "what is the impact player rule?" with cited clauses | 21 rulebook PDFs + Gemini |
+| **Leaderboards** | Top players by each of the 10 novel metrics | Cricsheet → metric JSONs |
+| **Player Profile** | Everything CricDex knows about one player | all of the below |
+| **Compare** | 2–5 players side-by-side, radar + table | career totals + metrics + Bayes |
+| **Head-to-head** | P(A is better than B) from the Bayesian posteriors | scout ratings |
+| **Scout** | Cross-competition look-alikes (IPL / SMAT / BBL / SA20 / CPL / Blast) + est. price, savings, gem flag, draft | exported scout index via `cricdex.web_parity` |
+| **Auction** | Real-rules IPL auction Monte-Carlo (retain → bid), web-identical | exported pool via `cricdex.web_parity` |
 | **Records** | Highest score, fastest fifty, most sixes, on-this-day | Cricsheet ball-by-ball |
-| **Compare** | 2-5 players side-by-side, radar + tooltipped table | Cricsheet career totals + novel metrics + Bayes scout-rating |
-| **Venues** | Per-venue innings totals, chase vs set, phase-by-phase RR | Cricsheet ball-by-ball |
-| **Auction** | Real-rules IPL auction Monte-Carlo (retain → bid), web-identical | Cross-collection pool via `cricdex.web_parity` |
-| **Scout** | 3-tier look-alikes (IPL / SMAT / BBL / SA20 / CPL / Blast) + price/gem/draft | Exported scout index via `cricdex.web_parity` |
-| **Player Profile** | Everything CricDex knows about one player | All of the above |
-| **Update Data** | In-app buttons to re-run the ingest / compute pipeline | local pipeline |
+| **Venues** | Per-venue totals, chase vs set, phase run-rates | Cricsheet ball-by-ball |
 
 ---
 
-### The metrics, in plain English
+### The 10 metrics, in plain English
 
-The Leaderboards page splits these across separate tabs; the Player
-Profile page surfaces them per-player with the same definitions.
+The Leaderboards page splits these across tabs; the Player Profile page
+surfaces them per-player with the same definitions.
 
-- **NGI (Net Game Impact)** — WPA-style flagship. For every ball we
-  estimate the win-probability swing and credit it to the batter (+)
-  and bowler (−). Career NGI = mean per-match contribution. One
-  currency for offense + defense + clutch — a 30* in a tight chase
-  outranks a 100 against a beaten side. The win-probability model
-  is calibrated — when it says "70% win chance", the batting team
-  actually wins ~70% of the time.
-- **Pressure Runs** — strike rate on balls where the required run rate
-  is ≥ 1.5× the venue median (chase only). Higher = harder to slow
-  down when the team needs it.
-- **Dot-Ball Recovery** — runs scored in the six balls after a dot.
-  Higher = doesn't let one dot spiral into more dots.
-- **Counter-Attack** — strike-rate inflation right after a wicket
-  falls. Higher = aggressive after partnership-breaking dismissals.
-- **Boundary Dependency** — share of runs from 4s + 6s. Lower = strong
-  strike-rotator; higher = relies on boundaries.
-- **Intent Curve** — per-over batter strike-rate curve. Tab shows the
-  curve shape, not a single number.
-- **Pressure Conversion (bowler)** — wicket rate on pressure balls
-  (after a run of dots / tight overs). Higher = turns built-up
-  pressure into dismissals.
-- **Crease Longevity (batter)** — balls survived per dismissal vs the
-  cohort. Anchor archetypes score high.
-- **Slow-Start Cost (batter)** — career SR minus setting (1st-innings)
-  SR. Higher = bats slower when setting a total.
-- **Wicket Quality (bowler)** — mean Bayes batter-skill of dismissed
-  batters per bowler. Picks up Kohli + Rohit + Buttler scores higher
-  than tail-enders.
+- **NGI (Net Game Impact)** — WPA-style flagship. Per ball we estimate the
+  win-probability swing and credit batter (+) / bowler (−); career NGI =
+  mean per-match contribution. One currency for offense + defense + clutch.
+- **Pressure Runs** — strike rate when the required rate is climbing in a
+  chase. Higher = lifts when it's tight.
+- **Dot-Ball Recovery** — runs in the six balls after a dot. Higher =
+  doesn't let dots spiral.
+- **Counter-Attack** — strike rate right after a partner is dismissed.
+- **Boundary Dependency** — share of runs from 4s + 6s. Lower = rotates
+  strike; higher = relies on the rope.
+- **Intent Curve** — strike rate from ball one: ranks batters by **early SR**
+  (balls 1–10) with the full innings curve as an inline sparkline.
+- **Pressure Conversion (bowler)** — wicket rate on pressure balls (after a
+  run of dots). Higher = finishes the squeeze.
+- **Crease Longevity (batter)** — balls survived per dismissal vs the cohort.
+- **Slow-Start Cost (batter)** — career SR minus setting (1st-innings) SR.
+- **Wicket Quality (bowler)** — wickets weighted by the Bayes batting skill
+  of the batter dismissed.
 
 ### CLI commands you'll touch
 
 ```bash
-# inventory
-cricdex data status
+cricdex data status                              # inventory
 
-# ingest data — all skippable with --force to regenerate
-cricdex data ingest cricsheet -c ipl            # ~600 MB ball-by-ball
-cricdex data ingest rules                       # 21 PDFs + 11 k clauses
-cricdex data ingest ratings -c ipl              # Bayes scout fit
-cricdex data ingest metrics -c ipl              # every leaderboard JSON
-cricdex data ingest graph -c ipl                # populate Neo4j
+# refresh data (add --force to regenerate)
+cricdex data ingest cricsheet -c ipl             # ball-by-ball -> DuckDB
+cricdex data ingest ratings   -c ipl             # Bayesian scout fit
+cricdex data ingest metrics   -c ipl             # every leaderboard JSON
 
 # the queries
 cricdex leaderboard ngi -c ipl --top 25
-cricdex profile "V Kohli"                       # fuzzy — "Kohli" also works
+cricdex profile "V Kohli"                        # fuzzy — "Kohli" works too
 cricdex compare "V Kohli" "RG Sharma"
-cricdex rules ask "impact player rule" --formats ipl
-cricdex scout twins "MS Dhoni" --mode teammates
-cricdex scout find-replacement "JJ Bumrah" --role bowler
-cricdex auction recommend "JJ Bumrah" --budget 8 --role bowler
-cricdex auction solve --pool real --purse 120
+cricdex scout look-alikes "JJ Bumrah"            # 6-pool look-alikes
+cricdex auction room --mode mega                 # real-rules auction sim
 
-# the TUI
-cricdex tui                                     # full Textual UI
+cricdex tui                                       # full Textual UI
 ```
 
 ### Available collections
 
 `-c <collection>` accepts: `ipl`, `bbl`, `t20s_male`,
-`indian_domestic_male` (SMAT-only — Ranji and Hazare TBD), and
-`recently_played_30_male` (rolling 30-day window). NGI / Bayes are
-fit per-collection so cross-collection comparisons stay honest.
+`indian_domestic_male` (SMAT), `recently_played_30_male`, `sa20`, `cpl`,
+`blast`. Ratings / metrics are fit per-collection so cross-collection
+comparisons stay honest.
 
 Full reference: [`docs/CLI.md`](docs/CLI.md). Onboarding:
 [`docs/FIRST_RUN.md`](docs/FIRST_RUN.md). Architecture:
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Pending work:
-[`docs/TODO.md`](docs/TODO.md).
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 """
 )
