@@ -723,11 +723,9 @@ class CricDexApp(App):
         with Vertical():
             with Horizontal(classes="controls"):
                 yield Label("Sims:")
-                yield Input(value="100", id="sim-n", classes="num")
+                yield Input(value="300", id="sim-n", classes="num")
                 yield Label("Purse:")
-                yield Input(value="90", id="sim-purse", classes="num")
-                yield Label("Top N:")
-                yield Input(value="20", id="sim-topn", classes="num")
+                yield Input(value="120", id="sim-purse", classes="num")
                 yield Button("Simulate ▸", id="sim-run", variant="primary")
             with Horizontal(classes="controls"):
                 yield Label("Edit:")
@@ -772,28 +770,68 @@ class CricDexApp(App):
         self.query_one("#sim-pers", Select).value = self._team_personalities[team]
 
     def _on_run_auction_sim(self) -> None:
+        # Canonical, web-identical auction (cricdex.web_parity): same exported
+        # pool + real 2025 retentions + seeded Monte-Carlo as the live site.
         table = self.query_one("#sim-table", DataTable)
         try:
-            n_sims = int(self.query_one("#sim-n", Input).value or "100")
-            purse = float(self.query_one("#sim-purse", Input).value or "90")
-            top_n = int(self.query_one("#sim-topn", Input).value or "20")
+            n_sims = int(self.query_one("#sim-n", Input).value or "300")
+            purse = float(self.query_one("#sim-purse", Input).value or "120")
         except ValueError:
-            _fill_datatable(table, [{"error": "all 3 numeric inputs must parse"}])
+            _fill_datatable(table, [{"error": "Sims and Purse must be numeric"}])
             return
         try:
-            from cricdex.auction import real_pool, simulator
+            from cricdex.web_parity import (
+                IPL_TEAMS_DEFAULT,
+                build_pool,
+                default_retentions,
+                load_auction_pool,
+                load_retentions,
+                simulate_auction,
+            )
 
-            pool = real_pool.build_pool()
-            teams_list = [
-                (t, self._team_personalities.get(t, default))
-                for t, default in real_pool.IPL_TEAMS_DEFAULT
+            pool = build_pool(load_auction_pool("ipl"))
+            ret = load_retentions("ipl")
+            mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
+            real_prices = {
+                r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows
+            }
+            teams = [
+                {
+                    "team": t["team"],
+                    "personality": self._team_personalities.get(t["team"], t["personality"]),
+                }
+                for t in IPL_TEAMS_DEFAULT
             ]
-            franchises = real_pool.build_franchises(purse=purse, teams=teams_list)
-            result = simulator.simulate(pool, franchises=franchises, n_sims=n_sims)
+            retentions = default_retentions(pool, teams, "mega", mega_ids)
+            res = simulate_auction(
+                pool,
+                teams,
+                {
+                    "purse": purse,
+                    "squad_size": 25,
+                    "overseas_cap": 8,
+                    "trials": n_sims,
+                    "mode": "mega",
+                    "retentions": retentions,
+                    "real_prices": real_prices,
+                },
+            )
         except Exception as e:  # noqa: BLE001
             _fill_datatable(table, [{"error": str(e)}])
             return
-        _fill_datatable(table, result["per_player"].head(top_n).to_dicts(), max_cols=8)
+        rows = [
+            {
+                "team": t["team"],
+                "personality": t["personality"],
+                "retained": t["retained"],
+                "bought": round(t["avg_bought"]),
+                "spend_cr": round(t["avg_spend"], 1),
+                "squad_value": round(t["avg_value"], 1),
+                "overseas": round(t["avg_overseas"]),
+            }
+            for t in sorted(res["teams"], key=lambda t: t["avg_value"], reverse=True)
+        ]
+        _fill_datatable(table, rows, max_cols=8)
 
     # ===== Player Twins ===================================================
 

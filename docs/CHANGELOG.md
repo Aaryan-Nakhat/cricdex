@@ -8,10 +8,28 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
-Web-surface overhaul of the Scout and Auction rooms. These now **diverge
-by design** from the desktop CLI/Streamlit (which keep the Neo4j-graph
-twins and the exact MILP squad optimiser) — the browser versions are
-rebuilt as more realistic, self-contained tools.
+Rebuilt the Scout and Auction rooms, then unified **every surface** (web,
+CLI, Textual TUI, Streamlit) onto a **single source of truth** — same
+exported JSON inputs, same algorithm, locked by a parity test. The older
+Neo4j-graph twins and MILP squad optimiser are kept as advanced/research
+views, no longer the default path.
+
+### Added
+
+- **`cricdex.web_parity`** — a Python port of the web Auction + Scout logic
+  (`site/src/lib/auction.ts`, `site/src/pages/Scout.tsx`): same pricing
+  constants, same look-alike formula, same franchise personalities, and a
+  **bit-exact LCG RNG** so the Monte-Carlo reproduces the browser
+  trial-for-trial. It reads the **same** exported JSON the web fetches
+  (`site/public/data/<collection>/{auction_pool,retentions,scout_index}.json`),
+  so the inputs are identical too.
+- **Parity test** (`test_scripts/test_web_parity.py`) — runs the canonical TS
+  under Node (`--experimental-strip-types`) and asserts the Python port is
+  identical (retentions, auction teams/marquee/sample-draft, scout
+  look-alikes + prices) within 1e-9. Fails CI if the surfaces ever drift.
+- Canonical desktop entry points: `cricdex scout look-alikes`,
+  `cricdex auction room`; Streamlit **Scout** + **Auction room** pages; the
+  TUI **Sim** tab — all web-identical.
 
 ### Changed
 

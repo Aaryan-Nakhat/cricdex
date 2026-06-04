@@ -64,7 +64,8 @@ const SECTIONS: Section[] = [
         <em>estimated crore price</em> (the Auction room's skill→price curve, discounted per tier) and
         the <em>saving</em> vs your pick — the budget-swap case — plus a <em>gem</em> flag for uncapped
         prospects punching above their sample. One click <em>drafts</em> a prospect into the Auction
-        room. (A Neo4j faced/teammate graph still powers the desktop CLI &amp; Streamlit twins.)
+        room. The exact same scout runs on the CLI and Streamlit too (one shared implementation,
+        locked by a parity test); a Neo4j faced/teammate graph powers an advanced relational view.
       </>
     ),
   },
@@ -80,7 +81,9 @@ const SECTIONS: Section[] = [
         most of the squad — both editable), then the ten teams bid for the rest by their own
         personality (marquee-chaser, value-hunter, overseas-heavy…), hundreds of times, filling 20–25-man
         squads under the purse + overseas cap. You see who likely lands each remaining star. Runs
-        entirely in your browser. (The desktop CLI keeps an exact MILP optimiser.)
+        entirely in your browser — and identically on the CLI, TUI and Streamlit from the same inputs
+        (one shared implementation with a seeded RNG, locked by a parity test). The MILP single-squad
+        optimiser is kept as an advanced desktop tool.
       </>
     ),
   },
