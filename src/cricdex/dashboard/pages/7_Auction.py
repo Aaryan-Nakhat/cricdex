@@ -6,9 +6,6 @@ Identical to the web Auction room (and locked to it by
 (`cricdex.web_parity`), same seeded RNG — so a run here reproduces the
 browser trial-for-trial. Pick Mega/Mini, edit retentions per team, run; see
 who lands each star and how each squad shapes up.
-
-The older MILP squad optimiser remains in the CLI (`cricdex auction solve`)
-for the single-squad knapsack; this page is the canonical, web-identical sim.
 """
 
 from __future__ import annotations

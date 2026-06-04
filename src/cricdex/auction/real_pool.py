@@ -1,4 +1,10 @@
-"""Build a real IPL auction pool for GRPO training.
+"""Real IPL franchise configs + a Bayes-priced player pool builder.
+
+The canonical, web-identical auction Monte-Carlo lives in
+`cricdex.web_parity`; this module's live use is the franchise/personality
+defaults (`IPL_TEAMS_DEFAULT`, `PERSONALITY_IDS`, `load_team_overrides`) the
+TUI Sim tab reads. The pool/franchise builders below are retained for offline
+experiments.
 
 Inputs (all already on disk in this repo):
 
@@ -12,8 +18,7 @@ Inputs (all already on disk in this repo):
 - `data/cricsheet/cricsheet.duckdb.people` — the People Register, for
   human-readable names.
 
-Outputs a polars DataFrame with the schema the auction env / MILP
-solver consume:
+Outputs a polars DataFrame:
 
     name             unique_name from People Register
     cricsheet_id     identifier (or 'unresolved:<name>')
@@ -225,8 +230,8 @@ def build_pool(
         name_of = _name_map(con)
 
     # Normalise cricsheet's free-form team strings to short codes so the
-    # downstream MILP `is_overseas` flag is consistent regardless of
-    # whether a player resolved via the t20s_male nationality scan.
+    # `is_overseas` flag is consistent regardless of whether a player
+    # resolved via the t20s_male nationality scan.
     country_codes = {
         "India": "IN",
         "Australia": "AU",
