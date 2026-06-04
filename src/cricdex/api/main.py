@@ -18,11 +18,9 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
 from cricdex import __version__
-from cricdex.auction import solver as auction_solver
 from cricdex.comparator import compare as comparator
 from cricdex.profiles import builder as profiles
 from cricdex.records import queries as records
-from cricdex.rules import qa as rules_qa
 from cricdex.scout.search import style_twin as st
 from cricdex.venues import profile as venues
 
@@ -122,68 +120,6 @@ def compare_players(req: CompareReq) -> list[dict]:
     return comparator.compare(req.players, collection=req.collection).to_dicts()
 
 
-# ---- rules ----------------------------------------------------------------
-
-
-class RulesAskReq(BaseModel):
-    query: str
-    formats: list[str] | None = None
-    top_k: int = 8
-
-
-@app.post("/v1/rules/ask")
-def rules_ask(req: RulesAskReq) -> dict[str, Any]:
-    res = rules_qa.answer(req.query, formats=req.formats, top_k=req.top_k)
-    return {
-        "answer": res["answer"],
-        "citations": [{"source_id": s, "law_number": l_} for s, l_ in res["citations"]],
-        "llm_used": res.get("llm_used"),
-    }
-
-
-# ---- auction --------------------------------------------------------------
-
-
-class AuctionPoolRow(BaseModel):
-    name: str
-    role: str
-    country: str | None = None
-    is_overseas: bool = False
-    price: float
-    projected_value: float
-
-
-class AuctionSolveReq(BaseModel):
-    pool: list[AuctionPoolRow]
-    purse: float = 120.0
-    squad_size: int = 25
-    overseas_cap: int = 8
-    role_mins: dict[str, int] | None = None
-
-
-@app.post("/v1/auction/solve")
-def auction_solve(req: AuctionSolveReq) -> dict[str, Any]:
-    import polars as pl
-
-    if not req.pool:
-        raise HTTPException(status_code=422, detail="empty pool")
-    pool_df = pl.DataFrame([row.model_dump() for row in req.pool])
-    result = auction_solver.solve(
-        pool_df,
-        purse=req.purse,
-        squad_size=req.squad_size,
-        overseas_cap=req.overseas_cap,
-        role_mins=req.role_mins,
-    )
-    return {
-        "feasible": result["feasible"],
-        "total_price": result.get("total_price"),
-        "total_value": result.get("total_value"),
-        "selected": result["selected"].to_dicts() if not result["selected"].is_empty() else [],
-        "reason": result.get("reason"),
-    }
-
-
 # ---- metrics ---------------------------------------------------------------
 
 
@@ -218,94 +154,3 @@ def metrics_ngi(
     if "ngi_per_match" in df.columns:
         df = df.sort("ngi_per_match", descending=True)
     return {"collection": collection, "rows": df.head(top_n).to_dicts()}
-
-
-# ---- auction advisor -------------------------------------------------------
-
-
-class AuctionRecommendReq(BaseModel):
-    target: str
-    budget: float
-    role: str | None = None
-    n: int = 5
-    min_last_match_date: str | None = "2023-01-01"
-    max_balls_bowled: int | None = None
-    max_balls_faced: int | None = None
-    collection: str = "ipl"
-
-
-@app.post("/v1/auction/recommend")
-def auction_recommend(req: AuctionRecommendReq) -> dict[str, Any]:
-    """Find affordable graph-similar substitutes for an unavailable
-    target player. Composite of FACED-cohort similarity + Bayes-driven
-    projected value, filtered to budget + role."""
-    try:
-        from cricdex.auction import advisor
-    except ImportError as e:
-        raise HTTPException(503, f"auction.advisor unavailable: {e}") from e
-    rec = advisor.recommend_substitutes(
-        req.target,
-        budget=req.budget,
-        role=req.role,
-        n=req.n,
-        min_last_match_date=req.min_last_match_date,
-        max_balls_bowled=req.max_balls_bowled,
-        max_balls_faced=req.max_balls_faced,
-        collection=req.collection,
-    )
-    if rec.is_empty():
-        return {"target": req.target, "budget": req.budget, "rows": []}
-    return {"target": req.target, "budget": req.budget, "rows": rec.to_dicts()}
-
-
-# ---- scout graph twins -----------------------------------------------------
-
-
-@app.get("/v1/scout/twins/{name}")
-def scout_twins(
-    name: str,
-    mode: str = Query("co_faced", pattern="^(co_faced|teammates)$"),
-    top_k: int = Query(10, ge=1, le=50),
-    collection: str = Query("ipl"),
-) -> dict[str, Any]:
-    """Graph-traversal similarity. `mode=co_faced` returns players
-    sharing FACED bowlers (batter affinity); `mode=teammates` returns
-    teammate-overlap cohort."""
-    try:
-        from cricdex.scout.graph import similar
-    except ImportError as e:
-        raise HTTPException(503, f"scout.graph unavailable (neo4j extra?): {e}") from e
-    if mode == "co_faced":
-        rows = similar.co_faced_bowlers(name, top_k=top_k, collection=collection)
-    else:
-        rows = similar.teammate_overlap(name, top_k=top_k, collection=collection)
-    return {"target": name, "mode": mode, "rows": rows}
-
-
-@app.get("/v1/scout/find-replacement/{name}")
-def scout_find_replacement(
-    name: str,
-    top_k: int = Query(10, ge=1, le=50),
-    role: str | None = Query(None, pattern="^(bowler|batter|all_rounder)$"),
-    max_balls_bowled: int | None = Query(None, ge=0),
-    max_balls_faced: int | None = Query(None, ge=0),
-    min_last_match_date: str | None = Query(None),
-    collection: str = Query("ipl"),
-) -> dict[str, Any]:
-    """Find replacement / "next X" — auto-flips the FACED traversal
-    direction based on the target's role, applies recency + role +
-    balls filters."""
-    try:
-        from cricdex.scout.graph import similar
-    except ImportError as e:
-        raise HTTPException(503, f"scout.graph unavailable (neo4j extra?): {e}") from e
-    rows = similar.find_replacement(
-        name,
-        top_k=top_k,
-        role=role,
-        max_balls_bowled=max_balls_bowled,
-        max_balls_faced=max_balls_faced,
-        min_last_match_date=min_last_match_date,
-        collection=collection,
-    )
-    return {"target": name, "role": role, "rows": rows}

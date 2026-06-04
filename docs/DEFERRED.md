@@ -17,7 +17,7 @@ the prioritised backlog with rationale is [`VNEXT.md`](VNEXT.md).
 ## §grassroots — domestic + grassroots tiers (year 2)
 
 - **§2.2 CricHeroes grassroots scraper** — pull club/age-group scorecards
-  to extend the player graph below first-class. Fix: build
+  to extend the scout pool below first-class. Fix: build
   `cricdex.scout.ingest.cricheroes`; verify `cricdex data ingest cricheroes`.
 - **§2.3 Photo-CLIP identity disambiguation** (needs §2.2) — resolve
   namesakes across tiers via profile-photo embeddings.
@@ -27,10 +27,10 @@ the prioritised backlog with rationale is [`VNEXT.md`](VNEXT.md).
 
 ## §auction — auction-v2 (GPU)
 
-- **§2.6 Multi-agent GRPO self-play** — every auction slot its own policy
+- **§2.6 Multi-agent RL self-play** — every auction slot its own policy
   (PettingZoo), and bid-history-mined personality YAMLs replacing the
-  hand-authored archetypes. Needs GPU. The shipped sim uses fixed
-  archetypes (see `src/cricdex/auction/`).
+  hand-authored archetypes. Needs GPU. The shipped Monte-Carlo room uses
+  fixed archetypes (see `src/cricdex/auction/`).
 
 ## §cv — year-2 advanced (computer vision + voice)
 
@@ -52,4 +52,4 @@ the prioritised backlog with rationale is [`VNEXT.md`](VNEXT.md).
 - Cricsheet ETL refresh when new matches land in a collection.
 - Metrics + records JSON refresh after a Cricsheet update
   (`cricdex data ingest metrics --force -c <collection>`).
-- Bayes / GRPO refits when the underlying data shifts materially.
+- Bayes refits when the underlying data shifts materially.

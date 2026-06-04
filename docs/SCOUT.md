@@ -1,7 +1,7 @@
 # Scout module
 
-Player graph + opposition-bridged ratings + scout search. The eventual
-product is a tool an IPL analyst (or a fan!) can use to ask:
+Opposition-bridged ratings + cross-competition look-alike search. The
+eventual product is a tool an IPL analyst (or a fan!) can use to ask:
 
 - "Which uncapped Mumbai leg-spinners aged 18-22 dismissed at least
   three semi-pro batters last season?"
@@ -9,9 +9,9 @@ product is a tool an IPL analyst (or a fan!) can use to ask:
 - "Show me Bumrah's hardest five batters this IPL by adjusted average."
 
 Today's reality is narrower — we have the pro tier (Cricsheet + people
-register) and the graph + ratings infrastructure that the answers will
-ride on. Other tiers (BCCI domestic, CricHeroes grassroots) land in
-Phase 2 follow-ups.
+register) and the ratings infrastructure that the answers ride on. Scout
+is file-driven (DuckDB + exported JSON); there is no graph database. Other
+tiers (BCCI domestic, CricHeroes grassroots) land in Phase 2 follow-ups.
 
 ## Tiers
 
@@ -19,7 +19,6 @@ Phase 2 follow-ups.
 |---|---|---|
 | Pro (intl + IPL + major T20) | Cricsheet ball-by-ball | ✅ ingested |
 | Identity bridge | Cricsheet People Register (17,981 players, 99.8% Cricinfo coverage) | ✅ — see [IDENTITY.md](IDENTITY.md) |
-| Player graph | Neo4j — Player / Match / Venue + FACED edges, **scoped per collection** (each Player node carries a `collection` tag, so ipl / bbl / t20s_male / indian_domestic_male / recently_played_30_male are independent subgraphs in one DB). Twins / find-replacement / advisor all take a `collection` arg. | ✅ all 5 collections |
 | Bayesian opponent-adjusted ratings | NumPyro / JAX (ADVI default, NUTS available) | ✅ — first cut |
 | Player profile (DOB, photo, socials) | Wikidata one-time enrichment | ✅ — 289/300 active players |
 | Role / bowling type (seam-spin) / batting slot / country | Gemini taxonomy | ✅ — 2040 players |
@@ -27,7 +26,6 @@ Phase 2 follow-ups.
 | Grassroots (CricHeroes) | CricHeroes scrape / partner API | year-2 ([`DEFERRED.md`](DEFERRED.md) §grassroots) |
 | Style-twin (k-NN over rating vector) | feature-space nearest neighbours | ✅ — on every profile |
 | Scout look-alikes (all surfaces) | **One implementation** (`cricdex.web_parity` ⇄ `site/src/pages/Scout.tsx`, locked by `test_web_parity.py`) shipped identically on the React site, Streamlit, CLI (`cricdex scout look-alikes`) and the TUI **Scout** tab: pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL / SA20 / CPL / T20 Blast (within-tier skill-standing z-score), with per-row est. crore price + saving-vs-pick (budget swap), an uncapped-**gem** flag, role/batting-slot filters, and one-click **draft** into the Auction room | ✅ |
-| Neo4j-graph twins / find-replacement | **advanced** relational view — CLI `cricdex scout twins` / `find-replacement` (needs the `graph` extra + a populated Neo4j) | ✅ |
 
 ## End-to-end pipeline today
 
@@ -36,17 +34,12 @@ Phase 2 follow-ups.
 make docker-ingest-cricsheet COLLECTION=ipl
 make docker-ingest-people
 
-# Spin up Neo4j, populate the graph
-make docker-scout-up
-make docker-scout-bootstrap
-make docker-scout-populate COLLECTION=ipl
-
 # Bayesian ratings
 make docker-scout-rate COLLECTION=ipl STEPS=12000
 
-# Browse
-# - Neo4j Browser: http://localhost:7474
-# - Streamlit dashboard (Phase 1 metrics): http://localhost:8511
+# Look-alikes (web-identical) + browse
+cricdex scout look-alikes "V Kohli" -c ipl
+# - Streamlit dashboard: http://localhost:8511
 ```
 
 ## Why Bayesian instead of plain SQL averages
@@ -78,12 +71,10 @@ Opposition-Adjusted Rating (OAR) that powers the grassroots scout.
 
 - BCCI Domestic / CricHeroes scrapers + their identity bridges.
 - Photo-CLIP embedding for hard identity disambiguation.
-- `TWIN_OF` edges in the graph using k-NN over rating + metric vectors.
 - `/scout` web UI with 25+ filter dimensions.
 - Press-tour outreach to KKR / GT / RR analytics teams.
 
 ## Where to read next
 
-- [graph/README.md](../src/cricdex/scout/graph/README.md) — Neo4j schema and Cypher cookbook.
 - [ratings/README.md](../src/cricdex/scout/ratings/README.md) — model spec.
 - [IDENTITY.md](IDENTITY.md) — cross-ID bridge.

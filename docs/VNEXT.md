@@ -37,9 +37,8 @@ remaining 11 are obscure players genuinely absent from Wikidata).
 
 | Slice | DEFERRED ref | Verify with |
 |---|---|---|
-| Multi-agent PettingZoo self-play (every slot a policy) | §2.6 | `cricdex auction train-grpo --multi-agent` |
-| Bid-history-mined personality YAMLs (replace hand-authored archetypes) | §2.6 | `cricdex auction train-grpo --personalities yaml` |
-| GRPO reward-shape A/B | §2.6 open follow-on | Tracked in `auction.grpo.HISTORY` |
+| Multi-agent PettingZoo self-play (every slot a policy) | §2.6 | new RL trainer over the auction env |
+| Bid-history-mined personality YAMLs (replace hand-authored archetypes) | §2.6 | franchise archetypes extracted via Gemini |
 
 ## D — year-2 advanced (CV + voice)
 
@@ -59,18 +58,14 @@ remaining 11 are obscure players genuinely absent from Wikidata).
 | GraphQL layer over REST | §4.1 | Strawberry on top of existing FastAPI functions. Speculative consumer demand. |
 | Auth + rate-limit | §4.2 | Cloudflare Worker in front of the API + API keys table. Required before any public deploy. |
 | Live → dashboard websocket | §2.8 (blocked by §A) | Push insights to a new dashboard page when the live feed unblocks. |
-| HF Datasets publish (`cricdex-rules-clauses`) | n/a | Open-benchmark distribution of the 11k parsed clauses. |
 | Public deploy | n/a | HuggingFace Spaces (16 GB free, Docker, ephemeral disk) or Oracle Cloud Always Free (24 GB / 4 vCPU ARM, persistent). Both options scoped in earlier sessions. |
 
 ## F — maintenance cadence
 
 Rolling work the v1 release surfaces but doesn't automate:
 
-- Rule corpus refresh — `cricdex data ingest rules --force` whenever
-  a PC document drops a new edition.
 - People Register refresh — Cricsheet's `people.csv` updates monthly.
 - Cricsheet ETL refresh — pull when new matches add to a collection.
 - Metrics + records JSON refresh — `cricdex data ingest metrics
   --force -c <collection>` after a Cricsheet update.
-- WP / Bayes / GRPO refits when the underlying data shifts
-  materially.
+- WP / Bayes refits when the underlying data shifts materially.

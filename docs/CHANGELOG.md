@@ -9,10 +9,13 @@ versioning starts at v0.1.0.
 ## [Unreleased]
 
 Rebuilt the Scout and Auction rooms, then unified **every surface** (web,
-CLI, Textual TUI, Streamlit) onto a **single source of truth** — same
-exported JSON inputs, same algorithm, locked by a parity test. The older
-Neo4j-graph twins and MILP squad optimiser are kept as advanced/research
-views, no longer the default path.
+CLI, Textual TUI, Streamlit) onto a **single source of truth** — the React
+web app is canonical and the desktop surfaces mirror its analytical pages,
+running the same algorithm over the same exported JSON inputs, locked by a
+parity test. As part of that consolidation, three legacy subsystems were
+**deleted entirely** (no longer advanced/research views, no longer present
+at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
+**MILP auction solver + war-room advisor + GRPO RL**.
 
 ### Added
 
@@ -97,6 +100,32 @@ views, no longer the default path.
   set-phase strike rate) dominate. Now pivoted to one row per batter, ranked
   by **early SR** (balls-weighted SR over balls 1–10 — who attacks from ball
   one), with the full 6-bucket curve drawn as an inline sparkline.
+
+### Removed
+
+- **Rules Q&A** — the entire natural-language rulebook Q&A feature is gone:
+  `src/cricdex/rules/`, the `cricdex rules` CLI command, the `/v1/rules/ask`
+  API endpoint, the Streamlit **Rules Chat** page, the `data ingest rules`
+  slice, the rulebook PDFs + parsed/curated clauses, Qdrant (vector store),
+  and the Jina cross-encoder rerank. `jina_api_key` / `qdrant_url` config
+  slots removed.
+- **Neo4j scout graph** — `src/cricdex/scout/graph/`, the
+  `cricdex scout twins` / `find-replacement` commands, the
+  `/v1/scout/twins` + `/v1/scout/find-replacement` API endpoints, the
+  graph-cohort sections on the Player Profile, the `data ingest graph`
+  slice, and the Neo4j docker service. (Cosine **style twins** stay on the
+  Player Profile — those never used the graph.) `neo4j_*` config slots
+  removed.
+- **MILP auction solver + war-room advisor + GRPO RL** —
+  `src/cricdex/auction/advisor.py`, the
+  `cricdex auction solve` / `recommend` / `simulate` / `train-grpo`
+  commands, the `/v1/auction/solve` + `/v1/auction/recommend` endpoints, and
+  the Streamlit **Auction Simulator** page + war-room section. The auction
+  is now solely the real-rules Monte-Carlo **room** (`cricdex auction room`).
+- **docker-compose** `qdrant` + `neo4j` services dropped; the local stack is
+  now file-driven (DuckDB + exported JSON).
+- **Streamlit Player Twins page** removed; relational graph twins no longer
+  exist (cosine style twins remain on the Player Profile).
 
 ---
 

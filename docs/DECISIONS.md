@@ -2,13 +2,20 @@
 
 Locked design choices and their reasoning. Append new entries with date.
 
-> **Note (scope reversal):** CricDex is now **Cricsheet-only**. Earlier
-> entries below that discuss non-Cricsheet sources (Reddit/Cricbuzz/
+> **Note (scope reversal):** CricDex is now **Cricsheet-only** and
+> **file-driven** (DuckDB + exported JSON; no vector DB, no graph DB).
+> Earlier entries below that discuss non-Cricsheet sources (Reddit/Cricbuzz/
 > ESPNcricinfo scrape, BCCI Ranji/Hazare) and LLM-convenience features
 > (`commentary_translate`, `live`, match reports, newsletter, DRS) record
 > decisions that were **later reversed** — those were removed from the
-> codebase. They're kept here as historical record. Current scope:
-> [`VNEXT.md`](VNEXT.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md).
+> codebase. The same applies to several subsystems described below as if
+> live: the **Rules Q&A** RAG (Qdrant / Jina rerank / rulebook PDFs), the
+> **Neo4j scout graph** (graph twins / find-replacement / co-faced +
+> teammate cohorts), and the **MILP auction solver + war-room advisor +
+> GRPO RL** — all deleted. Scout is now cross-competition look-alikes and
+> Auction is the real-rules Monte-Carlo room, both shared with the web via
+> `cricdex.web_parity`. These entries are kept here as historical record.
+> Current scope: [`VNEXT.md`](VNEXT.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## 2026-05-11 — Name: CricDex
 
@@ -64,10 +71,10 @@ Pakistan Super League playing conditions excluded from rule-RAG ingest. Re-evalu
 ## 2026-05-11 — Docker is the single deployment artefact
 
 Every contributor runs the stack the same way: `make docker-up`. The
-same image is the production artefact. Compose covers Qdrant + app
-today; Postgres / Redis / Neo4j are commented-out placeholders that
-come online with scout / cache / graph modules respectively. The image
-pre-bakes the embedding model so first-run is instant.
+same image is the production artefact. Compose covers the `cricdex` app
+(API) + `dashboard` today; Postgres / Redis are commented-out
+placeholders that come online with the cache module. No vector or graph
+DB is involved — the stack is file-driven (DuckDB + exported JSON).
 
 Rationale: the project's positioning is "open cricket intelligence —
 anyone can run it locally and verify the data themselves." A friction-

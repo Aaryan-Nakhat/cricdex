@@ -33,7 +33,6 @@ from cricdex.cli import (
     init_cmd,
     metrics_cmd,
     profile_cmd,
-    rules_cmd,
     scout_cmd,
 )
 
@@ -81,9 +80,8 @@ def root(
 # Subcommands mounted as sub-apps.
 app.add_typer(config_cmd.app, name="config", help="Manage credentials + settings.")
 app.add_typer(data_cmd.app, name="data", help="Inventory + ingest local data.")
-app.add_typer(scout_cmd.app, name="scout", help="Scout graph queries.")
-app.add_typer(auction_cmd.app, name="auction", help="Auction tooling.")
-app.add_typer(rules_cmd.app, name="rules", help="Rules Q&A.")
+app.add_typer(scout_cmd.app, name="scout", help="Scout look-alikes (IPL/SMAT/BBL/SA20/CPL/Blast).")
+app.add_typer(auction_cmd.app, name="auction", help="Real-rules IPL auction simulation.")
 
 # Top-level conveniences — one-shot commands without a sub-namespace.
 app.command(name="init", help="First-run wizard: creds + opt-in data setup.")(init_cmd.run)

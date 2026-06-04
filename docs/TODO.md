@@ -23,9 +23,8 @@ Pending work, in landing order. The fuller backlog with rationale is
 
 | Slice | Ref | Verify with |
 |---|---|---|
-| Multi-agent PettingZoo self-play | VNEXT §C | `cricdex auction train-grpo --multi-agent` |
-| Bid-history-mined personality YAML | VNEXT §C | `cricdex auction train-grpo --personalities yaml` |
-| Squad-quality terminal-bonus refinements | VNEXT §C | reward-shape A/B in the same trainer |
+| Multi-agent PettingZoo self-play | VNEXT §C | new RL trainer over the auction env |
+| Bid-history-mined personality YAML | VNEXT §C | franchise archetypes extracted via Gemini |
 
 ## Phase 3 — year-2 advanced (CV + voice)
 
@@ -48,5 +47,5 @@ Pending work, in landing order. The fuller backlog with rationale is
 ## Phase 5 — maintenance
 
 Rolling cadence: People Register refresh, Cricsheet ETL refresh, metrics
-+ records JSON refresh, Bayes/GRPO refits when data shifts. See
++ records JSON refresh, Bayes refits when data shifts. See
 [`DEFERRED.md`](DEFERRED.md) §maintenance.
