@@ -1,10 +1,10 @@
 """Textual TUI — `cricdex tui` (also `cricdex` with no subcommand).
 
-10 tabs matching the Streamlit dashboard pages 1-to-1:
-Leaders / Rules / Records / Compare / Venues / Auction (Solve +
-Recommend) / Profile / Auction-Sim / Scout / Update.
-Same code paths as the one-shot CLI, so behaviour stays in lockstep —
-the Auction-Sim and Scout tabs run the web-identical `cricdex.web_parity`.
+9 tabs matching the Streamlit dashboard pages:
+Leaders / Rules / Records / Compare / Venues / Profile / Auction / Scout /
+Update. The Auction and Scout tabs run the web-identical `cricdex.web_parity`
+(same as the live site). The MILP squad solver + graph substitute advisor
+live on as advanced CLI commands (`cricdex auction solve / recommend`).
 
 Quit: q / Ctrl-C / Esc.
 """
@@ -215,7 +215,6 @@ class CricDexApp(App):
         "tab-records",
         "tab-compare",
         "tab-venues",
-        "tab-auction",
         "tab-profile",
         "tab-auction-sim",
         "tab-twins",
@@ -250,11 +249,9 @@ class CricDexApp(App):
                 yield from self._compare_panel()
             with TabPane("Venues", id="tab-venues"):
                 yield from self._venues_panel()
-            with TabPane("Auction", id="tab-auction"):
-                yield from self._auction_panel()
             with TabPane("Profile", id="tab-profile"):
                 yield from self._profile_panel()
-            with TabPane("Sim", id="tab-auction-sim"):
+            with TabPane("Auction", id="tab-auction-sim"):
                 yield from self._auction_sim_panel()
             with TabPane("Scout", id="tab-twins"):
                 yield from self._twins_panel()
@@ -540,76 +537,6 @@ class CricDexApp(App):
         _fill_datatable(table, df.to_dicts(), max_cols=10)
 
     # ===== Auction (Solve + Recommend in same tab — mirrors Streamlit) ====
-
-    def _auction_panel(self) -> ComposeResult:
-        with Vertical():
-            with Horizontal(classes="controls"):
-                yield Label("Target:")
-                yield Input(value="JJ Bumrah", id="auc-target")
-                yield Label("Budget:")
-                yield Input(value="8", id="auc-budget")
-                yield Label("Role:")
-                yield Input(value="bowler", id="auc-role")
-                yield Label("Top N:")
-                yield Input(value="10", id="auc-n")
-            with Horizontal(classes="controls"):
-                yield Button("Recommend substitutes", id="auc-rec-run", variant="primary")
-                yield Button("Solve MILP squad", id="auc-solve-run", variant="warning")
-            yield Static(
-                f"{_copy.AUCTION_RECOMMEND_INTRO}   ·   "
-                f"Solve MILP uses purse=120, squad=25, overseas-cap=8.",
-                classes="intro",
-            )
-            yield DataTable(id="auc-table", zebra_stripes=True)
-
-    def _on_run_auction_recommend(self) -> None:
-        table = self.query_one("#auc-table", DataTable)
-        try:
-            budget = float(self.query_one("#auc-budget", Input).value)
-        except ValueError:
-            _fill_datatable(table, [{"error": "budget must be a number"}])
-            return
-        try:
-            n = int(self.query_one("#auc-n", Input).value or "10")
-        except ValueError:
-            n = 10
-        try:
-            from cricdex.auction import advisor
-
-            rec = advisor.recommend_substitutes(
-                self.query_one("#auc-target", Input).value,
-                budget=budget,
-                role=self.query_one("#auc-role", Input).value.strip() or None,
-                n=n,
-            )
-        except Exception as e:  # noqa: BLE001
-            _fill_datatable(table, [{"error": str(e)}])
-            return
-        if rec.is_empty():
-            _fill_datatable(table, [{"info": "no affordable graph-similar candidates"}])
-            return
-        _fill_datatable(table, rec.to_dicts(), max_cols=8)
-
-    def _on_run_auction_solve(self) -> None:
-        table = self.query_one("#auc-table", DataTable)
-        try:
-            from cricdex.auction import real_pool, solver
-
-            df = real_pool.build_pool()
-            res = solver.solve(
-                df,
-                purse=120.0,
-                squad_size=25,
-                overseas_cap=8,
-                role_mins={"batter": 5, "bowler": 5, "all_rounder": 3, "keeper": 0},
-            )
-        except Exception as e:  # noqa: BLE001
-            _fill_datatable(table, [{"error": str(e)}])
-            return
-        if not res["feasible"]:
-            _fill_datatable(table, [{"error": f"infeasible: {res.get('reason')}"}])
-            return
-        _fill_datatable(table, res["selected"].to_dicts(), max_cols=8)
 
     # ===== Profile ========================================================
 
@@ -1049,8 +976,6 @@ class CricDexApp(App):
             "records-run": self._on_run_records,
             "cmp-run": self._on_run_compare,
             "ven-run": self._on_run_venues,
-            "auc-rec-run": self._on_run_auction_recommend,
-            "auc-solve-run": self._on_run_auction_solve,
             "profile-run": self._on_run_profile,
             "sim-run": self._on_run_auction_sim,
             "sim-find-run": self._on_find_sim_player,
