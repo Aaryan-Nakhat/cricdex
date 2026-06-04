@@ -729,6 +729,13 @@ class CricDexApp(App):
 
         with Vertical():
             with Horizontal(classes="controls"):
+                yield Label("Type:")
+                yield Select(
+                    options=[("Mega", "mega"), ("Mini", "mini")],
+                    value="mega",
+                    id="sim-mode",
+                    allow_blank=False,
+                )
                 yield Label("Sims:")
                 yield Input(value="300", id="sim-n", classes="num")
                 yield Label("Purse:")
@@ -752,6 +759,11 @@ class CricDexApp(App):
                 classes="intro",
             )
             yield DataTable(id="sim-table", zebra_stripes=True)
+            with Horizontal(classes="controls"):
+                yield Label("Find player:")
+                yield Input(placeholder="name… (after a run)", id="sim-find", classes="wide")
+                yield Button("Find ▸", id="sim-find-run", variant="success")
+            yield DataTable(id="sim-find-table", zebra_stripes=True)
 
     def _sim_team_map_line(self) -> str:
         from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
@@ -780,6 +792,7 @@ class CricDexApp(App):
         # Canonical, web-identical auction (cricdex.web_parity): same exported
         # pool + real 2025 retentions + seeded Monte-Carlo as the live site.
         table = self.query_one("#sim-table", DataTable)
+        mode = self.query_one("#sim-mode", Select).value or "mega"
         try:
             n_sims = int(self.query_one("#sim-n", Input).value or "300")
             purse = float(self.query_one("#sim-purse", Input).value or "120")
@@ -809,7 +822,7 @@ class CricDexApp(App):
                 }
                 for t in IPL_TEAMS_DEFAULT
             ]
-            retentions = default_retentions(pool, teams, "mega", mega_ids)
+            retentions = default_retentions(pool, teams, mode, mega_ids)
             res = simulate_auction(
                 pool,
                 teams,
@@ -818,7 +831,7 @@ class CricDexApp(App):
                     "squad_size": 25,
                     "overseas_cap": 8,
                     "trials": n_sims,
-                    "mode": "mega",
+                    "mode": mode,
                     "retentions": retentions,
                     "real_prices": real_prices,
                 },
@@ -826,6 +839,7 @@ class CricDexApp(App):
         except Exception as e:  # noqa: BLE001
             _fill_datatable(table, [{"error": str(e)}])
             return
+        self._sim_outcomes = res["outcomes"]  # cached for the player-search below
         rows = [
             {
                 "team": t["team"],
@@ -839,6 +853,41 @@ class CricDexApp(App):
             for t in sorted(res["teams"], key=lambda t: t["avg_value"], reverse=True)
         ]
         _fill_datatable(table, rows, max_cols=8)
+
+    def _on_find_sim_player(self) -> None:
+        # Search the last run's per-player outcomes: retained / sold / unsold.
+        out = self.query_one("#sim-find-table", DataTable)
+        outcomes = getattr(self, "_sim_outcomes", None)
+        if not outcomes:
+            _fill_datatable(out, [{"info": "run a simulation first"}])
+            return
+        needle = (self.query_one("#sim-find", Input).value or "").strip().lower()
+        if len(needle) < 2:
+            _fill_datatable(out, [{"info": "type 2+ letters"}])
+            return
+        hits = [o for o in outcomes if needle in o["name"].lower()]
+        if not hits:
+            _fill_datatable(out, [{"info": f"no player matches '{needle}'"}])
+            return
+        rows = []
+        for o in hits[:50]:
+            if o["status"] == "retained":
+                where = f"{o['team']} · retained"
+            elif o["status"] == "unsold":
+                where = "went unsold"
+            else:
+                where = ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in o["winners"])
+            rows.append(
+                {
+                    "player": o["name"],
+                    "role": o["role"].replace("_", "-"),
+                    "status": o["status"],
+                    "avg_cr": "—" if o["status"] == "unsold" else round(o["avgPrice"], 1),
+                    "sold%": round(o["soldPct"]) if o["status"] == "sold" else "—",
+                    "where": where,
+                }
+            )
+        _fill_datatable(out, rows, max_cols=6)
 
     # ===== Scout — 3-tier look-alikes (web-identical) =====================
 
@@ -1001,6 +1050,7 @@ class CricDexApp(App):
             "auc-solve-run": self._on_run_auction_solve,
             "profile-run": self._on_run_profile,
             "sim-run": self._on_run_auction_sim,
+            "sim-find-run": self._on_find_sim_player,
             "sim-apply": self._on_apply_sim_team,
             "sim-reset": self._on_reset_sim_teams,
             "twins-run": self._on_run_twins,
