@@ -1,319 +1,349 @@
-"""Streamlit page: per-player profile.
+"""Streamlit page: per-player dossier.
 
-Pulls everything CricDex knows about a player into one card. Inputs
-go through the fuzzy resolver so typos / partial names are caught
-with a 'did you mean?' confirmation.
+Reads the SAME pre-cooked JSON the React web app
+(`site/src/pages/PlayerProfile.tsx`) fetches — `players.json` for the picker
+and `profiles/<cricsheet_id>.json` for the full dossier — so the desktop
+dashboard matches the live site instead of recomputing from DuckDB.
+
+NOTE: the graph-cohort / war-room sections from the old page are intentionally
+dropped — they have been deleted from the React app too.
 """
 
 from __future__ import annotations
 
-import duckdb
+import datetime as dt
+import json
+
 import streamlit as st
 
-from cricdex.config import DATA_DIR
-from cricdex.dashboard._widgets import collection_picker, fuzzy_player_input, provenance_banner
-from cricdex.profiles import builder
-
-DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
+from cricdex.dashboard._widgets import provenance_banner
+from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Profile", page_icon="🪪", layout="wide")
 st.title("🪪 CricDex — player profile")
 st.caption(
-    "Everything CricDex knows about one player — cross-source IDs, "
-    "career totals, novel metrics, Bayesian scout-rating skills, and "
-    "top style twins. All derived live from "
-    "Cricsheet ball-by-ball + the People Register."
+    "A full dossier per player: identity, four Bayesian skill axes with their "
+    "uncertainty, career totals, the novel metrics, how they get out, and "
+    "their closest stylistic twins. Reads the exact same exported JSON the "
+    "website does."
 )
-provenance_banner(source="cricsheet", path=DUCKDB_PATH)
 
+POS_LABEL = {
+    "opener": "Opener",
+    "no3": "No. 3",
+    "middle": "Middle order",
+    "finisher": "Finisher",
+    "lower": "Lower order",
+    "tailender": "Tailender",
+}
 
-@st.cache_data
-def list_players(collection: str) -> list[str]:
-    safe = collection.replace("-", "_")
-    if not DUCKDB_PATH.exists():
-        return []
-    con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
-    try:
-        tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
-        if f"balls_{safe}" not in tables:
-            return []
-        rows = con.execute(
-            f"""
-            SELECT batter, COUNT(*) AS n
-            FROM balls_{safe}
-            WHERE batter IS NOT NULL
-            GROUP BY 1
-            ORDER BY n DESC
-            LIMIT 2000
-            """
-        ).fetchall()
-        return [r[0] for r in rows]
-    finally:
-        con.close()
-
-
-with st.sidebar:
-    collection = collection_picker(default="ipl", key="profile-collection")
-    pool = list_players(collection)
-    if not pool:
-        st.warning(
-            f"no balls_{collection} — run `cricdex data ingest cricsheet -c {collection}` first"
-        )
-        st.stop()
-    st.markdown("Type a player name — fuzzy-matched against the collection.")
-    name = fuzzy_player_input(
-        label="Player",
-        default="V Kohli",
-        collection=collection,
-        key="profile-player",
-    )
-    if not name:
-        st.info("Confirm a player above to load the profile.")
-        st.stop()
-
-profile = builder.build(name, collection)
-
-st.header(profile["name"])
-ids = profile.get("ids") or {}
-if ids:
-    chips: list[str] = []
-    for k, v in ids.items():
-        if v and k != "unique_name":
-            chips.append(f"`{k}={v}`")
-    st.caption(" · ".join(chips))
-
-
-def _load_wikidata_for(cricsheet_id: str) -> dict:
-    """Wikidata enrichment cache lookup. None-safe."""
-    import datetime as _dt
-    import json as _json
-
-    from cricdex.config import ROOT
-
-    path = ROOT / "data" / "curated" / "wikidata_enrichment.json"
-    if not path.exists():
-        return {}
-    try:
-        data = _json.loads(path.read_text())
-    except Exception:
-        return {}
-    record = data.get(cricsheet_id) or {}
-    # Age computation
-    dob = record.get("dob")
-    if dob:
-        try:
-            d = _dt.date.fromisoformat(dob[:10])
-            today = _dt.date.today()
-            age = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
-            record["age"] = age
-        except Exception:
-            pass
-    return record
-
-
-wd = _load_wikidata_for(profile.get("cricsheet_id") or "")
-if wd and wd.get("_status") == "ok":
-    img_col, info_col = st.columns([1, 3])
-    with img_col:
-        if wd.get("image_url"):
-            st.image(wd["image_url"], width=180)
-    with info_col:
-        m = st.columns(4)
-        m[0].metric("DOB", wd.get("dob") or "—")
-        m[1].metric("Age", wd.get("age") or "—")
-        m[2].metric("Country (Wikidata Q-id)", wd.get("country_qid") or "—")
-        m[3].metric("Birthplace (Q-id)", wd.get("birthplace_qid") or "—")
-        social = []
-        if wd.get("twitter"):
-            social.append(f"[𝕏 @{wd['twitter']}](https://twitter.com/{wd['twitter']})")
-        if wd.get("instagram"):
-            social.append(
-                f"[Instagram @{wd['instagram']}](https://instagram.com/{wd['instagram']})"
-            )
-        if wd.get("espn_id"):
-            social.append(
-                f"[ESPNcricinfo](https://www.espncricinfo.com/cricketers/{wd['espn_id']})"
-            )
-        if wd.get("cricbuzz_id"):
-            social.append(f"[Cricbuzz](https://www.cricbuzz.com/profiles/{wd['cricbuzz_id']})")
-        if wd.get("wikidata_qid"):
-            social.append(f"[Wikidata](https://www.wikidata.org/wiki/{wd['wikidata_qid']})")
-        if social:
-            st.markdown(" · ".join(social))
-        st.caption(
-            "Wikidata-sourced (image + DOB + cross-source IDs). Country / birthplace are "
-            "raw Q-ids in v1 — label resolution in vNext. Refresh with "
-            "`cricdex data ingest wikidata --force`."
-        )
-elif wd and wd.get("_status") == "not_found":
-    st.caption("Wikidata: no entity found for this player.")
-else:
-    st.caption(
-        "Wikidata enrichment not yet pulled for this player — run "
-        "`cricdex data ingest wikidata` to populate."
-    )
-
-# Gemini taxonomy + activity (role / bowling type / batting slot / country)
-_tax = profile.get("taxonomy") or {}
-_act = profile.get("activity") or {}
-if _tax or _act:
-    _pos = {
-        "opener": "Opener",
-        "no3": "No. 3",
-        "middle": "Middle order",
-        "finisher": "Finisher",
-        "lower": "Lower order",
-        "tailender": "Tailender",
-    }
-    chips: list[str] = []
-    if _act:
-        last = (_act.get("last_match_date") or "")[:4]
-        chips.append(
-            "🟢 Active"
-            if _act.get("active")
-            else (f"⚪ Retired (last {last})" if last else "⚪ Retired")
-        )
-    if _tax.get("primary_role"):
-        chips.append(f"**{str(_tax['primary_role']).replace('_', '-')}**")
-    if _tax.get("bowling_style") and _tax.get("bowling_category") != "none":
-        chips.append(str(_tax["bowling_style"]).replace("-", " "))
-    if _tax.get("batting_position"):
-        chips.append(_pos.get(_tax["batting_position"], _tax["batting_position"]))
-    if _tax.get("country"):
-        chips.append(str(_tax["country"]))
-    if chips:
-        st.markdown(" · ".join(chips))
-
-st.subheader("Career totals")
-career = profile.get("career") or {}
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Runs", career.get("career_runs", 0))
-c2.metric("Balls faced", career.get("career_balls_faced", 0))
-c3.metric("Sixes", career.get("career_sixes", 0))
-c4.metric("Wickets", career.get("career_wickets", 0))
-
-st.subheader("Novel metrics")
-metrics = profile.get("metrics") or {}
-METRIC_HINTS = {
-    "pressure_runs": (
-        "Strike rate on balls where the required run rate is ≥ 1.5× the venue "
-        "median (chase only). Higher = better under pressure."
-    ),
+# slug -> (title, value-key, subtitle) — mirror PlayerProfile.tsx MetricCard
+METRIC_CARDS = {
+    "pressure_runs": ("Pressure Runs", "pressure_sr_per_100_balls", "SR under chase pressure"),
     "dot_ball_recovery": (
-        "How efficiently this batter recovers after a slow patch. Higher = "
-        "doesn't let one dot ball spiral."
+        "Dot-Ball Recovery",
+        "runs_per_6_after_dot",
+        "runs / 6 balls after a dot",
     ),
-    "counter_attack": (
-        "Strike rate inflation right after a wicket falls. Higher = aggressive "
-        "after partnership-breaking dismissals."
-    ),
-    "boundary_dependency": (
-        "Share of runs from 4s + 6s. Higher = boundary-reliant; lower = strong strike-rotator."
-    ),
-    "pressure_conversion": (
-        "Wicket rate on the next ball after a 4+ consecutive dot streak in the "
-        "same over (bowler metric). Higher = turns pressure into dismissals."
-    ),
+    "counter_attack": ("Counter-Attack", "counter_attack_sr", "SR after a partner falls"),
+    "boundary_dependency": ("Boundary Dependency", "bdr_pct", "% of runs from boundaries"),
+    "pressure_conversion": ("Pressure Conversion", "wicket_rate_pct", "pressure balls → wickets"),
 }
 
 
-def _metric_to_rows(slug: str, payload) -> list[dict]:
-    if not payload:
-        return [
-            {
-                "value": "—",
-                "note": "no data — below min-balls threshold or not computed for this collection",
-            }
-        ]
-    if isinstance(payload, dict):
-        return [
-            {"field": k, "value": v}
-            for k, v in payload.items()
-            if k not in {"batter", "bowler", "cricsheet_id"} and v is not None
-        ] or [{"value": "—", "note": "all fields empty"}]
-    return [{"value": str(payload)}]
+def _num(v: object) -> float | None:
+    if v is None or v == "":
+        return None
+    try:
+        n = float(v)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return n if n == n else None
 
 
-for slug, hint in METRIC_HINTS.items():
-    with st.expander(f"**{slug.replace('_', ' ').title()}** — {hint}"):
-        st.table(_metric_to_rows(slug, metrics.get(slug)))
+def _fmt(v: float | None, digits: int = 1) -> str:
+    if v is None:
+        return "—"
+    if abs(v) >= 1000:
+        return f"{v:,.0f}"
+    if float(v).is_integer():
+        return str(int(v))
+    return f"{v:.{digits}f}"
 
 
-st.markdown("### Bayesian scout-rating")
-bayes = profile.get("bayes") or {}
+def _age_from(dob: str | None) -> int | None:
+    if not dob:
+        return None
+    try:
+        d = dt.date.fromisoformat(dob[:10])
+    except (ValueError, TypeError):
+        return None
+    today = dt.date.today()
+    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
-def _bayes_sentence(role_key: str, label: str, skill_key: str = "skill") -> str:
-    # builder.build returns nested dicts: `bayes.bayes_batter / bayes_bowler`
-    rec = (bayes or {}).get(f"bayes_{role_key}") or {}
-    skill = rec.get(skill_key)
-    if skill is None:
-        return f"{label}: not enough data."
-    sd = rec.get(f"{skill_key}_sd")
-    balls = rec.get("balls")
-    sd = sd if sd is not None else 1.0
-    confidence = "high" if sd < 0.05 else ("medium" if sd < 0.10 else "low")
-    tail = f" on {balls or '?'} balls" if skill_key == "skill" else ""
-    return f"{label}: **{skill:+.3f}** ({confidence} confidence; σ={sd:.3f}{tail})."
+def _has_players(collection: str) -> bool:
+    return (SITE_DATA / collection / "players.json").exists() and (
+        SITE_DATA / collection / "profiles"
+    ).is_dir()
 
 
-st.markdown(_bayes_sentence("batter", "Batter scoring rate"))
-st.markdown(_bayes_sentence("batter", "Batter survival (dismissal resistance)", "survival_skill"))
-st.markdown(_bayes_sentence("bowler", "Bowler economy"))
-st.markdown(_bayes_sentence("bowler", "Bowler strike (wicket-taking)", "strike_skill"))
-st.caption(
-    "Skills are on the natural-log scale of the NumPyro / JAX hierarchical "
-    "joint fit (runs Negative-Binomial + dismissals Binomial). 0 = league "
-    "average, higher = better on every axis. Scoring rate + survival "
-    "together give complete batting value; economy + strike give complete "
-    "bowling value. A fast slogger who gets out often scores high on "
-    "scoring but low on survival."
-)
+@st.cache_data(ttl=300)
+def list_collections() -> list[str]:
+    cols_file = SITE_DATA / "collections.json"
+    names: list[str] = []
+    if cols_file.exists():
+        try:
+            names = [c["collection"] for c in json.loads(cols_file.read_text())]
+        except Exception:
+            names = []
+    if not names:
+        names = sorted(p.name for p in SITE_DATA.iterdir() if p.is_dir())
+    return [c for c in names if _has_players(c)]
 
-st.subheader("Style twins")
-left, right = st.columns(2)
-with left:
-    st.markdown("**As batter**")
-    twins = profile.get("style_twins_batter") or []
-    if twins:
-        st.dataframe(twins, use_container_width=True, hide_index=True)
-    else:
-        st.info("no batter style-twins available for this player + collection")
-with right:
-    st.markdown("**As bowler**")
-    twins = profile.get("style_twins_bowler") or []
-    if twins:
-        st.dataframe(twins, use_container_width=True, hide_index=True)
-    else:
-        st.info("no bowler style-twins available for this player + collection")
 
-st.subheader("🎯 Dismissal fingerprint")
-st.caption(
-    "*How* this player gets out / takes wickets — descriptive scouting "
-    "metadata, separate from the skill model (which only cares about the "
-    "rate). High bowled+lbw = beaten at the stumps (technique); high "
-    "caught = false / aerial shots; high stumped = footwork vs spin. For "
-    "bowlers: bowled+lbw = attacks the stumps; caught = bowls for the "
-    "catch; stumped = flights it."
-)
+@st.cache_data(ttl=300)
+def name_to_cid(collection: str) -> dict[str, str]:
+    path = SITE_DATA / collection / "players.json"
+    if not path.exists():
+        return {}
+    players = json.loads(path.read_text())
+    return {
+        p["name"]: p["cricsheet_id"] for p in players if p.get("name") and p.get("cricsheet_id")
+    }
+
+
+@st.cache_data(ttl=300)
+def load_profile(collection: str, cid: str) -> dict | None:
+    path = SITE_DATA / collection / "profiles" / f"{cid}.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
+
+
+collections = list_collections()
+if not collections:
+    st.warning(
+        "No exported players.json / profiles found under site/public/data/. "
+        "Run `uv run python scripts/export_site.py` first."
+    )
+    st.stop()
+
+with st.sidebar:
+    collection = st.selectbox(
+        "Collection",
+        options=collections,
+        index=collections.index("ipl") if "ipl" in collections else 0,
+        key="profile-collection",
+        help="Only collections with exported players.json + profiles are listed.",
+    )
+
+provenance_banner(source="cricsheet", path=SITE_DATA / collection / "meta.json")
+
+names = name_to_cid(collection)
+if not names:
+    st.warning("No players in the exported players.json for this collection.")
+    st.stop()
+
+with st.sidebar:
+    sorted_names = sorted(names.keys())
+    default_idx = sorted_names.index("V Kohli") if "V Kohli" in sorted_names else 0
+    player_name = st.selectbox(
+        "Player",
+        options=sorted_names,
+        index=default_idx,
+        key="profile-player",
+    )
+
+cid = names[player_name]
+profile = load_profile(collection, cid)
+if not profile:
+    st.error(f"No exported profile found for {player_name} ({cid}).")
+    st.stop()
+
+wd = profile.get("wikidata") or {}
+tax = profile.get("taxonomy") or {}
+act = profile.get("activity") or {}
+ids = profile.get("ids") or {}
+bat = (profile.get("bayes") or {}).get("bayes_batter") or {}
+bowl = (profile.get("bayes") or {}).get("bayes_bowler") or {}
+career = profile.get("career") or {}
+metrics = profile.get("metrics") or {}
+
+# --- identity card ------------------------------------------------------
+img_col, info_col = st.columns([1, 4])
+with img_col:
+    if wd.get("image_url"):
+        st.image(wd["image_url"], width=150)
+with info_col:
+    st.header(wd.get("label") or profile.get("name") or player_name)
+    dob = wd.get("dob")
+    if dob:
+        age = _age_from(dob)
+        try:
+            pretty = dt.date.fromisoformat(dob[:10]).strftime("%-d %b %Y")
+        except (ValueError, TypeError):
+            pretty = dob
+        st.caption(f"🎂 Born {pretty}" + (f" · {age} yrs" if age is not None else ""))
+
+    # taxonomy + activity + value badges (mirror Identity badges)
+    chips: list[str] = []
+    if act:
+        last = (act.get("last_match_date") or "")[:4]
+        chips.append(
+            "🟢 active"
+            if act.get("active")
+            else (f"⚪ retired · last {last}" if last else "⚪ retired")
+        )
+    if tax.get("primary_role"):
+        chips.append(f"**{str(tax['primary_role']).replace('_', '-')}**")
+    if tax.get("bowling_style") and tax.get("bowling_category") != "none":
+        chips.append(str(tax["bowling_style"]).replace("-", " "))
+    if tax.get("batting_position"):
+        chips.append(POS_LABEL.get(tax["batting_position"], tax["batting_position"]))
+    if tax.get("country"):
+        chips.append(str(tax["country"]))
+    if _num(bat.get("value")) is not None:
+        chips.append(f"batting value {_fmt(_num(bat.get('value')), 3)}")
+    if _num(bowl.get("value")) is not None and (_num(bowl.get("balls")) or 0) > 60:
+        chips.append(f"bowling value {_fmt(_num(bowl.get('value')), 3)}")
+    chips.append(f"id {cid}")
+    st.markdown(" · ".join(chips))
+
+    # socials (instagram / twitter / espncricinfo / wikidata)
+    social: list[str] = []
+    if wd.get("instagram"):
+        social.append(f"[Instagram](https://instagram.com/{wd['instagram']})")
+    if wd.get("twitter"):
+        social.append(f"[𝕏 Twitter](https://twitter.com/{wd['twitter']})")
+    cricinfo = ids.get("key_cricinfo")
+    if cricinfo:
+        social.append(f"[ESPNcricinfo](https://www.espncricinfo.com/cricketers/x-{cricinfo})")
+    if wd.get("wikidata_qid"):
+        social.append(f"[Wikidata](https://www.wikidata.org/wiki/{wd['wikidata_qid']})")
+    if social:
+        st.markdown(" · ".join(social))
+
+# --- career tiles -------------------------------------------------------
+if career:
+    st.subheader("Career")
+    c = st.columns(6)
+    c[0].metric("Runs", _fmt(_num(career.get("career_runs")), 0))
+    c[1].metric("Balls faced", _fmt(_num(career.get("career_balls_faced")), 0))
+    c[2].metric("Innings", _fmt(_num(career.get("career_innings")), 0))
+    c[3].metric("Fours / Sixes", f"{career.get('career_fours', 0)}/{career.get('career_sixes', 0)}")
+    c[4].metric("Wickets", _fmt(_num(career.get("career_wickets")), 0))
+    c[5].metric("Balls bowled", _fmt(_num(career.get("career_legal_balls_bowled")), 0))
+
+
+def _skill_axis(label: str, mean: float | None, sd: float | None, hint: str) -> None:
+    if mean is None:
+        return
+    # map ~[-0.6, 0.6] -> 0..100 (mirror SkillAxis)
+    pct = max(2.0, min(98.0, (mean + 0.6) / 1.2 * 100))
+    val = f"{'+' if mean >= 0 else ''}{mean:.3f}"
+    if sd is not None:
+        val += f" ± {sd:.3f}"
+    st.markdown(f"**{label}** — {val}")
+    st.progress(pct / 100)
+    st.caption(hint)
+
+
+# --- bayesian skill axes ------------------------------------------------
+sk_left, sk_right = st.columns(2)
+with sk_left:
+    if bat:
+        st.subheader("Batting skill")
+        st.caption("Two latent axes — scoring & survival — with model uncertainty")
+        _skill_axis(
+            "Scoring (runs added)",
+            _num(bat.get("skill")),
+            _num(bat.get("skill_sd")),
+            "how fast they score above a replacement batter",
+        )
+        _skill_axis(
+            "Survival (wicket-avoidance)",
+            _num(bat.get("survival_skill")),
+            _num(bat.get("survival_skill_sd")),
+            "how well they avoid getting out per ball",
+        )
+        st.caption(f"From {_fmt(_num(bat.get('balls')), 0)} balls faced.")
+with sk_right:
+    if bowl and (_num(bowl.get("balls")) or 0) > 60:
+        st.subheader("Bowling skill")
+        st.caption("Two latent axes — economy & strike — with model uncertainty")
+        _skill_axis(
+            "Economy (run suppression)",
+            _num(bowl.get("skill")),
+            _num(bowl.get("skill_sd")),
+            "how few runs they concede per ball",
+        )
+        _skill_axis(
+            "Strike (wicket-taking)",
+            _num(bowl.get("strike_skill")),
+            _num(bowl.get("strike_skill_sd")),
+            "how often they take a wicket per ball",
+        )
+        st.caption(f"From {_fmt(_num(bowl.get('balls')), 0)} balls bowled.")
+
+# --- novel metrics cards ------------------------------------------------
+if any(metrics.get(slug) for slug in METRIC_CARDS):
+    st.subheader("Novel metrics")
+    cols = st.columns(5)
+    for col, (slug, (title, val_key, sub)) in zip(cols, METRIC_CARDS.items(), strict=True):
+        with col:
+            m = metrics.get(slug)
+            v = _num(m.get(val_key)) if isinstance(m, dict) else None
+            st.markdown(f"**{title}**")
+            st.markdown(f"### {_fmt(v, 1)}")
+            st.caption(sub)
+
+# --- dismissal fingerprint ----------------------------------------------
 fp = profile.get("dismissal_fingerprint") or {}
-fp_left, fp_right = st.columns(2)
-with fp_left:
-    bat_fp = fp.get("batter") or {}
-    st.markdown(f"**As batter** ({bat_fp.get('total', 0)} dismissals)")
-    if bat_fp.get("rows"):
-        st.dataframe(bat_fp["rows"], use_container_width=True, hide_index=True)
-        st.caption(f"→ {bat_fp.get('read', '')}")
-    else:
-        st.info("no dismissals recorded")
-with fp_right:
-    bowl_fp = fp.get("bowler") or {}
-    st.markdown(f"**As bowler** ({bowl_fp.get('total', 0)} wickets)")
-    if bowl_fp.get("rows"):
-        st.dataframe(bowl_fp["rows"], use_container_width=True, hide_index=True)
-        st.caption(f"→ {bowl_fp.get('read', '')}")
-    else:
-        st.info("no bowler-credited wickets recorded")
+if fp.get("batter") or fp.get("bowler"):
+    st.subheader("🎯 Dismissal fingerprint")
+    st.caption("How they get out (batting) / take wickets (bowling)")
+    fp_left, fp_right = st.columns(2)
 
-with st.expander("Raw profile JSON"):
-    st.json(profile)
+    def _fp_block(col, title: str, d: dict | None) -> None:
+        with col:
+            if not d or not d.get("rows"):
+                st.info(f"No data for {title.lower()}.")
+                return
+            st.markdown(f"**{title}** · {d.get('total', 0)} total")
+            for r in d["rows"][:6]:
+                pct = _num(r.get("pct")) or 0
+                st.markdown(
+                    f"{str(r.get('kind', '')).capitalize()} — {pct:.1f}% ({r.get('count')})"
+                )
+                st.progress(min(1.0, pct / 100))
+            if d.get("read"):
+                st.caption(f"“{d['read']}”")
+
+    _fp_block(fp_left, "As batter", fp.get("batter"))
+    _fp_block(fp_right, "As bowler", fp.get("bowler"))
+
+# --- style twins --------------------------------------------------------
+st.subheader("Style twins")
+st.caption("Nearest players in feature space")
+tw_left, tw_right = st.columns(2)
+
+
+def _twins_block(col, role: str, twins: list[dict] | None) -> None:
+    with col:
+        st.markdown(f"**{role}**")
+        if not twins:
+            st.info(f"No {role.lower()} style twins for this player.")
+            return
+        rows = []
+        for t in twins[:6]:
+            dist = _num(t.get("distance"))
+            sim = max(0.0, 1 - dist) * 100 if dist is not None else None
+            rows.append(
+                {"Player": t.get("name"), "% alike": f"{sim:.1f}%" if sim is not None else "—"}
+            )
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+
+
+_twins_block(tw_left, "Batter", profile.get("style_twins_batter"))
+_twins_block(tw_right, "Bowler", profile.get("style_twins_bowler"))

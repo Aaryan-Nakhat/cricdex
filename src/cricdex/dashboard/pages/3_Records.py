@@ -1,74 +1,151 @@
-"""Streamlit page: cricket records + On-This-Day."""
+"""Streamlit page: cricket record books.
+
+Reads the SAME pre-cooked JSON the React web app (`site/src/pages/Records.tsx`)
+fetches — `site/public/data/<collection>/records.json` — so the desktop
+dashboard matches the live site instead of recomputing from DuckDB.
+"""
 
 from __future__ import annotations
 
-import datetime as dt
+import json
 
+import pandas as pd
 import streamlit as st
 
-from cricdex.config import DATA_DIR
 from cricdex.dashboard._widgets import provenance_banner
-from cricdex.records import queries
+from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Records", page_icon="📜", layout="wide")
-st.title("📜 CricDex — records")
+st.title("📜 CricDex — record books")
 st.caption(
-    "Records derived directly from Cricsheet ball-by-ball — every row is "
-    "computed live from the DuckDB table for whichever collection you pick. "
-    "Pick a record key from the sidebar; switch to On-This-Day for the "
-    "calendar-anniversary digest."
+    "The all-time tables for this collection — biggest innings, fastest "
+    "milestones, career leaders, and team feats — straight from the "
+    "ball-by-ball record. Reads the exact same exported JSON the website does."
 )
-provenance_banner(source="cricsheet", path=DATA_DIR / "cricsheet" / "cricsheet.duckdb")
 
+# --- mirror Records.tsx LABELS / COL_LABELS -----------------------------
 RECORD_LABELS: dict[str, str] = {
     "highest_individual_innings": "Highest individual innings",
-    "fastest_fifty": "Fastest fifty (balls)",
-    "fastest_hundred": "Fastest hundred (balls)",
+    "fastest_fifty": "Fastest fifties",
+    "fastest_hundred": "Fastest hundreds",
     "most_sixes_innings": "Most sixes in an innings",
     "career_run_leaders": "Career run leaders",
     "best_bowling_innings": "Best bowling figures",
     "career_wicket_leaders": "Career wicket leaders",
     "highest_team_totals": "Highest team totals",
-    "highest_runs_in_over": "Highest runs conceded in an over",
+    "highest_runs_in_over": "Most runs in an over",
 }
 
-from cricdex.dashboard._widgets import collection_picker  # noqa: E402
+COL_LABELS: dict[str, str] = {
+    "batter": "Batter",
+    "bowler": "Bowler",
+    "team": "Team",
+    "batting_team": "Team",
+    "match_date": "Date",
+    "venue": "Venue",
+    "runs": "Runs",
+    "balls": "Balls",
+    "fours": "4s",
+    "sixes": "6s",
+    "wickets": "Wkts",
+    "runs_conceded": "Runs",
+    "match_id": "Match",
+    "total": "Total",
+    "total_runs": "Total",
+    "over_runs": "Runs",
+}
+
+
+def _has_records(collection: str) -> bool:
+    return (SITE_DATA / collection / "records.json").exists()
+
+
+@st.cache_data(ttl=300)
+def list_collections() -> list[str]:
+    """Collections whose dir has a records.json (mirror the React picker)."""
+    cols_file = SITE_DATA / "collections.json"
+    names: list[str] = []
+    if cols_file.exists():
+        try:
+            names = [c["collection"] for c in json.loads(cols_file.read_text())]
+        except Exception:
+            names = []
+    if not names:
+        names = sorted(p.name for p in SITE_DATA.iterdir() if p.is_dir())
+    return [c for c in names if _has_records(c)]
+
+
+@st.cache_data(ttl=300)
+def load_records(collection: str) -> dict[str, list[dict]]:
+    path = SITE_DATA / collection / "records.json"
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text())
+
+
+collections = list_collections()
+if not collections:
+    st.warning(
+        "No exported `records.json` found under site/public/data/. "
+        "Run `uv run python scripts/export_site.py` first."
+    )
+    st.stop()
 
 with st.sidebar:
-    collection = collection_picker(default="ipl", key="records-collection")
-    top_n = st.slider(
-        "Top N",
-        min_value=5,
-        max_value=100,
-        value=25,
-        help="How many top-record rows to show per category.",
+    collection = st.selectbox(
+        "Collection",
+        options=collections,
+        index=collections.index("ipl") if "ipl" in collections else 0,
+        key="records-collection",
+        help="Only collections with an exported records.json are listed.",
     )
 
-records_tab, otd_tab = st.tabs(["📊 Records", "🗓️ On This Day"])
+provenance_banner(source="cricsheet", path=SITE_DATA / collection / "meta.json")
 
-with records_tab:
-    cols = st.columns(2)
-    items = list(RECORD_LABELS.items())
-    half = (len(items) + 1) // 2
-    for col, group in zip(cols, [items[:half], items[half:]], strict=True):
-        with col:
-            for slug, label in group:
-                with st.expander(label):
-                    try:
-                        df = queries.RECORDS[slug](collection, top_n=top_n)
-                        st.dataframe(df.to_pandas(), use_container_width=True, hide_index=True)
-                    except Exception as e:
-                        st.error(f"query failed: {e}")
+data = load_records(collection)
+# only keep non-empty record boards (mirror Records.tsx `keys`)
+keys = [k for k in RECORD_LABELS if data.get(k)]
+# include any extra keys present in the JSON but not in our label map
+keys += [k for k in data if k not in RECORD_LABELS and data.get(k)]
 
-with otd_tab:
-    today = dt.date.today()
-    col1, col2 = st.columns(2)
-    with col1:
-        month = st.number_input("Month", 1, 12, today.month)
-    with col2:
-        day = st.number_input("Day", 1, 31, today.day)
-    df = queries.on_this_day(int(month), int(day), collection, top_n=top_n)
-    if df.is_empty():
-        st.info("No notable performances logged on this calendar date in the corpus.")
-    else:
-        st.dataframe(df.to_pandas(), use_container_width=True, hide_index=True)
+if not keys:
+    st.info(f"No records available for {collection}.")
+    st.stop()
+
+tabs = st.tabs([RECORD_LABELS.get(k, k.replace("_", " ").title()) for k in keys])
+for tab, key in zip(tabs, keys, strict=True):
+    with tab:
+        rows = data.get(key) or []
+        if not rows:
+            st.info("No rows for this record board.")
+            continue
+        df = pd.DataFrame(rows)
+        # Records.tsx drops the match_id column from the displayed table.
+        if "match_id" in df.columns:
+            df = df.drop(columns=["match_id"])
+
+        # optional year-range filter on dated records (mirror Records.tsx)
+        if "match_date" in df.columns:
+            years = pd.to_datetime(df["match_date"], errors="coerce").dt.year.dropna()
+            if not years.empty:
+                lo, hi = int(years.min()), int(years.max())
+                if lo < hi:
+                    frm, to = st.slider(
+                        "Year range",
+                        min_value=lo,
+                        max_value=hi,
+                        value=(lo, hi),
+                        key=f"records-years-{key}",
+                        help=(
+                            "Limits this table to feats between the two years. "
+                            "Career-leader tables have no single date, so they "
+                            "are unaffected."
+                        ),
+                    )
+                    yr = pd.to_datetime(df["match_date"], errors="coerce").dt.year
+                    df = df[(yr.isna()) | ((yr >= frm) & (yr <= to))]
+                    st.caption(f"**{len(df)}** of {len(rows)} rows")
+
+        df = df.rename(columns={c: COL_LABELS.get(c, c.replace("_", " ")) for c in df.columns})
+        df.insert(0, "#", range(1, len(df) + 1))
+        st.dataframe(df, use_container_width=True, hide_index=True)
