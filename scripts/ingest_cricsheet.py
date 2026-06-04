@@ -50,6 +50,7 @@ def ingest(
 @app.command("indian-domestic")
 def indian_domestic(
     out: Path | None = typer.Option(None, "--out"),
+    force: bool = typer.Option(False, "--force"),
 ) -> None:
     """Download all 35 Indian state-team zips, dedupe by match_id, and
     ingest as a single `indian_domestic_male` collection."""
@@ -59,7 +60,7 @@ def indian_domestic(
     parquet_dir = base / "parquet"
     db_path = base / "cricsheet.duckdb"
 
-    merged_dir = cricsheet.aggregate_indian_domestic(raw_dir, extracted_dir)
+    merged_dir = cricsheet.aggregate_indian_domestic(raw_dir, extracted_dir, force=force)
     matches, balls = cricsheet.parse_collection(merged_dir)
     m_path, b_path = cricsheet.write_parquet(matches, balls, parquet_dir, "indian_domestic_male")
     _load_to_duckdb(m_path, b_path, "indian_domestic_male", db_path)

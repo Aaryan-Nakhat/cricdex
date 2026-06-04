@@ -273,20 +273,28 @@ def _download_url(url: str, dest_dir: Path, force: bool = False) -> Path:
     return zip_path
 
 
-def aggregate_indian_domestic(raw_dir: Path, extracted_dir: Path) -> Path:
+def aggregate_indian_domestic(raw_dir: Path, extracted_dir: Path, force: bool = False) -> Path:
     """Download all 35 Indian state-team zips and merge match JSONs into
-    a single deduped directory keyed by match_id (= filename)."""
+    a single deduped directory keyed by match_id (= filename).
+
+    With `force`, re-downloads every state zip and rebuilds the merge from
+    scratch — otherwise a refreshed Cricsheet season is never pulled (the
+    merge only ever *adds*, and cached zips/extracts are reused)."""
     merged_dir = extracted_dir / "indian_domestic_male"
+    if force and merged_dir.exists():
+        shutil.rmtree(merged_dir)
     merged_dir.mkdir(parents=True, exist_ok=True)
     seen: set[str] = {p.name for p in merged_dir.glob("*.json")}
     for zip_name in INDIAN_STATE_TEAMS:
         zip_url = f"{CRICSHEET_BASE}/{zip_name}"
         try:
-            zip_path = _download_url(zip_url, raw_dir)
+            zip_path = _download_url(zip_url, raw_dir, force=force)
         except httpx.HTTPError as e:
             logger.warning(f"skip {zip_name}: {e}")
             continue
         team_dir = extracted_dir / zip_path.stem
+        if force and team_dir.exists():
+            shutil.rmtree(team_dir)
         if not team_dir.exists() or not any(team_dir.iterdir()):
             team_dir.mkdir(parents=True, exist_ok=True)
             with zipfile.ZipFile(zip_path) as z:
