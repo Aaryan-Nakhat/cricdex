@@ -16,7 +16,7 @@ from pathlib import Path
 import typer
 
 from cricdex.cli._shared import EXIT_USER_ERROR, die, render_table
-from cricdex.config import DATA_DIR
+from cricdex.config import DATA_DIR, ROOT
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -37,14 +37,10 @@ def status_cmd() -> None:
     rows = []
     targets = [
         ("cricsheet duckdb", DATA_DIR / "cricsheet" / "cricsheet.duckdb"),
-        ("rules qdrant index", DATA_DIR / "rules" / "qdrant"),
-        ("rules parsed JSONL", DATA_DIR / "rules" / "parsed"),
-        ("rules curated JSONL", DATA_DIR / "rules" / "curated"),
-        ("rules raw PDFs", DATA_DIR / "rules" / "raw"),
         ("scout NumPyro ratings", DATA_DIR / "metrics" / "scout_ratings_ipl.json"),
         ("metrics outputs", DATA_DIR / "metrics"),
-        ("auction GRPO policy", DATA_DIR / "auction" / "policy.zip"),
         ("people register", DATA_DIR / "register" / "people.csv"),
+        ("exported site JSON", ROOT / "site" / "public" / "data" / "ipl"),
     ]
     for label, path in targets:
         info = _file_info(path)
@@ -116,7 +112,7 @@ def run_ingest(slice_: str, collection: str = "ipl", force: bool = False) -> str
     raise ValueError(f"unknown slice `{slice_}` — choose: {' | '.join(SLICES)}")
 
 
-@app.command("ingest", help="Ingest a data slice (cricsheet|rules|ratings|metrics|graph|wikidata).")
+@app.command("ingest", help="Ingest a data slice (cricsheet|ratings|metrics|wikidata).")
 def ingest_cmd(
     slice_: str = typer.Argument(..., metavar="SLICE"),
     collection: str = typer.Option("ipl", "--collection", "-c"),

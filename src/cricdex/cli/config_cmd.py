@@ -1,7 +1,7 @@
 """`cricdex config` — read / write the user's CricDex credential store.
 
 Storage: `$CRICDEX_HOME/config.toml` (default `~/.cricdex/config.toml`),
-chmod 600. Keys are flat strings — `llm_api_key`, `jina_api_key`, etc.
+chmod 600. Keys are flat strings — `llm_api_key`, `llm_*`.
 """
 
 from __future__ import annotations
@@ -24,11 +24,6 @@ ALLOWED_KEYS = {
     "llm_api_key",
     "llm_api_base",
     "llm_api_key",
-    "jina_api_key",
-    "qdrant_url",
-    "neo4j_uri",
-    "neo4j_user",
-    "neo4j_password",
 }
 
 

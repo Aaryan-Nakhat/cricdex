@@ -10,10 +10,8 @@ Subcommand groups, each mounted as its own typer app:
   cricdex compare <a> <b>                   side-by-side comparator
   cricdex records [today | <key>]           record book + on-this-day
   cricdex venues <venue>                    pitch + conditions
-  cricdex rules ask "<question>"            citation-grounded rule QA
-  cricdex scout twins <name>                graph cohort
-  cricdex scout find-replacement <name>     auto-flip role-aware twins
-  cricdex auction solve / recommend / simulate / train-grpo
+  cricdex scout look-alikes <name>          cross-competition look-alikes
+  cricdex auction room                      real-rules IPL auction sim
   cricdex tui                               full Textual UI
   cricdex dashboard                         optional Streamlit on :8501
 
