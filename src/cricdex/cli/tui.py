@@ -11,7 +11,6 @@ Quit: q / Ctrl-C / Esc.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from rich.console import Console
@@ -34,6 +33,7 @@ from textual.widgets import (
 
 from cricdex.cli import _copy, _render
 from cricdex.config import DATA_DIR
+from cricdex.web_parity.loader import SITE_DATA
 
 METRIC_OPTIONS: list[tuple[str, str]] = [
     ("NGI (Net Game Impact)", "ngi"),
@@ -48,17 +48,19 @@ METRIC_OPTIONS: list[tuple[str, str]] = [
     ("Slow-Start Cost", "slow_start_cost"),
 ]
 
-METRIC_KEYS: dict[str, tuple[str, str]] = {
-    "ngi": ("ngi_per_match", "name"),
-    "pressure_runs": ("pressure_sr_per_100_balls", "batter"),
-    "intent_curve": ("sr", "batter"),
-    "dot_ball_recovery": ("runs_per_6_after_dot", "batter"),
-    "counter_attack": ("counter_attack_sr", "batter"),
-    "boundary_dependency": ("bdr_pct", "batter"),
-    "pressure_conversion": ("wicket_rate_pct", "bowler"),
-    "wicket_quality": ("wicket_quality", "bowler"),
-    "crease_longevity": ("longevity_index", "batter"),
-    "slow_start_cost": ("slow_start_cost", "batter"),
+# slug → (sort column, primary-key column, higher_is_better). Reads the same
+# exported leaderboard JSON as the web app.
+METRIC_KEYS: dict[str, tuple[str, str, bool]] = {
+    "ngi": ("ngi_per_match", "name", True),
+    "pressure_runs": ("pressure_sr_per_100_balls", "batter", True),
+    "intent_curve": ("early_sr", "batter", True),
+    "dot_ball_recovery": ("runs_per_6_after_dot", "batter", True),
+    "counter_attack": ("counter_attack_sr", "batter", True),
+    "boundary_dependency": ("bdr_pct", "batter", False),
+    "pressure_conversion": ("wicket_rate_pct", "bowler", True),
+    "wicket_quality": ("wicket_quality", "bowler", True),
+    "crease_longevity": ("longevity_index", "batter", True),
+    "slow_start_cost": ("slow_start_cost", "batter", False),
 }
 
 VENUE_VIEW_OPTIONS = [
@@ -120,7 +122,7 @@ def _fill_datatable(table: DataTable, rows: list[dict], max_cols: int = 8) -> No
 
 
 class CricDexApp(App):
-    """Main Textual app — 11 tabs, one per Streamlit page."""
+    """Main Textual app — tabs mirror the React web app's analytical pages."""
 
     # Layout notes:
     # - `.controls` is a horizontal bar with `align-vertical: middle` so
@@ -291,7 +293,7 @@ class CricDexApp(App):
             top_n = int(self.query_one("#metric-topn", Input).value or "20")
         except ValueError:
             top_n = 20
-        path = Path(DATA_DIR) / "metrics" / f"{metric}_{collection}.json"
+        path = SITE_DATA / collection / "leaderboards" / f"{metric}.json"
         table = self.query_one("#metric-table", DataTable)
         hint = self.query_one("#metric-hint", Static)
         if not path.exists():
@@ -300,7 +302,7 @@ class CricDexApp(App):
                 [
                     {
                         "error": f"missing {path.name}",
-                        "fix": f"`cricdex data ingest metrics -c {collection}`",
+                        "fix": "run scripts/export_site.py (after data ingest metrics)",
                     }
                 ],
             )
@@ -308,9 +310,9 @@ class CricDexApp(App):
         rows = json.loads(path.read_text())
         if not isinstance(rows, list):
             rows = []
-        sort_col, primary_key = METRIC_KEYS.get(metric, (None, None))
+        sort_col, primary_key, higher = METRIC_KEYS.get(metric, (None, None, True))
         if sort_col:
-            rows = sorted(rows, key=lambda r: r.get(sort_col, 0) or 0, reverse=True)
+            rows = sorted(rows, key=lambda r: r.get(sort_col, 0) or 0, reverse=higher)
         rows = rows[:top_n]
         if rows and sort_col and primary_key:
             extras = [k for k in rows[0].keys() if k not in {primary_key, sort_col}][:4]
