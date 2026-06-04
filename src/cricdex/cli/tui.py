@@ -1,7 +1,7 @@
 """Textual TUI — `cricdex tui` (also `cricdex` with no subcommand).
 
 Tabs mirror the React web app's analytical pages — nothing more:
-Leaders / Records / Compare / Venues / Profile / Auction / Scout. Auction +
+Leaders / Records / Compare / H2H / Venues / Profile / Auction / Scout. Auction +
 Scout run the web-identical `cricdex.web_parity` (same as the live site).
 (No Rules / Update / graph here — the web app doesn't have them.)
 
@@ -212,6 +212,7 @@ class CricDexApp(App):
         "tab-leaderboard",
         "tab-records",
         "tab-compare",
+        "tab-h2h",
         "tab-venues",
         "tab-profile",
         "tab-auction-sim",
@@ -242,6 +243,8 @@ class CricDexApp(App):
                 yield from self._records_panel()
             with TabPane("Compare", id="tab-compare"):
                 yield from self._compare_panel()
+            with TabPane("H2H", id="tab-h2h"):
+                yield from self._h2h_panel()
             with TabPane("Venues", id="tab-venues"):
                 yield from self._venues_panel()
             with TabPane("Profile", id="tab-profile"):
@@ -442,6 +445,51 @@ class CricDexApp(App):
             rows_h or [{"info": "no overlapping Bayesian ratings for these two"}],
             max_cols=6,
         )
+
+    # ===== Head-to-head ===================================================
+
+    def _h2h_panel(self) -> ComposeResult:
+        with Vertical():
+            with Horizontal(classes="controls"):
+                yield Label("Player A:")
+                yield Input(value="V Kohli", id="h2h-a")
+                yield Label("Player B:")
+                yield Input(value="RG Sharma", id="h2h-b")
+                yield Label("Coll:")
+                yield Input(value="ipl", id="h2h-collection")
+                yield Button("Compare ▸", id="h2h-run", variant="primary")
+            yield Static(
+                "P(A is better than B) from the Bayesian skill posteriors, role by role.",
+                classes="intro",
+            )
+            yield DataTable(id="h2h-table", zebra_stripes=True)
+
+    def _on_run_h2h(self) -> None:
+        table = self.query_one("#h2h-table", DataTable)
+        a = self.query_one("#h2h-a", Input).value.strip()
+        b = self.query_one("#h2h-b", Input).value.strip()
+        collection = self.query_one("#h2h-collection", Input).value
+        from cricdex.scout.ratings.head_to_head import head_to_head
+
+        res = head_to_head(a, b, collection=collection)
+        if res.get("error"):
+            _fill_datatable(table, [{"error": res["error"]}])
+            return
+        rows: list[dict] = []
+        for role in ("batter", "bowler", "all_rounder"):
+            c = res["comparisons"].get(role)
+            if c is None:
+                continue
+            rows.append(
+                {
+                    "role": role,
+                    a: f"{c['mean_a']:+.3f}±{c['sd_a']:.2f}",
+                    b: f"{c['mean_b']:+.3f}±{c['sd_b']:.2f}",
+                    f"P({a}>)": f"{c['p_a_better']:.0%}",
+                    "verdict": c["verdict"],
+                }
+            )
+        _fill_datatable(table, rows or [{"info": "no overlapping role to compare"}], max_cols=6)
 
     # ===== Venues =========================================================
 
@@ -867,6 +915,7 @@ class CricDexApp(App):
             "metric-run": self._on_run_leaderboard,
             "records-run": self._on_run_records,
             "cmp-run": self._on_run_compare,
+            "h2h-run": self._on_run_h2h,
             "ven-run": self._on_run_venues,
             "profile-run": self._on_run_profile,
             "sim-run": self._on_run_auction_sim,
