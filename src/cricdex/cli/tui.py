@@ -72,6 +72,8 @@ SCOUT_TIER_OPTIONS = [
     ("IPL peers", "ipl"),
     ("Uncapped · SMAT", "smat"),
     ("Overseas · BBL", "bbl"),
+    ("Overseas · SA20", "sa20"),
+    ("Overseas · CPL", "cpl"),
 ]
 SCOUT_ROLE_OPTIONS = [
     ("(pick's role)", ""),

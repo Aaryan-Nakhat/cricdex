@@ -58,8 +58,9 @@ A real IPL auction draws from the whole **active T20 world**, not just past
 IPL squads. So the pool is **cross-collection**:
 
 - **IPL players** — retainable; each carries his current franchise.
-- **Free agents** — overseas talent via the **BBL** (Big Bash) and uncapped
-  Indians via the **SMAT** (Syed Mushtaq Ali Trophy).
+- **Free agents** — overseas talent via the **BBL** (Australia), **SA20**
+  (South Africa) and **CPL** (West Indies), and uncapped Indians via the
+  **SMAT** (Syed Mushtaq Ali Trophy).
 
 With guardrails so it stays realistic:
 
@@ -67,9 +68,9 @@ With guardrails so it stays realistic:
 - **≥150 balls** of evidence — cuts tiny-sample flukes (no more a 30-ball
   domestic unknown outranking Kohli).
 - **Excludes** men's-T20I associate noise and non-IPL nations (e.g. PAK).
-- **Tier penalty** — runs against weak SMAT attacks aren't worth as much as
-  runs in the IPL, so cross-tier values are discounted before pricing
-  (**BBL −0.07**, **SMAT −0.20**; IPL 0).
+- **Tier penalty** — runs against weaker attacks aren't worth as much as runs
+  in the IPL, so cross-tier values are discounted before pricing (**BBL −0.07**,
+  **SA20 −0.07**, **CPL −0.10**, **SMAT −0.20**; IPL 0).
 
 ---
 

@@ -143,7 +143,7 @@ def test_web_parity():
     scout = load_scout_index("ipl")
     sel = sorted(scout["ipl"], key=lambda p: p["cricsheet_id"])[0]
     assert sel["cricsheet_id"] == js["scoutPick"]
-    for tier in ("ipl", "smat", "bbl"):
+    for tier in ("ipl", "smat", "bbl", "sa20", "cpl"):
         rows = similar_to(sel, scout[tier], sel["role"], "")
         py = [
             {

@@ -99,8 +99,14 @@ def look_alikes(
     )
     _render.intro_panel(_copy.TWINS_INTRO, title="Scout")
 
-    titles = {"ipl": "IPL peers", "smat": "Uncapped · SMAT", "bbl": "Overseas · BBL"}
-    for tier in ("ipl", "smat", "bbl"):
+    titles = {
+        "ipl": "IPL peers",
+        "smat": "Uncapped · SMAT",
+        "bbl": "Overseas · BBL",
+        "sa20": "Overseas · SA20",
+        "cpl": "Overseas · CPL",
+    }
+    for tier in ("ipl", "smat", "bbl", "sa20", "cpl"):
         rows = []
         for r in similar_to(sel, idx[tier], use_role, use_pos)[:top_k]:
             price = est_value(r["value"], r["role"], tier)

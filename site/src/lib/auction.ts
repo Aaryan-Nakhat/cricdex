@@ -45,7 +45,7 @@ function priceTier(pv: number): number {
 // Mirrors the export-time penalty so Scout's est. prices agree with the
 // Auction pool. The auction_pool `value` is already penalised at export; raw
 // scout `value` is not, so callers pricing scout players pass their tier.
-export const TIER_PENALTY = { ipl: 0, smat: 0.2, bbl: 0.07 } as const;
+export const TIER_PENALTY = { ipl: 0, smat: 0.2, bbl: 0.07, sa20: 0.07, cpl: 0.1 } as const;
 export type PriceTier = keyof typeof TIER_PENALTY;
 
 /** Estimated crore value from a raw Bayes value — same curve the auction uses.
