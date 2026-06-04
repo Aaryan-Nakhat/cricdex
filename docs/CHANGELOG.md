@@ -36,12 +36,22 @@ views, no longer the default path.
   per-player `outcomes` summary the sim emits across all trials (parity-locked
   TS ⇄ Python). The TUI Sim tab also gained the Mega/Mini toggle.
 
-- **More leagues — SA20 + CPL.** Ingested SA20 (South Africa) and CPL (West
-  Indies) and folded them into the cross-collection auction pool (free agents,
-  tier-discounted SA20 −0.07 / CPL −0.10) and the Scout as two new look-alike
-  tiers, so Scout/Auction now span IPL + SMAT + BBL + SA20 + CPL (was BBL-only
-  overseas). Both are browsable collections too. Fixed the SA20 download
-  filename (Cricsheet codes it `sat`).
+- **More leagues — SA20 + CPL + T20 Blast.** Ingested SA20 (South Africa), CPL
+  (West Indies) and the T20 Blast (England) and folded them into the
+  cross-collection auction pool (free agents; tier-discounted SA20 −0.07 / CPL
+  −0.10 / Blast −0.10) and the Scout as new look-alike tiers, so Scout/Auction
+  now span IPL + SMAT + BBL + SA20 + CPL + Blast (was BBL-only overseas). All
+  browsable collections too. Fixed two Cricsheet filenames: SA20 = `sat`,
+  T20 Blast = `ntb`.
+- **Name search via the Register's alias variations.** `resolve_name` now
+  consults the People Register's 8.8k name variations (per-collection), so full
+  names / alternate spellings resolve ("Jasprit Bumrah" → "JJ Bumrah").
+- **Data refresh.** IPL → 2026-05-31 (season end), t20s_male + recently_played
+  → 2026-06-02; Blast current to 2026-05-31. SMAT confirmed frozen upstream at
+  2024-12-15. Taxonomy (Gemini) enriched 363 newly-ingested players; Wikidata
+  enriched for new faces. Repaired the ingest pipeline so refreshes are no
+  longer silent no-ops (cricsheet CLI + re-extract-on-newer-zip + Indian-
+  domestic `--force`).
 
 ### Changed
 

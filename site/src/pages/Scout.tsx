@@ -41,6 +41,7 @@ const TIERS: {
   { key: "bbl", title: "Overseas · BBL", subtitle: "Big Bash (Australia) of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
   { key: "sa20", title: "Overseas · SA20", subtitle: "SA20 (South Africa) of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
   { key: "cpl", title: "Overseas · CPL", subtitle: "Caribbean Premier League of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
+  { key: "blast", title: "Overseas · T20 Blast", subtitle: "English county T20 of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
 ];
 
 // Uncapped "gem": punches above its sample — high standing on low exposure.
@@ -80,7 +81,7 @@ function ScoutMath() {
         <ul className="space-y-1.5">
           <li>• <b className="text-fg">IPL peers</b> — who else in the IPL is most like them.</li>
           <li>• <b className="text-fg">Uncapped (SMAT)</b> — domestic Indian prospects of the same mould — the "next one".</li>
-          <li>• <b className="text-fg">Overseas</b> — Big Bash (BBL), SA20 &amp; CPL players of the same mould.</li>
+          <li>• <b className="text-fg">Overseas</b> — Big Bash (BBL), SA20, CPL &amp; T20 Blast players of the same mould.</li>
         </ul>
         <p>
           "Skill standing" is the player's Bayesian value expressed as a z-score <i>within its own

@@ -105,8 +105,9 @@ def look_alikes(
         "bbl": "Overseas · BBL",
         "sa20": "Overseas · SA20",
         "cpl": "Overseas · CPL",
+        "blast": "Overseas · T20 Blast",
     }
-    for tier in ("ipl", "smat", "bbl", "sa20", "cpl"):
+    for tier in ("ipl", "smat", "bbl", "sa20", "cpl", "blast"):
         rows = []
         for r in similar_to(sel, idx[tier], use_role, use_pos)[:top_k]:
             price = est_value(r["value"], r["role"], tier)

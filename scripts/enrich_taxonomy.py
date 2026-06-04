@@ -20,18 +20,25 @@ from __future__ import annotations
 import json
 import os
 import time
-from pathlib import Path
 
 import httpx
 import typer
 from loguru import logger
 
-ROOT = Path(__file__).resolve().parent.parent
+from cricdex.config import ROOT  # importing config loads .env (GEMINI_TMP_*)
+
 SITE_DATA = ROOT / "site" / "public" / "data"
 CACHE = ROOT / "data" / "curated" / "player_taxonomy.json"
 
-KONG_BASE = os.environ.get("GEMINI_KONG_BASE", "https://api-kong.salesagents.ai/reporting-prod")
-URL = f"{KONG_BASE}/api/v1/gemini/generate_json"
+# Prefer the GEMINI_TMP_* vars (a full gemini base, e.g.
+# https://api-kong.salesagents.ai/reporting-live/api/v1/gemini); fall back to
+# the older GEMINI_KONG_BASE (which lacks the /api/v1/gemini suffix).
+_TMP_BASE = os.environ.get("GEMINI_TMP_URL")
+if _TMP_BASE:
+    URL = f"{_TMP_BASE.rstrip('/')}/generate_json"
+else:
+    KONG_BASE = os.environ.get("GEMINI_KONG_BASE", "https://api-kong.salesagents.ai/reporting-prod")
+    URL = f"{KONG_BASE}/api/v1/gemini/generate_json"
 MODEL = "gemini-2.5-pro"
 
 SYS = (
@@ -103,9 +110,9 @@ def run(
     limit: int = typer.Option(0, "--limit", help="max players this run (0 = all missing)"),
     sleep: float = typer.Option(0.4, "--sleep", help="pause between calls (s)"),
 ) -> None:
-    key = os.environ.get("GEMINI_KONG_KEY")
+    key = os.environ.get("GEMINI_TMP_API_KEY") or os.environ.get("GEMINI_KONG_KEY")
     if not key:
-        raise SystemExit("set GEMINI_KONG_KEY (work Gemini proxy key) in the env")
+        raise SystemExit("set GEMINI_TMP_API_KEY (or GEMINI_KONG_KEY) in the env")
 
     players = _collect_players()
     cache = _load_cache()

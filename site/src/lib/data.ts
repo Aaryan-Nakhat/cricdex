@@ -146,6 +146,7 @@ export interface ScoutIndex {
   bbl: ScoutPlayer[];
   sa20: ScoutPlayer[];
   cpl: ScoutPlayer[];
+  blast: ScoutPlayer[];
 }
 export const getScoutIndex = (c: string) => getJSON<ScoutIndex>(`${c}/scout_index.json`);
 export const getCohorts = (c: string, cid: string) =>
