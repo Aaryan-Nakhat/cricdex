@@ -2,9 +2,9 @@
 
 10 tabs matching the Streamlit dashboard pages 1-to-1:
 Leaders / Rules / Records / Compare / Venues / Auction (Solve +
-Recommend) / Profile / Auction-Sim / Twins / Update.
-Same code paths as the one-shot CLI, so behaviour stays in
-lockstep.
+Recommend) / Profile / Auction-Sim / Scout / Update.
+Same code paths as the one-shot CLI, so behaviour stays in lockstep —
+the Auction-Sim and Scout tabs run the web-identical `cricdex.web_parity`.
 
 Quit: q / Ctrl-C / Esc.
 """
@@ -68,10 +68,17 @@ VENUE_VIEW_OPTIONS = [
     ("Chase vs set winrate", "chase"),
 ]
 
-SCOUT_MODE_OPTIONS = [
-    ("Co-faced bowlers", "co_faced"),
-    ("Teammate overlap", "teammates"),
-    ("Find replacement", "find_replacement"),
+SCOUT_TIER_OPTIONS = [
+    ("IPL peers", "ipl"),
+    ("Uncapped · SMAT", "smat"),
+    ("Overseas · BBL", "bbl"),
+]
+SCOUT_ROLE_OPTIONS = [
+    ("(pick's role)", ""),
+    ("Batter", "batter"),
+    ("All-rounder", "all_rounder"),
+    ("Keeper", "keeper"),
+    ("Bowler", "bowler"),
 ]
 
 
@@ -246,7 +253,7 @@ class CricDexApp(App):
                 yield from self._profile_panel()
             with TabPane("Sim", id="tab-auction-sim"):
                 yield from self._auction_sim_panel()
-            with TabPane("Twins", id="tab-twins"):
+            with TabPane("Scout", id="tab-twins"):
                 yield from self._twins_panel()
             with TabPane("Update", id="tab-update"):
                 yield from self._update_panel()
@@ -833,56 +840,85 @@ class CricDexApp(App):
         ]
         _fill_datatable(table, rows, max_cols=8)
 
-    # ===== Player Twins ===================================================
+    # ===== Scout — 3-tier look-alikes (web-identical) =====================
 
     def _twins_panel(self) -> ComposeResult:
         with Vertical():
             with Horizontal(classes="controls"):
                 yield Label("Player:")
                 yield Input(value="JJ Bumrah", id="twins-name")
-                yield Label("Mode:")
+                yield Label("Tier:")
                 yield Select(
-                    options=SCOUT_MODE_OPTIONS,
-                    value="co_faced",
-                    id="twins-mode",
-                    allow_blank=False,
+                    options=SCOUT_TIER_OPTIONS, value="smat", id="twins-tier", allow_blank=False
+                )
+                yield Label("Role:")
+                yield Select(
+                    options=SCOUT_ROLE_OPTIONS, value="", id="twins-role", allow_blank=False
                 )
                 yield Label("Top K:")
-                yield Input(value="15", id="twins-k")
-                yield Button("Query ▸", id="twins-run", variant="primary")
+                yield Input(value="8", id="twins-k", classes="num")
+                yield Button("Scout ▸", id="twins-run", variant="primary")
             yield Static("", id="twins-meta", classes="intro")
             yield DataTable(id="twins-table", zebra_stripes=True)
 
     def _on_run_twins(self) -> None:
+        # Canonical, web-identical scout (cricdex.web_parity): same exported
+        # scout_index + look-alike logic + tier-discounted pricing as the site.
         table = self.query_one("#twins-table", DataTable)
         meta = self.query_one("#twins-meta", Static)
         name = self.query_one("#twins-name", Input).value
-        mode = self.query_one("#twins-mode", Select).value
+        tier = self.query_one("#twins-tier", Select).value
+        role_sel = self.query_one("#twins-role", Select).value
         try:
-            top_k = int(self.query_one("#twins-k", Input).value or "15")
+            top_k = int(self.query_one("#twins-k", Input).value or "8")
         except ValueError:
-            top_k = 15
+            top_k = 8
         try:
-            from cricdex.scout.graph import similar
-        except ImportError as e:
-            _fill_datatable(table, [{"error": f"neo4j extra missing: {e}"}])
-            return
-        try:
-            if mode == "co_faced":
-                rows = similar.co_faced_bowlers(name, top_k=top_k)
-            elif mode == "teammates":
-                rows = similar.teammate_overlap(name, top_k=top_k)
-            else:
-                rows = similar.find_replacement(name, top_k=top_k)
-        except Exception as e:  # noqa: BLE001
+            from cricdex.web_parity import (
+                est_value,
+                gem_threshold,
+                is_gem,
+                load_scout_index,
+                similar_to,
+            )
+
+            idx = load_scout_index("ipl")
+        except FileNotFoundError as e:
             _fill_datatable(table, [{"error": str(e)}])
             return
-        archetype, style = _detect_archetype(name)
-        meta.update(
-            f"{_copy.TWINS_INTRO}   ·   auto-detected: [bold]{archetype}[/bold] / "
-            f"[bold]{style}[/bold]   ·   {len(rows)} candidates"
+
+        names = {p["name"]: p for p in idx["ipl"]}
+        sel = names.get(name) or next(
+            (p for n, p in names.items() if name.lower() in n.lower()), None
         )
-        _fill_datatable(table, rows)
+        if sel is None:
+            _fill_datatable(table, [{"error": f"no active IPL player matching '{name}'"}])
+            return
+
+        role = role_sel or sel["role"]
+        sel_price = est_value(sel["value"], sel["role"], "ipl")
+        gem_med = gem_threshold(idx["smat"])
+        rows = []
+        for r in similar_to(sel, idx[tier], role, "")[:top_k]:
+            price = est_value(r["value"], r["role"], tier)
+            saving = sel_price - price if price < sel_price else 0.0
+            rows.append(
+                {
+                    "name": r["name"],
+                    "country": r.get("country") or "—",
+                    "last": (r.get("last_match_date") or "")[:4],
+                    "est_cr": round(price, 1),
+                    "save_cr": round(saving, 1) if saving > 0 else None,
+                    "sim%": round(r["sim"] * 100),
+                    "gem": "💎" if (tier == "smat" and is_gem(r, gem_med)) else "",
+                }
+            )
+        tier_label = {b: a for a, b in SCOUT_TIER_OPTIONS}[tier]
+        meta.update(
+            f"[bold]{sel['name']}[/bold] · {role} · standing {sel['z']:.2f} · "
+            f"≈ {sel_price:.1f} cr   →   {tier_label}"
+        )
+        _fill_datatable(table, rows or [{"info": "no close match of this archetype"}])
 
     # ===== Update Data ====================================================
 
@@ -1008,33 +1044,6 @@ def _summarise_metric(payload) -> str:
                 return f"{v:.2f}" if isinstance(v, float) else str(v)
         return "—"
     return str(payload)
-
-
-def _detect_archetype(name: str, collection: str = "ipl") -> tuple[str, str]:
-    try:
-        from cricdex.scout.graph.schema import driver
-
-        drv = driver()
-        try:
-            with drv.session() as s:
-                row = s.run(
-                    "MATCH (p:Player {unique_name: $name, collection: $collection}) "
-                    "RETURN p.balls_bowled AS bb, p.balls_faced AS bf, "
-                    "p.bowling_style AS style",
-                    name=name,
-                    collection=collection,
-                ).single()
-        finally:
-            drv.close()
-    except Exception:
-        return ("unknown", "unknown")
-    if row is None:
-        return ("unknown", "unknown")
-    bb = row.get("bb") or 0
-    bf = row.get("bf") or 0
-    archetype = "bowler" if bb > bf else "batter"
-    style = row.get("style") or "—"
-    return (archetype, style)
 
 
 def run_tui() -> None:

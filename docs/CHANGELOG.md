@@ -29,7 +29,7 @@ views, no longer the default path.
   look-alikes + prices) within 1e-9. Fails CI if the surfaces ever drift.
 - Canonical desktop entry points: `cricdex scout look-alikes`,
   `cricdex auction room`; Streamlit **Scout** + **Auction room** pages; the
-  TUI **Sim** tab — all web-identical.
+  TUI **Scout** + **Sim** tabs — all web-identical.
 
 ### Changed
 
