@@ -117,47 +117,47 @@ function TierPanel({
             const saving = selPrice != null && price < selPrice ? selPrice - price : 0;
             const gem = gemMedian != null && isGem(p, gemMedian);
             return (
-              <div
-                key={p.cricsheet_id}
-                className="flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm hover:bg-surface"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="stat-num w-5 shrink-0 text-xs text-muted">{i + 1}</span>
-                  {linkable ? (
-                    <button
-                      onClick={() => navigate(`/player?cid=${p.cricsheet_id}`)}
-                      className="truncate text-left text-fg hover:text-accent-glow"
-                    >
-                      {p.name}
-                    </button>
-                  ) : (
-                    <span className="truncate text-fg">{p.name}</span>
-                  )}
-                  {gem && (
-                    <span title="Uncapped gem — high standing for very few balls played (moneyball)">
-                      <Gem className="h-3.5 w-3.5 shrink-0 text-willow" />
-                    </span>
-                  )}
-                  {p.country && <span className="shrink-0 text-[11px] text-muted">{p.country}</span>}
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="stat-num text-right text-xs">
-                    <span className="text-muted">≈{fmt(price, 1)}cr</span>
-                    {saving > 0 && <span className="ml-1 text-willow">−{fmt(saving, 0)}</span>}
+              <div key={p.cricsheet_id} className="rounded-md px-3 py-2 hover:bg-surface">
+                {/* line 1: rank + full-width name + similarity */}
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="stat-num w-4 shrink-0 text-xs text-muted">{i + 1}</span>
+                    {linkable ? (
+                      <button
+                        onClick={() => navigate(`/player?cid=${p.cricsheet_id}`)}
+                        className="truncate text-left text-fg hover:text-accent-glow"
+                      >
+                        {p.name}
+                      </button>
+                    ) : (
+                      <span className="truncate text-fg">{p.name}</span>
+                    )}
+                    {gem && (
+                      <span title="Uncapped gem — high standing for very few balls played (moneyball)">
+                        <Gem className="h-3.5 w-3.5 shrink-0 text-willow" />
+                      </span>
+                    )}
                   </span>
-                  <span className="w-11 text-right">
-                    <Badge tone={sim > 0.8 ? "accent" : sim > 0.6 ? "willow" : "muted"}>{Math.round(sim * 100)}%</Badge>
-                  </span>
+                  <Badge tone={sim > 0.8 ? "accent" : sim > 0.6 ? "willow" : "muted"}>
+                    {Math.round(sim * 100)}%
+                  </Badge>
+                </div>
+                {/* line 2: meta (country · price · saving · draft) */}
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 pl-6 text-[11px] text-muted">
+                  {p.country && <span>{p.country}</span>}
+                  {p.last_match_date && <span className="stat-num">{p.last_match_date.slice(0, 4)}</span>}
+                  <span className="stat-num">≈{fmt(price, 1)}cr</span>
+                  {saving > 0 && <span className="stat-num text-willow">save {fmt(saving, 1)}</span>}
                   {draftable && (
                     <button
                       onClick={() => navigate(`/auction?draft=${p.cricsheet_id}`)}
                       title="Draft into the Auction room as a retention"
-                      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-glow hover:border-accent/50"
+                      className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-accent-glow hover:border-accent/50"
                     >
                       <Gavel className="h-3 w-3" /> Draft
                     </button>
                   )}
-                </span>
+                </div>
               </div>
             );
           })

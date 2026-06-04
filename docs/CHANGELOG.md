@@ -30,6 +30,10 @@ views, no longer the default path.
 - Canonical desktop entry points: `cricdex scout look-alikes`,
   `cricdex auction room`; Streamlit **Scout** + **Auction room** pages; the
   TUI **Scout** + **Sim** tabs — all web-identical.
+- **Post-sim player search** (web + Streamlit, mega & mini): after a run, look
+  up any player — retained (by which team), sold (most-likely buyers, sold-%,
+  avg price), or unsold. Backed by a new per-player `outcomes` summary the sim
+  emits across all trials (parity-locked TS ⇄ Python).
 
 ### Changed
 
