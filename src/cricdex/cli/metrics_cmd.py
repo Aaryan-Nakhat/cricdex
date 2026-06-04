@@ -13,21 +13,22 @@ import typer
 
 from cricdex.cli import _copy, _render
 from cricdex.cli._shared import EXIT_MISSING_DATA, die
-from cricdex.config import DATA_DIR
+from cricdex.web_parity.loader import SITE_DATA
 
-# Metric slug → (primary sort column, primary key column). Matches
-# data/metrics/<slug>_<col>.json emitted by compute_metrics.py.
-METRICS: dict[str, tuple[str, str]] = {
-    "ngi": ("ngi_per_match", "name"),
-    "pressure_runs": ("pressure_sr_per_100_balls", "batter"),
-    "intent_curve": ("sr", "batter"),
-    "dot_ball_recovery": ("runs_per_6_after_dot", "batter"),
-    "counter_attack": ("counter_attack_sr", "batter"),
-    "boundary_dependency": ("bdr_pct", "batter"),
-    "pressure_conversion": ("wicket_rate_pct", "bowler"),
-    "wicket_quality": ("wicket_quality", "bowler"),
-    "crease_longevity": ("longevity_index", "batter"),
-    "slow_start_cost": ("slow_start_cost", "batter"),
+# Metric slug → (primary sort column, primary key column, higher_is_better).
+# Reads the SAME exported leaderboard JSON the web app uses
+# (site/public/data/<col>/leaderboards/<slug>.json), so rankings match.
+METRICS: dict[str, tuple[str, str, bool]] = {
+    "ngi": ("ngi_per_match", "name", True),
+    "pressure_runs": ("pressure_sr_per_100_balls", "batter", True),
+    "intent_curve": ("early_sr", "batter", True),
+    "dot_ball_recovery": ("runs_per_6_after_dot", "batter", True),
+    "counter_attack": ("counter_attack_sr", "batter", True),
+    "boundary_dependency": ("bdr_pct", "batter", False),
+    "pressure_conversion": ("wicket_rate_pct", "bowler", True),
+    "wicket_quality": ("wicket_quality", "bowler", True),
+    "crease_longevity": ("longevity_index", "batter", True),
+    "slow_start_cost": ("slow_start_cost", "batter", False),
 }
 
 
@@ -44,18 +45,18 @@ def leaderboard(
 ) -> None:
     if metric not in METRICS:
         die(f"unknown metric — choose from {sorted(METRICS)}")
-    sort_col, primary_key = METRICS[metric]
-    path = Path(DATA_DIR) / "metrics" / f"{metric}_{collection}.json"
+    sort_col, primary_key, higher = METRICS[metric]
+    path = SITE_DATA / collection / "leaderboards" / f"{metric}.json"
     if not path.exists():
         die(
             f"no leaderboard at {path}",
             code=EXIT_MISSING_DATA,
-            hint=f"run `cricdex data ingest metrics -c {collection}`",
+            hint="run `uv run python scripts/export_site.py` (after `data ingest metrics`)",
         )
     rows = json.loads(path.read_text())
     if not isinstance(rows, list):
         rows = rows.get("rows", []) if isinstance(rows, dict) else []
-    rows = sorted(rows, key=lambda r: r.get(sort_col, 0) or 0, reverse=True)[:top]
+    rows = sorted(rows, key=lambda r: r.get(sort_col, 0) or 0, reverse=higher)[:top]
 
     if output_json:
         typer.echo(json.dumps(rows, indent=2))
