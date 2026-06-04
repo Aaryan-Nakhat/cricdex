@@ -1,10 +1,9 @@
 """Textual TUI — `cricdex tui` (also `cricdex` with no subcommand).
 
-9 tabs matching the Streamlit dashboard pages:
-Leaders / Rules / Records / Compare / Venues / Profile / Auction / Scout /
-Update. The Auction and Scout tabs run the web-identical `cricdex.web_parity`
-(same as the live site). The MILP squad solver + graph substitute advisor
-live on as advanced CLI commands (`cricdex auction solve / recommend`).
+Tabs mirror the React web app's analytical pages — nothing more:
+Leaders / Records / Compare / Venues / Profile / Auction / Scout. Auction +
+Scout run the web-identical `cricdex.web_parity` (same as the live site).
+(No Rules / Update / graph here — the web app doesn't have them.)
 
 Quit: q / Ctrl-C / Esc.
 """
@@ -211,14 +210,12 @@ class CricDexApp(App):
 
     _TAB_ORDER = [
         "tab-leaderboard",
-        "tab-rules",
         "tab-records",
         "tab-compare",
         "tab-venues",
         "tab-profile",
         "tab-auction-sim",
         "tab-twins",
-        "tab-update",
     ]
 
     def _shift_tab(self, delta: int) -> None:
@@ -241,8 +238,6 @@ class CricDexApp(App):
         with TabbedContent(id="tabs"):
             with TabPane("Leaders", id="tab-leaderboard"):
                 yield from self._leaderboard_panel()
-            with TabPane("Rules", id="tab-rules"):
-                yield from self._rules_panel()
             with TabPane("Records", id="tab-records"):
                 yield from self._records_panel()
             with TabPane("Compare", id="tab-compare"):
@@ -255,8 +250,6 @@ class CricDexApp(App):
                 yield from self._auction_sim_panel()
             with TabPane("Scout", id="tab-twins"):
                 yield from self._twins_panel()
-            with TabPane("Update", id="tab-update"):
-                yield from self._update_panel()
         yield Footer()
 
     # ---- status -----------------------------------------------------------
@@ -325,50 +318,6 @@ class CricDexApp(App):
             _fill_datatable(table, pruned)
         else:
             _fill_datatable(table, rows)
-
-    # ===== Rules ==========================================================
-
-    def _rules_panel(self) -> ComposeResult:
-        with Vertical():
-            with Horizontal(classes="controls"):
-                yield Label("Q:")
-                yield Input(value="what is the impact player rule in IPL", id="rules-q")
-                yield Label("Fmts:")
-                yield Input(value="ipl", id="rules-formats")
-                yield Button("Ask ▸", id="rules-run", variant="primary")
-            yield Static(_copy.RULES_INTRO, classes="intro")
-            yield RichLog(id="rules-log", highlight=False, markup=True, wrap=True)
-
-    def _on_run_rules(self) -> None:
-        log = self.query_one("#rules-log", RichLog)
-        log.clear()
-        from cricdex.config import settings
-
-        if not (settings.gemini_api_key or settings.gemini_tmp_url):
-            log.write(
-                "[red]missing Gemini credential[/red]\n"
-                "set via `cricdex config set gemini_api_key <key>` then re-launch the TUI."
-            )
-            return
-        question = self.query_one("#rules-q", Input).value
-        formats = [
-            f.strip() for f in self.query_one("#rules-formats", Input).value.split(",") if f.strip()
-        ] or None
-        try:
-            from cricdex.rules import sources
-            from cricdex.rules.qa import answer
-
-            res = answer(question, formats=formats, top_k=8)
-        except Exception as e:  # noqa: BLE001
-            log.write(f"[red]error:[/red] {e}")
-            return
-        log.write(f"[bold]Q.[/bold] {question}\n")
-        log.write(f"[bold green]A.[/bold green] {res.get('answer', '')}\n")
-        for src_id, law in res.get("citations") or []:
-            log.write(
-                f"  [dim]•[/dim] [bold]{sources.label_for(src_id)}[/bold], "
-                f"clause [cyan]{law}[/cyan]"
-            )
 
     # ===== Records ========================================================
 
@@ -899,62 +848,6 @@ class CricDexApp(App):
         )
         _fill_datatable(table, rows or [{"info": "no close match of this archetype"}])
 
-    # ===== Update Data ====================================================
-
-    def _update_panel(self) -> ComposeResult:
-        with Vertical():
-            with Horizontal(classes="controls"):
-                yield Label("Collection:")
-                yield Input(value="ipl", id="upd-collection")
-                yield Label("Force?")
-                yield Select(
-                    options=[("no", "no"), ("yes", "yes")],
-                    value="no",
-                    id="upd-force",
-                    allow_blank=False,
-                )
-                yield Button("Cricsheet", id="upd-cricsheet", variant="primary")
-                yield Button("Ratings", id="upd-ratings", variant="primary")
-                yield Button("Metrics", id="upd-metrics", variant="primary")
-            with Horizontal(classes="controls"):
-                yield Button("Graph", id="upd-graph", variant="primary")
-                yield Button("Rules", id="upd-rules", variant="primary")
-                yield Button("Wikidata", id="upd-wikidata", variant="primary")
-                yield Button("All (chained)", id="upd-all", variant="warning")
-            yield Static(
-                "Each button shells into `cricdex data ingest <slice> -c <collection>`. "
-                "Order if running individually: cricsheet → ratings → metrics → graph. "
-                "Rules + wikidata independent. `All (chained)` runs every slice in order.",
-                classes="intro",
-            )
-            yield RichLog(id="upd-log", highlight=False, markup=True, wrap=True)
-
-    def _run_update_slice(self, slice_: str) -> None:
-        log = self.query_one("#upd-log", RichLog)
-        collection = self.query_one("#upd-collection", Input).value.strip() or "ipl"
-        force = self.query_one("#upd-force", Select).value == "yes"
-        log.write(
-            f"[bold cyan]▶[/bold cyan] ingest [bold]{slice_}[/bold] "
-            f"(collection={collection}, force={force})"
-        )
-        try:
-            from cricdex.cli.data_cmd import run_ingest
-
-            msg = run_ingest(slice_, collection=collection, force=force)
-        except Exception as e:  # noqa: BLE001
-            log.write(f"[red]✗ {slice_} failed:[/red] {e}")
-            return
-        log.write(f"[green]✓[/green] {msg}")
-
-    def _run_update_all(self) -> None:
-        log = self.query_one("#upd-log", RichLog)
-        log.write(
-            "[bold]▶ chained refresh: cricsheet → ratings → metrics → graph → rules → wikidata[/bold]"
-        )
-        for slice_ in ("cricsheet", "ratings", "metrics", "graph", "rules", "wikidata"):
-            self._run_update_slice(slice_)
-        log.write("[bold green]✓ all slices complete[/bold green]")
-
     # ===== event dispatch ================================================
 
     def on_select_changed(self, event: Select.Changed) -> None:
@@ -972,7 +865,6 @@ class CricDexApp(App):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         handlers = {
             "metric-run": self._on_run_leaderboard,
-            "rules-run": self._on_run_rules,
             "records-run": self._on_run_records,
             "cmp-run": self._on_run_compare,
             "ven-run": self._on_run_venues,
@@ -985,14 +877,6 @@ class CricDexApp(App):
         }
         if event.button.id in handlers:
             handlers[event.button.id]()
-            return
-        # Update Data buttons
-        if event.button.id == "upd-all":
-            self._run_update_all()
-        elif event.button.id and event.button.id.startswith("upd-"):
-            slice_ = event.button.id.removeprefix("upd-")
-            if slice_ in ("cricsheet", "ratings", "metrics", "graph", "rules", "wikidata"):
-                self._run_update_slice(slice_)
 
 
 # ---- helpers ----------------------------------------------------------------
