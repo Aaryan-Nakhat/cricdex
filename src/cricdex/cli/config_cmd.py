@@ -1,7 +1,7 @@
 """`cricdex config` — read / write the user's CricDex credential store.
 
 Storage: `$CRICDEX_HOME/config.toml` (default `~/.cricdex/config.toml`),
-chmod 600. Keys are flat strings — `gemini_api_key`, `jina_api_key`, etc.
+chmod 600. Keys are flat strings — `gemini_api_key`, `gemini_tmp_*`.
 """
 
 from __future__ import annotations
@@ -24,11 +24,6 @@ ALLOWED_KEYS = {
     "gemini_api_key",
     "gemini_tmp_url",
     "gemini_tmp_api_key",
-    "jina_api_key",
-    "qdrant_url",
-    "neo4j_uri",
-    "neo4j_user",
-    "neo4j_password",
 }
 
 

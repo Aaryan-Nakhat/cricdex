@@ -7,15 +7,13 @@ CricDex is a terminal-first tool. Credentials live in:
      (defaults to `~/.cricdex/config.toml`, see `cricdex config set`)
   3. `.env` in the repo root — dev-convenience fallback only
 
-Only two credentials are user-relevant:
+Only one credential is user-relevant:
 
 - `gemini_api_key` (or `gemini_tmp_url` + `gemini_tmp_api_key` for the
-  legacy work proxy) — needed for rules Q&A.
-- `jina_api_key` — optional, enables cross-encoder rerank in rules
-  retrieval. Falls back to RRF order if unset.
+  work proxy) — optional, only for the Gemini taxonomy enrichment.
 
-Everything else (Neo4j password, embedded Qdrant, DuckDB path) is
-local-only — set sensible defaults and forget.
+Everything else (DuckDB path, Redis URL) is local-only — sensible
+defaults, forget.
 """
 
 from __future__ import annotations
@@ -69,25 +67,16 @@ def _setting(name: str, default: str = "") -> str:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(ROOT / ".env"), extra="ignore")
 
-    # LLM (rules Q&A).
+    # Gemini (taxonomy enrichment only).
     gemini_api_key: str = _setting("gemini_api_key")
-    # Legacy work-hosted proxy. Phased out once user supplies a personal
-    # gemini_api_key. Both fields are read; non-empty wins.
+    # Work-hosted proxy (reporting-service). Both fields are read; the
+    # tmp pair wins when set (see scripts/enrich_taxonomy.py).
     gemini_tmp_url: str = _setting("gemini_tmp_url")
     gemini_tmp_api_key: str = _setting("gemini_tmp_api_key")
 
-    # Optional: cross-encoder rerank on rules retrieval. Falls back to
-    # RRF order if empty.
-    jina_api_key: str = _setting("jina_api_key")
-
     # Local infra (sensible defaults, rarely touched).
-    qdrant_url: str = _setting("qdrant_url")
     duckdb_path: str = str(DATA_DIR / "cricdex.duckdb")
     redis_url: str = _setting("redis_url", "redis://localhost:6379/0")
-
-    neo4j_uri: str = _setting("neo4j_uri", "bolt://localhost:7687")
-    neo4j_user: str = _setting("neo4j_user", "neo4j")
-    neo4j_password: str = _setting("neo4j_password", "cricdex_dev")
 
 
 settings = Settings()
