@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Gavel, Dices, Plane, Calculator, X, Users } from "lucide-react";
 import { useAsync } from "@/lib/useAsync";
 import { getAuctionPool, getRetentions } from "@/lib/data";
@@ -164,6 +164,9 @@ function NumberField({ label, value, onChange, min = 0, max = 999, step = 1, suf
 
 export function Auction() {
   const navigate = useNavigate();
+  // ?draft=<cricsheet_id> arrives from the Scout room ("draft this prospect").
+  const [params] = useSearchParams();
+  const draftId = params.get("draft");
   // Auction is IPL-only — the ten franchises + retentions are IPL concepts.
   // Uses the big auction_pool (every active rated player), not players.json.
   const poolData = useAsync(() => getAuctionPool("ipl"), []);
@@ -211,7 +214,7 @@ export function Auction() {
       ) : pool.length === 0 ? (
         <Empty>No rated IPL pool available.</Empty>
       ) : (
-        <Simulate pool={pool} megaIds={megaIds} realPrices={realPrices} navigate={navigate} />
+        <Simulate pool={pool} megaIds={megaIds} realPrices={realPrices} draftId={draftId} navigate={navigate} />
       )}
     </>
   );
@@ -226,11 +229,13 @@ function Simulate({
   pool,
   megaIds,
   realPrices,
+  draftId,
   navigate,
 }: {
   pool: PoolPlayer[];
   megaIds: Record<string, string[]>;
   realPrices: Record<string, number>;
+  draftId: string | null;
   navigate: (p: string) => void;
 }) {
   const [teams, setTeams] = useState(IPL_TEAMS_DEFAULT);
@@ -242,16 +247,26 @@ function Simulate({
   const [focus, setFocus] = useState(0);
   const [result, setResult] = useState<SimResult | null>(null);
   const [running, setRunning] = useState(false);
+  // a player drafted in from the Scout room (?draft=), and which team keeps him
+  const [draftCid, setDraftCid] = useState<string | null>(draftId);
+  const [draftTeam, setDraftTeam] = useState(IPL_TEAMS_DEFAULT[0].team);
+  const draftPlayer = draftCid ? pool.find((p) => p.cricsheet_id === draftCid) : null;
   // editable retentions per team — reset to the mode's default when mode/pool changes
   const [retentions, setRetentions] = useState<Record<string, string[]>>({});
   useEffect(() => {
-    setRetentions(defaultRetentions(pool, teams, mode, megaIds));
+    const base = defaultRetentions(pool, teams, mode, megaIds);
+    // Inject a Scout-drafted prospect as an extra retention for the chosen team.
+    if (draftCid && pool.some((p) => p.cricsheet_id === draftCid)) {
+      const cur = base[draftTeam] ?? [];
+      if (!cur.includes(draftCid)) base[draftTeam] = [...cur, draftCid];
+    }
+    setRetentions(base);
     // Mega = full 120cr purse (retentions drawn from it). Mini = the squad is
     // already paid for; teams bid from a small leftover purse.
     setPurse(mode === "mega" ? 120 : 30);
     setResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pool, megaIds]);
+  }, [mode, pool, megaIds, draftCid, draftTeam]);
 
   // roster per team (active players on that team), best-value first, for the editor
   const rosters = useMemo(() => {
@@ -279,6 +294,37 @@ function Simulate({
 
   return (
     <div className="space-y-5">
+      {/* drafted-from-Scout banner */}
+      {draftCid &&
+        (draftPlayer ? (
+          <Card className="flex flex-wrap items-center gap-2 border-accent/40 bg-accent/5 px-4 py-3 text-sm">
+            <Gavel className="h-4 w-4 shrink-0 text-accent" />
+            <span className="text-muted">
+              Drafted <b className="text-fg">{draftPlayer.name}</b> from Scout — locked as a retention for
+            </span>
+            <select
+              value={draftTeam}
+              onChange={(e) => setDraftTeam(e.target.value)}
+              className="input w-auto cursor-pointer py-1 text-xs"
+            >
+              {teams.map((t) => (
+                <option key={t.team} value={t.team} className="bg-card">{t.team}</option>
+              ))}
+            </select>
+            <button onClick={() => setDraftCid(null)} className="ml-auto inline-flex items-center gap-1 text-xs text-muted hover:text-ball">
+              <X className="h-3 w-3" /> release
+            </button>
+          </Card>
+        ) : (
+          <Card className="flex flex-wrap items-center gap-2 border-ball/30 bg-ball/5 px-4 py-3 text-sm text-muted">
+            That player isn't in the priced auction pool (too few balls, or a non-IPL nation), so he
+            can't be drafted.
+            <button onClick={() => setDraftCid(null)} className="ml-auto inline-flex items-center gap-1 text-xs hover:text-ball">
+              <X className="h-3 w-3" /> dismiss
+            </button>
+          </Card>
+        ))}
+
       {/* mode */}
       <Card className="p-5">
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-fg">

@@ -38,6 +38,14 @@ rebuilt as more realistic, self-contained tools.
   uncapped **SMAT** prospects, then overseas **BBL** options. Matches share
   archetype (role + seam/spin) and are ranked by within-tier skill-standing
   z-score, so cross-tier stars line up despite incomparable raw numbers.
+  Each row now carries an **estimated crore price** (the Auction room's
+  skill→price curve via a shared `estValue`, tier-discounted so SMAT/BBL is
+  comparable to IPL) and the **saving** vs the pick (budget swap); an
+  uncapped-**gem** flag marks SMAT prospects with high standing on
+  below-median exposure (moneyball); **role / batting-slot filters** narrow
+  or re-target each tier; and a one-click **Draft** drops a prospect into the
+  Auction room as a retention (`/auction?draft=<id>`). Scout index now emits
+  per-player `balls` for the gem cutoff.
 - **Export pipeline** — `scripts/export_site.py` gains
   `_export_auction_pool` (cross-collection, recency, tier penalty) and
   `_export_scout_index` (3-tier z-standing), plus real-2025 retention

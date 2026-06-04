@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Network, Users, Sprout, Plane } from "lucide-react";
+import { Network, Users, Sprout, Plane, Gem, Gavel } from "lucide-react";
 import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
+import { estValue, type PriceTier, type Role } from "@/lib/auction";
 import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, Collapsible } from "@/components/ui";
 import { fmt } from "@/lib/utils";
@@ -17,11 +18,33 @@ const POS = {
   tailender: "Tailender",
 } as Record<string, string>;
 
-// similar = same role (+ same bowling type for bowlers), nearest skill standing
-function similarTo(sel: ScoutPlayer, pool: ScoutPlayer[]): { p: ScoutPlayer; sim: number }[] {
+const ROLE_OPTS: { value: Role; label: string }[] = [
+  { value: "batter", label: "Batter" },
+  { value: "all_rounder", label: "All-rounder" },
+  { value: "keeper", label: "Keeper" },
+  { value: "bowler", label: "Bowler" },
+];
+
+// Uncapped "gem": punches above its sample — high standing on low exposure.
+const GEM_Z = 0.6;
+function isGem(p: ScoutPlayer, medianBalls: number): boolean {
+  return p.z >= GEM_Z && p.balls > 0 && p.balls <= medianBalls;
+}
+
+// similar = chosen role (+ same bowling type for bowlers, + optional batting
+// position), nearest skill standing. role can override the pick's own role.
+function similarTo(
+  sel: ScoutPlayer,
+  pool: ScoutPlayer[],
+  role: Role,
+  pos: string,
+): { p: ScoutPlayer; sim: number }[] {
   return pool
-    .filter((p) => p.cricsheet_id !== sel.cricsheet_id && p.role === sel.role)
-    .filter((p) => sel.role !== "bowler" || p.bowling_category === sel.bowling_category)
+    .filter((p) => p.cricsheet_id !== sel.cricsheet_id && p.role === role)
+    .filter(
+      (p) => role !== "bowler" || !sel.bowling_category || p.bowling_category === sel.bowling_category,
+    )
+    .filter((p) => !pos || p.batting_position === pos)
     .map((p) => ({ p, sim: Math.max(0, 1 - Math.abs(p.z - sel.z) / 2.5) }))
     .sort((a, b) => b.sim - a.sim)
     .slice(0, 8);
@@ -46,6 +69,14 @@ function ScoutMath() {
           competition</i> (mean 0, sd 1), so a star in SMAT and a star in the IPL line up even though
           the raw numbers aren't comparable across tiers. Similarity = how close those standings are.
         </p>
+        <p>
+          Each row shows an <b>estimated crore price</b> (the same skill→price curve the Auction room
+          uses, discounted for the weaker tier). For SMAT/BBL look-alikes we also show the{" "}
+          <b>saving</b> versus your (expensive) IPL pick — the budget-swap case. A{" "}
+          <Gem className="inline h-3 w-3 text-willow" /> <b className="text-willow">gem</b> flags an
+          uncapped prospect with unusually high standing for how little he's played — a moneyball
+          punt. Hit <b>Draft</b> to drop a prospect straight into the Auction room as a retention.
+        </p>
       </div>
     </Collapsible>
   );
@@ -56,14 +87,22 @@ function TierPanel({
   icon,
   subtitle,
   rows,
+  tier,
+  selPrice,
+  gemMedian,
   linkable,
+  draftable,
   navigate,
 }: {
   title: string;
   icon: React.ReactNode;
   subtitle: string;
   rows: { p: ScoutPlayer; sim: number }[];
+  tier: PriceTier;
+  selPrice: number | null;
+  gemMedian: number | null;
   linkable: boolean;
+  draftable: boolean;
   navigate: (path: string) => void;
 }) {
   return (
@@ -73,26 +112,55 @@ function TierPanel({
         {rows.length === 0 ? (
           <div className="px-3 py-6 text-center text-sm text-muted">No close match of this archetype.</div>
         ) : (
-          rows.map(({ p, sim }, i) => (
-            <button
-              key={p.cricsheet_id}
-              disabled={!linkable}
-              onClick={() => linkable && navigate(`/player?cid=${p.cricsheet_id}`)}
-              className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-surface disabled:cursor-default"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="stat-num w-5 shrink-0 text-xs text-muted">{i + 1}</span>
-                <span className="truncate text-fg">{p.name}</span>
-                {p.country && <span className="shrink-0 text-[11px] text-muted">{p.country}</span>}
-              </span>
-              <span className="flex shrink-0 items-center gap-2">
-                <span className="stat-num text-xs text-muted">{p.last_match_date?.slice(0, 4)}</span>
-                <span className="w-12 text-right">
-                  <Badge tone={sim > 0.8 ? "accent" : sim > 0.6 ? "willow" : "muted"}>{Math.round(sim * 100)}%</Badge>
+          rows.map(({ p, sim }, i) => {
+            const price = estValue(p.value, p.role, tier);
+            const saving = selPrice != null && price < selPrice ? selPrice - price : 0;
+            const gem = gemMedian != null && isGem(p, gemMedian);
+            return (
+              <div
+                key={p.cricsheet_id}
+                className="flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm hover:bg-surface"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="stat-num w-5 shrink-0 text-xs text-muted">{i + 1}</span>
+                  {linkable ? (
+                    <button
+                      onClick={() => navigate(`/player?cid=${p.cricsheet_id}`)}
+                      className="truncate text-left text-fg hover:text-accent-glow"
+                    >
+                      {p.name}
+                    </button>
+                  ) : (
+                    <span className="truncate text-fg">{p.name}</span>
+                  )}
+                  {gem && (
+                    <span title="Uncapped gem — high standing for very few balls played (moneyball)">
+                      <Gem className="h-3.5 w-3.5 shrink-0 text-willow" />
+                    </span>
+                  )}
+                  {p.country && <span className="shrink-0 text-[11px] text-muted">{p.country}</span>}
                 </span>
-              </span>
-            </button>
-          ))
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="stat-num text-right text-xs">
+                    <span className="text-muted">≈{fmt(price, 1)}cr</span>
+                    {saving > 0 && <span className="ml-1 text-willow">−{fmt(saving, 0)}</span>}
+                  </span>
+                  <span className="w-11 text-right">
+                    <Badge tone={sim > 0.8 ? "accent" : sim > 0.6 ? "willow" : "muted"}>{Math.round(sim * 100)}%</Badge>
+                  </span>
+                  {draftable && (
+                    <button
+                      onClick={() => navigate(`/auction?draft=${p.cricsheet_id}`)}
+                      title="Draft into the Auction room as a retention"
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-glow hover:border-accent/50"
+                    >
+                      <Gavel className="h-3 w-3" /> Draft
+                    </button>
+                  )}
+                </span>
+              </div>
+            );
+          })
         )}
       </div>
     </Card>
@@ -104,6 +172,8 @@ export function Scout() {
   const { options } = usePlayers("ipl"); // nice full-name search
   const idx = useAsync<ScoutIndex>(() => getScoutIndex("ipl"), []);
   const [cid, setCid] = useState<string | null>(null);
+  const [roleSel, setRoleSel] = useState<Role>("batter");
+  const [posSel, setPosSel] = useState("");
 
   const iplById = useMemo(() => {
     const m = new Map<string, ScoutPlayer>();
@@ -115,12 +185,28 @@ export function Scout() {
   const pickOptions = useMemo(() => options.filter((o) => iplById.has(o.value)), [options, iplById]);
   const sel = cid ? iplById.get(cid) : null;
 
+  // default the role filter to the pick's own role whenever the pick changes
+  useEffect(() => {
+    if (sel) setRoleSel(sel.role);
+    setPosSel("");
+  }, [sel]);
+
+  // median SMAT exposure → the gem cutoff (high standing, below-median balls)
+  const gemMedian = useMemo(() => {
+    const b = (idx.data?.smat ?? []).map((p) => p.balls).filter((x) => x > 0).sort((x, y) => x - y);
+    return b.length ? b[Math.floor(b.length / 2)] : null;
+  }, [idx.data]);
+
+  // the pick's own est. IPL price — the baseline the savings compare against
+  const selPrice = sel ? estValue(sel.value, sel.role, "ipl") : null;
+  const posDisabled = roleSel === "bowler";
+
   return (
     <>
       <PageTitle
         title="Scout"
         icon={<Network className="h-6 w-6" />}
-        desc="Pick an active IPL player and find others of the same mould at three levels — IPL peers, uncapped Indian prospects (SMAT), and overseas options (BBL) — ranked by how close their skill standing is."
+        desc="Pick an active IPL player and find others of the same mould at three levels — IPL peers, uncapped Indian prospects (SMAT), and overseas options (BBL) — with an estimated price, the saving vs your pick, and a one-click draft into the Auction room."
       />
 
       <ScoutMath />
@@ -128,16 +214,57 @@ export function Scout() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Combobox options={pickOptions} value={cid} onChange={setCid} placeholder="Search an active IPL player…" className="max-w-md flex-1" />
         {sel && (
-          <div className="flex items-center gap-2 text-sm text-muted">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
             <Badge tone="accent">{sel.role.replace("_", "-")}</Badge>
             {sel.role === "bowler" && sel.bowling_category && (
               <Badge tone={sel.bowling_category === "spin" ? "willow" : "ball"}>{sel.bowling_category}</Badge>
             )}
             {sel.batting_position && <Badge>{POS[sel.batting_position] ?? sel.batting_position}</Badge>}
             <span className="text-xs">standing {fmt(sel.z, 2)}</span>
+            {selPrice != null && <span className="text-xs">· ≈{fmt(selPrice, 1)}cr</span>}
           </div>
         )}
       </div>
+
+      {/* role / position filters — match a different mould, or narrow by slot */}
+      {sel && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+          <label className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted">Match role</span>
+            <select
+              value={roleSel}
+              onChange={(e) => setRoleSel(e.target.value as Role)}
+              className="input w-auto cursor-pointer py-1 text-xs"
+            >
+              {ROLE_OPTS.map((r) => (
+                <option key={r.value} value={r.value} className="bg-card">{r.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted">Batting slot</span>
+            <select
+              value={posSel}
+              disabled={posDisabled}
+              onChange={(e) => setPosSel(e.target.value)}
+              className="input w-auto cursor-pointer py-1 text-xs disabled:opacity-40"
+            >
+              <option value="" className="bg-card">Any</option>
+              {Object.entries(POS).map(([k, v]) => (
+                <option key={k} value={k} className="bg-card">{v}</option>
+              ))}
+            </select>
+          </label>
+          {(roleSel !== sel.role || posSel) && (
+            <button
+              onClick={() => { setRoleSel(sel.role); setPosSel(""); }}
+              className="text-xs text-accent-glow hover:underline"
+            >
+              reset
+            </button>
+          )}
+        </div>
+      )}
 
       {idx.loading ? (
         <Spinner label="Loading scout index…" />
@@ -149,24 +276,36 @@ export function Scout() {
             title="IPL peers"
             icon={<Users className="h-4 w-4 text-accent" />}
             subtitle="Most-similar active IPL players"
-            rows={similarTo(sel, idx.data!.ipl)}
+            rows={similarTo(sel, idx.data!.ipl, roleSel, posSel)}
+            tier="ipl"
+            selPrice={selPrice}
+            gemMedian={null}
             linkable
+            draftable={false}
             navigate={navigate}
           />
           <TierPanel
             title="Uncapped · SMAT"
             icon={<Sprout className="h-4 w-4 text-willow" />}
             subtitle="Domestic Indian prospects of the same mould"
-            rows={similarTo(sel, idx.data!.smat)}
+            rows={similarTo(sel, idx.data!.smat, roleSel, posSel)}
+            tier="smat"
+            selPrice={selPrice}
+            gemMedian={gemMedian}
             linkable={false}
+            draftable
             navigate={navigate}
           />
           <TierPanel
             title="Overseas · BBL"
             icon={<Plane className="h-4 w-4 text-accent" />}
             subtitle="Big Bash players of the same mould"
-            rows={similarTo(sel, idx.data!.bbl)}
+            rows={similarTo(sel, idx.data!.bbl, roleSel, posSel)}
+            tier="bbl"
+            selPrice={selPrice}
+            gemMedian={null}
             linkable={false}
+            draftable
             navigate={navigate}
           />
         </div>

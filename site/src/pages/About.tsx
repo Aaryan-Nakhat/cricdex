@@ -60,8 +60,11 @@ const SECTIONS: Section[] = [
         overseas options from the <strong>BBL</strong>. Matches share the same role (and seam/spin type
         for bowlers) and are ranked by how close their <em>skill standing</em> is — each player's
         Bayesian value as a z-score within its own competition, so a SMAT star and an IPL star line up
-        even though raw numbers aren't comparable across tiers. (A Neo4j faced/teammate graph still
-        powers the desktop CLI &amp; Streamlit twins.)
+        even though raw numbers aren't comparable across tiers. Each match carries an{" "}
+        <em>estimated crore price</em> (the Auction room's skill→price curve, discounted per tier) and
+        the <em>saving</em> vs your pick — the budget-swap case — plus a <em>gem</em> flag for uncapped
+        prospects punching above their sample. One click <em>drafts</em> a prospect into the Auction
+        room. (A Neo4j faced/teammate graph still powers the desktop CLI &amp; Streamlit twins.)
       </>
     ),
   },
