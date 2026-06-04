@@ -26,7 +26,7 @@ Phase 2 follow-ups.
 | Semi-pro (SMAT) | Cricsheet `indian_domestic_male` | ✅ ingested (Ranji / Hazare removed — out of scope) |
 | Grassroots (CricHeroes) | CricHeroes scrape / partner API | year-2 ([`DEFERRED.md`](DEFERRED.md) §grassroots) |
 | Style-twin (k-NN over rating vector) | feature-space nearest neighbours | ✅ — on every profile |
-| `/scout` web view | Streamlit keeps the Neo4j-graph twins + find-replacement; the static **React site** ships a 3-tier look-alike finder (pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL — ranked by within-tier skill-standing z-score) | ✅ |
+| `/scout` web view | Streamlit keeps the Neo4j-graph twins + find-replacement; the static **React site** ships a 3-tier look-alike finder (pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL — ranked by within-tier skill-standing z-score), with per-row est. crore price + saving-vs-pick (budget swap), an uncapped-**gem** flag (high standing on low exposure), role/batting-slot filters, and one-click **draft** into the Auction room | ✅ |
 
 ## End-to-end pipeline today
 

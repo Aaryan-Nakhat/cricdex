@@ -137,6 +137,7 @@ export interface ScoutPlayer {
   country: string | null;
   value: number;
   z: number; // skill standing within the tier (mean 0, sd 1)
+  balls: number; // exposure in this tier — powers the uncapped-gem flag
   last_match_date: string | null;
 }
 export interface ScoutIndex {

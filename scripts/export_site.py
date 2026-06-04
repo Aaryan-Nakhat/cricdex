@@ -441,6 +441,7 @@ def _export_scout_index(
                     "country": tax.get("country"),
                     "value": round(b["value"], 4),
                     "z": round((b["value"] - mean) / (sd or 1), 3),
+                    "balls": balls.get(cid, 0),  # exposure — for the uncapped-gem flag
                     "last_match_date": ld,
                 }
             )

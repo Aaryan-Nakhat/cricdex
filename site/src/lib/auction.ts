@@ -41,6 +41,20 @@ function priceTier(pv: number): number {
   return PRICE_TIERS[5];
 }
 
+// Cross-tier value discount — runs in a weaker comp aren't worth IPL crore.
+// Mirrors the export-time penalty so Scout's est. prices agree with the
+// Auction pool. The auction_pool `value` is already penalised at export; raw
+// scout `value` is not, so callers pricing scout players pass their tier.
+export const TIER_PENALTY = { ipl: 0, smat: 0.2, bbl: 0.07 } as const;
+export type PriceTier = keyof typeof TIER_PENALTY;
+
+/** Estimated crore value from a raw Bayes value — same curve the auction uses.
+ * `tier` discounts non-IPL comps so a SMAT/BBL price is comparable to IPL. */
+export function estValue(value: number, role: Role, tier: PriceTier = "ipl"): number {
+  const adj = value - TIER_PENALTY[tier];
+  return Math.max(0.3, Math.min(PV_MAX, PV_BASE * Math.exp(PV_SCALE * adj) * ROLE_MULT[role]));
+}
+
 /** Price the big auction pool (every ACTIVE rated IPL player). Each row
  * already carries value / role / country / team; we add crore pricing. */
 export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
