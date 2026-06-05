@@ -2047,9 +2047,40 @@ class CricDexApp(App):
                     id="form-collection",
                     allow_blank=False,
                 )
+                yield Label("Window:")
+                yield Select(
+                    options=[("Last 1y", "last1y"), ("Last 3y", "last3y")],
+                    value="last1y",
+                    id="form-window",
+                    allow_blank=False,
+                )
                 yield Label("Top:")
                 yield Input(value="15", id="form-topn", classes="num")
                 yield Button("Show ▸", id="form-run", variant="primary")
+            with ControlBar(title="Filters"):
+                yield Label("Role:")
+                yield Select(
+                    options=ROLE_FILTER_OPTIONS, value="", id="form-role", allow_blank=False
+                )
+                yield Label("Bowling:")
+                yield Select(
+                    options=BOWLING_FILTER_OPTIONS, value="", id="form-bowling", allow_blank=False
+                )
+                yield Label("Position:")
+                yield Select(
+                    options=POSITION_FILTER_OPTIONS, value="", id="form-position", allow_blank=False
+                )
+                yield Label("Activity:")
+                yield Select(
+                    options=ACTIVITY_FILTER_OPTIONS,
+                    value="all",
+                    id="form-activity",
+                    allow_blank=False,
+                )
+                yield Label("Min mts:")
+                yield Input(value="0", id="form-minmatches", classes="num")
+                yield Label("Country:")
+                yield Input(placeholder="e.g. IND", id="form-country", classes="num")
             yield Static("", id="form-meta", classes="intro")
             with VerticalScroll():
                 with Panel(title="Heating up ▲"):
@@ -2075,18 +2106,34 @@ class CricDexApp(App):
             except FileNotFoundError:
                 return []
 
-        recent_win = next((w for w in ("last1y", "last3y") if _load(w)), None)
+        # Chosen window, falling back to whichever recent window exists.
+        chosen = self.query_one("#form-window", Select).value or "last1y"
+        recent_win = (
+            chosen if _load(chosen) else next((w for w in ("last1y", "last3y") if _load(w)), None)
+        )
         career = _load("all")
         if recent_win is None or not career:
             _fill_datatable(up, [{"info": "no recent window for this metric"}])
             _fill_datatable(down, [{"info": "—"}])
             meta.update("")
             return
+        try:
+            min_matches = int(self.query_one("#form-minmatches", Input).value or "0")
+        except ValueError:
+            min_matches = 0
+        filters = cf.Filters(
+            min_matches=min_matches,
+            role=self.query_one("#form-role", Select).value or "",
+            bowling=self.query_one("#form-bowling", Select).value or "",
+            position=self.query_one("#form-position", Select).value or "",
+            activity=self.query_one("#form-activity", Select).value or "all",
+            country=(self.query_one("#form-country", Input).value or "").strip(),
+        )
         val = metric.sort_col
         name_col = metric.name_col
         career_by = {r[name_col]: r for r in career if r.get(name_col) is not None}
         rows = []
-        for rr in _load(recent_win):
+        for rr in cf.apply_filters(_load(recent_win), filters):
             nm = rr.get(name_col)
             cr = career_by.get(nm)
             if cr is None or rr.get(val) is None or cr.get(val) is None:
