@@ -10,7 +10,7 @@ from __future__ import annotations
 import streamlit as st
 
 from cricdex.config import DATA_DIR
-from cricdex.dashboard._widgets import collection_picker, fuzzy_player_input, provenance_banner
+from cricdex.dashboard._widgets import collection_picker, player_select, provenance_banner
 from cricdex.scout.ratings.head_to_head import head_to_head
 
 st.set_page_config(page_title="CricDex Head-to-head", page_icon="⚔️", layout="wide")
@@ -47,13 +47,14 @@ with st.expander("How the probability is computed (plain English)"):
 collection = collection_picker(key="h2h-coll")
 c1, c2 = st.columns(2)
 with c1:
-    a = fuzzy_player_input("Player A", "V Kohli", collection, key="h2h-a")
+    pa = player_select(collection, "Player A", key="h2h-a", default_name="V Kohli")
 with c2:
-    b = fuzzy_player_input("Player B", "RG Sharma", collection, key="h2h-b")
+    pb = player_select(collection, "Player B", key="h2h-b", default_name="RG Sharma")
 
-if not (a and b):
+if not (pa and pb):
     st.info("Pick two players to compare.")
     st.stop()
+a, b = pa["name"], pb["name"]
 if a == b:
     st.warning("Pick two *different* players.")
     st.stop()
