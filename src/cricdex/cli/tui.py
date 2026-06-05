@@ -478,6 +478,13 @@ class CricDexApp(App):
     #sim-find-table { height: auto; max-height: 12; }
     #sim-marquee { height: auto; max-height: 12; }
     #sim-squad { height: auto; max-height: 18; }
+    /* New offering tables: paired panels inside a VerticalScroll, so each table
+       sizes to its rows (capped) and the page scrolls past both. */
+    #twins-table { height: auto; max-height: 14; }
+    #twins-gems { height: auto; max-height: 16; }
+    #mu-bat-table, #mu-bowl-table { height: auto; max-height: 18; }
+    #ph-bat-table, #ph-bowl-table { height: auto; max-height: 20; }
+    #form-up-table, #form-down-table { height: auto; max-height: 20; }
     /* Panels inside a scroll size to their content so the page (not the panel)
        scrolls — keeps the Auction Squads/Player-search reachable. */
     VerticalScroll Panel { height: auto; }
@@ -526,8 +533,6 @@ class CricDexApp(App):
             "#ph-bowl-table": "Pick a phase, then Show ▸",
             "#form-up-table": "Pick a metric, then Show ▸",
             "#form-down-table": "Pick a metric, then Show ▸",
-            "#tl-xi-table": "Set constraints, then Build ▸",
-            "#tl-repl-table": "Enter a player, then Find ▸",
             "#sim-table": "Set the knobs, then Simulate ▸",
             "#sim-find-table": "Run a simulation, then search a player",
         }
@@ -618,8 +623,6 @@ class CricDexApp(App):
                 yield from self._auction_sim_panel()
             with TabPane("Scout", id="tab-twins"):
                 yield from self._twins_panel()
-            with TabPane("Team Lab", id="tab-teamlab"):
-                yield from self._teamlab_panel()
             with TabPane("Update", id="tab-update"):
                 yield from self._update_panel()
         yield Footer()
@@ -1730,10 +1733,11 @@ class CricDexApp(App):
                 yield Button("Scout ▸", id="twins-run", variant="primary")
             yield AutoComplete(target="#twins-name", candidates=_player_candidates())
             yield Static("", id="twins-meta", classes="intro")
-            with Panel(title="Look-alikes"):
-                yield DataTable(id="twins-table", zebra_stripes=True)
-            with Panel(title="💎 The next big things — top uncapped SMAT gems"):
-                yield DataTable(id="twins-gems", zebra_stripes=True)
+            with VerticalScroll():
+                with Panel(title="Look-alikes"):
+                    yield DataTable(id="twins-table", zebra_stripes=True)
+                with Panel(title="💎 The next big things — top uncapped SMAT gems"):
+                    yield DataTable(id="twins-gems", zebra_stripes=True)
             # Draft a look-alike (SMAT/BBL/SA20/CPL/Blast) into the Auction room
             # as a retention — populated after a scout on a draftable tier.
             with ControlBar(title="Draft to Auction"):
@@ -1863,13 +1867,16 @@ class CricDexApp(App):
                     id="mu-collection",
                     allow_blank=False,
                 )
+                yield Label("Min balls:")
+                yield Input(value="6", id="mu-minballs", classes="num")
                 yield Button("Show ▸", id="mu-run", variant="primary")
             yield AutoComplete(target="#mu-name", candidates=self._player_cands("#mu-collection"))
             yield Static("", id="mu-meta", classes="intro")
-            with Panel(title="As batter — opponents faced"):
-                yield DataTable(id="mu-bat-table", zebra_stripes=True)
-            with Panel(title="As bowler — batters faced"):
-                yield DataTable(id="mu-bowl-table", zebra_stripes=True)
+            with VerticalScroll():
+                with Panel(title="As batter — opponents faced"):
+                    yield DataTable(id="mu-bat-table", zebra_stripes=True)
+                with Panel(title="As bowler — batters faced"):
+                    yield DataTable(id="mu-bowl-table", zebra_stripes=True)
 
     def _on_run_matchups(self) -> None:
         # Reads the same matchups/<cid>.json the web Matchups page does.
@@ -1905,6 +1912,10 @@ class CricDexApp(App):
             if weaker:
                 bits.append(f"[yellow]weaker vs {weaker}[/yellow]")
         meta.update(" · ".join(bits))
+        try:
+            min_balls = int(self.query_one("#mu-minballs", Input).value or "6")
+        except ValueError:
+            min_balls = 6
         bat_rows = [
             {
                 "bowler": r["bowler"],
@@ -1915,6 +1926,7 @@ class CricDexApp(App):
                 "outs": r["outs"],
             }
             for r in (data.get("as_batter") or [])
+            if r["balls"] >= min_balls
         ]
         bowl_rows = [
             {
@@ -1926,9 +1938,10 @@ class CricDexApp(App):
                 "wkts": r["outs"],
             }
             for r in (data.get("as_bowler") or [])
+            if r["balls"] >= min_balls
         ]
-        _fill_datatable(bat, bat_rows or [{"info": "no batting matchups"}])
-        _fill_datatable(bowl, bowl_rows or [{"info": "no bowling matchups"}])
+        _fill_datatable(bat, bat_rows or [{"info": f"no batting H2H ≥ {min_balls} balls"}])
+        _fill_datatable(bowl, bowl_rows or [{"info": f"no bowling H2H ≥ {min_balls} balls"}])
 
     # ===== Phase — powerplay / middle / death specialists =================
 
@@ -1950,11 +1963,36 @@ class CricDexApp(App):
                     id="ph-phase",
                     allow_blank=False,
                 )
+                yield Label("Top N:")
+                yield Input(value="25", id="ph-topn", classes="num")
                 yield Button("Show ▸", id="ph-run", variant="primary")
-            with Panel(title="Best strike rates"):
-                yield DataTable(id="ph-bat-table", zebra_stripes=True)
-            with Panel(title="Tightest economies"):
-                yield DataTable(id="ph-bowl-table", zebra_stripes=True)
+            with ControlBar(title="Filters"):
+                yield Label("Role:")
+                yield Select(options=ROLE_FILTER_OPTIONS, value="", id="ph-role", allow_blank=False)
+                yield Label("Bowling:")
+                yield Select(
+                    options=BOWLING_FILTER_OPTIONS, value="", id="ph-bowling", allow_blank=False
+                )
+                yield Label("Position:")
+                yield Select(
+                    options=POSITION_FILTER_OPTIONS, value="", id="ph-position", allow_blank=False
+                )
+                yield Label("Activity:")
+                yield Select(
+                    options=ACTIVITY_FILTER_OPTIONS,
+                    value="all",
+                    id="ph-activity",
+                    allow_blank=False,
+                )
+                yield Label("Min mts:")
+                yield Input(value="0", id="ph-minmatches", classes="num")
+                yield Label("Country:")
+                yield Input(placeholder="e.g. IND", id="ph-country", classes="num")
+            with VerticalScroll():
+                with Panel(title="Best strike rates"):
+                    yield DataTable(id="ph-bat-table", zebra_stripes=True)
+                with Panel(title="Tightest economies"):
+                    yield DataTable(id="ph-bowl-table", zebra_stripes=True)
 
     def _on_run_phase(self) -> None:
         bat = self.query_one("#ph-bat-table", DataTable)
@@ -1967,9 +2005,25 @@ class CricDexApp(App):
             _fill_datatable(bowl, [{"info": "—"}])
             return
         board = (json.loads(path.read_text()) or {}).get(phase) or {}
+        try:
+            top_n = int(self.query_one("#ph-topn", Input).value or "25")
+        except ValueError:
+            top_n = 25
+        try:
+            min_matches = int(self.query_one("#ph-minmatches", Input).value or "0")
+        except ValueError:
+            min_matches = 0
+        filters = cf.Filters(
+            min_matches=min_matches,
+            role=self.query_one("#ph-role", Select).value or "",
+            bowling=self.query_one("#ph-bowling", Select).value or "",
+            position=self.query_one("#ph-position", Select).value or "",
+            activity=self.query_one("#ph-activity", Select).value or "all",
+            country=(self.query_one("#ph-country", Input).value or "").strip(),
+        )
         bat_rows = [
             {"batter": r["name"], "runs": r["runs"], "balls": r["balls"], "sr": r["sr"]}
-            for r in (board.get("batters") or [])
+            for r in cf.apply_filters(board.get("batters") or [], filters)[:top_n]
         ]
         bowl_rows = [
             {
@@ -1979,10 +2033,10 @@ class CricDexApp(App):
                 "runs": r["runs"],
                 "econ": r["econ"],
             }
-            for r in (board.get("bowlers") or [])
+            for r in cf.apply_filters(board.get("bowlers") or [], filters)[:top_n]
         ]
-        _fill_datatable(bat, bat_rows or [{"info": "no qualifying batters"}])
-        _fill_datatable(bowl, bowl_rows or [{"info": "no qualifying bowlers"}])
+        _fill_datatable(bat, bat_rows or [{"info": "no batters match these filters"}])
+        _fill_datatable(bowl, bowl_rows or [{"info": "no bowlers match these filters"}])
 
     # ===== Form — recent window vs career baseline ========================
 
@@ -2001,14 +2055,46 @@ class CricDexApp(App):
                     id="form-collection",
                     allow_blank=False,
                 )
+                yield Label("Window:")
+                yield Select(
+                    options=[("Last 1y", "last1y"), ("Last 3y", "last3y")],
+                    value="last1y",
+                    id="form-window",
+                    allow_blank=False,
+                )
                 yield Label("Top:")
                 yield Input(value="15", id="form-topn", classes="num")
                 yield Button("Show ▸", id="form-run", variant="primary")
+            with ControlBar(title="Filters"):
+                yield Label("Role:")
+                yield Select(
+                    options=ROLE_FILTER_OPTIONS, value="", id="form-role", allow_blank=False
+                )
+                yield Label("Bowling:")
+                yield Select(
+                    options=BOWLING_FILTER_OPTIONS, value="", id="form-bowling", allow_blank=False
+                )
+                yield Label("Position:")
+                yield Select(
+                    options=POSITION_FILTER_OPTIONS, value="", id="form-position", allow_blank=False
+                )
+                yield Label("Activity:")
+                yield Select(
+                    options=ACTIVITY_FILTER_OPTIONS,
+                    value="all",
+                    id="form-activity",
+                    allow_blank=False,
+                )
+                yield Label("Min mts:")
+                yield Input(value="0", id="form-minmatches", classes="num")
+                yield Label("Country:")
+                yield Input(placeholder="e.g. IND", id="form-country", classes="num")
             yield Static("", id="form-meta", classes="intro")
-            with Panel(title="Heating up ▲"):
-                yield DataTable(id="form-up-table", zebra_stripes=True)
-            with Panel(title="Cooling down ▼"):
-                yield DataTable(id="form-down-table", zebra_stripes=True)
+            with VerticalScroll():
+                with Panel(title="Heating up ▲"):
+                    yield DataTable(id="form-up-table", zebra_stripes=True)
+                with Panel(title="Cooling down ▼"):
+                    yield DataTable(id="form-down-table", zebra_stripes=True)
 
     def _on_run_form(self) -> None:
         up = self.query_one("#form-up-table", DataTable)
@@ -2028,18 +2114,34 @@ class CricDexApp(App):
             except FileNotFoundError:
                 return []
 
-        recent_win = next((w for w in ("last1y", "last3y") if _load(w)), None)
+        # Chosen window, falling back to whichever recent window exists.
+        chosen = self.query_one("#form-window", Select).value or "last1y"
+        recent_win = (
+            chosen if _load(chosen) else next((w for w in ("last1y", "last3y") if _load(w)), None)
+        )
         career = _load("all")
         if recent_win is None or not career:
             _fill_datatable(up, [{"info": "no recent window for this metric"}])
             _fill_datatable(down, [{"info": "—"}])
             meta.update("")
             return
+        try:
+            min_matches = int(self.query_one("#form-minmatches", Input).value or "0")
+        except ValueError:
+            min_matches = 0
+        filters = cf.Filters(
+            min_matches=min_matches,
+            role=self.query_one("#form-role", Select).value or "",
+            bowling=self.query_one("#form-bowling", Select).value or "",
+            position=self.query_one("#form-position", Select).value or "",
+            activity=self.query_one("#form-activity", Select).value or "all",
+            country=(self.query_one("#form-country", Input).value or "").strip(),
+        )
         val = metric.sort_col
         name_col = metric.name_col
         career_by = {r[name_col]: r for r in career if r.get(name_col) is not None}
         rows = []
-        for rr in _load(recent_win):
+        for rr in cf.apply_filters(_load(recent_win), filters):
             nm = rr.get(name_col)
             cr = career_by.get(nm)
             if cr is None or rr.get(val) is None or cr.get(val) is None:
@@ -2066,170 +2168,6 @@ class CricDexApp(App):
         )
         _fill_datatable(up, rows[:top_n])
         _fill_datatable(down, list(reversed(rows))[:top_n])
-
-    # ===== Team Lab — optimal XI · squad balance · replacement ============
-
-    def _teamlab_panel(self) -> ComposeResult:
-        with Vertical():
-            yield _tabhead("TEAM LAB", "optimal XI · squad balance · replacement")
-            with ControlBar(title="Optimal XI"):
-                yield Label("Coll:")
-                yield Select(
-                    options=_collection_options(),
-                    value="ipl",
-                    id="tl-collection",
-                    allow_blank=False,
-                )
-                yield Label("Budget:")
-                yield Input(value="100", id="tl-budget", classes="num")
-                yield Label("O/S:")
-                yield Input(value="4", id="tl-overseas", classes="num")
-                yield Label("Bat/Bwl/AR/WK:")
-                yield Input(value="3", id="tl-min-batter", classes="num")
-                yield Input(value="3", id="tl-min-bowler", classes="num")
-                yield Input(value="1", id="tl-min-all_rounder", classes="num")
-                yield Input(value="1", id="tl-min-keeper", classes="num")
-                yield Button("Build ▸", id="tl-run", variant="primary")
-            yield Static("", id="tl-meta", classes="intro")
-            with Panel(title="Optimal XI"):
-                yield DataTable(id="tl-xi-table", zebra_stripes=True)
-            yield Static("", id="tl-squad", classes="intro")
-            with ControlBar(title="Replacement by need"):
-                yield Label("Replace:")
-                yield Input(value="V Kohli", id="tl-repl-name")
-                yield Button("Find ▸", id="tl-repl-run", variant="success")
-            yield AutoComplete(target="#tl-repl-name", candidates=_player_candidates())
-            with Panel(title="Cheaper same-mould options"):
-                yield DataTable(id="tl-repl-table", zebra_stripes=True)
-
-    def _on_run_teamlab(self) -> None:
-        # Optimal XI + squad balance via the parity-locked web_parity engines.
-        table = self.query_one("#tl-xi-table", DataTable)
-        meta = self.query_one("#tl-meta", Static)
-        squad_out = self.query_one("#tl-squad", Static)
-        collection = self.query_one("#tl-collection", Select).value
-
-        def _int(sel: str, default: int) -> int:
-            try:
-                return int(self.query_one(sel, Input).value or str(default))
-            except ValueError:
-                return default
-
-        budget = _int("#tl-budget", 100)
-        overseas_cap = _int("#tl-overseas", 4)
-        role_mins = {
-            rk: _int(f"#tl-min-{rk}", d)
-            for rk, d in (("batter", 3), ("bowler", 3), ("all_rounder", 1), ("keeper", 1))
-        }
-        try:
-            from cricdex.web_parity import analyze_squad, best_xi, est_value, load_auction_pool
-
-            pool = load_auction_pool(collection)
-            ngi = {
-                r["cricsheet_id"]: r["ngi_total"]
-                for r in cf.load_leaderboard(collection, "ngi", "all")
-            }
-        except FileNotFoundError as e:
-            _fill_datatable(table, [{"error": str(e)}])
-            meta.update("")
-            squad_out.update("")
-            return
-        players = [
-            {
-                "cricsheet_id": r["cricsheet_id"],
-                "name": r["name"],
-                "role": r["role"],
-                "is_overseas": r["is_overseas"],
-                "ngi": ngi[r["cricsheet_id"]],
-                "price": est_value(r["value"], r["role"], "ipl"),
-            }
-            for r in pool
-            if r["cricsheet_id"] in ngi
-        ]
-        xi = best_xi(players, float(budget), overseas_cap, role_mins, 11, 40)
-        if not xi["feasible"]:
-            _fill_datatable(table, [{"info": "no valid XI — loosen the constraints"}])
-            meta.update("")
-            squad_out.update("")
-            return
-        meta.update(
-            f"NGI [bold]{xi['total_ngi']:.2f}[/bold] · spend [bold]{xi['total_price']:.1f}[/bold]"
-            f"/{budget} cr · overseas {xi['overseas']}/{overseas_cap}"
-        )
-        _fill_datatable(
-            table,
-            [
-                {
-                    "player": p["name"],
-                    "role": p["role"],
-                    "o/s": "✈" if p["is_overseas"] else "",
-                    "ngi": round(p["ngi"], 2),
-                    "cr": round(p["price"], 1),
-                }
-                for p in xi["players"]
-            ],
-        )
-        ppath = SITE_DATA / collection / "players.json"
-        pos = (
-            {p["cricsheet_id"]: p.get("batting_position") for p in json.loads(ppath.read_text())}
-            if ppath.exists()
-            else {}
-        )
-        squad = analyze_squad(
-            [
-                {
-                    "role": p["role"],
-                    "is_overseas": p["is_overseas"],
-                    "batting_position": pos.get(p["cricsheet_id"]),
-                }
-                for p in xi["players"]
-            ],
-            role_mins,
-            overseas_cap,
-        )
-        role_bits = " · ".join(f"{k}:{v}" for k, v in squad["roles"].items())
-        if squad["balanced"]:
-            squad_out.update(f"[green]balanced[/green] — {role_bits}")
-        else:
-            squad_out.update(
-                f"[yellow]{len(squad['gaps'])} gap(s)[/yellow]: "
-                + "; ".join(squad["gaps"])
-                + f"   ({role_bits})"
-            )
-
-    def _on_run_teamlab_repl(self) -> None:
-        table = self.query_one("#tl-repl-table", DataTable)
-        collection = self.query_one("#tl-collection", Select).value
-        name = _name_from_label(self.query_one("#tl-repl-name", Input).value)
-        try:
-            from cricdex.web_parity import load_scout_index, replacement_by_need
-
-            idx = load_scout_index(collection)
-        except FileNotFoundError as e:
-            _fill_datatable(table, [{"error": str(e)}])
-            return
-        names = {p["name"]: p for p in idx["ipl"]}
-        sel = names.get(name) or next(
-            (p for n, p in names.items() if name.lower() in n.lower()), None
-        )
-        if sel is None:
-            _fill_datatable(table, [{"error": f"no IPL player matching '{name}'"}])
-            return
-        merged = []
-        for tier in ("smat", "bbl", "sa20", "cpl", "blast"):
-            for r in replacement_by_need(sel, idx[tier], tier):
-                merged.append(
-                    {
-                        "player": r["name"],
-                        "league": tier.upper(),
-                        "country": r.get("country") or "—",
-                        "sim%": round(r["sim"] * 100),
-                        "est_cr": r["est_cr"],
-                        "save_cr": r["saving"] if r["saving"] > 0 else None,
-                    }
-                )
-        merged.sort(key=lambda r: (-(r["save_cr"] or 0), -r["sim%"]))
-        _fill_datatable(table, merged[:12] or [{"info": "no cheaper same-mould option"}])
 
     # ===== Update — refresh data then re-export the JSON ==================
 
@@ -2360,8 +2298,6 @@ class CricDexApp(App):
             "mu-run": self._on_run_matchups,
             "ph-run": self._on_run_phase,
             "form-run": self._on_run_form,
-            "tl-run": self._on_run_teamlab,
-            "tl-repl-run": self._on_run_teamlab_repl,
         }
         if event.button.id in handlers:
             handlers[event.button.id]()

@@ -11,6 +11,7 @@ import typer
 
 from cricdex.cli import _render
 from cricdex.cli._shared import EXIT_MISSING_DATA, die
+from cricdex.common.filters import Filters, apply_filters
 from cricdex.web_parity.loader import SITE_DATA
 
 PHASES = ("powerplay", "middle", "death")
@@ -20,6 +21,14 @@ def phase(
     which: str = typer.Argument("powerplay", help=f"one of: {list(PHASES)}"),
     collection: str = typer.Option("ipl", "--collection", "-c"),
     top: int = typer.Option(15, "--top", "-n"),
+    role: str = typer.Option("", "--role", help="primary_role: batter/bowler/allrounder/wk_batter"),
+    bowling: str = typer.Option("", "--bowling", help="seam | spin"),
+    position: str = typer.Option(
+        "", "--position", help="opener/no3/middle/finisher/lower/tailender"
+    ),
+    activity: str = typer.Option("all", "--activity", help="all | active | retired"),
+    country: str = typer.Option("", "--country", help="ISO-3, e.g. IND"),
+    min_matches: int = typer.Option(0, "--min-matches", help="drop small samples"),
     output_json: bool = typer.Option(False, "--json", help="emit raw JSON for piping"),
 ) -> None:
     if which not in PHASES:
@@ -36,9 +45,17 @@ def phase(
         typer.echo(json.dumps(board, indent=2))
         return
 
+    filters = Filters(
+        min_matches=min_matches,
+        role=role,
+        bowling=bowling,
+        position=position,
+        activity=activity,
+        country=country.strip(),
+    )
     _render.header(f"Phase specialists — {which}", subtitle=f"collection: {collection}")
-    batters = (board.get("batters") or [])[:top]
-    bowlers = (board.get("bowlers") or [])[:top]
+    batters = apply_filters(board.get("batters") or [], filters)[:top]
+    bowlers = apply_filters(board.get("bowlers") or [], filters)[:top]
     if batters:
         _render.pretty_table(
             [

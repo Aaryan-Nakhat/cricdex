@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Timer } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getPhase } from "@/lib/data";
 import { DataTable, type Col } from "@/components/DataTable";
+import { FilterBar } from "@/components/FilterBar";
+import { applyFilters, countriesIn, EMPTY_FILTERS, type Filters } from "@/lib/filters";
 import { PageTitle, Spinner, ErrorBox, Empty } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -29,13 +31,30 @@ const BOWL_COLS: Col<Row>[] = [
   { key: "runs", label: "Runs", align: "right", digits: 0 },
   { key: "econ", label: "Economy", align: "right", digits: 2, primary: true },
 ];
+const TOP = 25;
 
 export function Phase() {
   const { collection } = useStore();
   const { data, loading, error } = useAsync(() => getPhase(collection), [collection]);
   const [phase, setPhase] = useState<PhaseKey>("powerplay");
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
 
   const board = data?.[phase];
+  const rawBatters = (board?.batters ?? []) as unknown as Row[];
+  const rawBowlers = (board?.bowlers ?? []) as unknown as Row[];
+
+  const countryOpts = useMemo(
+    () => countriesIn([...rawBatters, ...rawBowlers]),
+    [rawBatters, rawBowlers],
+  );
+  const batters = useMemo(
+    () => applyFilters(rawBatters, filters).slice(0, TOP),
+    [rawBatters, filters],
+  );
+  const bowlers = useMemo(
+    () => applyFilters(rawBowlers, filters).slice(0, TOP),
+    [rawBowlers, filters],
+  );
 
   return (
     <>
@@ -45,7 +64,7 @@ export function Phase() {
         desc="Who actually dominates each phase of the innings — best strike rates with the bat and tightest economies with the ball across the powerplay, middle overs and death."
       />
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-2">
         {PHASES.map((p) => (
           <button
             key={p.key}
@@ -63,6 +82,13 @@ export function Phase() {
         ))}
       </div>
 
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        show={["minMatches", "activity", "role", "bowling", "position", "country"]}
+        countryOpts={countryOpts}
+      />
+
       {loading ? (
         <Spinner />
       ) : error ? (
@@ -73,26 +99,18 @@ export function Phase() {
         <div className="grid grid-cols-1 gap-5 animate-fade-up lg:grid-cols-2">
           <div>
             <div className="mb-2 text-sm font-semibold text-fg">Best strike rates</div>
-            {board.batters.length ? (
-              <DataTable
-                rows={board.batters as unknown as Row[]}
-                cols={BAT_COLS}
-                initialSort={{ key: "sr", dir: "desc" }}
-              />
+            {batters.length ? (
+              <DataTable rows={batters} cols={BAT_COLS} initialSort={{ key: "sr", dir: "desc" }} />
             ) : (
-              <Empty>No qualifying batters.</Empty>
+              <Empty>No batters match these filters.</Empty>
             )}
           </div>
           <div>
             <div className="mb-2 text-sm font-semibold text-fg">Tightest economies</div>
-            {board.bowlers.length ? (
-              <DataTable
-                rows={board.bowlers as unknown as Row[]}
-                cols={BOWL_COLS}
-                initialSort={{ key: "econ", dir: "asc" }}
-              />
+            {bowlers.length ? (
+              <DataTable rows={bowlers} cols={BOWL_COLS} initialSort={{ key: "econ", dir: "asc" }} />
             ) : (
-              <Empty>No qualifying bowlers.</Empty>
+              <Empty>No bowlers match these filters.</Empty>
             )}
           </div>
         </div>
