@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from cricdex.dashboard._widgets import provenance_banner
+from cricdex.dashboard._widgets import load_players, provenance_banner
 from cricdex.web_parity import (
     ARCHETYPES,
     IPL_TEAMS_DEFAULT,
@@ -189,16 +189,28 @@ marq_df = pd.DataFrame(
 st.dataframe(marq_df, hide_index=True, width="stretch")
 
 st.subheader("Find a player")
-q = st.text_input(
+# Searchable dropdown over the run's players (type-ahead on full + short name),
+# mirroring the web Combobox instead of a bare text field.
+_full_by_name = {p["name"]: p.get("full_name") for p in load_players("ipl")}
+
+
+def _auction_label(n: str) -> str:
+    full = _full_by_name.get(n)
+    return f"{full} ({n})" if full and full != n else n
+
+
+_PICK = "— pick a player —"
+_names = sorted({o["name"] for o in res["outcomes"]})
+pick = st.selectbox(
     "Where did anyone land, for how much, or did they go unsold?",
-    placeholder="Search a player…",
+    [_PICK, *_names],
+    format_func=lambda n: n if n == _PICK else _auction_label(n),
     key="auction_search",
 )
-if q and len(q.strip()) >= 2:
-    needle = q.strip().lower()
-    hits = [o for o in res["outcomes"] if needle in o["name"].lower()]
+if pick != _PICK:
+    hits = [o for o in res["outcomes"] if o["name"] == pick]
     if not hits:
-        st.info(f"No player matches '{q}'.")
+        st.info(f"No outcome for '{pick}'.")
     else:
         srows = []
         for o in hits[:50]:
@@ -219,10 +231,8 @@ if q and len(q.strip()) >= 2:
                 }
             )
         st.dataframe(pd.DataFrame(srows), hide_index=True, width="stretch")
-        if len(hits) > 50:
-            st.caption(f"{len(hits) - 50} more — refine the search.")
 else:
-    st.caption("Type 2+ letters — searches every retained, sold & unsold player in this run.")
+    st.caption("Pick a player to see where they landed, for how much, or if they went unsold.")
 
 st.subheader("A representative squad")
 draft_team = st.selectbox("Team", [s["team"] for s in res["sample_draft"]])
