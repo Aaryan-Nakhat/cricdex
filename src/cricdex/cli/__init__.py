@@ -14,7 +14,6 @@ Subcommand groups, each mounted as its own typer app:
   cricdex phase [powerplay|middle|death]    phase specialists
   cricdex form <metric>                     recent form vs career baseline
   cricdex scout look-alikes <name>          cross-competition look-alikes
-  cricdex team xi / team replace <name>     optimal XI / squad / replacement
   cricdex auction room                      real-rules IPL auction sim
   cricdex tui                               full Textual UI
   cricdex dashboard                         optional Streamlit on :8501
@@ -39,7 +38,6 @@ from cricdex.cli import (
     phase_cmd,
     profile_cmd,
     scout_cmd,
-    team_cmd,
 )
 
 app = typer.Typer(
@@ -88,9 +86,6 @@ app.add_typer(config_cmd.app, name="config", help="Manage credentials + settings
 app.add_typer(data_cmd.app, name="data", help="Inventory + ingest local data.")
 app.add_typer(scout_cmd.app, name="scout", help="Scout look-alikes (IPL/SMAT/BBL/SA20/CPL/Blast).")
 app.add_typer(auction_cmd.app, name="auction", help="Real-rules IPL auction simulation.")
-app.add_typer(
-    team_cmd.app, name="team", help="Team building: optimal XI, squad balance, replacements."
-)
 
 # Top-level conveniences — one-shot commands without a sub-namespace.
 app.command(name="init", help="First-run wizard: creds + opt-in data setup.")(init_cmd.run)

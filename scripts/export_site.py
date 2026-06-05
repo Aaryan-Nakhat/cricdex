@@ -978,12 +978,32 @@ def _export_matchups(
     return n
 
 
-def _export_phase(collection: str, out_dir: Path) -> None:
-    """phase.json — powerplay/middle/death batter-SR + bowler-economy boards."""
+def _export_phase(
+    collection: str,
+    out_dir: Path,
+    matches: dict[str, int],
+    name_tax: dict[str, dict],
+    activity: dict[str, dict],
+) -> None:
+    """phase.json — powerplay/middle/death batter-SR + bowler-economy boards.
+
+    Each row is tagged with match count + the Gemini taxonomy (role / bowling
+    type / position / country) + activity, exactly like the leaderboards, so the
+    UI filter bar works per-row."""
     from cricdex.metrics import phase as ph
 
     try:
-        _write(out_dir / "phase.json", ph.phase_leaders(collection))
+        # Fuller pool (top 150) so the UI filter bar has material to narrow.
+        boards = ph.phase_leaders(collection, top=150)
+        for board in boards.values():
+            for r in (*board.get("batters", []), *board.get("bowlers", [])):
+                who = r.get("name")
+                r["matches"] = matches.get(who, 0)
+                for k, v in (name_tax.get(who) or {}).items():
+                    r.setdefault(k, v)
+                for k, v in (activity.get(who) or {}).items():
+                    r.setdefault(k, v)
+        _write(out_dir / "phase.json", boards)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"phase export skipped for {collection}: {e}")
 
@@ -1050,7 +1070,7 @@ def export(
                 _export_leaderboards(col, out_dir, match_counts, name_tax, activity, window=win)
             n_rat = _export_ratings(col, out_dir)
             _export_records_venues(col, out_dir)
-            _export_phase(col, out_dir)
+            _export_phase(col, out_dir, match_counts, name_tax, activity)
             n_match = _export_matchups(col, out_dir, players, taxonomy)
             n_prof, n_cohort = _export_profiles_and_cohorts(
                 col, out_dir, players, taxonomy, activity

@@ -29,6 +29,7 @@ def matchups(
     name: str = typer.Argument(..., help="player (fuzzy-matched)"),
     collection: str = typer.Option("ipl", "--collection", "-c"),
     top: int = typer.Option(15, "--top", "-n", help="rows per head-to-head table"),
+    min_balls: int = typer.Option(6, "--min-balls", help="drop thin head-to-heads below this"),
     output_json: bool = typer.Option(False, "--json", help="emit raw JSON for piping"),
 ) -> None:
     name = resolve_or_die(name, collection=collection)
@@ -72,7 +73,7 @@ def matchups(
             if weaker:
                 console().print(f"[yellow]Weaker against {weaker} (lower strike rate).[/yellow]")
 
-    bat = data.get("as_batter") or []
+    bat = [r for r in (data.get("as_batter") or []) if r["balls"] >= min_balls]
     if bat:
         _render.pretty_table(
             [
@@ -90,7 +91,7 @@ def matchups(
             column_styles={"bowler": "bold cyan"},
         )
 
-    bowl = data.get("as_bowler") or []
+    bowl = [r for r in (data.get("as_bowler") or []) if r["balls"] >= min_balls]
     if bowl:
         _render.pretty_table(
             [

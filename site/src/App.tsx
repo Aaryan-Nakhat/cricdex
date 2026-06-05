@@ -9,7 +9,6 @@ import { Matchups } from "@/pages/Matchups";
 import { Phase } from "@/pages/Phase";
 import { Form } from "@/pages/Form";
 import { Scout } from "@/pages/Scout";
-import { TeamLab } from "@/pages/TeamLab";
 import { Auction } from "@/pages/Auction";
 import { Records } from "@/pages/Records";
 import { Venues } from "@/pages/Venues";
@@ -29,7 +28,6 @@ export function App() {
         <Route path="/phase" element={<Phase />} />
         <Route path="/form" element={<Form />} />
         <Route path="/scout" element={<Scout />} />
-        <Route path="/team-lab" element={<TeamLab />} />
         <Route path="/auction" element={<Auction />} />
         <Route path="/records" element={<Records />} />
         <Route path="/venues" element={<Venues />} />

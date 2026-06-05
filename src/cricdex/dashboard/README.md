@@ -24,8 +24,6 @@ explainer. Every row carries the Cricsheet people-register bridge
 - **Venues** — ground conditions (phase run-rate chart).
 - **Scout** — cross-competition look-alikes (6 tiers) + a "next big things" gems
   board + draft to Auction.
-- **Team Lab** — optimal XI (exact NGI knapsack under budget/overseas/role caps),
-  squad-balance analyzer, and replacement-by-need — parity-locked to the web.
 - **Auction** — real-rules IPL auction Monte-Carlo (retain → bid), web-identical.
 - **Update Data** — in-app buttons to re-run the ingest/compute pipeline.
 

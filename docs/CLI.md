@@ -94,20 +94,28 @@ cricdex venues "Wankhede"
 ## matchups / phase / form
 
 ```
-cricdex matchups "V Kohli" [-c ipl] [--top 15] [--json]
-cricdex phase [powerplay|middle|death] [-c ipl] [--top 15] [--json]
-cricdex form <metric> [-c ipl] [--top 15]
+cricdex matchups "V Kohli" [-c ipl] [--top 15] [--min-balls 6] [--json]
+cricdex phase [powerplay|middle|death] [-c ipl] [--top 15] \
+              [--role …] [--bowling seam|spin] [--position …] \
+              [--activity all|active|retired] [--country IND] [--min-matches 0] [--json]
+cricdex form <metric> [-c ipl] [--top 15] [--window last1y|last3y] \
+             [--role …] [--bowling …] [--position …] [--activity …] \
+             [--country IND] [--min-matches 0]
 ```
 
 - **matchups** — a player's batter-vs-bowler head-to-heads (as batter and as
-  bowler) plus their pace-vs-spin split with a "weaker vs" read.
+  bowler) plus their pace-vs-spin split with a "weaker vs" read; `--min-balls`
+  drops thin head-to-heads.
 - **phase** — powerplay / middle / death specialist boards (best strike rates,
-  tightest economies).
-- **form** — a metric recomputed over the recent window (last 1y, else 3y) vs
-  the career baseline; positive form Δ = improving (direction-corrected for
-  "lower is better" metrics). Heating-up then cooling-down.
+  tightest economies), with the full player filter bar.
+- **form** — a metric recomputed over the recent window (pick with `--window`;
+  defaults to last 1y, else 3y) vs the career baseline; positive form Δ =
+  improving (direction-corrected for "lower is better" metrics). Heating-up then
+  cooling-down, with the full player filter bar.
 
-All read the same exported JSON the web app does.
+All read the same exported JSON the web app does. The filter flags share the
+`cricdex.common.filters` port with Leaderboards (role values: batter / bowler /
+allrounder / wk_batter).
 
 ---
 
@@ -122,26 +130,6 @@ BBL, SA20, CPL, T20 Blast), ranked by within-tier Bayesian
 skill-standing z-score. Each row carries an est. crore price +
 saving-vs-pick, an uncapped-gem flag, and role/slot filters. Shares
 one implementation with the web via `cricdex.web_parity`.
-
----
-
-## team
-
-```
-cricdex team xi [-c ipl] [--budget 100] [--overseas 4] \
-                [--batter 3] [--bowler 3] [--all-rounder 1] [--keeper 1]
-cricdex team replace "V Kohli" [-c ipl] [--top 12]
-```
-
-- **team xi** — the optimal playing XI: exact branch-and-bound knapsack that
-  maximises total Net Game Impact subject to budget (cr), overseas cap and
-  per-role minimums, then a squad-balance read (role mix + gaps).
-- **team replace** — cheaper same-mould replacements for an IPL player across
-  the scouted leagues, ranked by saving then similarity.
-
-Both run the parity-locked `cricdex.web_parity` engines (best_xi /
-analyze_squad / replacement_by_need), locked to the web Team Lab by
-`test_scripts/test_web_parity.py`.
 
 ---
 

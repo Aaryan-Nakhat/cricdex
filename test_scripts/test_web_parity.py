@@ -18,15 +18,12 @@ import pytest
 
 from cricdex.web_parity import (
     IPL_TEAMS_DEFAULT,
-    analyze_squad,
-    best_xi,
     build_pool,
     default_retentions,
     est_value,
     load_auction_pool,
     load_retentions,
     load_scout_index,
-    replacement_by_need,
     similar_to,
     simulate_auction,
 )
@@ -157,58 +154,3 @@ def test_web_parity():
             for r in rows
         ]
         _approx_eq(py, js["scout"][tier], f"scout.{tier}")
-
-    # 4) Best XI parity — same NGI/price inputs, same exact B&B optimum.
-    data_dir = SITE / "public" / "data" / "ipl"
-    ngi_by = {
-        r["cricsheet_id"]: r["ngi_total"]
-        for r in json.loads((data_dir / "leaderboards" / "ngi.json").read_text())
-    }
-    ap = load_auction_pool("ipl")
-    xi_players = [
-        {
-            "cricsheet_id": r["cricsheet_id"],
-            "name": r["name"],
-            "role": r["role"],
-            "is_overseas": r["is_overseas"],
-            "ngi": ngi_by[r["cricsheet_id"]],
-            "price": est_value(r["value"], r["role"], "ipl"),
-        }
-        for r in ap
-        if r["cricsheet_id"] in ngi_by
-    ]
-    xi = best_xi(
-        xi_players, 120, 8, {"batter": 3, "bowler": 3, "all_rounder": 1, "keeper": 1}, 11, 40
-    )
-    py_xi = {
-        "players": [p["cricsheet_id"] for p in xi["players"]],
-        "total_ngi": xi["total_ngi"],
-        "total_price": xi["total_price"],
-        "overseas": xi["overseas"],
-        "feasible": xi["feasible"],
-    }
-    _approx_eq(py_xi, js["bestxi"], "bestxi")
-
-    # 5) Squad balance parity — first 15 pool players by id + batting slot.
-    pos_by = {
-        p["cricsheet_id"]: p["batting_position"]
-        for p in json.loads((data_dir / "players.json").read_text())
-    }
-    squad_rows = [
-        {
-            "role": r["role"],
-            "is_overseas": r["is_overseas"],
-            "batting_position": pos_by.get(r["cricsheet_id"]),
-        }
-        for r in sorted(ap, key=lambda r: r["cricsheet_id"])[:15]
-    ]
-    _approx_eq(analyze_squad(squad_rows), js["squad"], "squad")
-
-    # 6) Replacement-by-need parity — cheaper same-mould players for the pick.
-    for tier in ("ipl", "smat"):
-        rows = replacement_by_need(sel, scout[tier], tier)
-        py = [
-            {"id": r["cricsheet_id"], "est_cr": r["est_cr"], "saving": r["saving"], "sim": r["sim"]}
-            for r in rows
-        ]
-        _approx_eq(py, js["replacement"][tier], f"replacement.{tier}")
