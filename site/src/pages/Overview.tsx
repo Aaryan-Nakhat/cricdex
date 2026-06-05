@@ -23,8 +23,9 @@ export function Overview() {
           </h1>
           <p className="mt-4 text-base leading-relaxed text-muted">
             CricDex turns raw Cricsheet ball-by-ball data into Bayesian skill ratings, ten
-            novel impact metrics, a scout graph, and an auction optimiser — all computed
-            offline and served as a static site. No black boxes: every model is explained.
+            novel impact metrics, cross-competition scouting, and a real-rules auction
+            simulation — all computed offline and served as a static site. No black boxes:
+            every model is explained.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link to="/leaderboards" className="btn btn-accent">

@@ -7,13 +7,18 @@ explainer. Every row carries the Cricsheet people-register bridge
 
 ## Pages
 
-- **Leaderboards** — the 10 novel metrics, one tab each, sortable + bar charts.
-- **Player Profile** — per-player dossier: Bayesian skills, metrics,
-  dismissal fingerprint, style twins, Wikidata identity.
-- **Compare** — 2–5 players side by side.
-- **Records** — record books.
-- **Venues** — ground conditions.
-- **Auction** — squad optimiser + franchise simulation.
+- **Leaderboards** — the 10 novel metrics, one tab each, with a time-window
+  switcher (all-time / last 3 yrs / last 1 yr), the full filter bar (role /
+  activity / bowling / position / country / min matches), inline magnitude bars
+  and the Intent-Curve sparkline.
+- **Player Profile** — per-player dossier: Bayesian skills (with ±σ band),
+  metrics, dismissal fingerprint, style twins, the graph cohort, Wikidata identity.
+- **Compare** — 2–4 players side by side (radar + table).
+- **Head-to-Head** — P(A better than B) from the Bayesian posteriors, with a gauge.
+- **Records** — record books (year-range filterable).
+- **Venues** — ground conditions (phase run-rate chart).
+- **Scout** — cross-competition look-alikes (6 tiers) + draft to Auction.
+- **Auction** — real-rules IPL auction Monte-Carlo (retain → bid), web-identical.
 - **Update Data** — in-app buttons to re-run the ingest/compute pipeline.
 
 The 10 metrics: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery,
@@ -50,8 +55,9 @@ make docker-metrics-all COLLECTION=ipl  # regenerate JSONs
 
 1. Implement it in `cricdex.metrics.*` and wire a CLI subcommand in
    `scripts/compute_metrics.py`.
-2. Append a config block to `METRICS` in `pages/1_Leaderboards.py` with
-   the slug, sort column, bar column, description, and (for bowler
-   metrics) `primary_key="bowler"`.
+2. Append a `MetricDef` to the shared catalog `cricdex.common.metrics.METRICS`
+   (slug, name, what/how copy, `name_col`, `higher_is_better`, and the column
+   layout with one `primary=True` column).
 
-The tab and chart are wired generically.
+That one catalog drives the Streamlit + TUI leaderboards and the `cricdex
+leaderboard` CLI generically — no per-surface edits needed.

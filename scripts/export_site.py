@@ -22,7 +22,7 @@ Output layout (per collection):
         records.json                   record leaderboards + on-this-day
         venues.json                    per-venue conditions
         profiles/<cricsheet_id>.json   full profile per qualifying player
-        cohorts/<cricsheet_id>.json    co_faced / teammates / find_replacement
+        cohorts/<cricsheet_id>.json    co_faced (faced-the-same-bowlers cohort)
     site/data/collections.json         index: [{collection, data_as_of, ...}]
 
 `data_as_of` is the max match_date actually in the collection — the
@@ -868,7 +868,21 @@ def _export_profiles_and_cohorts(
     taxonomy: dict[str, dict],
     activity: dict[str, dict],
 ) -> tuple[int, int]:
+    import duckdb
+
     from cricdex.profiles import builder
+    from cricdex.scout import cohort
+
+    # One read-only connection + one ball-volume pass, reused across players
+    # so the graph cohort (co_faced) costs ~one query per player.
+    name_to_cid = {p["name"]: p["cricsheet_id"] for p in players if p.get("name")}
+    try:
+        con = duckdb.connect(str(cohort.DEFAULT_DB_PATH), read_only=True)
+        vol = cohort.ball_volumes(con, collection)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"cohort connection failed for {collection}: {e}")
+        con = None
+        vol = {}
 
     n_prof = n_cohort = 0
     for p in players:
@@ -888,6 +902,24 @@ def _export_profiles_and_cohorts(
             n_prof += 1
         except Exception as e:  # noqa: BLE001
             logger.warning(f"profile failed {name}: {e}")
+
+        # Graph cohort — "faced the same bowlers / bowled to the same batters",
+        # computed straight from the ball-by-ball (no Neo4j). co_faced is the
+        # only signal any surface renders (the web Player Profile card).
+        if con is not None:
+            try:
+                rows = cohort.co_faced(name, collection, con=con, vol=vol, top_k=12)
+                for r in rows:
+                    r["cricsheet_id"] = name_to_cid.get(r["name"])
+                # Drop any member we can't resolve to a cricsheet_id — the UI
+                # links cohort rows by id, so a null-id row is dead weight.
+                rows = _tag([r for r in rows if r.get("cricsheet_id")], taxonomy)
+                _write(out_dir / "cohorts" / f"{cid}.json", {"co_faced": rows})
+                n_cohort += 1
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"cohort failed {name}: {e}")
+    if con is not None:
+        con.close()
     return n_prof, n_cohort
 
 

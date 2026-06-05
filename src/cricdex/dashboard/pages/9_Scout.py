@@ -28,6 +28,23 @@ st.caption(
 )
 provenance_banner(source="cricsheet", path=SITE_DATA / "ipl" / "scout_index.json")
 
+with st.expander("How the scout works (plain English)"):
+    st.markdown(
+        "Pick an active IPL player. We find players of the **same archetype** (same role; for "
+        "bowlers, same seam/spin type) at three levels and rank them by how close their **skill "
+        "standing** is to your pick:\n\n"
+        "- **IPL peers** — who else in the IPL is most like them.\n"
+        "- **Uncapped (SMAT)** — domestic Indian prospects of the same mould — the 'next one'.\n"
+        "- **Overseas** — Big Bash (BBL), SA20, CPL & T20 Blast players of the same mould.\n\n"
+        "'Skill standing' is the player's Bayesian value as a z-score *within its own competition* "
+        "(mean 0, sd 1), so a SMAT star and an IPL star line up even though raw numbers aren't "
+        "comparable. Similarity = how close those standings are. Each row shows an **estimated "
+        "crore price** (the same skill→price curve the Auction room uses, discounted for the weaker "
+        "tier) and, for SMAT/BBL, the **saving** vs your IPL pick. A 💎 **gem** flags an uncapped "
+        "prospect with unusually high standing for how little he's played. Hit **Draft** to drop a "
+        "prospect straight into the Auction room as a retention."
+    )
+
 ROLE_OPTS = ["batter", "all_rounder", "keeper", "bowler"]
 POS = {
     "": "Any",

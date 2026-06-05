@@ -13,22 +13,14 @@ import typer
 
 from cricdex.cli import _copy, _render
 from cricdex.cli._shared import EXIT_MISSING_DATA, die
+from cricdex.common.metrics import METRIC_BY_SLUG
 from cricdex.web_parity.loader import SITE_DATA
 
-# Metric slug → (primary sort column, primary key column, higher_is_better).
-# Reads the SAME exported leaderboard JSON the web app uses
-# (site/public/data/<col>/leaderboards/<slug>.json), so rankings match.
+# Metric slug → (primary sort column, name column, higher_is_better), derived
+# from the shared catalog (cricdex.common.metrics) so the CLI can't drift from
+# the web/Streamlit/TUI. Reads the SAME exported leaderboard JSON.
 METRICS: dict[str, tuple[str, str, bool]] = {
-    "ngi": ("ngi_per_match", "name", True),
-    "pressure_runs": ("pressure_sr_per_100_balls", "batter", True),
-    "intent_curve": ("early_sr", "batter", True),
-    "dot_ball_recovery": ("runs_per_6_after_dot", "batter", True),
-    "counter_attack": ("counter_attack_sr", "batter", True),
-    "boundary_dependency": ("bdr_pct", "batter", False),
-    "pressure_conversion": ("wicket_rate_pct", "bowler", True),
-    "wicket_quality": ("wicket_quality", "bowler", True),
-    "crease_longevity": ("longevity_index", "batter", True),
-    "slow_start_cost": ("slow_start_cost", "batter", False),
+    slug: (m.sort_col, m.name_col, m.higher_is_better) for slug, m in METRIC_BY_SLUG.items()
 }
 
 

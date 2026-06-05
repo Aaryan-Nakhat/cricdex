@@ -18,9 +18,10 @@ import sys
 from typing import Any
 
 from rich.console import Console
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import (
     Button,
     DataTable,
@@ -36,36 +37,26 @@ from textual.widgets import (
 )
 
 from cricdex.cli import _copy, _render
+from cricdex.common import filters as cf
+from cricdex.common.metrics import METRIC_BY_SLUG, METRICS
 from cricdex.config import DATA_DIR
 from cricdex.web_parity.loader import SITE_DATA
 
-METRIC_OPTIONS: list[tuple[str, str]] = [
-    ("NGI (Net Game Impact)", "ngi"),
-    ("Pressure Runs", "pressure_runs"),
-    ("Intent Curve", "intent_curve"),
-    ("Dot-Ball Recovery", "dot_ball_recovery"),
-    ("Counter-Attack", "counter_attack"),
-    ("Boundary Dependency", "boundary_dependency"),
-    ("Pressure Conversion", "pressure_conversion"),
-    ("Wicket Quality", "wicket_quality"),
-    ("Crease Longevity", "crease_longevity"),
-    ("Slow-Start Cost", "slow_start_cost"),
-]
+# Metric switcher + sort keys come straight from the shared catalog
+# (cricdex.common.metrics) so the TUI can't drift from the web/Streamlit.
+METRIC_OPTIONS: list[tuple[str, str]] = [(m.name, m.slug) for m in METRICS]
 
-# slug → (sort column, primary-key column, higher_is_better). Reads the same
-# exported leaderboard JSON as the web app.
-METRIC_KEYS: dict[str, tuple[str, str, bool]] = {
-    "ngi": ("ngi_per_match", "name", True),
-    "pressure_runs": ("pressure_sr_per_100_balls", "batter", True),
-    "intent_curve": ("early_sr", "batter", True),
-    "dot_ball_recovery": ("runs_per_6_after_dot", "batter", True),
-    "counter_attack": ("counter_attack_sr", "batter", True),
-    "boundary_dependency": ("bdr_pct", "batter", False),
-    "pressure_conversion": ("wicket_rate_pct", "bowler", True),
-    "wicket_quality": ("wicket_quality", "bowler", True),
-    "crease_longevity": ("longevity_index", "batter", True),
-    "slow_start_cost": ("slow_start_cost", "batter", False),
-}
+# Time window + filter dropdowns — Textual Select wants (label, value) pairs;
+# the shared OPTS lists are (value, label), so flip them.
+WINDOW_OPTIONS = [(cf.WINDOW_LABELS[w], w) for w in cf.WINDOWS]
+ROLE_FILTER_OPTIONS = [(lbl, val) for val, lbl in cf.ROLE_OPTS]
+BOWLING_FILTER_OPTIONS = [(lbl, val) for val, lbl in cf.BOWLING_OPTS]
+POSITION_FILTER_OPTIONS = [(lbl, val) for val, lbl in cf.POSITION_OPTS]
+ACTIVITY_FILTER_OPTIONS = [
+    ("Active + retired", "all"),
+    ("Active only", "active"),
+    ("Retired only", "retired"),
+]
 
 VENUE_VIEW_OPTIONS = [
     ("Innings totals", "innings"),
@@ -73,18 +64,7 @@ VENUE_VIEW_OPTIONS = [
     ("Chase vs set winrate", "chase"),
 ]
 
-# --- mirror 3_Records.py RECORD_LABELS / COL_LABELS ----------------------
-RECORD_LABELS: dict[str, str] = {
-    "highest_individual_innings": "Highest individual innings",
-    "fastest_fifty": "Fastest fifties",
-    "fastest_hundred": "Fastest hundreds",
-    "most_sixes_innings": "Most sixes in an innings",
-    "career_run_leaders": "Career run leaders",
-    "best_bowling_innings": "Best bowling figures",
-    "career_wicket_leaders": "Career wicket leaders",
-    "highest_team_totals": "Highest team totals",
-    "highest_runs_in_over": "Most runs in an over",
-}
+# --- record-board column labels (mirror 3_Records.py COL_LABELS) ----------
 COL_LABELS: dict[str, str] = {
     "batter": "Batter",
     "bowler": "Bowler",
@@ -174,6 +154,20 @@ def _fill_datatable(table: DataTable, rows: list[dict], max_cols: int = 8) -> No
         table.add_row(*cells, height=height)
 
 
+def _plotext_chart(build_fn, width: int = 88, height: int = 16) -> Text:
+    """Build a plotext figure into a Rich Text (ANSI) so it can drop into a
+    Static — the desktop stand-in for the web's Recharts plots. `build_fn(plt)`
+    draws onto the cleared canvas; theme 'clear' keeps it monochrome so it sits
+    on any Textual background."""
+    import plotext as plt
+
+    plt.clf()
+    plt.plotsize(width, height)
+    plt.theme("clear")
+    build_fn(plt)
+    return Text.from_ansi(plt.build())
+
+
 class CricDexApp(App):
     """Main Textual app — tabs mirror the React web app's analytical pages."""
 
@@ -245,6 +239,20 @@ class CricDexApp(App):
         padding: 0 1;
     }
     LoadingIndicator { color: $accent; }
+    VerticalScroll { height: 1fr; }
+    .chart {
+        height: auto;
+        padding: 0 1;
+        margin: 0 1;
+        color: $text;
+    }
+    /* Tabs that pair a table with a plotext chart: let the table size to its
+       rows (capped) so the chart below stays visible; the VerticalScroll
+       handles any overflow. */
+    #cmp-table { height: auto; max-height: 16; }
+    #cmp-h2h-table { height: auto; max-height: 9; }
+    #ven-table { height: auto; max-height: 12; }
+    #h2h-table { height: auto; max-height: 10; }
     """
 
     BINDINGS = [
@@ -332,51 +340,115 @@ class CricDexApp(App):
                 yield Select(
                     options=METRIC_OPTIONS, value="ngi", id="metric-select", allow_blank=False
                 )
-                yield Label("Collection:")
+                yield Label("Window:")
+                yield Select(
+                    options=WINDOW_OPTIONS, value="all", id="metric-window", allow_blank=False
+                )
+                yield Label("Coll:")
                 yield Input(value="ipl", id="metric-collection")
                 yield Label("Top N:")
-                yield Input(value="20", id="metric-topn")
+                yield Input(value="20", id="metric-topn", classes="num")
                 yield Button("Show ▸", id="metric-run", variant="primary")
+            with Horizontal(classes="controls"):
+                yield Label("Role:")
+                yield Select(
+                    options=ROLE_FILTER_OPTIONS, value="", id="metric-role", allow_blank=False
+                )
+                yield Label("Bowling:")
+                yield Select(
+                    options=BOWLING_FILTER_OPTIONS, value="", id="metric-bowling", allow_blank=False
+                )
+                yield Label("Position:")
+                yield Select(
+                    options=POSITION_FILTER_OPTIONS,
+                    value="",
+                    id="metric-position",
+                    allow_blank=False,
+                )
+                yield Label("Activity:")
+                yield Select(
+                    options=ACTIVITY_FILTER_OPTIONS,
+                    value="all",
+                    id="metric-activity",
+                    allow_blank=False,
+                )
+                yield Label("Min mts:")
+                yield Input(value="20", id="metric-minmatches", classes="num")
+                yield Label("Country:")
+                yield Input(placeholder="e.g. IND", id="metric-country", classes="num")
             yield Static(_copy.LEADERBOARD_INTRO, id="metric-hint", classes="intro")
             yield DataTable(id="metric-table", zebra_stripes=True)
 
     def _on_run_leaderboard(self) -> None:
         metric = self.query_one("#metric-select", Select).value
+        window = self.query_one("#metric-window", Select).value or "all"
         collection = self.query_one("#metric-collection", Input).value
+        table = self.query_one("#metric-table", DataTable)
+        hint = self.query_one("#metric-hint", Static)
         try:
             top_n = int(self.query_one("#metric-topn", Input).value or "20")
         except ValueError:
             top_n = 20
-        path = SITE_DATA / collection / "leaderboards" / f"{metric}.json"
-        table = self.query_one("#metric-table", DataTable)
-        hint = self.query_one("#metric-hint", Static)
-        if not path.exists():
-            _fill_datatable(
-                table,
-                [
-                    {
-                        "error": f"missing {path.name}",
-                        "fix": "run scripts/export_site.py (after data ingest metrics)",
-                    }
-                ],
-            )
+        try:
+            rows = cf.load_leaderboard(collection, metric, window)
+        except FileNotFoundError as e:
+            _fill_datatable(table, [{"error": str(e)}])
             return
-        rows = json.loads(path.read_text())
         if not isinstance(rows, list):
             rows = []
-        sort_col, primary_key, higher = METRIC_KEYS.get(metric, (None, None, True))
+
+        # Full web FilterBar via the shared port.
+        try:
+            min_matches = int(self.query_one("#metric-minmatches", Input).value or "0")
+        except ValueError:
+            min_matches = 0
+        filters = cf.Filters(
+            min_matches=min_matches,
+            role=self.query_one("#metric-role", Select).value or "",
+            bowling=self.query_one("#metric-bowling", Select).value or "",
+            position=self.query_one("#metric-position", Select).value or "",
+            activity=self.query_one("#metric-activity", Select).value or "all",
+            country=(self.query_one("#metric-country", Input).value or "").strip(),
+        )
+        total = len(rows)
+        rows = cf.apply_filters(rows, filters)
+        kept = len(rows)
+
+        m = METRIC_BY_SLUG.get(metric)
+        sort_col = m.sort_col if m else None
+        primary_key = m.name_col if m else None
+        higher = m.higher_is_better if m else True
         if sort_col:
-            rows = sorted(rows, key=lambda r: r.get(sort_col, 0) or 0, reverse=higher)
+            rows = sorted(
+                rows,
+                key=lambda r: (r.get(sort_col) is None, r.get(sort_col) or 0),
+                reverse=higher,
+            )
         rows = rows[:top_n]
         if rows and sort_col and primary_key:
             extras = [k for k in rows[0].keys() if k not in {primary_key, sort_col}][:4]
             cols = [primary_key, sort_col, *extras]
-            pruned = [{c: r.get(c) for c in cols} for r in rows]
+            pruned = []
+            for r in rows:
+                row: dict[str, Any] = {}
+                for c in cols:
+                    v = r.get(c)
+                    # Intent-Curve: render the per-innings SR list as an inline
+                    # sparkline cell, exactly like the web's mini bar-chart.
+                    if c == "curve" and isinstance(v, list):
+                        v = _render.sparkline(v)
+                    row[c] = v
+                pruned.append(row)
             spark = _render.sparkline([r.get(sort_col) or 0 for r in rows])
-            hint.update(f"{_copy.METRIC_HINTS.get(metric, '')}   ·   [{sort_col}] shape: {spark}")
+            arrow = "▲ higher better" if higher else "▼ lower better"
+            hint.update(
+                f"{_copy.METRIC_HINTS.get(metric, '')}   ·   {arrow}   ·   "
+                f"{kept}/{total} after filters   ·   [{sort_col}] shape: {spark}"
+            )
             _fill_datatable(table, pruned)
         else:
-            _fill_datatable(table, rows)
+            hint.update(f"{kept}/{total} after filters — none match, loosen the filters.")
+            _fill_datatable(table, rows or [{"info": "no players match these filters"}])
 
     # ===== Records ========================================================
 
@@ -388,7 +460,11 @@ class CricDexApp(App):
                 yield Label("Coll:")
                 yield Input(value="ipl", id="records-collection")
                 yield Label("Top N:")
-                yield Input(value="25", id="records-topn")
+                yield Input(value="25", id="records-topn", classes="num")
+                yield Label("From:")
+                yield Input(placeholder="year", id="records-from", classes="num")
+                yield Label("To:")
+                yield Input(placeholder="year", id="records-to", classes="num")
                 yield Button("Show ▸", id="records-run", variant="primary")
             yield Static(_copy.RECORDS_INTRO, classes="intro")
             yield DataTable(id="records-table", zebra_stripes=True)
@@ -425,6 +501,17 @@ class CricDexApp(App):
             )
             return
         rows = list(data.get(key) or [])
+        # Optional year-range filter on dated boards (mirror Records.tsx range).
+        yr_from = _num(self.query_one("#records-from", Input).value)
+        yr_to = _num(self.query_one("#records-to", Input).value)
+        if (yr_from or yr_to) and rows and rows[0].get("match_date"):
+            lo = yr_from or float("-inf")
+            hi = yr_to or float("inf")
+            rows = [
+                r
+                for r in rows
+                if (y := _num((r.get("match_date") or "")[:4])) is None or lo <= y <= hi
+            ]
         # Records.tsx / 3_Records.py drop the match_id column from the display.
         rows = [{k: v for k, v in r.items() if k != "match_id"} for r in rows][:top_n]
         rows = [{COL_LABELS.get(k, k.replace("_", " ")): v for k, v in r.items()} for r in rows]
@@ -443,9 +530,12 @@ class CricDexApp(App):
                 yield Input(value="ipl", id="cmp-collection")
                 yield Button("Compare ▸", id="cmp-run", variant="primary")
             yield Static(_copy.COMPARE_INTRO, classes="intro")
-            yield DataTable(id="cmp-table", zebra_stripes=True)
-            yield Static("Bayesian skill head-to-head", classes="intro")
-            yield DataTable(id="cmp-h2h-table", zebra_stripes=True)
+            with VerticalScroll():
+                yield DataTable(id="cmp-table", zebra_stripes=True)
+                yield Static("Skill shape — four Bayesian axes (0–100 scaled)", classes="intro")
+                yield Static("", id="cmp-chart", classes="chart")
+                yield Static("Bayesian skill head-to-head", classes="intro")
+                yield DataTable(id="cmp-h2h-table", zebra_stripes=True)
 
     def _on_run_compare(self) -> None:
         # Reads the same exported profiles/<cid>.json for both players (via
@@ -515,6 +605,40 @@ class CricDexApp(App):
             max_cols=6,
         )
 
+        # Skill-shape chart — four Bayesian axes, scaled 0–100 (mirrors the web
+        # Compare radar; plotext has no radar so grouped bars carry the shape).
+        axes = ["Bat score", "Bat survive", "Bowl econ", "Bowl strike"]
+        paths = [
+            ("bayes", "bayes_batter", "skill"),
+            ("bayes", "bayes_batter", "survival_skill"),
+            ("bayes", "bayes_bowler", "skill"),
+            ("bayes", "bayes_bowler", "strike_skill"),
+        ]
+
+        def _scaled(prof: dict) -> list[float]:
+            out = []
+            for p in paths:
+                v = _dig(prof, *p)
+                out.append(max(0.0, min(100.0, (v + 0.6) / 1.2 * 100)) if v is not None else 0.0)
+            return out
+
+        series = [_scaled(loaded[0][1]), _scaled(loaded[1][1])]
+        chart = self.query_one("#cmp-chart", Static)
+        if not any(v for s in series for v in s):
+            chart.update("no Bayesian skill data to chart for these two players")
+        else:
+            try:
+                chart.update(
+                    _plotext_chart(
+                        lambda plt: (
+                            plt.multiple_bar(axes, series, labels=[a, b]),
+                            plt.title("Skill shape (0–100)"),
+                        )
+                    )
+                )
+            except Exception as e:  # noqa: BLE001
+                chart.update(f"(chart unavailable: {e})")
+
     # ===== Head-to-head ===================================================
 
     def _h2h_panel(self) -> ComposeResult:
@@ -531,10 +655,14 @@ class CricDexApp(App):
                 "P(A is better than B) from the Bayesian skill posteriors, role by role.",
                 classes="intro",
             )
-            yield DataTable(id="h2h-table", zebra_stripes=True)
+            with VerticalScroll():
+                yield DataTable(id="h2h-table", zebra_stripes=True)
+                yield Static("P(A better) by role — 50% = too close to call", classes="intro")
+                yield Static("", id="h2h-chart", classes="chart")
 
     def _on_run_h2h(self) -> None:
         table = self.query_one("#h2h-table", DataTable)
+        chart = self.query_one("#h2h-chart", Static)
         a = self.query_one("#h2h-a", Input).value.strip()
         b = self.query_one("#h2h-b", Input).value.strip()
         collection = self.query_one("#h2h-collection", Input).value
@@ -543,8 +671,11 @@ class CricDexApp(App):
         res = head_to_head(a, b, collection=collection)
         if res.get("error"):
             _fill_datatable(table, [{"error": res["error"]}])
+            chart.update("")
             return
         rows: list[dict] = []
+        roles: list[str] = []
+        pcts: list[float] = []
         for role in ("batter", "bowler", "all_rounder"):
             c = res["comparisons"].get(role)
             if c is None:
@@ -558,7 +689,23 @@ class CricDexApp(App):
                     "verdict": c["verdict"],
                 }
             )
+            roles.append(role.replace("_", "-"))
+            pcts.append(round(c["p_a_better"] * 100, 1))
         _fill_datatable(table, rows or [{"info": "no overlapping role to compare"}], max_cols=6)
+        if roles:
+            try:
+                chart.update(
+                    _plotext_chart(
+                        lambda plt: (
+                            plt.simple_bar(roles, pcts, title=f"P({a} > {b}) %", width=100),
+                        ),
+                        height=10,
+                    )
+                )
+            except Exception as e:  # noqa: BLE001
+                chart.update(f"(chart unavailable: {e})")
+        else:
+            chart.update("")
 
     # ===== Venues =========================================================
 
@@ -578,7 +725,9 @@ class CricDexApp(App):
                 )
                 yield Button("Show ▸", id="ven-run", variant="primary")
             yield Static(_copy.VENUES_INTRO, classes="intro")
-            yield DataTable(id="ven-table", zebra_stripes=True)
+            with VerticalScroll():
+                yield DataTable(id="ven-table", zebra_stripes=True)
+                yield Static("", id="ven-chart", classes="chart")
 
     def _on_run_venues(self) -> None:
         # Reads the same exported venues.json the React app + 6_Venues.py read:
@@ -669,6 +818,32 @@ class CricDexApp(App):
             rows or [{"info": f"no data for `{view}` at {venue}"}],
             max_cols=10,
         )
+
+        # Phase bar chart — runs/over, dot %, boundary % across the 3 phases
+        # (mirrors the web Venues grouped bar chart). Only for the phases view.
+        chart = self.query_one("#ven-chart", Static)
+        if view == "phases" and rows:
+            phases = [r["phase"] for r in rows]
+            series = [
+                [r["rpo"] for r in rows],
+                [r["dot_pct"] for r in rows],
+                [r["boundary_pct"] for r in rows],
+            ]
+            try:
+                chart.update(
+                    _plotext_chart(
+                        lambda plt: (
+                            plt.multiple_bar(
+                                phases, series, labels=["Runs/over", "Dot %", "Boundary %"]
+                            ),
+                            plt.title(f"{venue} — scoring by phase"),
+                        )
+                    )
+                )
+            except Exception as e:  # noqa: BLE001
+                chart.update(f"(chart unavailable: {e})")
+        else:
+            chart.update("")
 
     # ===== Auction (Solve + Recommend in same tab — mirrors Streamlit) ====
 
@@ -799,9 +974,10 @@ class CricDexApp(App):
                     f"\n[bold]Dismissal fingerprint · {fp_title}[/bold] ({d.get('total', 0)})"
                 )
                 for r in d["rows"][:6]:
+                    pct = _num(r.get("pct")) or 0
                     buf.print(
-                        f"  • {str(r.get('kind', '')).capitalize():<20} "
-                        f"{(_num(r.get('pct')) or 0):.1f}% ({r.get('count')})"
+                        f"  • {str(r.get('kind', '')).capitalize():<18} "
+                        f"[cyan]{_pct_bar(pct)}[/cyan] {pct:5.1f}% ({r.get('count')})"
                     )
                 if d.get("read"):
                     buf.print(f"  [dim italic]“{d['read']}”[/dim italic]")
@@ -817,6 +993,28 @@ class CricDexApp(App):
                     sim = max(0.0, 1 - dist) * 100 if dist is not None else None
                     sim_s = f"{sim:.1f}% alike" if sim is not None else "—"
                     buf.print(f"  • {str(t.get('name')):<28}  {sim_s}")
+
+        # Graph cohort — players who faced the same bowlers / shared a side
+        # (reads cohorts/<cid>.json, same as the web Player Profile).
+        try:
+            co_faced = (cf.load_cohorts(collection, cid) or {}).get("co_faced") or []
+        except FileNotFoundError:
+            co_faced = []
+        if co_faced:
+            buf.print("\n[bold]Graph cohort[/bold] [dim](faced the same bowlers)[/dim]")
+
+            # The shared-count field is role-dependent: batters carry
+            # `shared_bowlers`, bowlers carry `shared_batters`.
+            def _shared(r: dict) -> int:
+                return int(r.get("shared_bowlers") or r.get("shared_batters") or 0)
+
+            top = max((_shared(r) for r in co_faced[:10]), default=0) or 1
+            for r in co_faced[:10]:
+                s = _shared(r)
+                buf.print(
+                    f"  • {str(r.get('name')):<28} [cyan]{_pct_bar(s / top * 100, 16)}[/cyan]"
+                    f"  {s} shared"
+                )
 
         for line in buf.export_text(clear=False, styles=False).splitlines():
             log.write(line)
@@ -1190,6 +1388,14 @@ class CricDexApp(App):
 
 
 # ---- helpers ----------------------------------------------------------------
+
+
+def _pct_bar(pct: float, width: int = 20) -> str:
+    """A solid block bar for a 0–100 percentage — the text-mode stand-in for
+    the web's dismissal / skill bars."""
+    pct = max(0.0, min(100.0, pct))
+    filled = round(pct / 100 * width)
+    return "█" * filled + "░" * (width - filled)
 
 
 def _num(v: Any) -> float | None:

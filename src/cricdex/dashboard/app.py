@@ -8,7 +8,11 @@ without reading the codebase.
 
 from __future__ import annotations
 
+import json
+
 import streamlit as st
+
+from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex", page_icon="🏏", layout="wide")
 st.title("🏏 CricDex")
@@ -16,6 +20,25 @@ st.caption(
     "Open cricket intelligence — novel metrics, cross-competition scouting, and a "
     "real-rules IPL auction. The desktop mirror of the web app, over one data dir."
 )
+
+
+def _meta(collection: str = "ipl") -> dict:
+    path = SITE_DATA / collection / "meta.json"
+    try:
+        return json.loads(path.read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+# Live dataset tiles — mirrors the web Overview hero stats.
+_m = _meta()
+if _m:
+    t = st.columns(4)
+    t[0].metric("Matches", f"{_m.get('n_matches', 0):,}")
+    t[1].metric("Balls bowled", f"{_m.get('n_balls', 0):,}")
+    t[2].metric("Players rated", f"{_m.get('n_players', 0):,}")
+    t[3].metric("Data up to", str(_m.get("data_as_of", "—")))
+    st.caption(f"`ipl` collection · {_m.get('n_active', 0):,} active players")
 
 st.markdown(
     """
@@ -39,9 +62,9 @@ the Scout + Auction run the *same* logic as the site via `cricdex.web_parity`
 
 | Page | What it answers | Source |
 |---|---|---|
-| **Leaderboards** | Top players by each of the 10 novel metrics | Cricsheet → metric JSONs |
+| **Leaderboards** | Top players by each of the 10 novel metrics — with a time-window switcher (all-time / last 3 yrs / last 1 yr), full filter bar (role / activity / bowling / position / country / min matches), inline magnitude bars + the Intent-Curve sparkline | Cricsheet → metric JSONs |
 | **Player Profile** | Everything CricDex knows about one player | all of the below |
-| **Compare** | 2–5 players side-by-side, radar + table | career totals + metrics + Bayes |
+| **Compare** | 2–4 players side-by-side, radar + table | career totals + metrics + Bayes |
 | **Head-to-head** | P(A is better than B) from the Bayesian posteriors | scout ratings |
 | **Scout** | Cross-competition look-alikes (IPL / SMAT / BBL / SA20 / CPL / Blast) + est. price, savings, gem flag, draft | exported scout index via `cricdex.web_parity` |
 | **Auction** | Real-rules IPL auction Monte-Carlo (retain → bid), web-identical | exported pool via `cricdex.web_parity` |
