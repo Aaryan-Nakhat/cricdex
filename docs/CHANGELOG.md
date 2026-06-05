@@ -30,6 +30,14 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
   under Node (`--experimental-strip-types`) and asserts the Python port is
   identical (retentions, auction teams/marquee/sample-draft, scout
   look-alikes + prices) within 1e-9. Fails CI if the surfaces ever drift.
+- **Umpire's Eye — "Out or Not Out?" LBW trainer** (web-only): a physics-simulated
+  DRS practice game. Every ball is a randomised delivery (pace, length, line,
+  swing, off-the-pitch deviation, bounce, wind, impact point, shot offered, hand,
+  umpire's-call band — all tunable) animated in a 2.5D dual view (top-down
+  line/pitching + side-on length/height); you call OUT / UMPIRE'S CALL / NOT OUT
+  before the ball-tracking reveals pitching, impact and the projected stump path
+  with the real LBW verdict. Pure browser physics + canvas — no CV, no GPU, no
+  data, no backend (`site/src/lib/lbw.ts` + `pages/UmpiresEye.tsx`).
 - **Four new analytical offerings**, shipped in sync across **all four
   surfaces** (React canonical · Streamlit · Textual TUI · CLI), reading the same
   exported JSON, each with the full player filter bar where applicable:

@@ -11,6 +11,7 @@ import {
   Gavel,
   Medal,
   MapPin,
+  Eye,
   BookOpen,
   type LucideIcon,
 } from "lucide-react";
@@ -36,6 +37,7 @@ export const NAV: NavItem[] = [
   { to: "/auction", label: "Auction room", icon: Gavel, group: "Scout", blurb: "Simulate a real IPL auction — retain, then bid for the rest." },
   { to: "/records", label: "Records", icon: Medal, group: "Explore", blurb: "All-time record books." },
   { to: "/venues", label: "Venues", icon: MapPin, group: "Explore", blurb: "Ground conditions: totals, phases, chasing." },
+  { to: "/umpires-eye", label: "Umpire's Eye", icon: Eye, group: "Explore", blurb: "Out or not out? A physics-sim LBW trainer — call it before the ball-tracking does." },
   { to: "/about", label: "How it works", icon: BookOpen, group: "Explore", blurb: "The models, plainly explained." },
 ];
 
