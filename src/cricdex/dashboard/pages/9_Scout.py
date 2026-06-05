@@ -72,6 +72,17 @@ def _index() -> dict:
     return load_scout_index("ipl")
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _auction_pool_cids() -> set[str]:
+    """Cids in the priced auction pool — only these can be drafted."""
+    try:
+        from cricdex.web_parity import load_auction_pool
+
+        return {p["cricsheet_id"] for p in load_auction_pool("ipl")}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
 try:
     idx = _index()
 except FileNotFoundError as e:
@@ -156,6 +167,16 @@ chosen = st.multiselect(
     default=[k for k in prospects if prospects[k] in st.session_state.get("drafted", [])],
     help="SMAT/BBL look-alikes you pick here are pre-loaded as retentions on the Auction page.",
 )
-st.session_state["drafted"] = [prospects[k] for k in chosen]
-if chosen:
-    st.success(f"{len(chosen)} prospect(s) queued — open the **Auction** page to place them.")
+# Only players in the priced auction pool can be drafted (the rest are too few
+# balls / a non-IPL nation) — mirrors the web's draft guard.
+pool_cids = _auction_pool_cids()
+eligible = [prospects[k] for k in chosen if prospects[k] in pool_cids]
+ineligible = [k for k in chosen if prospects[k] not in pool_cids]
+st.session_state["drafted"] = eligible
+if ineligible:
+    st.warning(
+        f"{', '.join(ineligible)} — not in the priced auction pool (too few balls, or a "
+        "non-IPL nation), so can't be drafted."
+    )
+if eligible:
+    st.success(f"{len(eligible)} prospect(s) queued — open the **Auction** page to place them.")
