@@ -1955,7 +1955,31 @@ class CricDexApp(App):
                     id="ph-phase",
                     allow_blank=False,
                 )
+                yield Label("Top N:")
+                yield Input(value="25", id="ph-topn", classes="num")
                 yield Button("Show ▸", id="ph-run", variant="primary")
+            with ControlBar(title="Filters"):
+                yield Label("Role:")
+                yield Select(options=ROLE_FILTER_OPTIONS, value="", id="ph-role", allow_blank=False)
+                yield Label("Bowling:")
+                yield Select(
+                    options=BOWLING_FILTER_OPTIONS, value="", id="ph-bowling", allow_blank=False
+                )
+                yield Label("Position:")
+                yield Select(
+                    options=POSITION_FILTER_OPTIONS, value="", id="ph-position", allow_blank=False
+                )
+                yield Label("Activity:")
+                yield Select(
+                    options=ACTIVITY_FILTER_OPTIONS,
+                    value="all",
+                    id="ph-activity",
+                    allow_blank=False,
+                )
+                yield Label("Min mts:")
+                yield Input(value="0", id="ph-minmatches", classes="num")
+                yield Label("Country:")
+                yield Input(placeholder="e.g. IND", id="ph-country", classes="num")
             with VerticalScroll():
                 with Panel(title="Best strike rates"):
                     yield DataTable(id="ph-bat-table", zebra_stripes=True)
@@ -1973,9 +1997,25 @@ class CricDexApp(App):
             _fill_datatable(bowl, [{"info": "—"}])
             return
         board = (json.loads(path.read_text()) or {}).get(phase) or {}
+        try:
+            top_n = int(self.query_one("#ph-topn", Input).value or "25")
+        except ValueError:
+            top_n = 25
+        try:
+            min_matches = int(self.query_one("#ph-minmatches", Input).value or "0")
+        except ValueError:
+            min_matches = 0
+        filters = cf.Filters(
+            min_matches=min_matches,
+            role=self.query_one("#ph-role", Select).value or "",
+            bowling=self.query_one("#ph-bowling", Select).value or "",
+            position=self.query_one("#ph-position", Select).value or "",
+            activity=self.query_one("#ph-activity", Select).value or "all",
+            country=(self.query_one("#ph-country", Input).value or "").strip(),
+        )
         bat_rows = [
             {"batter": r["name"], "runs": r["runs"], "balls": r["balls"], "sr": r["sr"]}
-            for r in (board.get("batters") or [])
+            for r in cf.apply_filters(board.get("batters") or [], filters)[:top_n]
         ]
         bowl_rows = [
             {
@@ -1985,10 +2025,10 @@ class CricDexApp(App):
                 "runs": r["runs"],
                 "econ": r["econ"],
             }
-            for r in (board.get("bowlers") or [])
+            for r in cf.apply_filters(board.get("bowlers") or [], filters)[:top_n]
         ]
-        _fill_datatable(bat, bat_rows or [{"info": "no qualifying batters"}])
-        _fill_datatable(bowl, bowl_rows or [{"info": "no qualifying bowlers"}])
+        _fill_datatable(bat, bat_rows or [{"info": "no batters match these filters"}])
+        _fill_datatable(bowl, bowl_rows or [{"info": "no bowlers match these filters"}])
 
     # ===== Form — recent window vs career baseline ========================
 

@@ -993,7 +993,8 @@ def _export_phase(
     from cricdex.metrics import phase as ph
 
     try:
-        boards = ph.phase_leaders(collection)
+        # Fuller pool (top 150) so the UI filter bar has material to narrow.
+        boards = ph.phase_leaders(collection, top=150)
         for board in boards.values():
             for r in (*board.get("batters", []), *board.get("bowlers", [])):
                 who = r.get("name")
