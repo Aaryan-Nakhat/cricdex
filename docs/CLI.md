@@ -125,26 +125,6 @@ one implementation with the web via `cricdex.web_parity`.
 
 ---
 
-## team
-
-```
-cricdex team xi [-c ipl] [--budget 100] [--overseas 4] \
-                [--batter 3] [--bowler 3] [--all-rounder 1] [--keeper 1]
-cricdex team replace "V Kohli" [-c ipl] [--top 12]
-```
-
-- **team xi** — the optimal playing XI: exact branch-and-bound knapsack that
-  maximises total Net Game Impact subject to budget (cr), overseas cap and
-  per-role minimums, then a squad-balance read (role mix + gaps).
-- **team replace** — cheaper same-mould replacements for an IPL player across
-  the scouted leagues, ranked by saving then similarity.
-
-Both run the parity-locked `cricdex.web_parity` engines (best_xi /
-analyze_squad / replacement_by_need), locked to the web Team Lab by
-`test_scripts/test_web_parity.py`.
-
----
-
 ## auction
 
 ```

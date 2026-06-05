@@ -526,8 +526,6 @@ class CricDexApp(App):
             "#ph-bowl-table": "Pick a phase, then Show ▸",
             "#form-up-table": "Pick a metric, then Show ▸",
             "#form-down-table": "Pick a metric, then Show ▸",
-            "#tl-xi-table": "Set constraints, then Build ▸",
-            "#tl-repl-table": "Enter a player, then Find ▸",
             "#sim-table": "Set the knobs, then Simulate ▸",
             "#sim-find-table": "Run a simulation, then search a player",
         }
@@ -618,8 +616,6 @@ class CricDexApp(App):
                 yield from self._auction_sim_panel()
             with TabPane("Scout", id="tab-twins"):
                 yield from self._twins_panel()
-            with TabPane("Team Lab", id="tab-teamlab"):
-                yield from self._teamlab_panel()
             with TabPane("Update", id="tab-update"):
                 yield from self._update_panel()
         yield Footer()
@@ -2067,170 +2063,6 @@ class CricDexApp(App):
         _fill_datatable(up, rows[:top_n])
         _fill_datatable(down, list(reversed(rows))[:top_n])
 
-    # ===== Team Lab — optimal XI · squad balance · replacement ============
-
-    def _teamlab_panel(self) -> ComposeResult:
-        with Vertical():
-            yield _tabhead("TEAM LAB", "optimal XI · squad balance · replacement")
-            with ControlBar(title="Optimal XI"):
-                yield Label("Coll:")
-                yield Select(
-                    options=_collection_options(),
-                    value="ipl",
-                    id="tl-collection",
-                    allow_blank=False,
-                )
-                yield Label("Budget:")
-                yield Input(value="100", id="tl-budget", classes="num")
-                yield Label("O/S:")
-                yield Input(value="4", id="tl-overseas", classes="num")
-                yield Label("Bat/Bwl/AR/WK:")
-                yield Input(value="3", id="tl-min-batter", classes="num")
-                yield Input(value="3", id="tl-min-bowler", classes="num")
-                yield Input(value="1", id="tl-min-all_rounder", classes="num")
-                yield Input(value="1", id="tl-min-keeper", classes="num")
-                yield Button("Build ▸", id="tl-run", variant="primary")
-            yield Static("", id="tl-meta", classes="intro")
-            with Panel(title="Optimal XI"):
-                yield DataTable(id="tl-xi-table", zebra_stripes=True)
-            yield Static("", id="tl-squad", classes="intro")
-            with ControlBar(title="Replacement by need"):
-                yield Label("Replace:")
-                yield Input(value="V Kohli", id="tl-repl-name")
-                yield Button("Find ▸", id="tl-repl-run", variant="success")
-            yield AutoComplete(target="#tl-repl-name", candidates=_player_candidates())
-            with Panel(title="Cheaper same-mould options"):
-                yield DataTable(id="tl-repl-table", zebra_stripes=True)
-
-    def _on_run_teamlab(self) -> None:
-        # Optimal XI + squad balance via the parity-locked web_parity engines.
-        table = self.query_one("#tl-xi-table", DataTable)
-        meta = self.query_one("#tl-meta", Static)
-        squad_out = self.query_one("#tl-squad", Static)
-        collection = self.query_one("#tl-collection", Select).value
-
-        def _int(sel: str, default: int) -> int:
-            try:
-                return int(self.query_one(sel, Input).value or str(default))
-            except ValueError:
-                return default
-
-        budget = _int("#tl-budget", 100)
-        overseas_cap = _int("#tl-overseas", 4)
-        role_mins = {
-            rk: _int(f"#tl-min-{rk}", d)
-            for rk, d in (("batter", 3), ("bowler", 3), ("all_rounder", 1), ("keeper", 1))
-        }
-        try:
-            from cricdex.web_parity import analyze_squad, best_xi, est_value, load_auction_pool
-
-            pool = load_auction_pool(collection)
-            ngi = {
-                r["cricsheet_id"]: r["ngi_total"]
-                for r in cf.load_leaderboard(collection, "ngi", "all")
-            }
-        except FileNotFoundError as e:
-            _fill_datatable(table, [{"error": str(e)}])
-            meta.update("")
-            squad_out.update("")
-            return
-        players = [
-            {
-                "cricsheet_id": r["cricsheet_id"],
-                "name": r["name"],
-                "role": r["role"],
-                "is_overseas": r["is_overseas"],
-                "ngi": ngi[r["cricsheet_id"]],
-                "price": est_value(r["value"], r["role"], "ipl"),
-            }
-            for r in pool
-            if r["cricsheet_id"] in ngi
-        ]
-        xi = best_xi(players, float(budget), overseas_cap, role_mins, 11, 40)
-        if not xi["feasible"]:
-            _fill_datatable(table, [{"info": "no valid XI — loosen the constraints"}])
-            meta.update("")
-            squad_out.update("")
-            return
-        meta.update(
-            f"NGI [bold]{xi['total_ngi']:.2f}[/bold] · spend [bold]{xi['total_price']:.1f}[/bold]"
-            f"/{budget} cr · overseas {xi['overseas']}/{overseas_cap}"
-        )
-        _fill_datatable(
-            table,
-            [
-                {
-                    "player": p["name"],
-                    "role": p["role"],
-                    "o/s": "✈" if p["is_overseas"] else "",
-                    "ngi": round(p["ngi"], 2),
-                    "cr": round(p["price"], 1),
-                }
-                for p in xi["players"]
-            ],
-        )
-        ppath = SITE_DATA / collection / "players.json"
-        pos = (
-            {p["cricsheet_id"]: p.get("batting_position") for p in json.loads(ppath.read_text())}
-            if ppath.exists()
-            else {}
-        )
-        squad = analyze_squad(
-            [
-                {
-                    "role": p["role"],
-                    "is_overseas": p["is_overseas"],
-                    "batting_position": pos.get(p["cricsheet_id"]),
-                }
-                for p in xi["players"]
-            ],
-            role_mins,
-            overseas_cap,
-        )
-        role_bits = " · ".join(f"{k}:{v}" for k, v in squad["roles"].items())
-        if squad["balanced"]:
-            squad_out.update(f"[green]balanced[/green] — {role_bits}")
-        else:
-            squad_out.update(
-                f"[yellow]{len(squad['gaps'])} gap(s)[/yellow]: "
-                + "; ".join(squad["gaps"])
-                + f"   ({role_bits})"
-            )
-
-    def _on_run_teamlab_repl(self) -> None:
-        table = self.query_one("#tl-repl-table", DataTable)
-        collection = self.query_one("#tl-collection", Select).value
-        name = _name_from_label(self.query_one("#tl-repl-name", Input).value)
-        try:
-            from cricdex.web_parity import load_scout_index, replacement_by_need
-
-            idx = load_scout_index(collection)
-        except FileNotFoundError as e:
-            _fill_datatable(table, [{"error": str(e)}])
-            return
-        names = {p["name"]: p for p in idx["ipl"]}
-        sel = names.get(name) or next(
-            (p for n, p in names.items() if name.lower() in n.lower()), None
-        )
-        if sel is None:
-            _fill_datatable(table, [{"error": f"no IPL player matching '{name}'"}])
-            return
-        merged = []
-        for tier in ("smat", "bbl", "sa20", "cpl", "blast"):
-            for r in replacement_by_need(sel, idx[tier], tier):
-                merged.append(
-                    {
-                        "player": r["name"],
-                        "league": tier.upper(),
-                        "country": r.get("country") or "—",
-                        "sim%": round(r["sim"] * 100),
-                        "est_cr": r["est_cr"],
-                        "save_cr": r["saving"] if r["saving"] > 0 else None,
-                    }
-                )
-        merged.sort(key=lambda r: (-(r["save_cr"] or 0), -r["sim%"]))
-        _fill_datatable(table, merged[:12] or [{"info": "no cheaper same-mould option"}])
-
     # ===== Update — refresh data then re-export the JSON ==================
 
     def _update_panel(self) -> ComposeResult:
@@ -2360,8 +2192,6 @@ class CricDexApp(App):
             "mu-run": self._on_run_matchups,
             "ph-run": self._on_run_phase,
             "form-run": self._on_run_form,
-            "tl-run": self._on_run_teamlab,
-            "tl-repl-run": self._on_run_teamlab_repl,
         }
         if event.button.id in handlers:
             handlers[event.button.id]()
