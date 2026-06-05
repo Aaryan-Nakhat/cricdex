@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Crosshair, Zap, Disc } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
@@ -78,9 +78,19 @@ export function Matchups() {
   const { collection } = useStore();
   const { options, loading: playersLoading } = usePlayers(collection);
   const [cid, setCid] = useState<string | null>(null);
+  const [minBalls, setMinBalls] = useState(6);
   const { data, loading, error } = useAsync<MatchupsData | null>(
     () => (cid ? getMatchups(collection, cid) : Promise.resolve(null)),
     [collection, cid],
+  );
+
+  const asBatter = useMemo(
+    () => (data?.as_batter ?? []).filter((r) => r.balls >= minBalls),
+    [data, minBalls],
+  );
+  const asBowler = useMemo(
+    () => (data?.as_bowler ?? []).filter((r) => r.balls >= minBalls),
+    [data, minBalls],
   );
 
   return (
@@ -91,13 +101,24 @@ export function Matchups() {
         desc="Pick a player to see their toughest and favourite head-to-heads — ball-by-ball as a batter and as a bowler — plus how a batter fares against pace versus spin."
       />
 
-      <div className="mb-6 max-w-md">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <Combobox
           options={options}
           value={cid}
           onChange={setCid}
           placeholder={playersLoading ? "Loading players…" : "Search a player…"}
+          className="max-w-md flex-1"
         />
+        <label className="flex items-center gap-2 text-sm text-muted">
+          <span>Min balls</span>
+          <input
+            type="number"
+            min={1}
+            value={minBalls}
+            onChange={(e) => setMinBalls(Math.max(1, Number(e.target.value) || 1))}
+            className="input w-20 py-1.5"
+          />
+        </label>
       </div>
 
       {!cid ? (
@@ -110,34 +131,34 @@ export function Matchups() {
         <div className="space-y-5 animate-fade-up">
           <Splits splits={data.splits} />
 
-          {data.as_batter.length > 0 && (
+          {asBatter.length > 0 && (
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-fg">
                 <Zap className="h-4 w-4 text-accent" /> As a batter — opponents faced
               </div>
               <DataTable
-                rows={data.as_batter as unknown as Row[]}
+                rows={asBatter as unknown as Row[]}
                 cols={BAT_COLS}
                 initialSort={{ key: "balls", dir: "desc" }}
               />
             </div>
           )}
 
-          {data.as_bowler.length > 0 && (
+          {asBowler.length > 0 && (
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-fg">
                 <Disc className="h-4 w-4 text-ball" /> As a bowler — batters faced
               </div>
               <DataTable
-                rows={data.as_bowler as unknown as Row[]}
+                rows={asBowler as unknown as Row[]}
                 cols={BOWL_COLS}
                 initialSort={{ key: "balls", dir: "desc" }}
               />
             </div>
           )}
 
-          {data.as_batter.length === 0 && data.as_bowler.length === 0 && (
-            <Empty>No qualifying head-to-heads for this player.</Empty>
+          {asBatter.length === 0 && asBowler.length === 0 && (
+            <Empty>No head-to-heads at ≥ {minBalls} balls — lower the min.</Empty>
           )}
         </div>
       )}
