@@ -33,7 +33,10 @@ class MetricDef:
 
     @property
     def sort_col(self) -> str:
-        return next(c.key for c in self.columns if c.primary)
+        col = next((c.key for c in self.columns if c.primary), None)
+        if col is None:
+            raise ValueError(f"metric {self.slug!r} has no primary column")
+        return col
 
 
 METRICS: list[MetricDef] = [

@@ -65,12 +65,16 @@ def _column_config(m: MetricDef, df: pd.DataFrame) -> dict:
                 col.label, help="Strike rate across innings-depth buckets (0–5 → 51+)."
             )
         elif col.primary and pd.api.types.is_numeric_dtype(df[col.key]):
-            series = pd.to_numeric(df[col.key], errors="coerce")
+            series = pd.to_numeric(df[col.key], errors="coerce").dropna()
+            lo = float(series.min()) if not series.empty else 0.0
+            hi = float(series.max()) if not series.empty else 1.0
+            if hi <= lo:  # all-equal / single row → give the bar a finite span
+                hi = lo + 1.0
             cfg[col.key] = st.column_config.ProgressColumn(
                 col.label,
                 format=f"%.{col.digits}f" if col.digits is not None else "%d",
-                min_value=float(series.min()),
-                max_value=float(series.max() or 1.0),
+                min_value=lo,
+                max_value=hi,
             )
         elif col.digits is not None:
             cfg[col.key] = st.column_config.NumberColumn(col.label, format=f"%.{col.digits}f")

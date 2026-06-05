@@ -64,18 +64,7 @@ VENUE_VIEW_OPTIONS = [
     ("Chase vs set winrate", "chase"),
 ]
 
-# --- mirror 3_Records.py RECORD_LABELS / COL_LABELS ----------------------
-RECORD_LABELS: dict[str, str] = {
-    "highest_individual_innings": "Highest individual innings",
-    "fastest_fifty": "Fastest fifties",
-    "fastest_hundred": "Fastest hundreds",
-    "most_sixes_innings": "Most sixes in an innings",
-    "career_run_leaders": "Career run leaders",
-    "best_bowling_innings": "Best bowling figures",
-    "career_wicket_leaders": "Career wicket leaders",
-    "highest_team_totals": "Highest team totals",
-    "highest_runs_in_over": "Most runs in an over",
-}
+# --- record-board column labels (mirror 3_Records.py COL_LABELS) ----------
 COL_LABELS: dict[str, str] = {
     "batter": "Batter",
     "bowler": "Bowler",
@@ -635,17 +624,20 @@ class CricDexApp(App):
 
         series = [_scaled(loaded[0][1]), _scaled(loaded[1][1])]
         chart = self.query_one("#cmp-chart", Static)
-        try:
-            chart.update(
-                _plotext_chart(
-                    lambda plt: (
-                        plt.multiple_bar(axes, series, labels=[a, b]),
-                        plt.title("Skill shape (0–100)"),
+        if not any(v for s in series for v in s):
+            chart.update("no Bayesian skill data to chart for these two players")
+        else:
+            try:
+                chart.update(
+                    _plotext_chart(
+                        lambda plt: (
+                            plt.multiple_bar(axes, series, labels=[a, b]),
+                            plt.title("Skill shape (0–100)"),
+                        )
                     )
                 )
-            )
-        except Exception as e:  # noqa: BLE001
-            chart.update(f"(chart unavailable: {e})")
+            except Exception as e:  # noqa: BLE001
+                chart.update(f"(chart unavailable: {e})")
 
     # ===== Head-to-head ===================================================
 

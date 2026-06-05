@@ -911,7 +911,9 @@ def _export_profiles_and_cohorts(
                 rows = cohort.co_faced(name, collection, con=con, vol=vol, top_k=12)
                 for r in rows:
                     r["cricsheet_id"] = name_to_cid.get(r["name"])
-                rows = _tag(rows, taxonomy)
+                # Drop any member we can't resolve to a cricsheet_id — the UI
+                # links cohort rows by id, so a null-id row is dead weight.
+                rows = _tag([r for r in rows if r.get("cricsheet_id")], taxonomy)
                 _write(out_dir / "cohorts" / f"{cid}.json", {"co_faced": rows})
                 n_cohort += 1
             except Exception as e:  # noqa: BLE001

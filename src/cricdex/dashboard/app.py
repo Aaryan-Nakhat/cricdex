@@ -62,7 +62,7 @@ the Scout + Auction run the *same* logic as the site via `cricdex.web_parity`
 
 | Page | What it answers | Source |
 |---|---|---|
-| **Leaderboards** | Top players by each of the 10 novel metrics | Cricsheet → metric JSONs |
+| **Leaderboards** | Top players by each of the 10 novel metrics — with a time-window switcher (all-time / last 3 yrs / last 1 yr), full filter bar (role / activity / bowling / position / country / min matches), inline magnitude bars + the Intent-Curve sparkline | Cricsheet → metric JSONs |
 | **Player Profile** | Everything CricDex knows about one player | all of the below |
 | **Compare** | 2–4 players side-by-side, radar + table | career totals + metrics + Bayes |
 | **Head-to-head** | P(A is better than B) from the Bayesian posteriors | scout ratings |
