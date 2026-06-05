@@ -4,6 +4,48 @@ CricDex is **Cricsheet-only**: one public ball-by-ball source, everything
 else derived from it offline. No scraping, no live feeds, no LLM-written
 content.
 
+## Pipeline (end to end)
+
+Everything is cooked **once**, offline, into a JSON snapshot; then all four
+surfaces just *read* it. The dashed line is the git boundary.
+
+```
+ SOURCES                INGEST → DuckDB              DERIVE  (data/, gitignored)        COOK once                 SNAPSHOT (committed)
+ ───────                ───────────────              ───────────────────────────       ─────────                ────────────────────
+ Cricsheet              data/cricsheet/              data/metrics/                      scripts/                 site/public/data/
+  ball-by-ball   ─────► cricsheet.duckdb      ─┬───► scout_ratings_<col>.json   ──┐     export_site.py    ─────► <col>/
+  (per league)          • balls_<col>          │     (NumPyro/JAX Bayes: 4         │    flattens DuckDB +       • meta.json
+ Cricsheet People       • matches_<col>        │      latent skills/player)        ├──► metrics + ratings +     • players.json
+  Register              • balls_<col>_last1y   │     <metric>_<col>[_win].json  ───┤    curated, builds         • ratings.json
+  (ids + 8.8k           •        _last3y       │     (10 metrics ×8 col ×3 win,     │   windowed boards +        • leaderboards/<slug>[.win].json
+   name variations)     • people / people_names│      compute_metrics.py)          │   cohorts (SQL)            • profiles/<cid>.json
+                                               │     data/curated/              ───┘                            • cohorts/<cid>.json
+                                               │     • player_taxonomy.json (Gemini)                             • records.json · venues.json
+                                               └───► • wikidata_enrichment.json                                  • auction_pool · retentions
+                                                     • bowling_styles.json                                       • scout_index.json
+                                                                                                          (+ root collections.json)
+        each step = `cricdex data ingest <cricsheet|ratings|metrics|wikidata>`              ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ git: only this snapshot is committed
+                                                                                                                          │
+                                                              ┌───────────────────────────────────────────────────────────┤  all read the SAME JSON
+                                                              ▼                                ▼                ▼          ▼
+                                                        React (web)                     Streamlit            TUI         CLI
+                                                        getJSON("<col>/…")              web_parity.loader.SITE_DATA + common.filters/metrics
+                                                        Scout/Auction/H2H               Scout/Auction → cricdex.web_parity (Python port,
+                                                        in-browser TS                   bit-exact, parity-locked to the TS)
+                                                        (auction.ts /                   H2H → data/metrics/scout_ratings_<col>.json
+                                                         headtohead.ts)                 Update tab/page → re-runs ingest→compute→export
+```
+
+- **Cook boundary** = `scripts/export_site.py`. Upstream is the Python pipeline
+  (writes `data/` + the snapshot); downstream everyone only reads the snapshot.
+- **Parity by construction**: every surface eats identical inputs, and
+  Scout/Auction/H2H run identical logic — TypeScript in the browser, a bit-exact
+  Python port (`cricdex.web_parity`) elsewhere, locked by
+  `test_scripts/test_web_parity.py` + `test_filters_parity.py`.
+- **Fresh checkout**: read-only tabs work from the committed `site/public/data`
+  alone. H2H + the Update/refresh path also need the gitignored `data/`
+  (DuckDB + `scout_ratings` + curated) — transferred once or rebuilt via Update.
+
 ## Layers
 
 1. **Ingest** — Cricsheet ball-by-ball (per collection) + the Cricsheet
