@@ -67,10 +67,16 @@ interface Cam {
 }
 function makeCam(eye: V3, target: V3): Cam {
   const f = norm(sub(target, eye));
-  const r = norm(cross(f, [0, 1, 0]));
-  const u = cross(r, f);
+  const r = norm(cross([0, 1, 0], f)); // +x to screen-right
+  const u = cross(f, r);
   return { eye, r, u, f };
 }
+
+// pixel width/size for a real-world extent (metres) seen at a sample point
+function px(meters: number, s: number, min = 1, max = 48): number {
+  return Math.max(min, Math.min(max, meters * s));
+}
+const sAt = (cam: Cam, p: V3): number => project(cam, p)?.s ?? 0;
 interface P2 {
   x: number;
   y: number;
@@ -86,9 +92,9 @@ function project(cam: Cam, P: V3): P2 | null {
 
 const CAMERAS: Record<string, { eye: V3; target: V3 }> = {
   "Behind stumps": { eye: [0, 2.1, -5.2], target: [0, 0.5, 9] },
-  "Bowler's eye": { eye: [0, 2.4, 24], target: [0, 0.45, 0] },
-  "Side-on": { eye: [-8.5, 1.7, 4.5], target: [0.1, 0.6, 4.5] },
-  "High angle": { eye: [-4.5, 4.6, -3.5], target: [0, 0.3, 8] },
+  "Bowler's eye": { eye: [0, 2.4, 25], target: [0, 0.45, 0] },
+  "Side-on": { eye: [-22, 3, 10.06], target: [0, 0.6, 10.06] },
+  "High angle": { eye: [-6, 5.2, -4.5], target: [0, 0.3, 9] },
 };
 
 // ---- scene rendering -------------------------------------------------------
@@ -122,7 +128,7 @@ function dot3(ctx: CanvasRenderingContext2D, cam: Cam, p: V3, r: number, color: 
   if (!q) return;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(q.x, q.y, Math.max(1.5, r * q.s), 0, Math.PI * 2);
+  ctx.arc(q.x, q.y, px(r, q.s, 1.5, 26), 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -132,9 +138,10 @@ function drawStumps(ctx: CanvasRenderingContext2D, cam: Cam, z: number, color: s
     ctx.shadowColor = color;
     ctx.shadowBlur = 16;
   }
-  for (const x of xs) line3(ctx, cam, [x, 0, z], [x, PITCH.BAIL_TOP, z], color, Math.max(2, 7 * (project(cam, [x, 0, z])?.s ?? 0)));
-  // bails
-  line3(ctx, cam, [-PITCH.HALF_STUMP, PITCH.BAIL_TOP, z], [PITCH.HALF_STUMP, PITCH.BAIL_TOP, z], COL.bail, Math.max(1.5, 4 * (project(cam, [0, PITCH.BAIL_TOP, z])?.s ?? 0)));
+  for (const x of xs) {
+    line3(ctx, cam, [x, 0, z], [x, PITCH.BAIL_TOP, z], color, px(0.032, sAt(cam, [x, 0, z]), 1.5, 16));
+  }
+  line3(ctx, cam, [-PITCH.HALF_STUMP, PITCH.BAIL_TOP, z], [PITCH.HALF_STUMP, PITCH.BAIL_TOP, z], COL.bail, px(0.02, sAt(cam, [0, PITCH.BAIL_TOP, z]), 1, 8));
   ctx.shadowBlur = 0;
 }
 
@@ -150,35 +157,35 @@ function drawBatsman(ctx: CanvasRenderingContext2D, cam: Cam, hand: Hand) {
   const footB: V3 = [bx + side * 0.05, 0, z + 0.2];
   const hands: V3 = [bx - side * 0.16, 1.0, z - 0.12];
   // legs (pads — thicker, light)
-  line3(ctx, cam, hip, footF, COL.pad, Math.max(3, 9 * (project(cam, footF)?.s ?? 0)));
-  line3(ctx, cam, hip, footB, COL.pad, Math.max(3, 8 * (project(cam, footB)?.s ?? 0)));
+  line3(ctx, cam, hip, footF, COL.pad, px(0.14, sAt(cam, footF), 2, 22));
+  line3(ctx, cam, hip, footB, COL.pad, px(0.12, sAt(cam, footB), 2, 20));
   // torso
-  line3(ctx, cam, shoulder, hip, COL.shirt, Math.max(3, 11 * (project(cam, hip)?.s ?? 0)));
+  line3(ctx, cam, shoulder, hip, COL.shirt, px(0.16, sAt(cam, hip), 2, 26));
   // arms to hands
-  line3(ctx, cam, shoulder, hands, COL.shirt, Math.max(2, 6 * (project(cam, hands)?.s ?? 0)));
+  line3(ctx, cam, shoulder, hands, COL.shirt, px(0.07, sAt(cam, hands), 1.5, 12));
   // bat (hands down toward ground in front)
   const batToe: V3 = [bx - side * 0.05, 0.02, z - 0.45];
-  line3(ctx, cam, hands, batToe, COL.bat, Math.max(2, 7 * (project(cam, batToe)?.s ?? 0)));
+  line3(ctx, cam, hands, batToe, COL.bat, px(0.08, sAt(cam, batToe), 1.5, 14));
   // head
-  dot3(ctx, cam, head, 0.11, COL.skin);
+  dot3(ctx, cam, head, 0.1, COL.skin);
 }
 
 function drawScene(ctx: CanvasRenderingContext2D, cam: Cam, sim: Sim | null, n: number, reveal: boolean) {
   ctx.clearRect(0, 0, W, H);
-  // sky
+  // sky (full) + a screen-space grass band (a projected ground plane can fall
+  // behind the camera for some angles, so fill the lower portion directly).
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, COL.sky);
   g.addColorStop(1, "#0f1922");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
+  const horizon = H * 0.42;
+  const gg = ctx.createLinearGradient(0, horizon, 0, H);
+  gg.addColorStop(0, COL.grass);
+  gg.addColorStop(1, COL.grass2);
+  ctx.fillStyle = gg;
+  ctx.fillRect(0, horizon, W, H - horizon);
 
-  // grass (big ground plane)
-  quad(ctx, cam, [
-    [-10, 0, -7],
-    [10, 0, -7],
-    [10, 0, 26],
-    [-10, 0, 26],
-  ], COL.grass);
   // pitch strip
   quad(
     ctx,
