@@ -148,4 +148,4 @@ for tab, key in zip(tabs, keys, strict=True):
 
         df = df.rename(columns={c: COL_LABELS.get(c, c.replace("_", " ")) for c in df.columns})
         df.insert(0, "#", range(1, len(df) + 1))
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)

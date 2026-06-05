@@ -143,7 +143,7 @@ if phase_rows:
     fig.add_bar(name="Dot %", x=phases, y=[_num(r.get("dot_pct")) for r in phase_rows])
     fig.add_bar(name="Boundary %", x=phases, y=[_num(r.get("boundary_pct")) for r in phase_rows])
     fig.update_layout(barmode="group", height=380, legend={"orientation": "h"})
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # --- innings totals table -----------------------------------------------
 if totals:
@@ -159,4 +159,4 @@ if totals:
         }
         for r in totals
     ]
-    st.dataframe(table, use_container_width=True, hide_index=True)
+    st.dataframe(table, width="stretch", hide_index=True)

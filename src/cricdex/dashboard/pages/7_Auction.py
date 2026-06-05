@@ -171,7 +171,7 @@ teams_df = pd.DataFrame(
         for t in sorted(res["teams"], key=lambda t: t["avg_value"], reverse=True)
     ]
 )
-st.dataframe(teams_df, hide_index=True, use_container_width=True)
+st.dataframe(teams_df, hide_index=True, width="stretch")
 
 st.subheader("Who lands the marquee names")
 marq_df = pd.DataFrame(
@@ -186,7 +186,7 @@ marq_df = pd.DataFrame(
         for m in res["marquee"]
     ]
 )
-st.dataframe(marq_df, hide_index=True, use_container_width=True)
+st.dataframe(marq_df, hide_index=True, width="stretch")
 
 st.subheader("Find a player")
 q = st.text_input(
@@ -218,7 +218,7 @@ if q and len(q.strip()) >= 2:
                     "Where": where,
                 }
             )
-        st.dataframe(pd.DataFrame(srows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(srows), hide_index=True, width="stretch")
         if len(hits) > 50:
             st.caption(f"{len(hits) - 50} more — refine the search.")
 else:

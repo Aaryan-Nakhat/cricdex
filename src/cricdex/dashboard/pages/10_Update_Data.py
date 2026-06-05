@@ -55,15 +55,15 @@ def _run_export() -> None:
 
 st.markdown("**Individual steps** (run in order: cricsheet → ratings → metrics → export):")
 c = st.columns(5)
-if c[0].button("1· Cricsheet", use_container_width=True):
+if c[0].button("1· Cricsheet", width="stretch"):
     _run_slice("cricsheet")
-if c[1].button("2· Ratings", use_container_width=True):
+if c[1].button("2· Ratings", width="stretch"):
     _run_slice("ratings")
-if c[2].button("3· Metrics", use_container_width=True):
+if c[2].button("3· Metrics", width="stretch"):
     _run_slice("metrics")
-if c[3].button("Wikidata", use_container_width=True):
+if c[3].button("Wikidata", width="stretch"):
     _run_slice("wikidata")
-if c[4].button("4· Re-export JSON", use_container_width=True):
+if c[4].button("4· Re-export JSON", width="stretch"):
     _run_export()
 
 st.divider()

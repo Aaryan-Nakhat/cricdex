@@ -9,13 +9,14 @@ provenance, and collection selection.
 from __future__ import annotations
 
 import datetime as dt
+import json
 from pathlib import Path
 
 import duckdb
 import streamlit as st
 
 from cricdex.config import DATA_DIR
-from cricdex.profiles.identity import resolve_name
+from cricdex.web_parity.loader import SITE_DATA
 
 
 @st.cache_data(ttl=60)
@@ -59,39 +60,66 @@ def collection_picker(
     )
 
 
-def fuzzy_player_input(
+@st.cache_data(ttl=300)
+def load_players(collection: str) -> list[dict]:
+    """The exported players.json for a collection (name, full_name, cricsheet_id, …)."""
+    path = SITE_DATA / collection / "players.json"
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text())
+    except (ValueError, OSError):
+        return []
+
+
+def _player_label(p: dict) -> str:
+    """'Full Name (Short)' — mirrors the web Combobox so typing either the full
+    or the scorecard name filters the dropdown to the player."""
+    full = p.get("full_name")
+    short = p.get("name", "")
+    return f"{full} ({short})" if full and full != short else short
+
+
+def player_select(
+    collection: str,
     label: str = "Player",
-    default: str = "V Kohli",
-    collection: str = "ipl",
-    key: str | None = None,
-) -> str | None:
-    """Free-text player input with a 'did you mean?' confirmation.
-
-    Returns the resolved unique_name (string) once the user accepts a
-    suggestion, or None while a decision is pending.
-    """
-    raw = st.text_input(label, default, key=key)
-    if not raw.strip():
+    *,
+    key: str,
+    default_name: str | None = "V Kohli",
+) -> dict | None:
+    """Type-ahead player dropdown (matches React's Combobox): the option label
+    carries both the full and scorecard name, so typing either narrows the list.
+    Returns the chosen player row (or None when there are no players)."""
+    players = sorted(load_players(collection), key=lambda p: p.get("name", ""))
+    if not players:
         return None
+    by_cid = {p["cricsheet_id"]: p for p in players}
+    labels = {p["cricsheet_id"]: _player_label(p) for p in players}
+    cids = [p["cricsheet_id"] for p in players]
+    index = next((i for i, p in enumerate(players) if p.get("name") == default_name), 0)
+    cid = st.selectbox(label, cids, index=index, format_func=lambda c: labels[c], key=key)
+    return by_cid.get(cid)
 
-    exact, suggestions = resolve_name(raw, collection=collection)
-    if exact:
-        return exact
 
-    if not suggestions:
-        st.warning(f"No close match for '{raw}'. Check spelling, or try a different collection.")
-        return None
-
-    top = suggestions[0]
-    st.warning(f"No exact match for **{raw}**. Closest: **{top.name}** ({top.score}%).")
-    accept = st.button(f"Use {top.name}", key=f"{key}-accept" if key else None)
-    if accept:
-        return top.name
-
-    with st.expander("Other suggestions"):
-        for s in suggestions:
-            st.markdown(f"- **{s.name}** ({s.score}%)")
-    return None
+def player_multiselect(
+    collection: str,
+    label: str = "Players",
+    *,
+    key: str,
+    max_selections: int = 4,
+) -> list[dict]:
+    """Type-ahead multi-player picker (same full+short label) for Compare."""
+    players = sorted(load_players(collection), key=lambda p: p.get("name", ""))
+    by_cid = {p["cricsheet_id"]: p for p in players}
+    labels = {p["cricsheet_id"]: _player_label(p) for p in players}
+    cids = st.multiselect(
+        label,
+        [p["cricsheet_id"] for p in players],
+        format_func=lambda c: labels[c],
+        max_selections=max_selections,
+        key=key,
+    )
+    return [by_cid[c] for c in cids if c in by_cid]
 
 
 _SOURCE_URLS = {

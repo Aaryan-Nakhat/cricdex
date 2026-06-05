@@ -14,7 +14,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from cricdex.dashboard._widgets import provenance_banner
+from cricdex.dashboard._widgets import load_players, provenance_banner
 from cricdex.web_parity import est_value, gem_threshold, is_gem, load_scout_index, similar_to
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -79,11 +79,24 @@ except FileNotFoundError as e:
     st.stop()
 
 ipl = sorted(idx["ipl"], key=lambda p: p["name"])
-by_name = {p["name"]: p for p in ipl}
+by_cid = {p["cricsheet_id"]: p for p in ipl}
 gem_med = gem_threshold(idx["smat"])
 
-pick = st.selectbox("Active IPL player", [p["name"] for p in ipl], index=0)
-sel = by_name[pick]
+# Type-ahead label carries full + scorecard name (full_name joined from
+# players.json by cricsheet_id), so typing either filters the dropdown.
+_full = {p["cricsheet_id"]: p.get("full_name") for p in load_players("ipl")}
+
+
+def _scout_label(p: dict) -> str:
+    full = _full.get(p["cricsheet_id"])
+    return f"{full} ({p['name']})" if full and full != p["name"] else p["name"]
+
+
+_labels = {p["cricsheet_id"]: _scout_label(p) for p in ipl}
+pick_cid = st.selectbox(
+    "Active IPL player", list(by_cid), index=0, format_func=lambda c: _labels[c]
+)
+sel = by_cid[pick_cid]
 
 c1, c2 = st.columns(2)
 role = c1.selectbox(
@@ -129,7 +142,7 @@ for start in range(0, len(TIER_ORDER), 3):
             if df.empty:
                 st.info("No close match of this archetype.")
             else:
-                st.dataframe(df, hide_index=True, use_container_width=True)
+                st.dataframe(df, hide_index=True, width="stretch")
 
 # --- draft handoff: same effect as the web's ?draft= -----------------------
 st.divider()
