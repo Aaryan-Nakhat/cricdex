@@ -37,6 +37,7 @@ from textual.widgets import (
     TabbedContent,
     TabPane,
 )
+from textual_autocomplete import AutoComplete, DropdownItem
 
 from cricdex.cli import _copy, _render
 from cricdex.common import filters as cf
@@ -173,6 +174,45 @@ def _plotext_chart(build_fn, width: int = 88, height: int = 16) -> Text:
 # Themes offered by the `t` cycle (a curated subset of Textual's built-ins,
 # btop/abtop-style). The command palette (ctrl+p) can reach all of them.
 THEMES = ["nord", "gruvbox", "dracula", "catppuccin-mocha", "tokyo-night", "monokai"]
+
+
+def _player_candidates(collection: str = "ipl") -> list[DropdownItem]:
+    """Autocomplete candidates 'Full Name (Short)' from players.json — typing
+    either the full or scorecard name fuzzy-filters the dropdown (web-parity)."""
+    path = SITE_DATA / collection / "players.json"
+    if not path.exists():
+        return []
+    try:
+        players = json.loads(path.read_text())
+    except (ValueError, OSError):
+        return []
+    items = []
+    for p in sorted(players, key=lambda x: x.get("name", "")):
+        short = p.get("name", "")
+        full = p.get("full_name")
+        items.append(DropdownItem(f"{full} ({short})" if full and full != short else short))
+    return items
+
+
+def _name_from_label(label: str) -> str:
+    """'Jasprit Bumrah (JJ Bumrah)' → 'JJ Bumrah' (the scorecard name the
+    handlers resolve on); a bare name passes through unchanged."""
+    label = (label or "").strip()
+    if label.endswith(")") and " (" in label:
+        return label[label.rfind(" (") + 2 : -1]
+    return label
+
+
+def _venue_options(collection: str = "ipl") -> list[tuple[str, str]]:
+    """(value, label) venue pairs for the native Select dropdown."""
+    path = SITE_DATA / collection / "venues.json"
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text())
+    except (ValueError, OSError):
+        return []
+    return [(v, v) for v in sorted(data)]
 
 
 class Panel(Vertical):
@@ -635,6 +675,8 @@ class CricDexApp(App):
                 yield Label("Coll:")
                 yield Input(value="ipl", id="cmp-collection")
                 yield Button("Compare ▸", id="cmp-run", variant="primary")
+            yield AutoComplete(target="#cmp-a", candidates=_player_candidates())
+            yield AutoComplete(target="#cmp-b", candidates=_player_candidates())
             yield Static(_copy.COMPARE_INTRO, classes="intro")
             with VerticalScroll():
                 yield DataTable(id="cmp-table", zebra_stripes=True)
@@ -649,8 +691,8 @@ class CricDexApp(App):
         # Bayesian head-to-head P(A>B) block below.
         table = self.query_one("#cmp-table", DataTable)
         h2h_table = self.query_one("#cmp-h2h-table", DataTable)
-        a = self.query_one("#cmp-a", Input).value.strip()
-        b = self.query_one("#cmp-b", Input).value.strip()
+        a = _name_from_label(self.query_one("#cmp-a", Input).value)
+        b = _name_from_label(self.query_one("#cmp-b", Input).value)
         collection = self.query_one("#cmp-collection", Input).value
 
         loaded: list[tuple[str, dict]] = []
@@ -758,6 +800,8 @@ class CricDexApp(App):
                 yield Label("Coll:")
                 yield Input(value="ipl", id="h2h-collection")
                 yield Button("Compare ▸", id="h2h-run", variant="primary")
+            yield AutoComplete(target="#h2h-a", candidates=_player_candidates())
+            yield AutoComplete(target="#h2h-b", candidates=_player_candidates())
             yield Static(
                 "P(A is better than B) from the Bayesian skill posteriors, role by role.",
                 classes="intro",
@@ -770,8 +814,8 @@ class CricDexApp(App):
     def _on_run_h2h(self) -> None:
         table = self.query_one("#h2h-table", DataTable)
         chart = self.query_one("#h2h-chart", Static)
-        a = self.query_one("#h2h-a", Input).value.strip()
-        b = self.query_one("#h2h-b", Input).value.strip()
+        a = _name_from_label(self.query_one("#h2h-a", Input).value)
+        b = _name_from_label(self.query_one("#h2h-b", Input).value)
         collection = self.query_one("#h2h-collection", Input).value
         from cricdex.scout.ratings.head_to_head import head_to_head
 
@@ -817,11 +861,15 @@ class CricDexApp(App):
     # ===== Venues =========================================================
 
     def _venues_panel(self) -> ComposeResult:
+        ven_opts = _venue_options("ipl")
+        ven_default = (
+            "Eden Gardens" if any(v == "Eden Gardens" for v, _ in ven_opts) else Select.BLANK
+        )
         with Vertical():
             yield _tabhead("VENUES", "ground conditions — totals, phases, chase")
             with ControlBar(title="Venue"):
                 yield Label("Venue:")
-                yield Input(value="Eden Gardens", id="ven-name")
+                yield Select(options=ven_opts, value=ven_default, id="ven-name", classes="wide")
                 yield Label("Coll:")
                 yield Input(value="ipl", id="ven-collection")
                 yield Label("View:")
@@ -842,7 +890,8 @@ class CricDexApp(App):
         # {venue -> {innings_totals, phase_run_rates, chase_vs_set}}. Mirrors
         # 6_Venues.py's per-view derivations.
         table = self.query_one("#ven-table", DataTable)
-        venue = self.query_one("#ven-name", Input).value.strip()
+        venue_val = self.query_one("#ven-name", Select).value
+        venue = "" if venue_val is Select.BLANK else str(venue_val)
         collection = self.query_one("#ven-collection", Input).value
         view = self.query_one("#ven-view", Select).value
         path = SITE_DATA / collection / "venues.json"
@@ -966,6 +1015,7 @@ class CricDexApp(App):
                 yield Label("Coll:")
                 yield Input(value="ipl", id="profile-collection")
                 yield Button("Build ▸", id="profile-run", variant="primary")
+            yield AutoComplete(target="#profile-name", candidates=_player_candidates())
             yield Static(_copy.PROFILE_INTRO, classes="intro")
             with Panel(title="Dossier"):
                 yield RichLog(id="profile-log", highlight=False, markup=True, wrap=True)
@@ -977,7 +1027,7 @@ class CricDexApp(App):
         # dismissal-fingerprint.
         log = self.query_one("#profile-log", RichLog)
         log.clear()
-        name = self.query_one("#profile-name", Input).value.strip()
+        name = _name_from_label(self.query_one("#profile-name", Input).value)
         collection = self.query_one("#profile-collection", Input).value
         cid = _resolve_cid(collection, name)
         if cid is None:
@@ -1346,6 +1396,7 @@ class CricDexApp(App):
                 yield Label("Top K:")
                 yield Input(value="8", id="twins-k", classes="num")
                 yield Button("Scout ▸", id="twins-run", variant="primary")
+            yield AutoComplete(target="#twins-name", candidates=_player_candidates())
             yield Static("", id="twins-meta", classes="intro")
             with Panel(title="Look-alikes"):
                 yield DataTable(id="twins-table", zebra_stripes=True)
@@ -1355,7 +1406,7 @@ class CricDexApp(App):
         # scout_index + look-alike logic + tier-discounted pricing as the site.
         table = self.query_one("#twins-table", DataTable)
         meta = self.query_one("#twins-meta", Static)
-        name = self.query_one("#twins-name", Input).value
+        name = _name_from_label(self.query_one("#twins-name", Input).value)
         tier = self.query_one("#twins-tier", Select).value
         role_sel = self.query_one("#twins-role", Select).value
         try:
