@@ -868,7 +868,21 @@ def _export_profiles_and_cohorts(
     taxonomy: dict[str, dict],
     activity: dict[str, dict],
 ) -> tuple[int, int]:
+    import duckdb
+
     from cricdex.profiles import builder
+    from cricdex.scout import cohort
+
+    # One read-only connection + one ball-volume pass, reused across players
+    # so the graph cohort (co_faced) costs ~one query per player.
+    name_to_cid = {p["name"]: p["cricsheet_id"] for p in players if p.get("name")}
+    try:
+        con = duckdb.connect(str(cohort.DEFAULT_DB_PATH), read_only=True)
+        vol = cohort.ball_volumes(con, collection)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"cohort connection failed for {collection}: {e}")
+        con = None
+        vol = {}
 
     n_prof = n_cohort = 0
     for p in players:
@@ -888,6 +902,26 @@ def _export_profiles_and_cohorts(
             n_prof += 1
         except Exception as e:  # noqa: BLE001
             logger.warning(f"profile failed {name}: {e}")
+
+        # Graph cohort — "faced the same bowlers / bowled to the same batters",
+        # computed straight from the ball-by-ball (no Neo4j). teammates /
+        # find_replacement are kept as empty lists (no current surface reads
+        # them; the web Player Profile renders co_faced only).
+        if con is not None:
+            try:
+                rows = cohort.co_faced(name, collection, con=con, vol=vol, top_k=12)
+                for r in rows:
+                    r["cricsheet_id"] = name_to_cid.get(r["name"])
+                rows = _tag(rows, taxonomy)
+                _write(
+                    out_dir / "cohorts" / f"{cid}.json",
+                    {"co_faced": rows, "teammates": [], "find_replacement": []},
+                )
+                n_cohort += 1
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"cohort failed {name}: {e}")
+    if con is not None:
+        con.close()
     return n_prof, n_cohort
 
 
