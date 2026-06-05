@@ -107,13 +107,19 @@ with st.expander("Franchise personalities"):
 base_ret = default_retentions(pool, teams, mode, mega_ids)
 drafted = [c for c in st.session_state.get("drafted", []) if c in by_id]
 if drafted:
-    base_ret[teams[0]["team"]] = list(dict.fromkeys(base_ret[teams[0]["team"]] + drafted))
+    # Which franchise keeps the drafted prospect(s) — you choose, not hardcoded.
+    draft_team = st.selectbox(
+        f"{len(drafted)} prospect(s) drafted from Scout — assign to team",
+        [t["team"] for t in teams],
+        key="draft_team",
+    )
+    base_ret[draft_team] = list(dict.fromkeys(base_ret[draft_team] + drafted))
     st.info(
-        f"{len(drafted)} prospect(s) drafted from Scout → pre-loaded into {teams[0]['team']} "
-        "(move them in the editor below)."
+        f"{', '.join(by_id[c]['name'] for c in drafted)} → locked as retention(s) for "
+        f"{draft_team} (editable below)."
     )
 
-with st.expander("Retentions (editable per team)", expanded=bool(drafted)):
+with st.expander("Retentions (editable per team)", expanded=True):
     retentions = {}
     cols = st.columns(2)
     for i, t in enumerate(teams):
@@ -235,16 +241,22 @@ else:
     st.caption("Pick a player to see where they landed, for how much, or if they went unsold.")
 
 st.subheader("A representative squad")
-draft_team = st.selectbox("Team", [s["team"] for s in res["sample_draft"]])
-st_state = next(s for s in res["sample_draft"] if s["team"] == draft_team)
-st.markdown(
-    f"**Retained ({len(st_state['retained'])}):** "
-    + (", ".join(p["name"] for p in st_state["retained"]) or "none")
-)
-st.markdown(
-    f"**Bought ({len(st_state['bought'])}):** "
-    + (", ".join(p["name"] for p in st_state["bought"]) or "no buys in this sample")
-)
+squad_team = st.selectbox("Team", [s["team"] for s in res["sample_draft"]], key="squad_team")
+st_state = next(s for s in res["sample_draft"] if s["team"] == squad_team)
+
+
+def _squad_chip(p: dict) -> str:
+    plane = " ✈" if p.get("is_overseas") else ""
+    return f"- **{p['name']}** · {p['role'].replace('_', '-')}{plane}"
+
+
+rc, bc = st.columns(2)
+with rc:
+    st.markdown(f"**Retained ({len(st_state['retained'])})**")
+    st.markdown("\n".join(_squad_chip(p) for p in st_state["retained"]) or "_none_")
+with bc:
+    st.markdown(f"**Bought ({len(st_state['bought'])})**")
+    st.markdown("\n".join(_squad_chip(p) for p in st_state["bought"]) or "_no buys in this sample_")
 st.caption(
     f"{len(st_state['retained']) + len(st_state['bought'])} total · "
     f"{st_state['overseas']} overseas · auction spend {st_state['spent']:.1f} cr"
