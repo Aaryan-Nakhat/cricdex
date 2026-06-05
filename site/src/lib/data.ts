@@ -91,8 +91,6 @@ export interface Profile {
 
 export interface Cohorts {
   co_faced: Record<string, unknown>[];
-  teammates: Record<string, unknown>[];
-  find_replacement: Record<string, unknown>[];
 }
 
 // ---- fetchers -------------------------------------------------------------

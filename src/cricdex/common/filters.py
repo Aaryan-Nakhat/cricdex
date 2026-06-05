@@ -170,7 +170,8 @@ def load_leaderboard(
 
 
 def load_cohorts(collection: str, cid: str, base: Path | str | None = None) -> dict:
-    """Graph cohort for a player — `co_faced` / `teammates` / `find_replacement`.
+    """Graph cohort for a player — the `co_faced` list (who faced the same
+    bowlers / bowled to the same batters).
 
     Reads `site/public/data/<col>/cohorts/<cid>.json` (computed offline by
     `export_site.py` straight from ball-by-ball; no Neo4j). Mirrors the web

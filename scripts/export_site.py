@@ -22,7 +22,7 @@ Output layout (per collection):
         records.json                   record leaderboards + on-this-day
         venues.json                    per-venue conditions
         profiles/<cricsheet_id>.json   full profile per qualifying player
-        cohorts/<cricsheet_id>.json    co_faced / teammates / find_replacement
+        cohorts/<cricsheet_id>.json    co_faced (faced-the-same-bowlers cohort)
     site/data/collections.json         index: [{collection, data_as_of, ...}]
 
 `data_as_of` is the max match_date actually in the collection — the
@@ -904,19 +904,15 @@ def _export_profiles_and_cohorts(
             logger.warning(f"profile failed {name}: {e}")
 
         # Graph cohort — "faced the same bowlers / bowled to the same batters",
-        # computed straight from the ball-by-ball (no Neo4j). teammates /
-        # find_replacement are kept as empty lists (no current surface reads
-        # them; the web Player Profile renders co_faced only).
+        # computed straight from the ball-by-ball (no Neo4j). co_faced is the
+        # only signal any surface renders (the web Player Profile card).
         if con is not None:
             try:
                 rows = cohort.co_faced(name, collection, con=con, vol=vol, top_k=12)
                 for r in rows:
                     r["cricsheet_id"] = name_to_cid.get(r["name"])
                 rows = _tag(rows, taxonomy)
-                _write(
-                    out_dir / "cohorts" / f"{cid}.json",
-                    {"co_faced": rows, "teammates": [], "find_replacement": []},
-                )
+                _write(out_dir / "cohorts" / f"{cid}.json", {"co_faced": rows})
                 n_cohort += 1
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"cohort failed {name}: {e}")
