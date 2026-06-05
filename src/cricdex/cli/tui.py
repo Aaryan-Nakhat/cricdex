@@ -136,9 +136,34 @@ def _fmt_cell(val: Any) -> Any:
     return Text(s, overflow="fold", no_wrap=False)
 
 
-def _fill_datatable(table: DataTable, rows: list[dict], max_cols: int = 8) -> None:
+# Semantic colours for the status column (retained / sold / unsold) — the only
+# place we colour by value, since it's unambiguous (metric ± is lower/higher-
+# better per-metric, so we never blanket-colour those).
+_STATUS_STYLE = {"retained": "cyan", "sold": "green", "unsold": "red"}
+
+
+def _styled_cell(col: str, val: Any, accent_col: str | None) -> Any:
+    """Base-format a cell, then add a tasteful style: bold-accent the headline
+    column, colour the status column, green a positive saving."""
+    base = _fmt_cell(val)
+    style = ""
+    if col == accent_col:
+        style = "bold #7aa2f7"  # accent (tokyo-night blue); readable on any theme
+    elif col == "status" and isinstance(val, str):
+        style = _STATUS_STYLE.get(val, "")
+    elif col in {"save_cr", "Save cr"} and isinstance(val, int | float) and val:
+        style = "green"
+    if not style:
+        return base
+    return Text(str(base.plain if isinstance(base, Text) else base), style=style, overflow="fold")
+
+
+def _fill_datatable(
+    table: DataTable, rows: list[dict], max_cols: int = 8, accent_col: str | None = None
+) -> None:
     """Populate a DataTable with auto-wrapping cells. We compute row
-    heights from the longest cell content so wraps render correctly."""
+    heights from the longest cell content so wraps render correctly.
+    `accent_col` (a column key) is rendered bold-accent — the headline metric."""
     table.clear(columns=True)
     if not rows:
         table.add_column("(no rows)")
@@ -146,7 +171,7 @@ def _fill_datatable(table: DataTable, rows: list[dict], max_cols: int = 8) -> No
     cols = list(rows[0].keys())[:max_cols]
     table.add_columns(*cols)
     for r in rows:
-        cells = tuple(_fmt_cell(r.get(c)) for c in cols)
+        cells = tuple(_styled_cell(c, r.get(c), accent_col) for c in cols)
         # Auto-grow row height to fit the longest folded cell.
         longest = max(
             (len(str(r.get(c))) for c in cols if r.get(c) is not None),
@@ -187,7 +212,7 @@ def _h2h_gauge(a: str, b: str, items: list[tuple[str, float, str]], width: int =
 
 # Themes offered by the `t` cycle (a curated subset of Textual's built-ins,
 # btop/abtop-style). The command palette (ctrl+p) can reach all of them.
-THEMES = ["nord", "gruvbox", "dracula", "catppuccin-mocha", "tokyo-night", "monokai"]
+THEMES = ["tokyo-night", "nord", "catppuccin-mocha", "dracula", "gruvbox", "monokai"]
 
 
 def _player_candidates(collection: str = "ipl") -> list[DropdownItem]:
@@ -323,8 +348,8 @@ class ControlBar(Horizontal):
 
 
 def _tabhead(title: str, subtitle: str = "") -> Static:
-    """Accent header line at the top of a tab — 'LEADERS · Net Game Impact'."""
-    text = f"[b]{title}[/b]" + (f"  [dim]·  {subtitle}[/dim]" if subtitle else "")
+    """Accent header line at the top of a tab — '▌ LEADERS · Net Game Impact'."""
+    text = f"[b]▌ {title}[/b]" + (f"  [dim]·  {subtitle}[/dim]" if subtitle else "")
     return Static(text, classes="tabhead")
 
 
@@ -351,37 +376,46 @@ class CricDexApp(App):
     }
     TabbedContent { height: 1fr; }
     Tabs { background: $surface-darken-1; }
-    Tab { padding: 0 1; }
+    Tab { padding: 0 2; color: $text-muted; }
+    Tab.-active { color: $accent; text-style: bold; }
     TabPane { padding: 0; }
 
-    /* Per-tab accent header line ("LEADERS · Net Game Impact"). */
+    /* Per-tab accent header line ("▌ LEADERS · Net Game Impact"). */
     .tabhead {
-        height: 1;
-        padding: 0 2;
+        height: auto;
+        padding: 1 2 0 2;
         color: $accent;
-        background: $panel;
         text-style: bold;
     }
 
-    /* Titled, bordered section boxes — the btop/abtop panel look. */
+    /* Titled, bordered section boxes — the btop/abtop panel look. Inactive
+       panels recede (muted border); the focused one glows accent. */
     Panel {
         height: 1fr;
-        border: round $primary;
-        border-title-color: $accent;
+        border: round $surface-lighten-2;
+        border-title-color: $text-muted;
         border-title-style: bold;
-        padding: 0 1;
+        padding: 1 2;
         margin: 1 1 0 1;
+    }
+    Panel:focus-within {
+        border: heavy $accent;
+        border-title-color: $accent;
     }
     .controls {
         height: auto;
         layout: horizontal;
         align-vertical: middle;
         background: $panel;
-        border: round $primary;
-        border-title-color: $accent;
+        border: round $surface-lighten-2;
+        border-title-color: $text-muted;
         border-title-style: bold;
         padding: 1;
         margin: 1 1 0 1;
+    }
+    .controls:focus-within {
+        border: heavy $accent;
+        border-title-color: $accent;
     }
     .controls Label {
         width: auto;
@@ -411,7 +445,7 @@ class CricDexApp(App):
         color: $accent;
         text-style: bold;
     }
-    DataTable > .datatable--cursor { background: $accent 35%; }
+    DataTable > .datatable--cursor { background: $accent; color: $background; text-style: bold; }
     /* Tables inside a Panel: drop the redundant inner border/margin. */
     Panel DataTable { border: none; margin: 0; }
     RichLog {
@@ -450,6 +484,10 @@ class CricDexApp(App):
     /* Long-label Selects need more room than the default 22. */
     #records-key { width: 32; }
     #ven-name { width: 28; }
+    /* Key-hint bar — accent keys, muted labels (lazygit/k9s style). */
+    Footer { background: $panel; }
+    Footer > .footer-key--key { color: $accent; text-style: bold; background: $panel; }
+    Footer > .footer-key--description { color: $text-muted; background: $panel; }
     """
 
     BINDINGS = [
@@ -467,7 +505,7 @@ class CricDexApp(App):
     def on_mount(self) -> None:
         # Built-in nord theme — clean dark palette, good contrast. `t` cycles
         # THEMES; the command palette (ctrl+p) reaches every built-in theme.
-        self.theme = "nord"
+        self.theme = "tokyo-night"
         self._refresh_status()
         self._seed_hints()
 
@@ -701,7 +739,7 @@ class CricDexApp(App):
                 f"{_copy.METRIC_HINTS.get(metric, '')}   ·   {arrow}   ·   "
                 f"{kept}/{total} after filters   ·   [{sort_col}] shape: {spark}"
             )
-            _fill_datatable(table, pruned)
+            _fill_datatable(table, pruned, accent_col=sort_col)
         else:
             hint.update(f"{kept}/{total} after filters — none match, loosen the filters.")
             _fill_datatable(table, rows or [{"info": "no players match these filters"}])
@@ -1756,11 +1794,21 @@ class CricDexApp(App):
         if cid is Select.BLANK or not cid:
             self.notify("scout a SMAT/BBL/… tier, then pick a prospect", severity="warning")
             return
+        name = getattr(self, "_draft_names", {}).get(cid, cid)
+        # Only players in the priced auction pool can be drafted (the rest are
+        # too few balls / a non-IPL nation) — mirrors the web's draft guard.
+        if cid not in self._auction_data()["by_cid"]:
+            self.notify(
+                f"{name} isn't in the priced auction pool (too few balls, or a "
+                "non-IPL nation) — can't draft.",
+                severity="warning",
+                timeout=4,
+            )
+            return
         if not hasattr(self, "_drafted"):
             self._drafted = set()
         self._drafted.add(cid)
         self._retentions = None  # reseed so the auction picks the draft up
-        name = getattr(self, "_draft_names", {}).get(cid, cid)
         self.notify(f"drafted {name} → Auction retentions", timeout=2.5)
 
     # ===== Update — refresh data then re-export the JSON ==================
