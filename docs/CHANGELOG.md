@@ -30,6 +30,32 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
   under Node (`--experimental-strip-types`) and asserts the Python port is
   identical (retentions, auction teams/marquee/sample-draft, scout
   look-alikes + prices) within 1e-9. Fails CI if the surfaces ever drift.
+- **Eight new analytical offerings**, shipped in sync across **all four
+  surfaces** (React canonical · Streamlit · Textual TUI · CLI), reading the same
+  exported JSON; the three team-building engines are parity-locked TS↔Python:
+  - **Matchups** — batter-vs-bowler head-to-heads (as batter / as bowler) plus a
+    batter's **pace-vs-spin** split with a "weaker vs" read (`metrics/matchups.py`
+    → `matchups/<cid>.json`).
+  - **Phase specialists** — powerplay / middle / death boards: best strike rates,
+    tightest economies (`metrics/phase.py` → `phase.json`).
+  - **Form board** — each metric recomputed over the recent window vs the career
+    baseline, direction-corrected "form Δ", heating-up / cooling-down (derived
+    from the existing windowed leaderboards, no new export).
+  - **"The next X" gems** — a pick-independent board of standout uncapped SMAT
+    prospects (high standing on below-median exposure), added to Scout.
+  - **Best XI builder** — exact branch-and-bound knapsack maximising total NGI
+    under budget, overseas cap and per-role minimums (`web_parity/best_xi.py` +
+    `site/src/lib/bestxi.ts`).
+  - **Squad-balance analyzer** — role mix, batting-slot coverage and gap flags
+    (`web_parity/squad_balance.py` + `site/src/lib/squad.ts`).
+  - **Replacement-by-need** — cheaper same-mould players for a pick, ranked by
+    saving then similarity (`web_parity/scout.replacement_by_need` + `lib/scout.ts`).
+
+  New surfaces: web **Matchups / Phase / Form / Team Lab** pages; Streamlit
+  **11_Matchups / 12_Phase / 13_Form / 14_Team_Lab**; TUI **Matchups / Phase /
+  Form / Team Lab** tabs; CLI `cricdex matchups|phase|form` + `cricdex team
+  xi|replace`. New parity cases (best_xi / squad / replacement) in
+  `test_web_parity.py`.
 - Canonical desktop entry points: `cricdex scout look-alikes`,
   `cricdex auction room`; Streamlit **Scout** + **Auction room** pages; the
   TUI **Scout** + **Sim** tabs — all web-identical.
