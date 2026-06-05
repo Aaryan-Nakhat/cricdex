@@ -18,7 +18,6 @@ type V3 = [number, number, number];
 
 const W = 860;
 const H = 480;
-const FOCAL = 760;
 
 const COL = {
   sky: "#0b1018",
@@ -36,10 +35,15 @@ const COL = {
   hit: "#34d399",
   clip: "#fbbf24",
   miss: "#64748b",
-  skin: "#caa07a",
-  shirt: "#dfe7ee",
-  pad: "#eef2f6",
-  bat: "#b9874d",
+  skin: "#d8a982",
+  shirt: "#2f6fed",
+  pad: "#f5f8fc",
+  padStrap: "#c9d4e0",
+  helmet: "#16233c",
+  grille: "#0a1120",
+  glove: "#dde5ef",
+  bat: "#d8b777",
+  outline: "#070b11",
   text: "#8a97a8",
 };
 
@@ -64,19 +68,25 @@ interface Cam {
   r: V3;
   u: V3;
   f: V3;
+  focal: number;
 }
-function makeCam(eye: V3, target: V3): Cam {
+function makeCam(eye: V3, target: V3, focal: number): Cam {
   const f = norm(sub(target, eye));
   const r = norm(cross([0, 1, 0], f)); // +x to screen-right
   const u = cross(f, r);
-  return { eye, r, u, f };
+  return { eye, r, u, f, focal };
 }
 
 // pixel width/size for a real-world extent (metres) seen at a sample point
-function px(meters: number, s: number, min = 1, max = 48): number {
+function px(meters: number, s: number, min = 1, max = 60): number {
   return Math.max(min, Math.min(max, meters * s));
 }
 const sAt = (cam: Cam, p: V3): number => project(cam, p)?.s ?? 0;
+const lerp3 = (a: V3, b: V3, t: number): V3 => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];
 interface P2 {
   x: number;
   y: number;
@@ -87,14 +97,21 @@ function project(cam: Cam, P: V3): P2 | null {
   const d = sub(P, cam.eye);
   const cz = dot(d, cam.f);
   if (cz <= 0.06) return null;
-  return { x: W / 2 + (FOCAL * dot(d, cam.r)) / cz, y: H / 2 - (FOCAL * dot(d, cam.u)) / cz, s: FOCAL / cz, z: cz };
+  return {
+    x: W / 2 + (cam.focal * dot(d, cam.r)) / cz,
+    y: H / 2 - (cam.focal * dot(d, cam.u)) / cz,
+    s: cam.focal / cz,
+    z: cz,
+  };
 }
 
-const CAMERAS: Record<string, { eye: V3; target: V3 }> = {
-  "Behind stumps": { eye: [0, 2.1, -5.2], target: [0, 0.5, 9] },
-  "Bowler's eye": { eye: [0, 2.4, 25], target: [0, 0.45, 0] },
-  "Side-on": { eye: [-22, 3, 10.06], target: [0, 0.6, 10.06] },
-  "High angle": { eye: [-6, 5.2, -4.5], target: [0, 0.3, 9] },
+// The umpire stands at the bowler's end behind the stumps, looking down the
+// pitch at the batter (z 0) — the headline view; a longer focal frames the
+// far-end action. Stump cam = TV behind the batter's stumps (ball at you).
+const CAMERAS: Record<string, { eye: V3; target: V3; focal: number }> = {
+  "Umpire's view": { eye: [0, 2.6, 22.5], target: [0, 0.7, 1.4], focal: 1500 },
+  "Stump cam": { eye: [0, 2.1, -5.2], target: [0, 0.5, 9], focal: 760 },
+  "Side-on": { eye: [-22, 3, 10.06], target: [0, 0.6, 10.06], focal: 760 },
 };
 
 // ---- scene rendering -------------------------------------------------------
@@ -145,29 +162,65 @@ function drawStumps(ctx: CanvasRenderingContext2D, cam: Cam, z: number, color: s
   ctx.shadowBlur = 0;
 }
 
-function drawBatsman(ctx: CanvasRenderingContext2D, cam: Cam, hand: Hand) {
-  // stylized RH/LH batsman at the crease, a touch to the leg side
-  const side = hand === "RH" ? -1 : 1; // leg side x-sign
-  const bx = side * 0.18; // stance centre
-  const z = 1.35;
-  const head: V3 = [bx, 1.62, z];
-  const shoulder: V3 = [bx, 1.32, z];
+// a body segment: dark outline behind, colour on top (so it pops off the pitch)
+function limb(ctx: CanvasRenderingContext2D, cam: Cam, a: V3, b: V3, color: string, wM: number) {
+  const s = sAt(cam, b);
+  line3(ctx, cam, a, b, COL.outline, px(wM + 0.04, s, 2.5, 40));
+  line3(ctx, cam, a, b, color, px(wM, s, 1.5, 34));
+}
+
+// Animated batsman at the crease. `prog` 0→1 over the delivery drives a trigger
+// movement (back-and-across press) + a backlift that comes down into the shot.
+function drawBatsman(ctx: CanvasRenderingContext2D, cam: Cam, hand: Hand, prog: number) {
+  const side = hand === "RH" ? -1 : 1; // leg-side x-sign; bat held off side
+  const off = -side;
+  const bx = side * 0.14;
+  const z = 1.2;
+  const trig = Math.min(1, Math.max(0, (prog - 0.4) / 0.5)); // press as ball nears
+  const swing = Math.sin(Math.min(1, prog * 1.15) * Math.PI); // backlift up then down
+
+  const head: V3 = [bx + off * 0.02, 1.56, z - 0.02];
+  const neck: V3 = [bx + off * 0.02, 1.42, z - 0.02];
+  const shoulder: V3 = [bx, 1.34, z];
   const hip: V3 = [bx, 0.92, z];
-  const footF: V3 = [bx - side * 0.18, 0, z - 0.15];
-  const footB: V3 = [bx + side * 0.05, 0, z + 0.2];
-  const hands: V3 = [bx - side * 0.16, 1.0, z - 0.12];
-  // legs (pads — thicker, light)
-  line3(ctx, cam, hip, footF, COL.pad, px(0.14, sAt(cam, footF), 2, 22));
-  line3(ctx, cam, hip, footB, COL.pad, px(0.12, sAt(cam, footB), 2, 20));
-  // torso
-  line3(ctx, cam, shoulder, hip, COL.shirt, px(0.16, sAt(cam, hip), 2, 26));
-  // arms to hands
-  line3(ctx, cam, shoulder, hands, COL.shirt, px(0.07, sAt(cam, hands), 1.5, 12));
-  // bat (hands down toward ground in front)
-  const batToe: V3 = [bx - side * 0.05, 0.02, z - 0.45];
-  line3(ctx, cam, hands, batToe, COL.bat, px(0.08, sAt(cam, batToe), 1.5, 14));
-  // head
-  dot3(ctx, cam, head, 0.1, COL.skin);
+  // front leg presses toward the bowler (−z) on the trigger; back leg anchors
+  const kneeF: V3 = [bx + off * 0.06, 0.52, z - 0.12 - 0.16 * trig];
+  const footF: V3 = [bx + off * 0.08, 0, z - 0.18 - 0.26 * trig];
+  const kneeB: V3 = [bx - off * 0.06, 0.5, z + 0.12];
+  const footB: V3 = [bx - off * 0.05, 0, z + 0.16];
+  const hipF: V3 = [bx + off * 0.05, 0.92, z - 0.04];
+  const hands: V3 = [bx + off * 0.14, 1.02, z - 0.06];
+
+  // legs — front leg = white pad (the LBW leg), thicker
+  limb(ctx, cam, hipF, kneeF, COL.pad, 0.14);
+  limb(ctx, cam, kneeF, footF, COL.pad, 0.15);
+  limb(ctx, cam, hip, kneeB, COL.shirt, 0.1);
+  limb(ctx, cam, kneeB, footB, COL.shirt, 0.1);
+  // a couple of pad straps for detail
+  line3(ctx, cam, [footF[0] - 0.09, 0.32, footF[2]], [footF[0] + 0.09, 0.32, footF[2]], COL.padStrap, px(0.025, sAt(cam, footF), 1, 6));
+  line3(ctx, cam, [footF[0] - 0.09, 0.55, footF[2]], [footF[0] + 0.09, 0.55, footF[2]], COL.padStrap, px(0.025, sAt(cam, footF), 1, 6));
+  // torso (shirt) + neck
+  limb(ctx, cam, shoulder, hip, COL.shirt, 0.2);
+  limb(ctx, cam, neck, shoulder, COL.skin, 0.06);
+  // back/top arm to the hands (grip)
+  limb(ctx, cam, shoulder, hands, COL.shirt, 0.07);
+  // bat: from the hands, raised on the backlift then swung down in front
+  const batLift: V3 = [bx - off * 0.04, 1.05 + 0.62 * swing, z + 0.18 + 0.18 * swing];
+  const batDown: V3 = [bx + off * 0.06, 0.04, z - 0.5 - 0.18 * trig];
+  const batToe = lerp3(batDown, batLift, swing);
+  limb(ctx, cam, hands, batToe, COL.bat, 0.085);
+  dot3(ctx, cam, hands, 0.05, COL.glove);
+  // helmet (dark) + grille hint + skin chin
+  dot3(ctx, cam, head, 0.115, COL.helmet);
+  dot3(ctx, cam, [head[0], head[1] - 0.05, head[2] - 0.02], 0.05, COL.skin);
+  const hq = project(cam, head);
+  if (hq) {
+    ctx.strokeStyle = COL.grille;
+    ctx.lineWidth = px(0.012, hq.s, 1, 3);
+    ctx.beginPath();
+    ctx.arc(hq.x, hq.y, px(0.1, hq.s, 2, 24), Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+  }
 }
 
 function drawScene(ctx: CanvasRenderingContext2D, cam: Cam, sim: Sim | null, n: number, reveal: boolean) {
@@ -205,25 +258,15 @@ function drawScene(ctx: CanvasRenderingContext2D, cam: Cam, sim: Sim | null, n: 
   }
 
   if (!sim) {
-    drawStumps(ctx, cam, 0, COL.stump, false);
     drawStumps(ctx, cam, PITCH_LEN, COL.stump, false);
-    drawBatsman(ctx, cam, "RH");
+    drawBatsman(ctx, cam, "RH", 0);
+    drawStumps(ctx, cam, 0, COL.stump, false);
     return;
   }
+  const prog = sim.path.length > 1 ? n / (sim.path.length - 1) : 1;
 
   // bowler-end stumps (far)
   drawStumps(ctx, cam, PITCH_LEN, COL.stump, false);
-
-  // bounce mark on the pitch
-  if (sim.bounce && sim.path[Math.min(n, sim.path.length - 1)].z <= sim.bounce.z) {
-    const q = project(cam, [sim.bounce.x, 0.01, sim.bounce.z]);
-    if (q) {
-      ctx.fillStyle = "rgba(251,191,36,0.5)";
-      ctx.beginPath();
-      ctx.ellipse(q.x, q.y, Math.max(3, 6 * q.s), Math.max(1.5, 3 * q.s), 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
 
   // ball trail
   ctx.strokeStyle = COL.trail;
@@ -275,7 +318,7 @@ function drawScene(ctx: CanvasRenderingContext2D, cam: Cam, sim: Sim | null, n: 
   }
 
   // batsman + near stumps (foreground)
-  drawBatsman(ctx, cam, sim.params.hand);
+  drawBatsman(ctx, cam, sim.params.hand, prog);
   const wk = reveal ? sim.decision.wickets : "missing";
   const stumpCol = !reveal
     ? COL.stump
@@ -349,7 +392,7 @@ export function UmpiresEye() {
   const [userCall, setUserCall] = useState<Verdict | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [streak, setStreak] = useState(0);
-  const [camKey, setCamKey] = useState("Behind stumps");
+  const [camKey, setCamKey] = useState("Umpire's view");
 
   const set = (patch: Partial<DeliveryParams>) => setParams((p) => ({ ...p, ...patch }));
 
@@ -394,7 +437,7 @@ export function UmpiresEye() {
     const ctx = cvs.current?.getContext("2d");
     if (!ctx) return;
     const c = CAMERAS[camKey];
-    drawScene(ctx, makeCam(c.eye, c.target), sim, idx, phase === "revealed");
+    drawScene(ctx, makeCam(c.eye, c.target, c.focal), sim, idx, phase === "revealed");
   }, [sim, idx, phase, camKey]);
 
   const call = (v: Verdict) => {
