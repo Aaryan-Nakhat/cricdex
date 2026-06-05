@@ -15,9 +15,17 @@ explainer. Every row carries the Cricsheet people-register bridge
   metrics, dismissal fingerprint, style twins, the graph cohort, Wikidata identity.
 - **Compare** — 2–4 players side by side (radar + table).
 - **Head-to-Head** — P(A better than B) from the Bayesian posteriors, with a gauge.
+- **Matchups** — batter-vs-bowler head-to-heads (as batter / as bowler) + a
+  batter's pace-vs-spin split with a "weaker vs" read.
+- **Phase** — powerplay / middle / death specialist boards (best SR, tightest econ).
+- **Form** — a metric recomputed over the recent window vs career, heating-up /
+  cooling-down (direction-corrected form Δ).
 - **Records** — record books (year-range filterable).
 - **Venues** — ground conditions (phase run-rate chart).
-- **Scout** — cross-competition look-alikes (6 tiers) + draft to Auction.
+- **Scout** — cross-competition look-alikes (6 tiers) + a "next big things" gems
+  board + draft to Auction.
+- **Team Lab** — optimal XI (exact NGI knapsack under budget/overseas/role caps),
+  squad-balance analyzer, and replacement-by-need — parity-locked to the web.
 - **Auction** — real-rules IPL auction Monte-Carlo (retain → bid), web-identical.
 - **Update Data** — in-app buttons to re-run the ingest/compute pipeline.
 
