@@ -57,4 +57,34 @@ def similar_to(
     return out[:top]
 
 
-__all__ = ["GEM_Z", "gem_threshold", "is_gem", "similar_to"]
+def replacement_by_need(
+    sel: dict,
+    pool: list[dict],
+    tier: str = "ipl",
+    role: str | None = None,
+    max_price: float | None = None,
+    pos: str | None = None,
+    top: int = 8,
+) -> list[dict]:
+    """Cheaper same-mould replacements for `sel`: similar players (same role,
+    optional batting slot) priced ≤ `max_price` (defaults to the pick's own
+    price), ranked by saving then similarity. Each row carries `est_cr` +
+    `saving`. EXACT mirror of the TS `replacementByNeed`.
+    """
+    from cricdex.web_parity.pricing import est_value
+
+    sel_price = est_value(sel["value"], sel["role"], "ipl")
+    cap = max_price if max_price is not None else sel_price
+    out = []
+    for r in similar_to(sel, pool, role=role, pos=pos, top=200):
+        price = est_value(r["value"], r["role"], tier)
+        if price > cap:
+            continue
+        out.append(
+            {**r, "est_cr": round(price, 1), "saving": round(max(0.0, sel_price - price), 1)}
+        )
+    out.sort(key=lambda r: (-r["saving"], -r["sim"]))  # biggest saving, then closest
+    return out[:top]
+
+
+__all__ = ["GEM_Z", "gem_threshold", "is_gem", "replacement_by_need", "similar_to"]
