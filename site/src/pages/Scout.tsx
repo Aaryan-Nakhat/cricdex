@@ -225,7 +225,7 @@ export function Scout() {
       <PageTitle
         title="Scout"
         icon={<Network className="h-6 w-6" />}
-        desc="Pick an active IPL player and find others of the same mould at three levels — IPL peers, uncapped Indian prospects (SMAT), and overseas options (BBL) — with an estimated price, the saving vs your pick, and a one-click draft into the Auction room."
+        desc="Pick an active IPL player and find others of the same mould at three levels — IPL peers, uncapped Indian prospects (SMAT), and overseas options (BBL, SA20, CPL & T20 Blast) — with an estimated price, the saving vs your pick, and a one-click draft into the Auction room."
       />
 
       <ScoutMath />
@@ -288,7 +288,7 @@ export function Scout() {
       {idx.loading ? (
         <Spinner label="Loading scout index…" />
       ) : !sel ? (
-        <Empty>Pick an IPL player to scout look-alikes across IPL, SMAT and the BBL.</Empty>
+        <Empty>Pick an IPL player to scout look-alikes across IPL, SMAT &amp; overseas (BBL, SA20, CPL, T20 Blast).</Empty>
       ) : (
         <div className="grid grid-cols-1 gap-5 animate-fade-up lg:grid-cols-3">
           {TIERS.map((t) => (
