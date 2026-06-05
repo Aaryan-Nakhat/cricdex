@@ -20,7 +20,7 @@ from cricdex.web_parity.loader import SITE_DATA
 st.set_page_config(page_title="CricDex Compare", page_icon="🆚", layout="wide")
 st.title("🆚 CricDex — compare players")
 st.caption(
-    "Put two to five players side by side across every number — Bayesian skill "
+    "Put two to four players side by side across every number — Bayesian skill "
     "axes, career totals, and the novel metrics. Best value in each row is "
     "highlighted. Reads the exact same exported JSON the website does."
 )
@@ -199,9 +199,9 @@ if not names:
     st.stop()
 
 picks = st.multiselect(
-    "Players (pick 2–5)",
+    "Players (pick 2–4)",
     options=sorted(names.keys()),
-    max_selections=5,
+    max_selections=4,
     key="compare-players",
 )
 

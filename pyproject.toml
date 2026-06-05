@@ -59,9 +59,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-graph = ["neo4j>=5.27.0"]
 ui = ["streamlit>=1.41.0", "plotly>=5.24.0", "altair>=5.5.0"]
-cli = ["rich>=13.9.0", "textual>=0.86.0"]
+cli = ["rich>=13.9.0", "textual>=0.86.0", "plotext>=5.3.0"]
 
 [dependency-groups]
 dev = [

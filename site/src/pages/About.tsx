@@ -65,8 +65,9 @@ const SECTIONS: Section[] = [
         <em>estimated crore price</em> (the Auction room's skill→price curve, discounted per tier) and
         the <em>saving</em> vs your pick — the budget-swap case — plus a <em>gem</em> flag for uncapped
         prospects punching above their sample. One click <em>drafts</em> a prospect into the Auction
-        room. The exact same scout runs on the CLI and Streamlit too (one shared implementation,
-        locked by a parity test); a Neo4j faced/teammate graph powers an advanced relational view.
+        room. The exact same scout runs on the CLI, TUI and Streamlit too (one shared implementation,
+        locked by a parity test). A faced/teammate cohort — built straight from the ball-by-ball —
+        also surfaces on each player's profile: who they share the most opponents and sides with.
       </>
     ),
   },
@@ -84,8 +85,7 @@ const SECTIONS: Section[] = [
         personality (marquee-chaser, value-hunter, overseas-heavy…), hundreds of times, filling 20–25-man
         squads under the purse + overseas cap. You see who likely lands each remaining star. Runs
         entirely in your browser — and identically on the CLI, TUI and Streamlit from the same inputs
-        (one shared implementation with a seeded RNG, locked by a parity test). The MILP single-squad
-        optimiser is kept as an advanced desktop tool.
+        (one shared implementation with a seeded RNG, locked by a parity test).
       </>
     ),
   },
@@ -112,8 +112,8 @@ export function About() {
       </div>
 
       <Card className="mt-5 px-5 py-4 text-sm text-muted">
-        CricDex is open source. The full pipeline — ingestion, the NumPyro Bayesian model, the metrics, the
-        Neo4j graph, and a typer CLI / Textual TUI / Streamlit dashboard with the same features — lives on{" "}
+        CricDex is open source. The full pipeline — ingestion, the NumPyro Bayesian model, the metrics,
+        and a typer CLI / Textual TUI / Streamlit dashboard with the same features — lives on{" "}
         <a className="text-accent-glow underline" href="https://github.com/Aaryan-Nakhat/cricdex" target="_blank" rel="noreferrer">
           GitHub
         </a>

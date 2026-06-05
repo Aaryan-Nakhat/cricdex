@@ -224,6 +224,16 @@ def all_cmd(
     ),
 ) -> None:
     """Compute every metric for a collection and dump all JSON outputs."""
+    # Intent-Curve gates on balls-per-bucket (default 200, tuned for all-time).
+    # Over a short time window that bar is unreachable — a 1-yr collection has
+    # ~14 innings, so even the 0-5 bucket tops out ~70 balls — which left
+    # intent_curve.last1y empty. Scale the threshold down for the windowed
+    # collections (the all-time board keeps 200, so the web base is unchanged).
+    _window_bucket_min = {"last1y": 25, "last3y": 80}
+    intent_bucket_min = next(
+        (v for suf, v in _window_bucket_min.items() if collection.endswith(f"_{suf}")),
+        200,
+    )
     _emit(
         batter_metrics.pressure_runs(collection=collection, top_n=top_n),
         "pressure_runs",
@@ -231,7 +241,9 @@ def all_cmd(
         None,
     )
     _emit(
-        batter_metrics.intent_curve(collection=collection, top_n=top_n * 6),
+        batter_metrics.intent_curve(
+            collection=collection, top_n=top_n * 6, min_balls_in_bucket=intent_bucket_min
+        ),
         "intent_curve",
         collection,
         None,

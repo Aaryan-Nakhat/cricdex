@@ -33,6 +33,28 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 - Canonical desktop entry points: `cricdex scout look-alikes`,
   `cricdex auction room`; Streamlit **Scout** + **Auction room** pages; the
   TUI **Scout** + **Sim** tabs — all web-identical.
+- **Full desktop↔web feature parity** for the analytical pages. The Streamlit +
+  TUI Leaderboards gained the **time-window switcher** (all-time / last 3 yrs /
+  last 1 yr) and the **full filter bar** (role / activity / bowling / position /
+  country / min matches); the Player Profile gained the **Graph cohort** card and
+  a ±σ skill-uncertainty band; Compare/Head-to-Head/Venues gained charts (radar /
+  gauge / phase bars — Plotly on Streamlit, **plotext** on the TUI); the
+  Intent-Curve sparkline now renders per-row; Records gained a year-range filter.
+- **Shared single-source modules** so the surfaces can't drift: `common/filters.py`
+  (FilterBar + windowed/cohort loaders, parity-locked by
+  `test_scripts/test_filters_parity.py`), `common/metrics.py` (the 10-metric
+  catalog), `common/spark.py` (sparkline).
+- **Graph cohort restored as pure DuckDB SQL** (`scout/cohort.py`) — "faced the
+  same bowlers / bowled to the same batters", no Neo4j. `export_site.py` writes
+  `cohorts/<cid>.json` again (the writer had been removed with the graph stack,
+  leaving the web/desktop cohort card reading stale orphan files).
+
+### Fixed
+
+- **Intent-Curve time windows were empty** — its per-bucket threshold (200 balls)
+  is unreachable over a 1-yr window. `compute_metrics all` now scales the bucket
+  minimum for windowed collections (last1y → 25, last3y → 80); the all-time board
+  is unchanged. `intent_curve.last1y` 0 → 80 rows.
 - **Post-sim player search** (web, Streamlit **and** the TUI Sim tab; mega &
   mini everywhere): after a run, look up any player — retained (by which team),
   sold (most-likely buyers, sold-%, avg price), or unsold. Backed by a new

@@ -97,7 +97,6 @@ def fuzzy_player_input(
 _SOURCE_URLS = {
     "cricsheet": "https://cricsheet.org/",
     "people_register": "https://cricsheet.org/register/people.csv",
-    "rules_pdfs": "/repo/src/cricdex/rules/SOURCES.md",  # local link
     "gemini": "https://ai.google.dev/gemini-api",
 }
 

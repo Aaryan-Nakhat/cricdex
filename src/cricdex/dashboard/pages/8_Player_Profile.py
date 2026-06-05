@@ -1,12 +1,10 @@
 """Streamlit page: per-player dossier.
 
 Reads the SAME pre-cooked JSON the React web app
-(`site/src/pages/PlayerProfile.tsx`) fetches — `players.json` for the picker
-and `profiles/<cricsheet_id>.json` for the full dossier — so the desktop
-dashboard matches the live site instead of recomputing from DuckDB.
-
-NOTE: the graph-cohort / war-room sections from the old page are intentionally
-dropped — they have been deleted from the React app too.
+(`site/src/pages/PlayerProfile.tsx`) fetches — `players.json` for the picker,
+`profiles/<cricsheet_id>.json` for the full dossier, and
+`cohorts/<cricsheet_id>.json` for the graph cohort — so the desktop dashboard
+matches the live site instead of recomputing from DuckDB.
 """
 
 from __future__ import annotations
@@ -16,6 +14,7 @@ import json
 
 import streamlit as st
 
+from cricdex.common.filters import load_cohorts
 from cricdex.dashboard._widgets import provenance_banner
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -119,6 +118,14 @@ def load_profile(collection: str, cid: str) -> dict | None:
     if not path.exists():
         return None
     return json.loads(path.read_text())
+
+
+@st.cache_data(ttl=300)
+def load_cohort(collection: str, cid: str) -> dict:
+    try:
+        return load_cohorts(collection, cid)
+    except FileNotFoundError:
+        return {}
 
 
 collections = list_collections()
@@ -236,16 +243,35 @@ if career:
     c[5].metric("Balls bowled", _fmt(_num(career.get("career_legal_balls_bowled")), 0))
 
 
+def _axis_pct(x: float) -> float:
+    """Map a latent skill value ~[-0.6, 0.6] onto 0..100 (mirror web SkillAxis)."""
+    return max(0.0, min(100.0, (x + 0.6) / 1.2 * 100))
+
+
 def _skill_axis(label: str, mean: float | None, sd: float | None, hint: str) -> None:
     if mean is None:
         return
-    # map ~[-0.6, 0.6] -> 0..100 (mirror SkillAxis)
-    pct = max(2.0, min(98.0, (mean + 0.6) / 1.2 * 100))
     val = f"{'+' if mean >= 0 else ''}{mean:.3f}"
     if sd is not None:
         val += f" ± {sd:.3f}"
     st.markdown(f"**{label}** — {val}")
-    st.progress(pct / 100)
+    # Track with a shaded ±sd band and a marker at the mean — mirrors the
+    # web SkillAxis (dot at mean, uncertainty band around it).
+    mean_pct = _axis_pct(mean)
+    if sd is not None and sd > 0:
+        lo, hi = _axis_pct(mean - sd), _axis_pct(mean + sd)
+    else:
+        lo = hi = mean_pct
+    st.markdown(
+        f"""<div style="position:relative;height:12px;border-radius:6px;
+        background:#1f2937;margin:2px 0 4px">
+          <div style="position:absolute;left:{lo}%;width:{max(0.5, hi - lo)}%;top:0;bottom:0;
+            background:rgba(52,211,153,0.35);border-radius:6px"></div>
+          <div style="position:absolute;left:calc({mean_pct}% - 3px);top:-1px;width:6px;height:14px;
+            border-radius:3px;background:#34d399"></div>
+        </div>""",
+        unsafe_allow_html=True,
+    )
     st.caption(hint)
 
 
@@ -347,3 +373,24 @@ def _twins_block(col, role: str, twins: list[dict] | None) -> None:
 
 _twins_block(tw_left, "Batter", profile.get("style_twins_batter"))
 _twins_block(tw_right, "Bowler", profile.get("style_twins_bowler"))
+
+# --- graph cohort -------------------------------------------------------
+st.subheader("Graph cohort")
+st.caption("Players who faced the same bowlers / shared a side")
+co_faced = (load_cohort(collection, cid) or {}).get("co_faced") or []
+if not co_faced:
+    st.info("No graph cohort available.")
+else:
+    st.dataframe(
+        [
+            {
+                "Player": r.get("name"),
+                "Role": str(r.get("primary_role", "") or "").replace("_", "-"),
+                # Field is role-dependent: batters → shared_bowlers, bowlers → shared_batters.
+                "Shared": r.get("shared_bowlers") or r.get("shared_batters"),
+            }
+            for r in co_faced[:10]
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
