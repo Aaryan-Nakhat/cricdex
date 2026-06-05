@@ -8,8 +8,16 @@ similarity formula as the browser.
 
 from __future__ import annotations
 
+import math
+
 # Uncapped "gem": punches above its sample — high standing on low exposure.
 GEM_Z = 0.6
+
+
+def _r1(x: float) -> float:
+    """Half-up 1dp rounding, identical to JS `Math.round(x*10)/10` — so the TS
+    `replacementByNeed` ranks rows the same way on exact-half savings."""
+    return math.floor(x * 10 + 0.5) / 10
 
 
 def gem_threshold(smat: list[dict]) -> float | None:
@@ -80,9 +88,7 @@ def replacement_by_need(
         price = est_value(r["value"], r["role"], tier)
         if price > cap:
             continue
-        out.append(
-            {**r, "est_cr": round(price, 1), "saving": round(max(0.0, sel_price - price), 1)}
-        )
+        out.append({**r, "est_cr": _r1(price), "saving": _r1(max(0.0, sel_price - price))})
     out.sort(key=lambda r: (-r["saving"], -r["sim"]))  # biggest saving, then closest
     return out[:top]
 
