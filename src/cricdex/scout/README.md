@@ -5,6 +5,14 @@ the Scout look-alike finder (one implementation in `cricdex.web_parity`, shared
 by web + CLI + TUI + Streamlit) and the Head-to-head P(A>B). File-driven —
 DuckDB + exported JSON; no graph database.
 
+## Modules
+
+- `cohort.py` — the **graph cohort** ("who faced the same bowlers / bowled to the
+  same batters"), computed straight from the ball-by-ball in DuckDB — a pure-SQL
+  replacement for the removed Neo4j FACED traversal (axis chosen by ball volume:
+  batter → `shared_bowlers`, bowler → `shared_batters`). `export_site.py` writes it
+  to `cohorts/<cid>.json`, rendered on the Player Profile.
+
 ## Subpackages
 
 - `ingest/` — source-specific loaders.

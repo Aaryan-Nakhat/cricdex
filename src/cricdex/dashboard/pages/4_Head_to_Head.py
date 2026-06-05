@@ -71,8 +71,9 @@ ROLE_LABEL = {
 
 
 def _gauge(name_a: str, name_b: str, pa: float) -> str:
-    """Gradient probability gauge with a 50% divider — mirrors the web gauge."""
-    fill = max(2.0, min(98.0, pa * 100))
+    """Gradient probability gauge with a 50% divider — mirrors the web gauge.
+    Fill is the true P(A>B) (0–100%) so a decisive verdict reads as decisive."""
+    fill = max(0.0, min(100.0, pa * 100))
     return f"""<div style="margin:4px 0 2px">
       <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#cbd5e1">
         <span>{name_a} · {pa * 100:.0f}%</span><span>{(1 - pa) * 100:.0f}% · {name_b}</span>

@@ -15,13 +15,13 @@ player-keyed table filters on them with one helper.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from cricdex.web_parity.loader import _base, _read
 
-# ---- filter model (mirrors filters.ts `Filters` / `EMPTY_FILTERS`) ----------
+# ---- filter model (mirrors the `Filters` interface in filters.ts) -----------
 
 
 @dataclass(frozen=True)
@@ -35,8 +35,6 @@ class Filters:
     year_from: int = 0  # 0 = unset
     year_to: int = 0  # 0 = unset
 
-
-EMPTY_FILTERS = Filters()
 
 # ---- option lists (mirror filters.ts `*_OPTS`) ------------------------------
 
@@ -137,15 +135,6 @@ def countries_in(rows: list[dict]) -> list[tuple[str, str]]:
     return [("", "Any country"), *[(c, c) for c in seen]]
 
 
-def is_active_default(f: Filters) -> bool:
-    """True when no filter is set (drives the 'reset' affordance)."""
-    return f == EMPTY_FILTERS
-
-
-def reset() -> Filters:
-    return replace(EMPTY_FILTERS)
-
-
 # ---- windowed leaderboard + cohort loaders (mirror data.ts) -----------------
 
 WINDOWS = ["all", "last3y", "last1y"]
@@ -183,7 +172,6 @@ def load_cohorts(collection: str, cid: str, base: Path | str | None = None) -> d
 __all__ = [
     "ACTIVITY_OPTS",
     "BOWLING_OPTS",
-    "EMPTY_FILTERS",
     "FILTER_HELP",
     "Filters",
     "POSITION_OPTS",
@@ -192,9 +180,7 @@ __all__ = [
     "WINDOW_LABELS",
     "apply_filters",
     "countries_in",
-    "is_active_default",
     "load_cohorts",
     "load_leaderboard",
-    "reset",
     "window_suffix",
 ]
