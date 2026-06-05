@@ -447,7 +447,7 @@ function CohortList({
             className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-surface disabled:opacity-60"
           >
             <span className="text-fg">{name}</span>
-            <span className="stat-num text-xs text-muted">{String(r[keyField] ?? "")} shared</span>
+            <span className="stat-num text-xs text-muted">{String(r[keyField] ?? r.shared_bowlers ?? r.shared_batters ?? "")} shared</span>
           </button>
         );
       })}

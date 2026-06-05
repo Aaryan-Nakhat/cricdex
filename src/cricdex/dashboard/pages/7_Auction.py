@@ -35,6 +35,26 @@ st.caption(
 )
 provenance_banner(source="cricsheet", path=SITE_DATA / "ipl" / "auction_pool.json")
 
+with st.expander("How the auction math works (plain English)"):
+    st.markdown(
+        "The data only knows how **good** a player is (a skill rating) — never what he **costs**. "
+        "So step zero is inventing a fair price from skill, then everything builds on that.\n\n"
+        "**Part 1 · Skill → crore price**\n"
+        "1. *Amplify skill exponentially* — exponentiate + scale so the spread matches real money "
+        "(top players ~27 cr, median ~3–4 cr); all-rounders/keepers get a small scarcity premium.\n"
+        "2. *Decay for staleness* — value decays with time since the last match, so has-beens drop "
+        "out of the top buys.\n"
+        "3. *Base price* — the opening tag, snapped to IPL bands (0.3 / 0.5 / 0.75 / 1 / 1.5 / 2 cr); "
+        "bidding pushes the final price up from there.\n\n"
+        "**Part 2 · Who's in the pool** — the whole active T20 world: IPL players (retainable) + "
+        "free agents (overseas via BBL / SA20 / CPL / T20 Blast, uncapped Indians via SMAT). Active "
+        "only (last ~3 yrs), ≥150 balls. Lower tiers are penalised before pricing (BBL/SA20 −0.07, "
+        "CPL/Blast −0.10, SMAT −0.20).\n\n"
+        "**Part 3 · Retentions + auction** — each franchise retains its core (Mega/Mini), then the "
+        "ten teams bid for everyone else by personality (value × aggression × need × overseas-bias "
+        "× luck), hundreds of times. Same seeded RNG as the web app."
+    )
+
 ARCH_IDS = [a["id"] for a in ARCHETYPES]
 
 
