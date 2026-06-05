@@ -26,7 +26,7 @@ export const NAV: NavItem[] = [
   { to: "/player", label: "Player profile", icon: UserSearch, group: "Analyse", blurb: "Full dossier: skills, metrics, dismissals, twins." },
   { to: "/compare", label: "Compare", icon: GitCompareArrows, group: "Analyse", blurb: "Side-by-side across every number." },
   { to: "/head-to-head", label: "Head-to-head", icon: Swords, group: "Analyse", blurb: "P(A is better than B) from the Bayesian model." },
-  { to: "/scout", label: "Scout", icon: Network, group: "Scout", blurb: "Look-alikes across IPL, SMAT & BBL — with price, savings & draft." },
+  { to: "/scout", label: "Scout", icon: Network, group: "Scout", blurb: "Look-alikes across IPL, SMAT & overseas (BBL/SA20/CPL/Blast) — price, savings & draft." },
   { to: "/auction", label: "Auction room", icon: Gavel, group: "Scout", blurb: "Simulate a real IPL auction — retain, then bid for the rest." },
   { to: "/records", label: "Records", icon: Medal, group: "Explore", blurb: "All-time record books." },
   { to: "/venues", label: "Venues", icon: MapPin, group: "Explore", blurb: "Ground conditions: totals, phases, chasing." },

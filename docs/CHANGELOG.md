@@ -48,6 +48,18 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
   same bowlers / bowled to the same batters", no Neo4j. `export_site.py` writes
   `cohorts/<cid>.json` again (the writer had been removed with the graph stack,
   leaving the web/desktop cohort card reading stale orphan files).
+- **Searchable player/venue pickers on the desktop** — Streamlit selectboxes +
+  Textual `textual-autocomplete` filter on "Full Name (Short)" (type either),
+  mirroring the web Combobox; collection + record-board fields are dropdowns too.
+- **TUI auction brought to full parity** — editable per-team retentions editor,
+  the Marquee table and a per-team representative-squad viewer (was a lone
+  summary table), pool-scoped Find-player, and a Scout→Auction **Draft** with the
+  web's "not in the priced pool" guard. Streamlit auction: retentions open by
+  default, squad chips, choose which team keeps a drafted prospect.
+- **abtop-style TUI restyle** — Tokyo-Night default + `t` theme cycler, titled
+  bordered panels with focused-panel emphasis, a thread-worker spinner on the
+  auction sim, coloured plotext charts, a two-colour H2H probability gauge, and a
+  styled key-hint footer.
 
 ### Fixed
 
