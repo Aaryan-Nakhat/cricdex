@@ -10,7 +10,11 @@ Subcommand groups, each mounted as its own typer app:
   cricdex compare <a> <b>                   side-by-side comparator
   cricdex records [today | <key>]           record book + on-this-day
   cricdex venues <venue>                    pitch + conditions
+  cricdex matchups <name>                   batter-vs-bowler + pace/spin splits
+  cricdex phase [powerplay|middle|death]    phase specialists
+  cricdex form <metric>                     recent form vs career baseline
   cricdex scout look-alikes <name>          cross-competition look-alikes
+  cricdex team xi / team replace <name>     optimal XI / squad / replacement
   cricdex auction room                      real-rules IPL auction sim
   cricdex tui                               full Textual UI
   cricdex dashboard                         optional Streamlit on :8501
@@ -28,10 +32,14 @@ from cricdex.cli import (
     auction_cmd,
     config_cmd,
     data_cmd,
+    form_cmd,
     init_cmd,
+    matchups_cmd,
     metrics_cmd,
+    phase_cmd,
     profile_cmd,
     scout_cmd,
+    team_cmd,
 )
 
 app = typer.Typer(
@@ -80,6 +88,9 @@ app.add_typer(config_cmd.app, name="config", help="Manage credentials + settings
 app.add_typer(data_cmd.app, name="data", help="Inventory + ingest local data.")
 app.add_typer(scout_cmd.app, name="scout", help="Scout look-alikes (IPL/SMAT/BBL/SA20/CPL/Blast).")
 app.add_typer(auction_cmd.app, name="auction", help="Real-rules IPL auction simulation.")
+app.add_typer(
+    team_cmd.app, name="team", help="Team building: optimal XI, squad balance, replacements."
+)
 
 # Top-level conveniences — one-shot commands without a sub-namespace.
 app.command(name="init", help="First-run wizard: creds + opt-in data setup.")(init_cmd.run)
@@ -88,6 +99,11 @@ app.command(name="profile", help="Per-player profile card.")(profile_cmd.profile
 app.command(name="compare", help="Side-by-side comparator.")(profile_cmd.compare)
 app.command(name="records", help="Records + on-this-day.")(profile_cmd.records)
 app.command(name="venues", help="Venue pitch + conditions.")(profile_cmd.venues)
+app.command(name="matchups", help="Batter-vs-bowler head-to-heads + pace/spin splits.")(
+    matchups_cmd.matchups
+)
+app.command(name="phase", help="Powerplay / middle / death specialists.")(phase_cmd.phase)
+app.command(name="form", help="Recent-form vs career baseline per metric.")(form_cmd.form)
 
 
 @app.command(name="dashboard", help="Launch the Streamlit dashboard.")
