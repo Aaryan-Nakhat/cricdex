@@ -94,20 +94,28 @@ cricdex venues "Wankhede"
 ## matchups / phase / form
 
 ```
-cricdex matchups "V Kohli" [-c ipl] [--top 15] [--json]
-cricdex phase [powerplay|middle|death] [-c ipl] [--top 15] [--json]
-cricdex form <metric> [-c ipl] [--top 15]
+cricdex matchups "V Kohli" [-c ipl] [--top 15] [--min-balls 6] [--json]
+cricdex phase [powerplay|middle|death] [-c ipl] [--top 15] \
+              [--role …] [--bowling seam|spin] [--position …] \
+              [--activity all|active|retired] [--country IND] [--min-matches 0] [--json]
+cricdex form <metric> [-c ipl] [--top 15] [--window last1y|last3y] \
+             [--role …] [--bowling …] [--position …] [--activity …] \
+             [--country IND] [--min-matches 0]
 ```
 
 - **matchups** — a player's batter-vs-bowler head-to-heads (as batter and as
-  bowler) plus their pace-vs-spin split with a "weaker vs" read.
+  bowler) plus their pace-vs-spin split with a "weaker vs" read; `--min-balls`
+  drops thin head-to-heads.
 - **phase** — powerplay / middle / death specialist boards (best strike rates,
-  tightest economies).
-- **form** — a metric recomputed over the recent window (last 1y, else 3y) vs
-  the career baseline; positive form Δ = improving (direction-corrected for
-  "lower is better" metrics). Heating-up then cooling-down.
+  tightest economies), with the full player filter bar.
+- **form** — a metric recomputed over the recent window (pick with `--window`;
+  defaults to last 1y, else 3y) vs the career baseline; positive form Δ =
+  improving (direction-corrected for "lower is better" metrics). Heating-up then
+  cooling-down, with the full player filter bar.
 
-All read the same exported JSON the web app does.
+All read the same exported JSON the web app does. The filter flags share the
+`cricdex.common.filters` port with Leaderboards (role values: batter / bowler /
+allrounder / wk_batter).
 
 ---
 

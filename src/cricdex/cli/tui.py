@@ -1867,6 +1867,8 @@ class CricDexApp(App):
                     id="mu-collection",
                     allow_blank=False,
                 )
+                yield Label("Min balls:")
+                yield Input(value="6", id="mu-minballs", classes="num")
                 yield Button("Show ▸", id="mu-run", variant="primary")
             yield AutoComplete(target="#mu-name", candidates=self._player_cands("#mu-collection"))
             yield Static("", id="mu-meta", classes="intro")
@@ -1910,6 +1912,10 @@ class CricDexApp(App):
             if weaker:
                 bits.append(f"[yellow]weaker vs {weaker}[/yellow]")
         meta.update(" · ".join(bits))
+        try:
+            min_balls = int(self.query_one("#mu-minballs", Input).value or "6")
+        except ValueError:
+            min_balls = 6
         bat_rows = [
             {
                 "bowler": r["bowler"],
@@ -1920,6 +1926,7 @@ class CricDexApp(App):
                 "outs": r["outs"],
             }
             for r in (data.get("as_batter") or [])
+            if r["balls"] >= min_balls
         ]
         bowl_rows = [
             {
@@ -1931,9 +1938,10 @@ class CricDexApp(App):
                 "wkts": r["outs"],
             }
             for r in (data.get("as_bowler") or [])
+            if r["balls"] >= min_balls
         ]
-        _fill_datatable(bat, bat_rows or [{"info": "no batting matchups"}])
-        _fill_datatable(bowl, bowl_rows or [{"info": "no bowling matchups"}])
+        _fill_datatable(bat, bat_rows or [{"info": f"no batting H2H ≥ {min_balls} balls"}])
+        _fill_datatable(bowl, bowl_rows or [{"info": f"no bowling H2H ≥ {min_balls} balls"}])
 
     # ===== Phase — powerplay / middle / death specialists =================
 

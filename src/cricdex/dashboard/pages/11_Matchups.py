@@ -59,6 +59,9 @@ with st.sidebar:
         index=collections.index("ipl") if "ipl" in collections else 0,
         key="matchups-collection",
     )
+    min_balls = st.slider(
+        "Min balls", 1, 120, 6, step=1, help="Drops thin head-to-heads below this many balls."
+    )
 
 provenance_banner(source="cricsheet", path=SITE_DATA / collection / "meta.json")
 
@@ -95,7 +98,7 @@ if seam or spin:
         )
 
 # --- as a batter ---------------------------------------------------------
-as_bat = data.get("as_batter") or []
+as_bat = [r for r in (data.get("as_batter") or []) if r["balls"] >= min_balls]
 if as_bat:
     st.subheader("As a batter — opponents faced")
     st.dataframe(
@@ -115,7 +118,7 @@ if as_bat:
     )
 
 # --- as a bowler ---------------------------------------------------------
-as_bowl = data.get("as_bowler") or []
+as_bowl = [r for r in (data.get("as_bowler") or []) if r["balls"] >= min_balls]
 if as_bowl:
     st.subheader("As a bowler — batters faced")
     st.dataframe(
