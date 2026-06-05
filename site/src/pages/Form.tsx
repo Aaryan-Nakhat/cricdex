@@ -6,6 +6,8 @@ import { useAsync } from "@/lib/useAsync";
 import { getLeaderboard, type LeaderboardRow } from "@/lib/data";
 import { METRICS, METRIC_BY_SLUG } from "@/lib/metrics";
 import { DataTable, type Col } from "@/components/DataTable";
+import { FilterBar } from "@/components/FilterBar";
+import { applyFilters, countriesIn, EMPTY_FILTERS, type Filters } from "@/lib/filters";
 import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip, StatTile } from "@/components/ui";
 import { cn, fmt } from "@/lib/utils";
 
@@ -20,19 +22,23 @@ export function Form() {
   const { collection, meta } = useStore();
   const navigate = useNavigate();
   const [slug, setSlug] = useState("ngi");
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const metric = METRIC_BY_SLUG[slug];
   const valueKey = metric.columns.find((c) => c.primary)?.key ?? metric.columns[1]?.key;
   const nameKey = metric.nameCol;
 
-  // Pick the shortest available recent window (prefer last1y) as "recent form".
-  const windows = meta?.windows ?? [];
-  const recentWin = windows.includes("last1y") ? "last1y" : windows[0];
+  // Recent-window picker — whichever recomputed windows this collection cooked.
+  const windows: string[] = (meta?.windows ?? []).filter((w) => w === "last1y" || w === "last3y");
+  const [win, setWin] = useState<string | null>(null);
+  const recentWin = win && windows.includes(win) ? win : (windows[0] ?? null);
 
   const career = useAsync(() => getLeaderboard(collection, slug, "all"), [collection, slug]);
   const recent = useAsync(
     () => (recentWin ? getLeaderboard(collection, slug, recentWin) : Promise.resolve([])),
     [collection, slug, recentWin],
   );
+
+  const countryOpts = useMemo(() => countriesIn((recent.data ?? []) as Row[]), [recent.data]);
 
   const rows = useMemo(() => {
     if (!career.data || !recent.data) return [];
@@ -41,8 +47,9 @@ export function Form() {
       const k = r[nameKey];
       if (typeof k === "string") careerBy.set(k, r);
     }
+    const filteredRecent = applyFilters(recent.data as Row[], filters);
     const out: Row[] = [];
-    for (const rr of recent.data) {
+    for (const rr of filteredRecent) {
       const name = rr[nameKey];
       if (typeof name !== "string") continue;
       const cr = careerBy.get(name);
@@ -55,7 +62,7 @@ export function Form() {
       out.push({ name, career: careerVal, recent: recentVal, mv });
     }
     return out;
-  }, [career.data, recent.data, nameKey, valueKey, metric.higherIsBetter]);
+  }, [career.data, recent.data, nameKey, valueKey, metric.higherIsBetter, filters]);
 
   const top = useMemo(() => [...rows].sort((a, b) => Number(b.mv) - Number(a.mv)), [rows]);
   const riser = top[0];
@@ -96,7 +103,7 @@ export function Form() {
         desc="Who's trending up and who's fading — each metric recomputed over the recent window and compared against the player's career baseline. Positive Δ means improving form (already direction-corrected for 'lower is better' metrics)."
       />
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-2">
         {METRICS.map((m) => (
           <button
             key={m.slug}
@@ -113,6 +120,34 @@ export function Form() {
         ))}
       </div>
 
+      {windows.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-muted">Recent window</span>
+          {windows.map((w) => (
+            <button
+              key={w}
+              onClick={() => setWin(w)}
+              className={cn(
+                "rounded-lg border px-3 py-1.5 text-sm font-medium transition-all",
+                w === recentWin
+                  ? "border-accent/40 bg-accent/10 text-accent-glow"
+                  : "border-border bg-surface text-muted hover:text-fg",
+              )}
+            >
+              {WINDOW_LABEL[w] ?? w}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        show={["minMatches", "activity", "role", "bowling", "position", "country"]}
+        countryOpts={countryOpts}
+        count={rows.length}
+      />
+
       {!recentWin ? (
         <Empty>This collection has no recomputed recent window — form needs a last-1y/3y window.</Empty>
       ) : loading ? (
@@ -120,7 +155,7 @@ export function Form() {
       ) : error ? (
         <ErrorBox message={error} />
       ) : rows.length === 0 ? (
-        <Empty>No players appear in both the career and {WINDOW_LABEL[recentWin]} boards.</Empty>
+        <Empty>No players match — loosen the filters, or this metric has no recent board.</Empty>
       ) : (
         <div className="space-y-5 animate-fade-up">
           <Card className="px-5 py-4">
