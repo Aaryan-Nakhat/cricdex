@@ -167,7 +167,7 @@ def render() -> None:
             cols = [c.key for c in m.columns if c.key in df.columns]
             st.dataframe(
                 df[cols],
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config=_column_config(m, df),
             )

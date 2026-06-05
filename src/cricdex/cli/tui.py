@@ -19,6 +19,7 @@ from typing import Any
 
 from rich.console import Console
 from rich.text import Text
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -29,6 +30,7 @@ from textual.widgets import (
     Header,
     Input,
     Label,
+    LoadingIndicator,
     RichLog,
     Select,
     Static,
@@ -163,9 +165,43 @@ def _plotext_chart(build_fn, width: int = 88, height: int = 16) -> Text:
 
     plt.clf()
     plt.plotsize(width, height)
-    plt.theme("clear")
+    plt.theme("pro")  # dark + per-series colour (btop-meter look)
     build_fn(plt)
     return Text.from_ansi(plt.build())
+
+
+# Themes offered by the `t` cycle (a curated subset of Textual's built-ins,
+# btop/abtop-style). The command palette (ctrl+p) can reach all of them.
+THEMES = ["nord", "gruvbox", "dracula", "catppuccin-mocha", "tokyo-night", "monokai"]
+
+
+class Panel(Vertical):
+    """A titled, bordered section box (the btop-style panel). The title sits in
+    the top border; pass `title=` and it shows once mounted."""
+
+    def __init__(self, *children, title: str = "", **kwargs) -> None:
+        super().__init__(*children, **kwargs)
+        self._title = title
+
+    def on_mount(self) -> None:
+        self.border_title = self._title
+
+
+class ControlBar(Horizontal):
+    """A titled, bordered horizontal control strip (filters / params)."""
+
+    def __init__(self, *children, title: str = "", **kwargs) -> None:
+        super().__init__(*children, classes="controls", **kwargs)
+        self._title = title
+
+    def on_mount(self) -> None:
+        self.border_title = self._title
+
+
+def _tabhead(title: str, subtitle: str = "") -> Static:
+    """Accent header line at the top of a tab — 'LEADERS · Net Game Impact'."""
+    text = f"[b]{title}[/b]" + (f"  [dim]·  {subtitle}[/dim]" if subtitle else "")
+    return Static(text, classes="tabhead")
 
 
 class CricDexApp(App):
@@ -193,12 +229,33 @@ class CricDexApp(App):
     Tabs { background: $surface-darken-1; }
     Tab { padding: 0 1; }
     TabPane { padding: 0; }
+
+    /* Per-tab accent header line ("LEADERS · Net Game Impact"). */
+    .tabhead {
+        height: 1;
+        padding: 0 2;
+        color: $accent;
+        background: $panel;
+        text-style: bold;
+    }
+
+    /* Titled, bordered section boxes — the btop/abtop panel look. */
+    Panel {
+        height: 1fr;
+        border: round $primary;
+        border-title-color: $accent;
+        border-title-style: bold;
+        padding: 0 1;
+        margin: 1 1 0 1;
+    }
     .controls {
         height: auto;
         layout: horizontal;
         align-vertical: middle;
         background: $panel;
         border: round $primary;
+        border-title-color: $accent;
+        border-title-style: bold;
         padding: 1;
         margin: 1 1 0 1;
     }
@@ -216,7 +273,7 @@ class CricDexApp(App):
     .controls Button { min-width: 12; height: 3; margin: 0 1; }
     .intro {
         height: auto;
-        max-height: 3;
+        max-height: 4;
         color: $text-muted;
         padding: 0 2;
     }
@@ -231,6 +288,8 @@ class CricDexApp(App):
         text-style: bold;
     }
     DataTable > .datatable--cursor { background: $accent 35%; }
+    /* Tables inside a Panel: drop the redundant inner border/margin. */
+    Panel DataTable { border: none; margin: 0; }
     RichLog {
         height: 1fr;
         background: $panel;
@@ -238,7 +297,11 @@ class CricDexApp(App):
         margin: 1;
         padding: 0 1;
     }
-    LoadingIndicator { color: $accent; }
+    Panel RichLog { border: none; margin: 0; background: $surface; }
+    LoadingIndicator { color: $accent; height: 1; }
+    /* Inline spinner shown next to a Run button while a worker runs. */
+    .spinner { height: 1; width: 16; display: none; }
+    .spinner.run { display: block; }
     VerticalScroll { height: 1fr; }
     .chart {
         height: auto;
@@ -260,16 +323,53 @@ class CricDexApp(App):
         Binding("ctrl+c", "quit", "Quit"),
         Binding("right", "next_tab", "Next tab"),
         Binding("left", "prev_tab", "Prev tab"),
+        Binding("t", "cycle_theme", "Theme"),
         Binding("ctrl+p", "command_palette", "Palette"),
     ]
 
     TITLE = "CricDex — open cricket intelligence"
-    SUB_TITLE = "← → switch panels · q quit"
+    SUB_TITLE = "← → panels · t theme · q quit"
 
     def on_mount(self) -> None:
-        # Built-in nord theme — clean dark palette, good contrast. Users
-        # can cycle themes live via the command palette (ctrl+p).
+        # Built-in nord theme — clean dark palette, good contrast. `t` cycles
+        # THEMES; the command palette (ctrl+p) reaches every built-in theme.
         self.theme = "nord"
+        self._refresh_status()
+        self._seed_hints()
+
+    def _seed_hints(self) -> None:
+        """Fill result tables with a one-line prompt so they don't read as
+        broken empty grids before the first run."""
+        hints = {
+            "#metric-table": "Pick a metric + filters, then Show ▸",
+            "#records-table": "Pick a board, then Show ▸",
+            "#cmp-table": "Enter two players, then Compare ▸",
+            "#h2h-table": "Enter two players, then Compare ▸",
+            "#ven-table": "Enter a venue, then Show ▸",
+            "#twins-table": "Pick a player + tier, then Scout ▸",
+            "#sim-table": "Set the knobs, then Simulate ▸",
+            "#sim-find-table": "Run a simulation, then search a player",
+        }
+        for tid, msg in hints.items():
+            try:
+                _fill_datatable(self.query_one(tid, DataTable), [{"": msg}])
+            except Exception:  # noqa: BLE001 — table not mounted (shouldn't happen)
+                pass
+
+    def action_cycle_theme(self) -> None:
+        try:
+            i = THEMES.index(self.theme)
+        except ValueError:
+            i = -1
+        self.theme = THEMES[(i + 1) % len(THEMES)]
+        self._refresh_status()
+        self.notify(f"theme: {self.theme}", timeout=1.5)
+
+    def _refresh_status(self) -> None:
+        try:
+            self.query_one("#status-bar", Static).update(self._status_text())
+        except Exception:  # noqa: BLE001 — status bar not mounted yet
+            pass
 
     _TAB_ORDER = [
         "tab-leaderboard",
@@ -326,16 +426,18 @@ class CricDexApp(App):
     def _status_text(self) -> str:
         n = (DATA_DIR / "cricsheet" / "cricsheet.duckdb").exists()
         j = (SITE_DATA / "ipl" / "leaderboards").is_dir()
+        theme = getattr(self, "theme", "nord")
         return (
             f"  data: cricsheet [{'✓' if n else '✗'}]  exported-json [{'✓' if j else '✗'}]"
-            f"   ·   ← → switch panels  ·   ctrl+p themes  ·   q quit"
+            f"   ·   theme: {theme} (t)   ·   ← → panels   ·   q quit"
         )
 
     # ===== Leaderboard ====================================================
 
     def _leaderboard_panel(self) -> ComposeResult:
         with Vertical():
-            with Horizontal(classes="controls"):
+            yield _tabhead("LEADERS", "10 novel impact metrics")
+            with ControlBar(title="Metric"):
                 yield Label("Metric:")
                 yield Select(
                     options=METRIC_OPTIONS, value="ngi", id="metric-select", allow_blank=False
@@ -349,7 +451,7 @@ class CricDexApp(App):
                 yield Label("Top N:")
                 yield Input(value="20", id="metric-topn", classes="num")
                 yield Button("Show ▸", id="metric-run", variant="primary")
-            with Horizontal(classes="controls"):
+            with ControlBar(title="Filters"):
                 yield Label("Role:")
                 yield Select(
                     options=ROLE_FILTER_OPTIONS, value="", id="metric-role", allow_blank=False
@@ -377,7 +479,8 @@ class CricDexApp(App):
                 yield Label("Country:")
                 yield Input(placeholder="e.g. IND", id="metric-country", classes="num")
             yield Static(_copy.LEADERBOARD_INTRO, id="metric-hint", classes="intro")
-            yield DataTable(id="metric-table", zebra_stripes=True)
+            with Panel(title="Leaderboard"):
+                yield DataTable(id="metric-table", zebra_stripes=True)
 
     def _on_run_leaderboard(self) -> None:
         metric = self.query_one("#metric-select", Select).value
@@ -454,7 +557,8 @@ class CricDexApp(App):
 
     def _records_panel(self) -> ComposeResult:
         with Vertical():
-            with Horizontal(classes="controls"):
+            yield _tabhead("RECORDS", "all-time & seasonal record books")
+            with ControlBar(title="Board"):
                 yield Label("Key:")
                 yield Input(value="highest_individual_innings", id="records-key", classes="wide")
                 yield Label("Coll:")
@@ -467,7 +571,8 @@ class CricDexApp(App):
                 yield Input(placeholder="year", id="records-to", classes="num")
                 yield Button("Show ▸", id="records-run", variant="primary")
             yield Static(_copy.RECORDS_INTRO, classes="intro")
-            yield DataTable(id="records-table", zebra_stripes=True)
+            with Panel(title="Records"):
+                yield DataTable(id="records-table", zebra_stripes=True)
 
     def _on_run_records(self) -> None:
         # Reads the same exported records.json the React app + 3_Records.py read:
@@ -521,7 +626,8 @@ class CricDexApp(App):
 
     def _compare_panel(self) -> ComposeResult:
         with Vertical():
-            with Horizontal(classes="controls"):
+            yield _tabhead("COMPARE", "side-by-side across every number")
+            with ControlBar(title="Players"):
                 yield Label("Player A:")
                 yield Input(value="V Kohli", id="cmp-a")
                 yield Label("Player B:")
@@ -643,7 +749,8 @@ class CricDexApp(App):
 
     def _h2h_panel(self) -> ComposeResult:
         with Vertical():
-            with Horizontal(classes="controls"):
+            yield _tabhead("HEAD-TO-HEAD", "P(A better than B) from the posteriors")
+            with ControlBar(title="Players"):
                 yield Label("Player A:")
                 yield Input(value="V Kohli", id="h2h-a")
                 yield Label("Player B:")
@@ -711,7 +818,8 @@ class CricDexApp(App):
 
     def _venues_panel(self) -> ComposeResult:
         with Vertical():
-            with Horizontal(classes="controls"):
+            yield _tabhead("VENUES", "ground conditions — totals, phases, chase")
+            with ControlBar(title="Venue"):
                 yield Label("Venue:")
                 yield Input(value="Eden Gardens", id="ven-name")
                 yield Label("Coll:")
@@ -851,14 +959,16 @@ class CricDexApp(App):
 
     def _profile_panel(self) -> ComposeResult:
         with Vertical():
-            with Horizontal(classes="controls"):
+            yield _tabhead("PROFILE", "full per-player dossier")
+            with ControlBar(title="Player"):
                 yield Label("Player:")
                 yield Input(value="V Kohli", id="profile-name")
                 yield Label("Coll:")
                 yield Input(value="ipl", id="profile-collection")
                 yield Button("Build ▸", id="profile-run", variant="primary")
             yield Static(_copy.PROFILE_INTRO, classes="intro")
-            yield RichLog(id="profile-log", highlight=False, markup=True, wrap=True)
+            with Panel(title="Dossier"):
+                yield RichLog(id="profile-log", highlight=False, markup=True, wrap=True)
 
     def _on_run_profile(self) -> None:
         # Reads the same exported profiles/<cid>.json the React app + 8_Player_
@@ -1028,14 +1138,17 @@ class CricDexApp(App):
             load_team_overrides,
         )
 
-        # Persistent dict — picks survive across Run clicks. Initialised
-        # from the YAML override if present, otherwise IPL defaults.
-        self._team_personalities = dict(load_team_overrides() or IPL_TEAMS_DEFAULT)
+        # Persistent dict — picks survive across Run clicks AND recompose
+        # (e.g. on theme switch). Guard so a recompose doesn't wipe edits.
+        if not hasattr(self, "_team_personalities"):
+            self._team_personalities = dict(load_team_overrides() or IPL_TEAMS_DEFAULT)
         team_opts = [(t, t) for t, _ in IPL_TEAMS_DEFAULT]
         pers_opts = [(p, p) for p in PERSONALITY_IDS]
 
         with Vertical():
-            with Horizontal(classes="controls"):
+            yield _tabhead("AUCTION", "real-rules IPL Monte-Carlo — retain → bid")
+            yield Static(_copy.AUCTION_SIMULATE_INTRO, classes="intro")
+            with ControlBar(title="Auction"):
                 yield Label("Type:")
                 yield Select(
                     options=[("Mega", "mega"), ("Mini", "mini")],
@@ -1048,7 +1161,8 @@ class CricDexApp(App):
                 yield Label("Purse:")
                 yield Input(value="120", id="sim-purse", classes="num")
                 yield Button("Simulate ▸", id="sim-run", variant="primary")
-            with Horizontal(classes="controls"):
+                yield LoadingIndicator(id="sim-spinner", classes="spinner")
+            with ControlBar(title="Personalities"):
                 yield Label("Edit:")
                 yield Select(options=team_opts, value="CSK", id="sim-team", allow_blank=False)
                 yield Label("→")
@@ -1059,18 +1173,16 @@ class CricDexApp(App):
                     allow_blank=False,
                 )
                 yield Button("Apply", id="sim-apply", variant="success")
-                yield Button("Reset", id="sim-reset", variant="warning")
-            yield Static(
-                self._sim_team_map_line(),
-                id="sim-team-map",
-                classes="intro",
-            )
-            yield DataTable(id="sim-table", zebra_stripes=True)
-            with Horizontal(classes="controls"):
+                yield Button("Reset", id="sim-reset", variant="error")
+            yield Static(self._sim_team_map_line(), id="sim-team-map", classes="intro")
+            with Panel(title="Squads"):
+                yield DataTable(id="sim-table", zebra_stripes=True)
+            with ControlBar(title="Find player"):
                 yield Label("Find player:")
                 yield Input(placeholder="name… (after a run)", id="sim-find", classes="wide")
                 yield Button("Find ▸", id="sim-find-run", variant="success")
-            yield DataTable(id="sim-find-table", zebra_stripes=True)
+            with Panel(title="Player search"):
+                yield DataTable(id="sim-find-table", zebra_stripes=True)
 
     def _sim_team_map_line(self) -> str:
         from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
@@ -1096,8 +1208,8 @@ class CricDexApp(App):
         self.query_one("#sim-pers", Select).value = self._team_personalities[team]
 
     def _on_run_auction_sim(self) -> None:
-        # Canonical, web-identical auction (cricdex.web_parity): same exported
-        # pool + real 2025 retentions + seeded Monte-Carlo as the live site.
+        # Main thread: validate, show the spinner, hand the heavy Monte-Carlo to
+        # a thread worker so the UI stays responsive (no freeze on 300 trials).
         table = self.query_one("#sim-table", DataTable)
         mode = self.query_one("#sim-mode", Select).value or "mega"
         try:
@@ -1105,7 +1217,16 @@ class CricDexApp(App):
             purse = float(self.query_one("#sim-purse", Input).value or "120")
         except ValueError:
             _fill_datatable(table, [{"error": "Sims and Purse must be numeric"}])
+            self.notify("Sims and Purse must be numeric", severity="error")
             return
+        self.query_one("#sim-spinner", LoadingIndicator).add_class("run")
+        _fill_datatable(table, [{"info": f"simulating {n_sims} auctions…"}])
+        self._auction_worker(mode, n_sims, purse)
+
+    @work(thread=True, exclusive=True, group="auction")
+    def _auction_worker(self, mode: str, n_sims: int, purse: float) -> None:
+        # Canonical, web-identical auction (cricdex.web_parity): same exported
+        # pool + real 2025 retentions + seeded Monte-Carlo as the live site.
         try:
             from cricdex.web_parity import (
                 IPL_TEAMS_DEFAULT,
@@ -1144,7 +1265,16 @@ class CricDexApp(App):
                 },
             )
         except Exception as e:  # noqa: BLE001
-            _fill_datatable(table, [{"error": str(e)}])
+            self.call_from_thread(self._auction_done, None, str(e))
+            return
+        self.call_from_thread(self._auction_done, res, None)
+
+    def _auction_done(self, res: dict | None, err: str | None) -> None:
+        self.query_one("#sim-spinner", LoadingIndicator).remove_class("run")
+        table = self.query_one("#sim-table", DataTable)
+        if err is not None or res is None:
+            _fill_datatable(table, [{"error": err or "auction failed"}])
+            self.notify(err or "auction failed", severity="error")
             return
         self._sim_outcomes = res["outcomes"]  # cached for the player-search below
         rows = [
@@ -1160,6 +1290,7 @@ class CricDexApp(App):
             for t in sorted(res["teams"], key=lambda t: t["avg_value"], reverse=True)
         ]
         _fill_datatable(table, rows, max_cols=8)
+        self.notify("auction complete", timeout=1.5)
 
     def _on_find_sim_player(self) -> None:
         # Search the last run's per-player outcomes: retained / sold / unsold.
@@ -1200,7 +1331,8 @@ class CricDexApp(App):
 
     def _twins_panel(self) -> ComposeResult:
         with Vertical():
-            with Horizontal(classes="controls"):
+            yield _tabhead("SCOUT", "cross-competition look-alikes")
+            with ControlBar(title="Pick"):
                 yield Label("Player:")
                 yield Input(value="JJ Bumrah", id="twins-name")
                 yield Label("Tier:")
@@ -1215,7 +1347,8 @@ class CricDexApp(App):
                 yield Input(value="8", id="twins-k", classes="num")
                 yield Button("Scout ▸", id="twins-run", variant="primary")
             yield Static("", id="twins-meta", classes="intro")
-            yield DataTable(id="twins-table", zebra_stripes=True)
+            with Panel(title="Look-alikes"):
+                yield DataTable(id="twins-table", zebra_stripes=True)
 
     def _on_run_twins(self) -> None:
         # Canonical, web-identical scout (cricdex.web_parity): same exported
@@ -1280,7 +1413,8 @@ class CricDexApp(App):
 
     def _update_panel(self) -> ComposeResult:
         with Vertical():
-            with Horizontal(classes="controls"):
+            yield _tabhead("UPDATE", "re-ingest → recompute → re-export JSON")
+            with ControlBar(title="Target"):
                 yield Label("Collection:")
                 yield Input(value="ipl", id="upd-collection")
                 yield Label("Force:")
@@ -1290,7 +1424,7 @@ class CricDexApp(App):
                     id="upd-force",
                     allow_blank=False,
                 )
-            with Horizontal(classes="controls"):
+            with ControlBar(title="Run"):
                 yield Button("Cricsheet", id="upd-cricsheet")
                 yield Button("Ratings", id="upd-ratings")
                 yield Button("Metrics", id="upd-metrics")
@@ -1302,7 +1436,8 @@ class CricDexApp(App):
                 "tab reads (the same pipeline the web's nightly Action runs).",
                 classes="intro",
             )
-            yield RichLog(id="upd-log", highlight=False, markup=True, wrap=True)
+            with Panel(title="Log"):
+                yield RichLog(id="upd-log", highlight=False, markup=True, wrap=True)
 
     def _on_update(self, button_id: str) -> None:
         from cricdex.config import ROOT

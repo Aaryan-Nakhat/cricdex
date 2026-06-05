@@ -14,7 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from cricdex.dashboard._widgets import provenance_banner
+from cricdex.dashboard._widgets import player_multiselect, provenance_banner
 from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Compare", page_icon="🆚", layout="wide")
@@ -145,18 +145,6 @@ def list_collections() -> list[str]:
 
 
 @st.cache_data(ttl=300)
-def name_to_cid(collection: str) -> dict[str, str]:
-    """{display name -> cricsheet_id} from players.json (mirror usePlayers)."""
-    path = SITE_DATA / collection / "players.json"
-    if not path.exists():
-        return {}
-    players = json.loads(path.read_text())
-    return {
-        p["name"]: p["cricsheet_id"] for p in players if p.get("name") and p.get("cricsheet_id")
-    }
-
-
-@st.cache_data(ttl=300)
 def load_profile(collection: str, cid: str) -> dict | None:
     path = SITE_DATA / collection / "profiles" / f"{cid}.json"
     if not path.exists():
@@ -193,27 +181,19 @@ with st.sidebar:
 
 provenance_banner(source="cricsheet", path=SITE_DATA / collection / "meta.json")
 
-names = name_to_cid(collection)
-if not names:
-    st.warning("No players in the exported players.json for this collection.")
-    st.stop()
-
-picks = st.multiselect(
-    "Players (pick 2–4)",
-    options=sorted(names.keys()),
-    max_selections=4,
-    key="compare-players",
+picked = player_multiselect(
+    collection, "Players (pick 2–4)", key="compare-players", max_selections=4
 )
 
-if len(picks) < 2:
+if len(picked) < 2:
     st.info("Pick at least two players to compare.")
     st.stop()
 
 profiles: list[tuple[str, dict]] = []
-for nm in picks:
-    prof = load_profile(collection, names[nm])
+for p in picked:
+    prof = load_profile(collection, p["cricsheet_id"])
     if prof:
-        profiles.append((nm, prof))
+        profiles.append((p["name"], prof))
 
 if len(profiles) < 2:
     st.error("Could not load at least two profiles from the exported data.")
@@ -260,7 +240,7 @@ fig.update_layout(
     showlegend=True,
     height=480,
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # --- side-by-side comparison table (grouped, best highlighted) -----------
 st.subheader("Side by side")
@@ -298,6 +278,6 @@ def _highlight(row: pd.Series) -> list[str]:
 
 st.dataframe(
     table.style.apply(_highlight, axis=1),
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
 )
