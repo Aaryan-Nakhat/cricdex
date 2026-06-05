@@ -15,7 +15,7 @@ import json
 import streamlit as st
 
 from cricdex.common.filters import load_cohorts
-from cricdex.dashboard._widgets import provenance_banner
+from cricdex.dashboard._widgets import player_select, provenance_banner
 from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Profile", page_icon="🪪", layout="wide")
@@ -102,17 +102,6 @@ def list_collections() -> list[str]:
 
 
 @st.cache_data(ttl=300)
-def name_to_cid(collection: str) -> dict[str, str]:
-    path = SITE_DATA / collection / "players.json"
-    if not path.exists():
-        return {}
-    players = json.loads(path.read_text())
-    return {
-        p["name"]: p["cricsheet_id"] for p in players if p.get("name") and p.get("cricsheet_id")
-    }
-
-
-@st.cache_data(ttl=300)
 def load_profile(collection: str, cid: str) -> dict | None:
     path = SITE_DATA / collection / "profiles" / f"{cid}.json"
     if not path.exists():
@@ -147,22 +136,14 @@ with st.sidebar:
 
 provenance_banner(source="cricsheet", path=SITE_DATA / collection / "meta.json")
 
-names = name_to_cid(collection)
-if not names:
+with st.sidebar:
+    sel = player_select(collection, "Player", key="profile-player")
+if sel is None:
     st.warning("No players in the exported players.json for this collection.")
     st.stop()
 
-with st.sidebar:
-    sorted_names = sorted(names.keys())
-    default_idx = sorted_names.index("V Kohli") if "V Kohli" in sorted_names else 0
-    player_name = st.selectbox(
-        "Player",
-        options=sorted_names,
-        index=default_idx,
-        key="profile-player",
-    )
-
-cid = names[player_name]
+cid = sel["cricsheet_id"]
+player_name = sel["name"]
 profile = load_profile(collection, cid)
 if not profile:
     st.error(f"No exported profile found for {player_name} ({cid}).")
@@ -368,7 +349,7 @@ def _twins_block(col, role: str, twins: list[dict] | None) -> None:
             rows.append(
                 {"Player": t.get("name"), "% alike": f"{sim:.1f}%" if sim is not None else "—"}
             )
-        st.dataframe(rows, use_container_width=True, hide_index=True)
+        st.dataframe(rows, width="stretch", hide_index=True)
 
 
 _twins_block(tw_left, "Batter", profile.get("style_twins_batter"))
@@ -391,6 +372,6 @@ else:
             }
             for r in co_faced[:10]
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
