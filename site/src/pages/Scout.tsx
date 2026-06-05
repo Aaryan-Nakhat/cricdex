@@ -5,6 +5,7 @@ import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
 import { estValue, type PriceTier, type Role } from "@/lib/auction";
+import { similarTo, isGem, gemThreshold, type SimilarRow } from "@/lib/scout";
 import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, Collapsible } from "@/components/ui";
 import { fmt } from "@/lib/utils";
@@ -44,30 +45,9 @@ const TIERS: {
   { key: "blast", title: "Overseas · T20 Blast", subtitle: "English county T20 of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
 ];
 
-// Uncapped "gem": punches above its sample — high standing on low exposure.
-const GEM_Z = 0.6;
-function isGem(p: ScoutPlayer, medianBalls: number): boolean {
-  return p.z >= GEM_Z && p.balls > 0 && p.balls <= medianBalls;
-}
-
-// similar = chosen role (+ same bowling type for bowlers, + optional batting
-// position), nearest skill standing. role can override the pick's own role.
-function similarTo(
-  sel: ScoutPlayer,
-  pool: ScoutPlayer[],
-  role: Role,
-  pos: string,
-): { p: ScoutPlayer; sim: number }[] {
-  return pool
-    .filter((p) => p.cricsheet_id !== sel.cricsheet_id && p.role === role)
-    .filter(
-      (p) => role !== "bowler" || !sel.bowling_category || p.bowling_category === sel.bowling_category,
-    )
-    .filter((p) => !pos || p.batting_position === pos)
-    .map((p) => ({ p, sim: Math.max(0, 1 - Math.abs(p.z - sel.z) / 2.5) }))
-    .sort((a, b) => b.sim - a.sim)
-    .slice(0, 8);
-}
+// similarTo / isGem / gemThreshold are the parity-locked engine from
+// `@/lib/scout` (mirrored bit-for-bit by the Python port) — single source of
+// truth across every surface.
 
 function ScoutMath() {
   return (
@@ -116,7 +96,7 @@ function TierPanel({
   title: string;
   icon: React.ReactNode;
   subtitle: string;
-  rows: { p: ScoutPlayer; sim: number }[];
+  rows: SimilarRow[];
   tier: PriceTier;
   selPrice: number | null;
   gemMedian: number | null;
@@ -131,10 +111,11 @@ function TierPanel({
         {rows.length === 0 ? (
           <div className="px-3 py-6 text-center text-sm text-muted">No close match of this archetype.</div>
         ) : (
-          rows.map(({ p, sim }, i) => {
+          rows.map((p, i) => {
+            const sim = p.sim;
             const price = estValue(p.value, p.role, tier);
             const saving = selPrice != null && price < selPrice ? selPrice - price : 0;
-            const gem = gemMedian != null && isGem(p, gemMedian);
+            const gem = isGem(p, gemMedian);
             return (
               <div key={p.cricsheet_id} className="rounded-md px-3 py-2 hover:bg-surface">
                 {/* line 1: rank + full-width name + similarity */}
@@ -186,6 +167,47 @@ function TierPanel({
   );
 }
 
+// "The next X" — uncapped SMAT prospects that punch above their sample.
+function GemsBoard({ gems, navigate }: { gems: ScoutPlayer[]; navigate: (p: string) => void }) {
+  if (!gems.length) return null;
+  return (
+    <Card className="mb-5">
+      <CardHeader
+        title={
+          <span className="flex items-center gap-2">
+            <Gem className="h-4 w-4 text-willow" /> The next big things
+          </span>
+        }
+        subtitle="Uncapped SMAT prospects punching above their sample — high standing on below-median exposure (moneyball)"
+      />
+      <div className="grid grid-cols-1 gap-x-4 p-2 sm:grid-cols-2">
+        {gems.map((p, i) => (
+          <div
+            key={p.cricsheet_id}
+            className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-md px-3 py-2 text-sm hover:bg-surface"
+          >
+            <span className="stat-num w-4 shrink-0 text-xs text-muted">{i + 1}</span>
+            <span className="font-medium text-fg">{p.name}</span>
+            {p.country && <span className="text-[11px] text-muted">{p.country}</span>}
+            <Badge tone="willow">standing {fmt(p.z, 2)}</Badge>
+            <span className="text-[11px] text-muted">{p.balls} balls</span>
+            <span className="stat-num ml-auto text-[11px] text-muted">
+              ≈{fmt(estValue(p.value, p.role, "smat"), 1)}cr
+            </span>
+            <button
+              onClick={() => navigate(`/auction?draft=${p.cricsheet_id}`)}
+              title="Draft into the Auction room as a retention"
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-glow hover:border-accent/50"
+            >
+              <Gavel className="h-3 w-3" /> Draft
+            </button>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export function Scout() {
   const navigate = useNavigate();
   const { options } = usePlayers("ipl"); // nice full-name search
@@ -211,10 +233,17 @@ export function Scout() {
   }, [sel]);
 
   // median SMAT exposure → the gem cutoff (high standing, below-median balls)
-  const gemMedian = useMemo(() => {
-    const b = (idx.data?.smat ?? []).map((p) => p.balls).filter((x) => x > 0).sort((x, y) => x - y);
-    return b.length ? b[Math.floor(b.length / 2)] : null;
-  }, [idx.data]);
+  const gemMedian = useMemo(() => gemThreshold(idx.data?.smat ?? []), [idx.data]);
+
+  // headline "next X" board — the standout uncapped gems, pick-independent
+  const gems = useMemo(
+    () =>
+      (idx.data?.smat ?? [])
+        .filter((p) => isGem(p, gemMedian))
+        .sort((a, b) => b.z - a.z)
+        .slice(0, 12),
+    [idx.data, gemMedian],
+  );
 
   // the pick's own est. IPL price — the baseline the savings compare against
   const selPrice = sel ? estValue(sel.value, sel.role, "ipl") : null;
@@ -229,6 +258,8 @@ export function Scout() {
       />
 
       <ScoutMath />
+
+      <GemsBoard gems={gems} navigate={navigate} />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Combobox options={pickOptions} value={cid} onChange={setCid} placeholder="Search an active IPL player…" className="max-w-md flex-1" />

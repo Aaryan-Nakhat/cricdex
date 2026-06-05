@@ -5,7 +5,11 @@ import { Leaderboards } from "@/pages/Leaderboards";
 import { PlayerProfile } from "@/pages/PlayerProfile";
 import { Compare } from "@/pages/Compare";
 import { HeadToHead } from "@/pages/HeadToHead";
+import { Matchups } from "@/pages/Matchups";
+import { Phase } from "@/pages/Phase";
+import { Form } from "@/pages/Form";
 import { Scout } from "@/pages/Scout";
+import { TeamLab } from "@/pages/TeamLab";
 import { Auction } from "@/pages/Auction";
 import { Records } from "@/pages/Records";
 import { Venues } from "@/pages/Venues";
@@ -21,7 +25,11 @@ export function App() {
         <Route path="/player" element={<PlayerProfile />} />
         <Route path="/compare" element={<Compare />} />
         <Route path="/head-to-head" element={<HeadToHead />} />
+        <Route path="/matchups" element={<Matchups />} />
+        <Route path="/phase" element={<Phase />} />
+        <Route path="/form" element={<Form />} />
         <Route path="/scout" element={<Scout />} />
+        <Route path="/team-lab" element={<TeamLab />} />
         <Route path="/auction" element={<Auction />} />
         <Route path="/records" element={<Records />} />
         <Route path="/venues" element={<Venues />} />

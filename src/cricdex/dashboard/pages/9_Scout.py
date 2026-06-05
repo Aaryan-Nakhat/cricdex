@@ -104,6 +104,32 @@ def _scout_label(p: dict) -> str:
 
 
 _labels = {p["cricsheet_id"]: _scout_label(p) for p in ipl}
+
+# --- "The next X": pick-independent headline of standout uncapped gems ----
+gems = sorted((p for p in idx["smat"] if is_gem(p, gem_med)), key=lambda p: p["z"], reverse=True)[
+    :12
+]
+if gems:
+    with st.expander("💎 The next big things — top uncapped SMAT gems"):
+        st.caption(
+            "Uncapped prospects punching above their sample — high standing on below-median "
+            "exposure (moneyball). Pick-independent."
+        )
+        st.dataframe(
+            [
+                {
+                    "Player": g["name"],
+                    "Country": g.get("country") or "—",
+                    "Standing": round(g["z"], 2),
+                    "Balls": g.get("balls", 0),
+                    "Est cr": round(est_value(g["value"], g["role"], "smat"), 1),
+                }
+                for g in gems
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+
 pick_cid = st.selectbox(
     "Active IPL player", list(by_cid), index=0, format_func=lambda c: _labels[c]
 )

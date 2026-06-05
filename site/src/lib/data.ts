@@ -149,3 +149,56 @@ export interface ScoutIndex {
 export const getScoutIndex = (c: string) => getJSON<ScoutIndex>(`${c}/scout_index.json`);
 export const getCohorts = (c: string, cid: string) =>
   getJSON<Cohorts>(`${c}/cohorts/${cid}.json`);
+
+// ---- matchups (batter vs bowler) + pace/spin splits ------------------------
+export interface BatterMatchup {
+  bowler: string;
+  balls: number;
+  runs: number;
+  sr: number;
+  dot_pct: number;
+  outs: number;
+}
+export interface BowlerMatchup {
+  batter: string;
+  balls: number;
+  runs: number;
+  sr: number;
+  dot_pct: number;
+  outs: number;
+}
+export interface SplitSide {
+  balls: number;
+  runs: number;
+  sr: number;
+  outs: number;
+  out_rate: number;
+}
+export interface Matchups {
+  as_batter: BatterMatchup[];
+  as_bowler: BowlerMatchup[];
+  splits: { vs_seam?: SplitSide; vs_spin?: SplitSide } | null;
+}
+export const getMatchups = (c: string, cid: string) =>
+  getJSON<Matchups>(`${c}/matchups/${cid}.json`);
+
+// ---- phase specialists (powerplay / middle / death) ------------------------
+export interface PhaseBatter {
+  name: string;
+  balls: number;
+  runs: number;
+  sr: number;
+}
+export interface PhaseBowler {
+  name: string;
+  balls: number;
+  runs: number;
+  wickets: number;
+  econ: number;
+}
+export interface PhaseBoard {
+  batters: PhaseBatter[];
+  bowlers: PhaseBowler[];
+}
+export type PhaseData = Record<"powerplay" | "middle" | "death", PhaseBoard>;
+export const getPhase = (c: string) => getJSON<PhaseData>(`${c}/phase.json`);
