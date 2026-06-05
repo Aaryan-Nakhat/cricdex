@@ -923,6 +923,71 @@ def _export_profiles_and_cohorts(
     return n_prof, n_cohort
 
 
+def _export_matchups(
+    collection: str, out_dir: Path, players: list[dict], taxonomy: dict[str, dict]
+) -> int:
+    """matchups/<cid>.json — per player: as_batter (vs each bowler), as_bowler
+    (vs each batter), and the batter's pace/spin splits."""
+    from cricdex.metrics import matchups as mm
+
+    pairs = mm.pairwise(collection, min_balls=6)
+    name_to_cid = {p["name"]: p["cricsheet_id"] for p in players if p.get("name")}
+    cid_to_name = {c: n for n, c in name_to_cid.items()}
+    bowler_cat = {
+        cid_to_name[c]: t.get("bowling_category")
+        for c, t in taxonomy.items()
+        if c in cid_to_name and (t or {}).get("bowling_category") in ("seam", "spin")
+    }
+    splits = mm.pace_spin_splits(collection, bowler_cat)
+
+    by_batter: dict[str, list[dict]] = {}
+    by_bowler: dict[str, list[dict]] = {}
+    for r in pairs:
+        by_batter.setdefault(r["batter"], []).append(
+            {
+                "bowler": r["bowler"],
+                "balls": r["balls"],
+                "runs": r["runs"],
+                "sr": r["sr"],
+                "dot_pct": r["dot_pct"],
+                "outs": r["outs"],
+            }
+        )
+        by_bowler.setdefault(r["bowler"], []).append(
+            {
+                "batter": r["batter"],
+                "balls": r["balls"],
+                "runs": r["runs"],
+                "sr": r["sr"],
+                "dot_pct": r["dot_pct"],
+                "outs": r["outs"],
+            }
+        )
+    n = 0
+    for p in players:
+        name, cid = p.get("name"), p.get("cricsheet_id")
+        ab = sorted(by_batter.get(name, []), key=lambda x: x["balls"], reverse=True)[:40]
+        aw = sorted(by_bowler.get(name, []), key=lambda x: x["balls"], reverse=True)[:40]
+        sp = splits.get(name)
+        if not (ab or aw or sp):
+            continue
+        _write(
+            out_dir / "matchups" / f"{cid}.json", {"as_batter": ab, "as_bowler": aw, "splits": sp}
+        )
+        n += 1
+    return n
+
+
+def _export_phase(collection: str, out_dir: Path) -> None:
+    """phase.json — powerplay/middle/death batter-SR + bowler-economy boards."""
+    from cricdex.metrics import phase as ph
+
+    try:
+        _write(out_dir / "phase.json", ph.phase_leaders(collection))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"phase export skipped for {collection}: {e}")
+
+
 @app.command()
 def export(
     collection: str | None = typer.Option(
@@ -985,12 +1050,15 @@ def export(
                 _export_leaderboards(col, out_dir, match_counts, name_tax, activity, window=win)
             n_rat = _export_ratings(col, out_dir)
             _export_records_venues(col, out_dir)
+            _export_phase(col, out_dir)
+            n_match = _export_matchups(col, out_dir, players, taxonomy)
             n_prof, n_cohort = _export_profiles_and_cohorts(
                 col, out_dir, players, taxonomy, activity
             )
             logger.info(
                 f"{col}: as_of={meta['data_as_of']} players={len(players)} "
-                f"leaderboards={n_lb} ratings={n_rat} profiles={n_prof} cohorts={n_cohort}"
+                f"leaderboards={n_lb} ratings={n_rat} profiles={n_prof} "
+                f"cohorts={n_cohort} matchups={n_match}"
             )
             index.append(meta)
     finally:
