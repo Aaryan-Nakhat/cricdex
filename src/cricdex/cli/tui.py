@@ -171,6 +171,20 @@ def _plotext_chart(build_fn, width: int = 88, height: int = 16) -> Text:
     return Text.from_ansi(plt.build())
 
 
+def _h2h_gauge(a: str, b: str, items: list[tuple[str, float, str]], width: int = 36) -> Text:
+    """Two-colour P(A>B) gauge, one row per role: the first `pa%` of the bar in
+    green (A), the rest in red (B), on a fixed 0–100 scale so 41% reads as 41%."""
+    out = Text()
+    for role, pa, verdict in items:
+        fill = max(0, min(width, round(pa / 100 * width)))
+        out.append(f"{role:<10} ", style="bold")
+        out.append("█" * fill, style="green")
+        out.append("█" * (width - fill), style="red")
+        out.append(f"  {a} {pa:.0f}%  ·  {b} {100 - pa:.0f}%", style="bold")
+        out.append(f"   {verdict}\n", style="dim italic")
+    return out
+
+
 # Themes offered by the `t` cycle (a curated subset of Textual's built-ins,
 # btop/abtop-style). The command palette (ctrl+p) can reach all of them.
 THEMES = ["nord", "gruvbox", "dracula", "catppuccin-mocha", "tokyo-night", "monokai"]
@@ -213,6 +227,51 @@ def _venue_options(collection: str = "ipl") -> list[tuple[str, str]]:
     except (ValueError, OSError):
         return []
     return [(v, v) for v in sorted(data)]
+
+
+def _collection_options() -> list[tuple[str, str]]:
+    """(value, label) collection pairs for the `Coll` Selects — from
+    collections.json, falling back to a dir scan then ['ipl']."""
+    f = SITE_DATA / "collections.json"
+    cols: list[str] = []
+    if f.exists():
+        try:
+            cols = [c["collection"] for c in json.loads(f.read_text())]
+        except (ValueError, OSError, KeyError, TypeError):
+            cols = []
+    if not cols and SITE_DATA.exists():
+        cols = sorted(d.name for d in SITE_DATA.iterdir() if d.is_dir())
+    return [(c, c) for c in (cols or ["ipl"])]
+
+
+# Record-board slug → label (same 9 boards as dashboard/pages/3_Records.py).
+RECORD_LABELS: dict[str, str] = {
+    "highest_individual_innings": "Highest individual innings",
+    "fastest_fifty": "Fastest fifties",
+    "fastest_hundred": "Fastest hundreds",
+    "most_sixes_innings": "Most sixes in an innings",
+    "career_run_leaders": "Career run leaders",
+    "best_bowling_innings": "Best bowling figures",
+    "career_wicket_leaders": "Career wicket leaders",
+    "highest_team_totals": "Highest team totals",
+    "highest_runs_in_over": "Most runs in an over",
+}
+
+
+def _record_board_options(collection: str = "ipl") -> list[tuple[str, str]]:
+    """(label, slug) record-board pairs for the Records `Key` Select — Textual
+    Select wants (display, value), so the human label shows and the slug is the
+    value. Boards present in records.json, labelled via RECORD_LABELS."""
+    path = SITE_DATA / collection / "records.json"
+    present: list[str] = []
+    if path.exists():
+        try:
+            present = list(json.loads(path.read_text()))
+        except (ValueError, OSError):
+            present = []
+    slugs = [k for k in RECORD_LABELS if not present or k in present]
+    slugs += [k for k in present if k not in RECORD_LABELS]
+    return [(RECORD_LABELS.get(s, s.replace("_", " ").title()), s) for s in slugs]
 
 
 class Panel(Vertical):
@@ -356,6 +415,14 @@ class CricDexApp(App):
     #cmp-h2h-table { height: auto; max-height: 9; }
     #ven-table { height: auto; max-height: 12; }
     #h2h-table { height: auto; max-height: 10; }
+    #sim-table { height: auto; max-height: 14; }
+    #sim-find-table { height: auto; max-height: 12; }
+    /* Panels inside a scroll size to their content so the page (not the panel)
+       scrolls — keeps the Auction Squads/Player-search reachable. */
+    VerticalScroll Panel { height: auto; }
+    /* Long-label Selects need more room than the default 22. */
+    #records-key { width: 32; }
+    #ven-name { width: 28; }
     """
 
     BINDINGS = [
@@ -410,6 +477,20 @@ class CricDexApp(App):
             self.query_one("#status-bar", Static).update(self._status_text())
         except Exception:  # noqa: BLE001 — status bar not mounted yet
             pass
+
+    def _sel_value(self, selector: str, default: str = "ipl") -> str:
+        """Current value of a Select (used by the player autocompletes to follow
+        the tab's collection); `default` when blank/unmounted."""
+        try:
+            v = self.query_one(selector, Select).value
+        except Exception:  # noqa: BLE001
+            return default
+        return default if v is Select.BLANK or not v else str(v)
+
+    def _player_cands(self, coll_selector: str):
+        """Autocomplete `candidates` callable that follows a tab's Coll Select —
+        the dropdown re-lists players for the currently-selected collection."""
+        return lambda _state: _player_candidates(self._sel_value(coll_selector))
 
     _TAB_ORDER = [
         "tab-leaderboard",
@@ -487,7 +568,12 @@ class CricDexApp(App):
                     options=WINDOW_OPTIONS, value="all", id="metric-window", allow_blank=False
                 )
                 yield Label("Coll:")
-                yield Input(value="ipl", id="metric-collection")
+                yield Select(
+                    options=_collection_options(),
+                    value="ipl",
+                    id="metric-collection",
+                    allow_blank=False,
+                )
                 yield Label("Top N:")
                 yield Input(value="20", id="metric-topn", classes="num")
                 yield Button("Show ▸", id="metric-run", variant="primary")
@@ -525,7 +611,7 @@ class CricDexApp(App):
     def _on_run_leaderboard(self) -> None:
         metric = self.query_one("#metric-select", Select).value
         window = self.query_one("#metric-window", Select).value or "all"
-        collection = self.query_one("#metric-collection", Input).value
+        collection = self.query_one("#metric-collection", Select).value
         table = self.query_one("#metric-table", DataTable)
         hint = self.query_one("#metric-hint", Static)
         try:
@@ -600,9 +686,19 @@ class CricDexApp(App):
             yield _tabhead("RECORDS", "all-time & seasonal record books")
             with ControlBar(title="Board"):
                 yield Label("Key:")
-                yield Input(value="highest_individual_innings", id="records-key", classes="wide")
+                yield Select(
+                    options=_record_board_options(),
+                    value="highest_individual_innings",
+                    id="records-key",
+                    allow_blank=False,
+                )
                 yield Label("Coll:")
-                yield Input(value="ipl", id="records-collection")
+                yield Select(
+                    options=_collection_options(),
+                    value="ipl",
+                    id="records-collection",
+                    allow_blank=False,
+                )
                 yield Label("Top N:")
                 yield Input(value="25", id="records-topn", classes="num")
                 yield Label("From:")
@@ -619,8 +715,8 @@ class CricDexApp(App):
         # {board-name -> [rows]}. The "Key" picks a board; default board is
         # highest_individual_innings. On an unknown key we list the valid ones.
         table = self.query_one("#records-table", DataTable)
-        key = self.query_one("#records-key", Input).value.strip()
-        collection = self.query_one("#records-collection", Input).value
+        key = str(self.query_one("#records-key", Select).value or "").strip()
+        collection = self.query_one("#records-collection", Select).value
         try:
             top_n = int(self.query_one("#records-topn", Input).value or "25")
         except ValueError:
@@ -673,10 +769,15 @@ class CricDexApp(App):
                 yield Label("Player B:")
                 yield Input(value="RG Sharma", id="cmp-b")
                 yield Label("Coll:")
-                yield Input(value="ipl", id="cmp-collection")
+                yield Select(
+                    options=_collection_options(),
+                    value="ipl",
+                    id="cmp-collection",
+                    allow_blank=False,
+                )
                 yield Button("Compare ▸", id="cmp-run", variant="primary")
-            yield AutoComplete(target="#cmp-a", candidates=_player_candidates())
-            yield AutoComplete(target="#cmp-b", candidates=_player_candidates())
+            yield AutoComplete(target="#cmp-a", candidates=self._player_cands("#cmp-collection"))
+            yield AutoComplete(target="#cmp-b", candidates=self._player_cands("#cmp-collection"))
             yield Static(_copy.COMPARE_INTRO, classes="intro")
             with VerticalScroll():
                 yield DataTable(id="cmp-table", zebra_stripes=True)
@@ -693,7 +794,7 @@ class CricDexApp(App):
         h2h_table = self.query_one("#cmp-h2h-table", DataTable)
         a = _name_from_label(self.query_one("#cmp-a", Input).value)
         b = _name_from_label(self.query_one("#cmp-b", Input).value)
-        collection = self.query_one("#cmp-collection", Input).value
+        collection = self.query_one("#cmp-collection", Select).value
 
         loaded: list[tuple[str, dict]] = []
         for nm in (a, b):
@@ -798,10 +899,15 @@ class CricDexApp(App):
                 yield Label("Player B:")
                 yield Input(value="RG Sharma", id="h2h-b")
                 yield Label("Coll:")
-                yield Input(value="ipl", id="h2h-collection")
+                yield Select(
+                    options=_collection_options(),
+                    value="ipl",
+                    id="h2h-collection",
+                    allow_blank=False,
+                )
                 yield Button("Compare ▸", id="h2h-run", variant="primary")
-            yield AutoComplete(target="#h2h-a", candidates=_player_candidates())
-            yield AutoComplete(target="#h2h-b", candidates=_player_candidates())
+            yield AutoComplete(target="#h2h-a", candidates=self._player_cands("#h2h-collection"))
+            yield AutoComplete(target="#h2h-b", candidates=self._player_cands("#h2h-collection"))
             yield Static(
                 "P(A is better than B) from the Bayesian skill posteriors, role by role.",
                 classes="intro",
@@ -816,7 +922,7 @@ class CricDexApp(App):
         chart = self.query_one("#h2h-chart", Static)
         a = _name_from_label(self.query_one("#h2h-a", Input).value)
         b = _name_from_label(self.query_one("#h2h-b", Input).value)
-        collection = self.query_one("#h2h-collection", Input).value
+        collection = self.query_one("#h2h-collection", Select).value
         from cricdex.scout.ratings.head_to_head import head_to_head
 
         res = head_to_head(a, b, collection=collection)
@@ -825,8 +931,7 @@ class CricDexApp(App):
             chart.update("")
             return
         rows: list[dict] = []
-        roles: list[str] = []
-        pcts: list[float] = []
+        gauge: list[tuple[str, float, str]] = []
         for role in ("batter", "bowler", "all_rounder"):
             c = res["comparisons"].get(role)
             if c is None:
@@ -840,23 +945,9 @@ class CricDexApp(App):
                     "verdict": c["verdict"],
                 }
             )
-            roles.append(role.replace("_", "-"))
-            pcts.append(round(c["p_a_better"] * 100, 1))
+            gauge.append((role.replace("_", "-"), round(c["p_a_better"] * 100, 1), c["verdict"]))
         _fill_datatable(table, rows or [{"info": "no overlapping role to compare"}], max_cols=6)
-        if roles:
-            try:
-                chart.update(
-                    _plotext_chart(
-                        lambda plt: (
-                            plt.simple_bar(roles, pcts, title=f"P({a} > {b}) %", width=100),
-                        ),
-                        height=10,
-                    )
-                )
-            except Exception as e:  # noqa: BLE001
-                chart.update(f"(chart unavailable: {e})")
-        else:
-            chart.update("")
+        chart.update(_h2h_gauge(a, b, gauge) if gauge else "")
 
     # ===== Venues =========================================================
 
@@ -871,7 +962,12 @@ class CricDexApp(App):
                 yield Label("Venue:")
                 yield Select(options=ven_opts, value=ven_default, id="ven-name", classes="wide")
                 yield Label("Coll:")
-                yield Input(value="ipl", id="ven-collection")
+                yield Select(
+                    options=_collection_options(),
+                    value="ipl",
+                    id="ven-collection",
+                    allow_blank=False,
+                )
                 yield Label("View:")
                 yield Select(
                     options=VENUE_VIEW_OPTIONS,
@@ -892,7 +988,7 @@ class CricDexApp(App):
         table = self.query_one("#ven-table", DataTable)
         venue_val = self.query_one("#ven-name", Select).value
         venue = "" if venue_val is Select.BLANK else str(venue_val)
-        collection = self.query_one("#ven-collection", Input).value
+        collection = self.query_one("#ven-collection", Select).value
         view = self.query_one("#ven-view", Select).value
         path = SITE_DATA / collection / "venues.json"
         if not path.exists():
@@ -1013,9 +1109,16 @@ class CricDexApp(App):
                 yield Label("Player:")
                 yield Input(value="V Kohli", id="profile-name")
                 yield Label("Coll:")
-                yield Input(value="ipl", id="profile-collection")
+                yield Select(
+                    options=_collection_options(),
+                    value="ipl",
+                    id="profile-collection",
+                    allow_blank=False,
+                )
                 yield Button("Build ▸", id="profile-run", variant="primary")
-            yield AutoComplete(target="#profile-name", candidates=_player_candidates())
+            yield AutoComplete(
+                target="#profile-name", candidates=self._player_cands("#profile-collection")
+            )
             yield Static(_copy.PROFILE_INTRO, classes="intro")
             with Panel(title="Dossier"):
                 yield RichLog(id="profile-log", highlight=False, markup=True, wrap=True)
@@ -1028,7 +1131,7 @@ class CricDexApp(App):
         log = self.query_one("#profile-log", RichLog)
         log.clear()
         name = _name_from_label(self.query_one("#profile-name", Input).value)
-        collection = self.query_one("#profile-collection", Input).value
+        collection = self.query_one("#profile-collection", Select).value
         cid = _resolve_cid(collection, name)
         if cid is None:
             log.write(f"[red]error:[/red] no exported player matching '{name}' in {collection}")
@@ -1195,7 +1298,7 @@ class CricDexApp(App):
         team_opts = [(t, t) for t, _ in IPL_TEAMS_DEFAULT]
         pers_opts = [(p, p) for p in PERSONALITY_IDS]
 
-        with Vertical():
+        with VerticalScroll():
             yield _tabhead("AUCTION", "real-rules IPL Monte-Carlo — retain → bid")
             yield Static(_copy.AUCTION_SIMULATE_INTRO, classes="intro")
             with ControlBar(title="Auction"):
@@ -1231,6 +1334,7 @@ class CricDexApp(App):
                 yield Label("Find player:")
                 yield Input(placeholder="name… (after a run)", id="sim-find", classes="wide")
                 yield Button("Find ▸", id="sim-find-run", variant="success")
+            yield AutoComplete(target="#sim-find", candidates=_player_candidates("ipl"))
             with Panel(title="Player search"):
                 yield DataTable(id="sim-find-table", zebra_stripes=True)
 
@@ -1349,7 +1453,7 @@ class CricDexApp(App):
         if not outcomes:
             _fill_datatable(out, [{"info": "run a simulation first"}])
             return
-        needle = (self.query_one("#sim-find", Input).value or "").strip().lower()
+        needle = _name_from_label(self.query_one("#sim-find", Input).value).lower()
         if len(needle) < 2:
             _fill_datatable(out, [{"info": "type 2+ letters"}])
             return
@@ -1467,7 +1571,12 @@ class CricDexApp(App):
             yield _tabhead("UPDATE", "re-ingest → recompute → re-export JSON")
             with ControlBar(title="Target"):
                 yield Label("Collection:")
-                yield Input(value="ipl", id="upd-collection")
+                yield Select(
+                    options=_collection_options(),
+                    value="ipl",
+                    id="upd-collection",
+                    allow_blank=False,
+                )
                 yield Label("Force:")
                 yield Select(
                     options=[("no", "no"), ("yes", "yes")],
@@ -1494,7 +1603,7 @@ class CricDexApp(App):
         from cricdex.config import ROOT
 
         log = self.query_one("#upd-log", RichLog)
-        collection = self.query_one("#upd-collection", Input).value.strip() or "ipl"
+        collection = str(self.query_one("#upd-collection", Select).value or "ipl")
         force = self.query_one("#upd-force", Select).value == "yes"
 
         def _run_slice(slice_: str) -> None:
