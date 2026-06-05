@@ -110,7 +110,7 @@ gems = sorted((p for p in idx["smat"] if is_gem(p, gem_med)), key=lambda p: p["z
     :12
 ]
 if gems:
-    with st.expander("💎 The next big things — top uncapped SMAT gems"):
+    with st.expander("💎 The next big things — top uncapped SMAT gems", expanded=True):
         st.caption(
             "Uncapped prospects punching above their sample — high standing on below-median "
             "exposure (moneyball). Pick-independent."

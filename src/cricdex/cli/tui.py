@@ -478,6 +478,13 @@ class CricDexApp(App):
     #sim-find-table { height: auto; max-height: 12; }
     #sim-marquee { height: auto; max-height: 12; }
     #sim-squad { height: auto; max-height: 18; }
+    /* New offering tables: paired panels inside a VerticalScroll, so each table
+       sizes to its rows (capped) and the page scrolls past both. */
+    #twins-table { height: auto; max-height: 14; }
+    #twins-gems { height: auto; max-height: 16; }
+    #mu-bat-table, #mu-bowl-table { height: auto; max-height: 18; }
+    #ph-bat-table, #ph-bowl-table { height: auto; max-height: 20; }
+    #form-up-table, #form-down-table { height: auto; max-height: 20; }
     /* Panels inside a scroll size to their content so the page (not the panel)
        scrolls — keeps the Auction Squads/Player-search reachable. */
     VerticalScroll Panel { height: auto; }
@@ -1726,10 +1733,11 @@ class CricDexApp(App):
                 yield Button("Scout ▸", id="twins-run", variant="primary")
             yield AutoComplete(target="#twins-name", candidates=_player_candidates())
             yield Static("", id="twins-meta", classes="intro")
-            with Panel(title="Look-alikes"):
-                yield DataTable(id="twins-table", zebra_stripes=True)
-            with Panel(title="💎 The next big things — top uncapped SMAT gems"):
-                yield DataTable(id="twins-gems", zebra_stripes=True)
+            with VerticalScroll():
+                with Panel(title="Look-alikes"):
+                    yield DataTable(id="twins-table", zebra_stripes=True)
+                with Panel(title="💎 The next big things — top uncapped SMAT gems"):
+                    yield DataTable(id="twins-gems", zebra_stripes=True)
             # Draft a look-alike (SMAT/BBL/SA20/CPL/Blast) into the Auction room
             # as a retention — populated after a scout on a draftable tier.
             with ControlBar(title="Draft to Auction"):
@@ -1862,10 +1870,11 @@ class CricDexApp(App):
                 yield Button("Show ▸", id="mu-run", variant="primary")
             yield AutoComplete(target="#mu-name", candidates=self._player_cands("#mu-collection"))
             yield Static("", id="mu-meta", classes="intro")
-            with Panel(title="As batter — opponents faced"):
-                yield DataTable(id="mu-bat-table", zebra_stripes=True)
-            with Panel(title="As bowler — batters faced"):
-                yield DataTable(id="mu-bowl-table", zebra_stripes=True)
+            with VerticalScroll():
+                with Panel(title="As batter — opponents faced"):
+                    yield DataTable(id="mu-bat-table", zebra_stripes=True)
+                with Panel(title="As bowler — batters faced"):
+                    yield DataTable(id="mu-bowl-table", zebra_stripes=True)
 
     def _on_run_matchups(self) -> None:
         # Reads the same matchups/<cid>.json the web Matchups page does.
@@ -1947,10 +1956,11 @@ class CricDexApp(App):
                     allow_blank=False,
                 )
                 yield Button("Show ▸", id="ph-run", variant="primary")
-            with Panel(title="Best strike rates"):
-                yield DataTable(id="ph-bat-table", zebra_stripes=True)
-            with Panel(title="Tightest economies"):
-                yield DataTable(id="ph-bowl-table", zebra_stripes=True)
+            with VerticalScroll():
+                with Panel(title="Best strike rates"):
+                    yield DataTable(id="ph-bat-table", zebra_stripes=True)
+                with Panel(title="Tightest economies"):
+                    yield DataTable(id="ph-bowl-table", zebra_stripes=True)
 
     def _on_run_phase(self) -> None:
         bat = self.query_one("#ph-bat-table", DataTable)
@@ -2001,10 +2011,11 @@ class CricDexApp(App):
                 yield Input(value="15", id="form-topn", classes="num")
                 yield Button("Show ▸", id="form-run", variant="primary")
             yield Static("", id="form-meta", classes="intro")
-            with Panel(title="Heating up ▲"):
-                yield DataTable(id="form-up-table", zebra_stripes=True)
-            with Panel(title="Cooling down ▼"):
-                yield DataTable(id="form-down-table", zebra_stripes=True)
+            with VerticalScroll():
+                with Panel(title="Heating up ▲"):
+                    yield DataTable(id="form-up-table", zebra_stripes=True)
+                with Panel(title="Cooling down ▼"):
+                    yield DataTable(id="form-down-table", zebra_stripes=True)
 
     def _on_run_form(self) -> None:
         up = self.query_one("#form-up-table", DataTable)
