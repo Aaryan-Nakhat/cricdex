@@ -1,24 +1,35 @@
-"""Best XI — exact global optimum, EXACT mirror of `site/src/lib/bestxi.ts`.
+"""Best XI — exact (top-N-per-role) optimum, EXACT mirror of `site/src/lib/bestxi.ts`.
 
 Pick exactly `size` players maximising total NGI subject to:
   • total price ≤ budget (crore),
   • overseas count ≤ overseas_cap,
   • per-role minimums (role_mins, e.g. {batter:3, bowler:3, all_rounder:1, keeper:1}).
 
-Exact branch-and-bound over the whole pool. The result is made **unique** (and
+Exact branch-and-bound over the top-`cap_per_role`-per-role candidate set (a
+full-pool solve is intractable in-browser). The result is made **unique** (and
 therefore parity-safe across TS↔Python regardless of branch order) by a strict
 tie-break: maximise NGI (rounded to 6dp), then minimise total price, then the
 lexicographically smallest cricsheet_id list. Prices use 0.1-cr integer units so
 the budget test is exact.
+
+All rounding here is **half-up** (`_mround`, identical to JS `Math.round`) so the
+TS port and this one pick the same XI bit-for-bit even on exact-half boundaries.
 """
 
 from __future__ import annotations
 
+import math
+
 _ROUND = 6  # NGI comparison precision (kills float-order drift across languages)
 
 
+def _mround(x: float) -> int:
+    """Half-up rounding, identical to JS `Math.round` (rounds .5 toward +inf)."""
+    return math.floor(x + 0.5)
+
+
 def _ngi_key(ngi: float) -> float:
-    return round(ngi, _ROUND)
+    return _mround(ngi * 1_000_000) / 1_000_000
 
 
 def best_xi(
@@ -27,7 +38,7 @@ def best_xi(
     overseas_cap: int,
     role_mins: dict[str, int],
     size: int = 11,
-    cap_per_role: int = 22,
+    cap_per_role: int = 40,
 ) -> dict:
     """Return {"players": [chosen rows], "total_ngi", "total_price", "overseas",
     "feasible": bool}. Each input player needs cricsheet_id, name, role,
@@ -35,7 +46,7 @@ def best_xi(
 
     Exact branch-and-bound over a candidate set: the top `cap_per_role` players
     per role by NGI. A full-pool exact solve is intractable in-browser (the
-    multi-constraint knapsack explodes), and a player outside the top ~22 of its
+    multi-constraint knapsack explodes), and a player outside the top ~40 of its
     role can't be in an optimal budget XI — so this is the global optimum in
     practice, fast, and bit-exact across TS↔Python."""
     valid = [p for p in players if p.get("ngi") is not None and p.get("price") not in (None, 0)]
@@ -47,22 +58,22 @@ def best_xi(
             bucket.append(p)
     cand = [p for bucket in by_role.values() for p in bucket]
     # Deterministic order: NGI desc, price asc, cid — also a good B&B order.
-    cand.sort(key=lambda p: (-_ngi_key(p["ngi"]), round(p["price"] * 10), p["cricsheet_id"]))
+    cand.sort(key=lambda p: (-_ngi_key(p["ngi"]), _mround(p["price"] * 10), p["cricsheet_id"]))
     n = len(cand)
-    price_i = [round(p["price"] * 10) for p in cand]
+    price_i = [_mround(p["price"] * 10) for p in cand]
     ngi = [float(p["ngi"]) for p in cand]
     over = [1 if p.get("is_overseas") else 0 for p in cand]
     role = [p["role"] for p in cand]
-    budget_i = round(budget * 10)
+    budget_i = _mround(budget * 10)
     roles = list(role_mins)
     min_total = sum(role_mins.values())
 
     best = {"ngi": -1.0, "price": 0, "cids": None, "picked": None}
 
     def better(cur_ngi: float, cur_price: int, cids: list[str]) -> bool:
-        bn = best["ngi"]
-        cn = round(cur_ngi, _ROUND)
-        if cn != round(bn, _ROUND):
+        cn = _ngi_key(cur_ngi)
+        bn = _ngi_key(best["ngi"])
+        if cn != bn:
             return cn > bn
         if cur_price != best["price"]:
             return cur_price < best["price"]
@@ -102,7 +113,7 @@ def best_xi(
         b = bound(i, slots_left, ov)
         if b < 0:
             return
-        if best["cids"] and round(cur + b, _ROUND) <= round(best["ngi"], _ROUND):
+        if best["cids"] and _ngi_key(cur + b) <= _ngi_key(best["ngi"]):
             return
         r = role[i]
         need_role = sum(max(0, role_mins.get(rr, 0) - rcount.get(rr, 0)) for rr in roles)
@@ -134,8 +145,8 @@ def best_xi(
     chosen.sort(key=lambda p: (-_ngi_key(p["ngi"]), p["cricsheet_id"]))
     return {
         "players": chosen,
-        "total_ngi": round(best["ngi"], 3),
-        "total_price": round(best["price"] / 10, 1),
+        "total_ngi": _mround(best["ngi"] * 1000) / 1000,
+        "total_price": best["price"] / 10,
         "overseas": sum(1 for p in chosen if p.get("is_overseas")),
         "feasible": True,
     }

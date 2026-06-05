@@ -14,7 +14,10 @@ import {
   IPL_TEAMS_DEFAULT,
   type PriceTier,
 } from "../src/lib/auction.ts";
-import type { ScoutPlayer } from "../src/lib/data.ts";
+import { bestXI } from "../src/lib/bestxi.ts";
+import { analyzeSquad } from "../src/lib/squad.ts";
+import { replacementByNeed } from "../src/lib/scout.ts";
+import type { AuctionPoolRow, PlayerRow, ScoutPlayer } from "../src/lib/data.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(here, "..", "public", "data", "ipl");
@@ -63,8 +66,59 @@ for (const tier of ["ipl", "smat", "bbl", "sa20", "cpl", "blast"] as PriceTier[]
   }));
 }
 
+// Best XI: pool players priced at IPL tier, NGI from the leaderboard.
+const ngiRows = load("leaderboards/ngi.json") as { cricsheet_id: string; ngi_total: number }[];
+const ngiByCid = new Map(ngiRows.map((r) => [r.cricsheet_id, r.ngi_total]));
+const apRows = load("auction_pool.json") as AuctionPoolRow[];
+const xiPlayers = apRows
+  .filter((r) => ngiByCid.has(r.cricsheet_id))
+  .map((r) => ({
+    cricsheet_id: r.cricsheet_id,
+    name: r.name,
+    role: r.role,
+    is_overseas: r.is_overseas,
+    ngi: ngiByCid.get(r.cricsheet_id)!,
+    price: estValue(r.value, r.role, "ipl"),
+  }));
+const xiRoleMins = { batter: 3, bowler: 3, all_rounder: 1, keeper: 1 };
+const xi = bestXI(xiPlayers, 120, 8, xiRoleMins, 11, 40);
+const bestxiOut = {
+  players: xi.players.map((p) => p.cricsheet_id),
+  total_ngi: xi.total_ngi,
+  total_price: xi.total_price,
+  overseas: xi.overseas,
+  feasible: xi.feasible,
+};
+
+// Squad balance: first 15 pool players by id, batting slot from players.json.
+const playersRows = load("players.json") as PlayerRow[];
+const posByCid = new Map(playersRows.map((p) => [p.cricsheet_id, p.batting_position]));
+const squadRows = [...apRows]
+  .sort((a, b) => (a.cricsheet_id < b.cricsheet_id ? -1 : a.cricsheet_id > b.cricsheet_id ? 1 : 0))
+  .slice(0, 15)
+  .map((r) => ({
+    role: r.role,
+    is_overseas: r.is_overseas,
+    batting_position: posByCid.get(r.cricsheet_id) ?? null,
+  }));
+const squad = analyzeSquad(squadRows);
+
+// Replacement-by-need: cheaper same-mould players for the scout pick.
+const replOut: Record<string, { id: string; est_cr: number; saving: number; sim: number }[]> = {};
+for (const tier of ["ipl", "smat"] as PriceTier[]) {
+  replOut[tier] = replacementByNeed(sel, scout[tier] as ScoutPlayer[], tier).map((r) => ({
+    id: r.cricsheet_id,
+    est_cr: r.est_cr,
+    saving: r.saving,
+    sim: r.sim,
+  }));
+}
+
 const out = {
   retentions,
+  bestxi: bestxiOut,
+  squad,
+  replacement: replOut,
   poolSize: res.poolSize,
   teams: res.teams.map((t) => ({
     team: t.team,
