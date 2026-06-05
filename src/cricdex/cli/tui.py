@@ -208,6 +208,31 @@ def _player_candidates(collection: str = "ipl") -> list[DropdownItem]:
     return items
 
 
+def _auction_pool_candidates(collection: str = "ipl") -> list[DropdownItem]:
+    """Autocomplete candidates restricted to the auction pool (the ~600 active,
+    priced players) — NOT all of players.json — so the Find-player dropdown can't
+    offer retired/non-pool names. Labels join full_name from players.json."""
+    try:
+        from cricdex.web_parity import load_auction_pool
+
+        pool = load_auction_pool(collection)
+    except Exception:  # noqa: BLE001
+        return []
+    full: dict[str, str] = {}
+    pj = SITE_DATA / collection / "players.json"
+    if pj.exists():
+        try:
+            full = {p["cricsheet_id"]: p.get("full_name") for p in json.loads(pj.read_text())}
+        except (ValueError, OSError):
+            full = {}
+    items = []
+    for p in sorted(pool, key=lambda x: x.get("name", "")):
+        short = p.get("name", "")
+        f = full.get(p.get("cricsheet_id", ""))
+        items.append(DropdownItem(f"{f} ({short})" if f and f != short else short))
+    return items
+
+
 def _name_from_label(label: str) -> str:
     """'Jasprit Bumrah (JJ Bumrah)' → 'JJ Bumrah' (the scorecard name the
     handlers resolve on); a bare name passes through unchanged."""
@@ -417,6 +442,8 @@ class CricDexApp(App):
     #h2h-table { height: auto; max-height: 10; }
     #sim-table { height: auto; max-height: 14; }
     #sim-find-table { height: auto; max-height: 12; }
+    #sim-marquee { height: auto; max-height: 12; }
+    #sim-squad { height: auto; max-height: 18; }
     /* Panels inside a scroll size to their content so the page (not the panel)
        scrolls — keeps the Auction Squads/Player-search reachable. */
     VerticalScroll Panel { height: auto; }
@@ -1291,10 +1318,14 @@ class CricDexApp(App):
             load_team_overrides,
         )
 
-        # Persistent dict — picks survive across Run clicks AND recompose
-        # (e.g. on theme switch). Guard so a recompose doesn't wipe edits.
+        # Persistent state — survives Run clicks AND recompose (theme switch).
         if not hasattr(self, "_team_personalities"):
             self._team_personalities = dict(load_team_overrides() or IPL_TEAMS_DEFAULT)
+        if not hasattr(self, "_drafted"):
+            self._drafted = set()  # cids drafted from the Scout tab
+        if not hasattr(self, "_retentions"):
+            self._retentions = None  # dict[team, [cid]] — seeded lazily per mode
+            self._ret_mode = None
         team_opts = [(t, t) for t, _ in IPL_TEAMS_DEFAULT]
         pers_opts = [(p, p) for p in PERSONALITY_IDS]
 
@@ -1328,13 +1359,31 @@ class CricDexApp(App):
                 yield Button("Apply", id="sim-apply", variant="success")
                 yield Button("Reset", id="sim-reset", variant="error")
             yield Static(self._sim_team_map_line(), id="sim-team-map", classes="intro")
+            # Retentions editor — view + add/drop per team (mirrors web/Streamlit).
+            with ControlBar(title="Retentions"):
+                yield Label("Team:")
+                yield Select(options=team_opts, value="CSK", id="sim-ret-team", allow_blank=False)
+                yield Label("Player:")
+                yield Input(placeholder="add a player…", id="sim-ret-player", classes="wide")
+                yield Button("Add", id="sim-ret-add", variant="success")
+                yield Button("Drop", id="sim-ret-drop", variant="warning")
+                yield Button("Reset", id="sim-ret-reset", variant="error")
+            yield AutoComplete(target="#sim-ret-player", candidates=_auction_pool_candidates("ipl"))
+            yield Static("", id="sim-ret-map", classes="intro")
             with Panel(title="Squads"):
                 yield DataTable(id="sim-table", zebra_stripes=True)
+            with Panel(title="Marquee — who lands the stars"):
+                yield DataTable(id="sim-marquee", zebra_stripes=True)
+            with ControlBar(title="Representative squad"):
+                yield Label("Team:")
+                yield Select(options=team_opts, value="CSK", id="sim-squad-team", allow_blank=False)
+            with Panel(title="Squad"):
+                yield RichLog(id="sim-squad", highlight=False, markup=True, wrap=True)
             with ControlBar(title="Find player"):
                 yield Label("Find player:")
                 yield Input(placeholder="name… (after a run)", id="sim-find", classes="wide")
                 yield Button("Find ▸", id="sim-find-run", variant="success")
-            yield AutoComplete(target="#sim-find", candidates=_player_candidates("ipl"))
+            yield AutoComplete(target="#sim-find", candidates=_auction_pool_candidates("ipl"))
             with Panel(title="Player search"):
                 yield DataTable(id="sim-find-table", zebra_stripes=True)
 
@@ -1361,6 +1410,130 @@ class CricDexApp(App):
         team = self.query_one("#sim-team", Select).value
         self.query_one("#sim-pers", Select).value = self._team_personalities[team]
 
+    # ---- auction data + retentions ---------------------------------------
+
+    def _auction_data(self) -> dict:
+        """Cached priced pool + lookup maps (loaded once)."""
+        if getattr(self, "_auction_cache", None) is None:
+            from cricdex.web_parity import build_pool, load_auction_pool, load_retentions
+
+            pool = build_pool(load_auction_pool("ipl"))
+            ret = load_retentions("ipl")
+            self._auction_cache = {
+                "pool": pool,
+                "by_cid": {p["cricsheet_id"]: p for p in pool},
+                "name_to_cid": {p["name"]: p["cricsheet_id"] for p in pool},
+                "mega_ids": {
+                    t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()
+                },
+                "real_prices": {
+                    r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows
+                },
+            }
+        return self._auction_cache
+
+    def _teams_cfg(self) -> list[dict]:
+        from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
+
+        return [
+            {"team": t, "personality": self._team_personalities.get(t, p)}
+            for t, p in IPL_TEAMS_DEFAULT
+        ]
+
+    def _ensure_retentions(self, mode: str) -> dict:
+        """Seed editable retentions from the mode default (+ any Scout drafts)
+        once, reseeding when the Mega/Mini mode changes."""
+        from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
+        from cricdex.web_parity import default_retentions
+
+        if self._retentions is None or self._ret_mode != mode:
+            d = self._auction_data()
+            base = default_retentions(d["pool"], self._teams_cfg(), mode, d["mega_ids"])
+            if self._drafted:
+                t0 = IPL_TEAMS_DEFAULT[0][0]
+                extra = [c for c in self._drafted if c in d["by_cid"]]
+                base[t0] = list(dict.fromkeys(base.get(t0, []) + extra))
+            self._retentions = base
+            self._ret_mode = mode
+        return self._retentions
+
+    def _ret_map_line(self, team: str) -> str:
+        d = self._auction_data()
+        rets = (self._retentions or {}).get(team, [])
+        names = ", ".join(f"[bold]{d['by_cid'].get(c, {}).get('name', c)}[/bold]" for c in rets)
+        return f"{team} retentions ({len(rets)}): {names or '[dim](none)[/dim]'}"
+
+    def _refresh_ret_map(self) -> None:
+        try:
+            mode = self.query_one("#sim-mode", Select).value or "mega"
+            self._ensure_retentions(mode)
+            team = self.query_one("#sim-ret-team", Select).value
+            self.query_one("#sim-ret-map", Static).update(self._ret_map_line(team))
+        except Exception as e:  # noqa: BLE001
+            self.query_one("#sim-ret-map", Static).update(f"[red]{e}[/red]")
+
+    def _ret_player_cid(self) -> str | None:
+        name = _name_from_label(self.query_one("#sim-ret-player", Input).value)
+        return self._auction_data()["name_to_cid"].get(name)
+
+    def _on_ret_add(self) -> None:
+        rets = self._ensure_retentions(self.query_one("#sim-mode", Select).value or "mega")
+        cid = self._ret_player_cid()
+        if not cid:
+            self.notify("not in the auction pool — pick from the dropdown", severity="warning")
+            return
+        team = self.query_one("#sim-ret-team", Select).value
+        if cid not in rets.setdefault(team, []):
+            rets[team].append(cid)
+        self.query_one("#sim-ret-player", Input).value = ""
+        self._refresh_ret_map()
+
+    def _on_ret_drop(self) -> None:
+        rets = self._ensure_retentions(self.query_one("#sim-mode", Select).value or "mega")
+        cid = self._ret_player_cid()
+        team = self.query_one("#sim-ret-team", Select).value
+        if cid and cid in rets.get(team, []):
+            rets[team].remove(cid)
+        self.query_one("#sim-ret-player", Input).value = ""
+        self._refresh_ret_map()
+
+    def _on_ret_reset(self) -> None:
+        self._retentions = None
+        self._ret_mode = None
+        self._refresh_ret_map()
+        self.notify("retentions reset to defaults", timeout=1.5)
+
+    def _render_squad(self, team: str) -> None:
+        log = self.query_one("#sim-squad", RichLog)
+        log.clear()
+        res = getattr(self, "_sim_res", None)
+        if not res:
+            log.write("[dim]run a simulation to see a representative squad.[/dim]")
+            return
+        s = next((x for x in res["sample_draft"] if x["team"] == team), None)
+        if not s:
+            log.write(f"[dim]no squad sampled for {team}.[/dim]")
+            return
+
+        def _line(p: dict) -> str:
+            plane = " ✈" if p.get("is_overseas") else ""
+            return f"  • {p['name']} [dim]{p['role'].replace('_', '-')}{plane}[/dim]"
+
+        log.write(f"[bold]Retained ({len(s['retained'])})[/bold]")
+        for p in s["retained"]:
+            log.write(_line(p))
+        if not s["retained"]:
+            log.write("  [dim]none[/dim]")
+        log.write(f"\n[bold]Bought ({len(s['bought'])})[/bold]")
+        for p in s["bought"]:
+            log.write(_line(p))
+        if not s["bought"]:
+            log.write("  [dim]no buys in this sample[/dim]")
+        log.write(
+            f"\n[dim]{len(s['retained']) + len(s['bought'])} total · "
+            f"{s['overseas']} overseas · spend {s['spent']:.1f} cr[/dim]"
+        )
+
     def _on_run_auction_sim(self) -> None:
         # Main thread: validate, show the spinner, hand the heavy Monte-Carlo to
         # a thread worker so the UI stays responsive (no freeze on 300 trials).
@@ -1382,31 +1555,13 @@ class CricDexApp(App):
         # Canonical, web-identical auction (cricdex.web_parity): same exported
         # pool + real 2025 retentions + seeded Monte-Carlo as the live site.
         try:
-            from cricdex.web_parity import (
-                IPL_TEAMS_DEFAULT,
-                build_pool,
-                default_retentions,
-                load_auction_pool,
-                load_retentions,
-                simulate_auction,
-            )
+            from cricdex.web_parity import simulate_auction
 
-            pool = build_pool(load_auction_pool("ipl"))
-            ret = load_retentions("ipl")
-            mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
-            real_prices = {
-                r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows
-            }
-            teams = [
-                {
-                    "team": t["team"],
-                    "personality": self._team_personalities.get(t["team"], t["personality"]),
-                }
-                for t in IPL_TEAMS_DEFAULT
-            ]
-            retentions = default_retentions(pool, teams, mode, mega_ids)
+            d = self._auction_data()
+            teams = self._teams_cfg()
+            retentions = self._ensure_retentions(mode)  # editable per-team retentions
             res = simulate_auction(
-                pool,
+                d["pool"],
                 teams,
                 {
                     "purse": purse,
@@ -1415,7 +1570,7 @@ class CricDexApp(App):
                     "trials": n_sims,
                     "mode": mode,
                     "retentions": retentions,
-                    "real_prices": real_prices,
+                    "real_prices": d["real_prices"],
                 },
             )
         except Exception as e:  # noqa: BLE001
@@ -1430,6 +1585,7 @@ class CricDexApp(App):
             _fill_datatable(table, [{"error": err or "auction failed"}])
             self.notify(err or "auction failed", severity="error")
             return
+        self._sim_res = res
         self._sim_outcomes = res["outcomes"]  # cached for the player-search below
         rows = [
             {
@@ -1444,6 +1600,23 @@ class CricDexApp(App):
             for t in sorted(res["teams"], key=lambda t: t["avg_value"], reverse=True)
         ]
         _fill_datatable(table, rows, max_cols=8)
+        # Marquee — who lands the stars (unsold when no winners).
+        _fill_datatable(
+            self.query_one("#sim-marquee", DataTable),
+            [
+                {
+                    "player": m["player"]["name"],
+                    "role": m["player"]["role"].replace("_", "-"),
+                    "value": round(m["player"]["projected_value"], 1),
+                    "landing": ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in m["winners"])
+                    or "unsold",
+                }
+                for m in res["marquee"]
+            ],
+            max_cols=4,
+        )
+        # Representative squad for the currently-selected team.
+        self._render_squad(self.query_one("#sim-squad-team", Select).value)
         self.notify("auction complete", timeout=1.5)
 
     def _on_find_sim_player(self) -> None:
@@ -1504,6 +1677,12 @@ class CricDexApp(App):
             yield Static("", id="twins-meta", classes="intro")
             with Panel(title="Look-alikes"):
                 yield DataTable(id="twins-table", zebra_stripes=True)
+            # Draft a look-alike (SMAT/BBL/SA20/CPL/Blast) into the Auction room
+            # as a retention — populated after a scout on a draftable tier.
+            with ControlBar(title="Draft to Auction"):
+                yield Label("Prospect:")
+                yield Select(options=[], id="twins-draft-pick", classes="wide", allow_blank=True)
+                yield Button("Draft ▸", id="twins-draft", variant="success")
 
     def _on_run_twins(self) -> None:
         # Canonical, web-identical scout (cricdex.web_parity): same exported
@@ -1543,6 +1722,7 @@ class CricDexApp(App):
         sel_price = est_value(sel["value"], sel["role"], "ipl")
         gem_med = gem_threshold(idx["smat"])
         rows = []
+        draftables: list[tuple[str, str]] = []  # (label, cid) for the draft picker
         for r in similar_to(sel, idx[tier], role, "")[:top_k]:
             price = est_value(r["value"], r["role"], tier)
             saving = sel_price - price if price < sel_price else 0.0
@@ -1557,12 +1737,31 @@ class CricDexApp(App):
                     "gem": "💎" if (tier == "smat" and is_gem(r, gem_med)) else "",
                 }
             )
+            if r.get("cricsheet_id"):
+                draftables.append((f"{r['name']} ({tier.upper()})", r["cricsheet_id"]))
         tier_label = {b: a for a, b in SCOUT_TIER_OPTIONS}[tier]
         meta.update(
             f"[bold]{sel['name']}[/bold] · {role} · standing {sel['z']:.2f} · "
             f"≈ {sel_price:.1f} cr   →   {tier_label}"
         )
         _fill_datatable(table, rows or [{"info": "no close match of this archetype"}])
+        # Draftable only for the non-IPL tiers (IPL peers can't be "drafted").
+        self._draft_names = {cid: lbl for lbl, cid in draftables}
+        self.query_one("#twins-draft-pick", Select).set_options(draftables if tier != "ipl" else [])
+
+    def _on_draft_twin(self) -> None:
+        # Draft the picked prospect into the Auction room as a retention
+        # (mirrors the web Scout "Draft" button + Streamlit session-state handoff).
+        cid = self.query_one("#twins-draft-pick", Select).value
+        if cid is Select.BLANK or not cid:
+            self.notify("scout a SMAT/BBL/… tier, then pick a prospect", severity="warning")
+            return
+        if not hasattr(self, "_drafted"):
+            self._drafted = set()
+        self._drafted.add(cid)
+        self._retentions = None  # reseed so the auction picks the draft up
+        name = getattr(self, "_draft_names", {}).get(cid, cid)
+        self.notify(f"drafted {name} → Auction retentions", timeout=2.5)
 
     # ===== Update — refresh data then re-export the JSON ==================
 
@@ -1650,17 +1849,28 @@ class CricDexApp(App):
 
     # ===== event dispatch ================================================
 
+    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        # Seed the retentions map the first time the Auction tab is opened, so
+        # the user can SEE the current retentions without running anything.
+        if self.query_one(TabbedContent).active == "tab-auction-sim":
+            self._refresh_ret_map()
+
     def on_select_changed(self, event: Select.Changed) -> None:
         # Sim tab — when the team Select changes, surface that team's
         # currently-chosen personality in the personality Select so the
         # user sees what's set before they edit it.
-        if getattr(event.select, "id", None) == "sim-team":
+        sid = getattr(event.select, "id", None)
+        if sid == "sim-team":
             new_team = event.value
             try:
                 pers_select = self.query_one("#sim-pers", Select)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 return
             pers_select.value = self._team_personalities.get(new_team, "Balanced")
+        elif sid == "sim-ret-team":
+            self._refresh_ret_map()
+        elif sid == "sim-squad-team" and event.value is not Select.BLANK:
+            self._render_squad(event.value)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         handlers = {
@@ -1674,7 +1884,11 @@ class CricDexApp(App):
             "sim-find-run": self._on_find_sim_player,
             "sim-apply": self._on_apply_sim_team,
             "sim-reset": self._on_reset_sim_teams,
+            "sim-ret-add": self._on_ret_add,
+            "sim-ret-drop": self._on_ret_drop,
+            "sim-ret-reset": self._on_ret_reset,
             "twins-run": self._on_run_twins,
+            "twins-draft": self._on_draft_twin,
         }
         if event.button.id in handlers:
             handlers[event.button.id]()
