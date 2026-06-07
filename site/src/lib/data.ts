@@ -118,13 +118,32 @@ export const getRetentions = (c: string) => getJSON<RetentionData>(`${c}/retenti
 export interface AuctionPoolRow {
   cricsheet_id: string;
   name: string;
-  value: number;
+  value: number; // already IPL-relevance-decayed at export
   role: "batter" | "bowler" | "all_rounder" | "keeper";
   country: string | null;
   is_overseas: boolean;
   team: string | null;
+  // cross-league activity (so "active in SA20 but not IPL" is visible)
+  last_match_date?: string | null;
+  last_ipl?: string | null;
+  home_league?: string | null;
+  age?: number | null;
+  ipl_relevance?: number; // 1 = current IPL regular … lower = league-only / aged
 }
 export const getAuctionPool = (c: string) => getJSON<AuctionPoolRow[]>(`${c}/auction_pool.json`);
+
+// Per-player cross-league activity, keyed by cricsheet_id (the breakdown behind
+// the auction's IPL-relevance weight). Any surface can join on it.
+export interface ActivityRow {
+  leagues: { league: string; last: string }[];
+  last_ipl: string | null;
+  last_any: string | null;
+  home_league: string | null;
+  age: number | null;
+  ipl_relevance: number;
+}
+export const getActivityIndex = (c: string) =>
+  getJSON<Record<string, ActivityRow>>(`${c}/activity_index.json`);
 
 export interface ScoutPlayer {
   cricsheet_id: string;
