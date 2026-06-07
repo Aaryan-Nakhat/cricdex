@@ -239,3 +239,27 @@ export interface Partnership {
 }
 export const getPartnerships = (c: string) =>
   getJSON<{ pairs: Partnership[] }>(`${c}/partnerships.json`);
+
+// ---- aging curves (performance vs age) -------------------------------------
+export interface AgingBat {
+  age: number;
+  sr: number;
+  average: number | null;
+  n: number;
+}
+export interface AgingBowl {
+  age: number;
+  economy: number;
+  strike_rate: number | null;
+  n: number;
+}
+export interface AgingPlayer {
+  role: "batter" | "bowler";
+  points: { age: number; sr?: number; economy?: number }[];
+}
+export interface AgingData {
+  batting: AgingBat[];
+  bowling: AgingBowl[];
+  players: Record<string, AgingPlayer>;
+}
+export const getAging = (c: string) => getJSON<AgingData>(`${c}/aging.json`);
