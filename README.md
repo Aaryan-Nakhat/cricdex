@@ -50,13 +50,14 @@ All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
 | `scout` | Cross-competition look-alike finder across six pools (IPL, SMAT uncapped Indian, BBL, SA20, CPL, T20 Blast) — one implementation shared across web + CLI + TUI + Streamlit via `cricdex.web_parity` (locked by `test_web_parity.py`). Ranked by within-tier Bayesian skill-standing z-score, with per-row est. crore price + saving-vs-pick (budget swap), uncapped-gem flag, role/slot filters, and one-click draft into the auction. Backed by dismissal-aware Bayesian opponent-adjusted ratings (NumPyro/JAX, ADVI + NUTS — scoring + survival for batters, economy + strike for bowlers). |
 | `metrics` | 10 novel context-adjusted ratings: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary Dependency, Pressure Conversion, Wicket Quality, Crease Longevity, Slow-Start Cost. + per-player/matchup dismissal fingerprint. |
 | `auction` | Real-rules IPL auction Monte-Carlo — cross-collection pool (IPL + BBL/SA20/CPL/Blast free agents + uncapped SMAT) **weighted by IPL-relevance** (per-league last-played + age, so league-only veterans don't top the IPL pool), editable Mega/Mini retentions from the real 2025 lists, overseas cap + retention slabs, second-price clearing, two-phase fill to 20–25-man squads (~300 trials, per-player post-sim search). One implementation shared across web + CLI + TUI + Streamlit via `cricdex.web_parity`, bit-exact seeded RNG, locked by `test_web_parity.py`. |
-| `matchups` / `phase` / `form` | Batter-vs-bowler head-to-heads + pace/spin splits; powerplay / middle / death specialist boards; recent-form-vs-career deltas (direction-corrected) — all four surfaces, reading the same exported JSON, with the full player filter bar. |
+| `matchups` / `phase` / `form` / `partnerships` | Batter-vs-bowler head-to-heads + pace/spin splits; powerplay / middle / death specialist boards; recent-form-vs-career deltas (direction-corrected); batter-pair stands — all four surfaces, reading the same exported JSON, with the full player filter bar. |
+| `fielding` | Wicketkeeping + Fielding dismissal boards (catches / stumpings / run-out involvements from the ball-by-ball fielder field), split by role — two new entries on the leaderboard switcher across all four surfaces. |
 | `records` | 9 record SQL queries + On-This-Day digest. |
 | `venues` | Per-venue innings totals + chase/set winrate + phase rates + dismissal mix. |
 | `profiles` | Per-player profile assembler aggregating every source CricDex has. |
 | `comparator` | Plotly-radar + transposed table side-by-side + probabilistic skill head-to-head. |
 | `api` | FastAPI public REST surface + OpenAPI at `/docs`. See [`docs/API.md`](docs/API.md). |
-| `dashboard` | Streamlit app mirroring the web pages: Leaderboards, Player Profile (Wikidata photo + DOB + dismissal fingerprint + style twins), Compare, Head-to-head, Matchups, Phase, Form, Scout, Auction, Records, Venues, Update Data. |
+| `dashboard` | Streamlit app mirroring the web pages: Leaderboards, Player Profile (Wikidata photo + DOB + dismissal fingerprint + style twins), Compare, Head-to-head, Matchups, Phase, Form, Partnerships, Scout, Auction, Records, Venues, Update Data. |
 
 Cricsheet-only: all data derives from Cricsheet ball-by-ball + the
 People Register + (one-time) Wikidata enrichment. Live-feed, scrape,

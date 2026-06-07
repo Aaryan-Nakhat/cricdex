@@ -19,6 +19,19 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 
 ### Added
 
+- **Fielding & Wicketkeeping boards** — two new leaderboards from the
+  `balls.fielders` dismissal field (the least-quantified discipline). Per fielder:
+  catches / stumpings / run-out involvements → **Wicketkeeping** (keepers) and
+  **Fielding** (outfield) boards, split by role so keeper catches don't swamp the
+  outfield list. Caught-and-bowled excluded (a bowling wicket); every fielder in a
+  multi-fielder run-out credited. Rides the standard metric pipeline → appears on
+  all 4 surfaces' leaderboard switcher. (Dismissal counts, not diving range —
+  that needs video.) Effect (ipl): keeping top = Dhoni 258, fielding top = Kohli 146.
+- **Partnerships** — a new page (web / Streamlit / TUI / CLI) of batter-pair
+  stands from `non_striker`: a player's most productive partners + the all-time
+  best partnerships (runs, innings, best stand, SR, average, fifty/hundred stands;
+  runs include extras while both were at the crease). New `partnerships.json`
+  export. (Kohli–de Villiers 3134 runs / 10 hundred-stands.)
 - **IPL-relevance weighting for the auction pool** — league-only veterans (e.g.
   Imran Tahir, who still plays SA20 at 46 but hasn't featured in the IPL for
   years) no longer top the IPL auction. The recency penalty was keyed on "last

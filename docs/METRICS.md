@@ -167,6 +167,14 @@ their economy looks great.
   first 20 balls of an innings. Positive = slow starts cost tempo;
   ~0 or negative = aggressive from ball one. Lives in
   `cricdex.metrics.batter`.
+- **Wicketkeeping** ✅ — dismissals a keeper is credited with: catches +
+  stumpings + run-out involvements, from the ball-by-ball `fielders` field.
+  A fielder is a keeper if the taxonomy says so or they have any stumping.
+  Lives in `cricdex.metrics.fielding.keeping`.
+- **Fielding** ✅ — outfield dismissals: catches + run-out involvements
+  (caught-and-bowled is a bowling wicket, excluded; every fielder in a
+  multi-fielder run-out is credited). A dismissal *count*, not diving range
+  (that needs video). Lives in `cricdex.metrics.fielding.fielding`.
 
 ## Still planned
 

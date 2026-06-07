@@ -13,6 +13,7 @@ Subcommand groups, each mounted as its own typer app:
   cricdex matchups <name>                   batter-vs-bowler + pace/spin splits
   cricdex phase [powerplay|middle|death]    phase specialists
   cricdex form <metric>                     recent form vs career baseline
+  cricdex partnerships [<name>]             batter-pair stands
   cricdex scout look-alikes <name>          cross-competition look-alikes
   cricdex auction room                      real-rules IPL auction sim
   cricdex tui                               full Textual UI
@@ -35,6 +36,7 @@ from cricdex.cli import (
     init_cmd,
     matchups_cmd,
     metrics_cmd,
+    partnerships_cmd,
     phase_cmd,
     profile_cmd,
     scout_cmd,
@@ -99,6 +101,9 @@ app.command(name="matchups", help="Batter-vs-bowler head-to-heads + pace/spin sp
 )
 app.command(name="phase", help="Powerplay / middle / death specialists.")(phase_cmd.phase)
 app.command(name="form", help="Recent-form vs career baseline per metric.")(form_cmd.form)
+app.command(
+    name="partnerships", help="Batter-pair stands (best partnerships + a player's partners)."
+)(partnerships_cmd.partnerships)
 
 
 @app.command(name="dashboard", help="Launch the Streamlit dashboard.")

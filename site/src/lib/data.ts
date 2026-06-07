@@ -221,3 +221,21 @@ export interface PhaseBoard {
 }
 export type PhaseData = Record<"powerplay" | "middle" | "death", PhaseBoard>;
 export const getPhase = (c: string) => getJSON<PhaseData>(`${c}/phase.json`);
+
+// ---- partnerships (batter pairs) -------------------------------------------
+export interface Partnership {
+  a: string;
+  b: string;
+  a_cid: string | null;
+  b_cid: string | null;
+  innings: number;
+  runs: number;
+  balls: number;
+  sr: number;
+  best: number;
+  avg: number;
+  fifties: number;
+  hundreds: number;
+}
+export const getPartnerships = (c: string) =>
+  getJSON<{ pairs: Partnership[] }>(`${c}/partnerships.json`);

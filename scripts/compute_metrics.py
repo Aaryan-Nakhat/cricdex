@@ -26,6 +26,7 @@ from cricdex.config import DATA_DIR
 from cricdex.metrics import batter as batter_metrics
 from cricdex.metrics import bowler as bowler_metrics
 from cricdex.metrics import bowler_wicket_quality
+from cricdex.metrics import fielding as fielding_metrics
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -297,6 +298,38 @@ def all_cmd(
         "slow_start_cost",
         collection,
         None,
+    )
+    _emit(fielding_metrics.keeping(collection=collection, top_n=top_n), "keeping", collection, None)
+    _emit(
+        fielding_metrics.fielding(collection=collection, top_n=top_n), "fielding", collection, None
+    )
+
+
+@app.command("keeping")
+def keeping_cmd(
+    collection: str = typer.Option("ipl", "--collection", "-c"),
+    top_n: int = typer.Option(500, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    _emit(
+        fielding_metrics.keeping(collection=collection, top_n=top_n),
+        "keeping",
+        collection,
+        out_json,
+    )
+
+
+@app.command("fielding")
+def fielding_cmd(
+    collection: str = typer.Option("ipl", "--collection", "-c"),
+    top_n: int = typer.Option(500, "--top-n"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    _emit(
+        fielding_metrics.fielding(collection=collection, top_n=top_n),
+        "fielding",
+        collection,
+        out_json,
     )
 
 
