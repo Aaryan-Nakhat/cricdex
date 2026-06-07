@@ -104,6 +104,8 @@ METRIC_SLUGS = [
     "wicket_quality",
     "crease_longevity",
     "slow_start_cost",
+    "keeping",
+    "fielding",
 ]
 
 DEFAULT_COLLECTIONS = [
@@ -817,7 +819,7 @@ def _export_leaderboards(
         # Gemini taxonomy (role / bowling type / country / position) so the
         # UI filter bar works per-row without a ball cutoff.
         for r in rows:
-            who = r.get("name") or r.get("batter") or r.get("bowler")
+            who = r.get("name") or r.get("batter") or r.get("bowler") or r.get("fielder")
             r["matches"] = matches.get(who, 0)
             for k, v in (name_tax.get(who) or {}).items():
                 r.setdefault(k, v)
