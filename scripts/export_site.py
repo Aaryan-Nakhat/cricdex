@@ -320,7 +320,10 @@ def _export_auction_pool(
     best = {cid: b for cid, b in best.items() if max_balls.get(cid, 0) >= AUCTION_MIN_BALLS}
     name_to_cid = {b["name"]: cid for cid, b in best.items() if b["name"]}
 
-    last: dict[str, str] = {}
+    # Per-league last-played (keyed by cid). Keeping the breakdown — not just a
+    # single cross-league max — lets us tell "active in SA20 but hasn't played
+    # IPL in years" apart from "current IPL regular".
+    last_by_col: dict[str, dict[str, str]] = {col: {} for col in AUCTION_POOL_COLLECTIONS}
     for col in AUCTION_POOL_COLLECTIONS:
         safe = _safe(col)
         for nm, d in con.execute(
@@ -333,55 +336,132 @@ def _export_auction_pool(
         ).fetchall():
             cid = name_to_cid.get(nm)
             if cid and d:
-                ds = str(d)[:10]
-                if cid not in last or ds > last[cid]:
-                    last[cid] = ds
+                last_by_col[col][cid] = str(d)[:10]
 
-    asof = max(last.values()) if last else None
-    cutoff = (
-        (_dt.date.fromisoformat(asof) - _dt.timedelta(days=AUCTION_RECENCY_DAYS)).isoformat()
-        if asof
-        else None
-    )
+    def _last_ipl(cid: str) -> str | None:
+        return last_by_col["ipl"].get(cid)
+
+    def _last_any(cid: str) -> str | None:
+        ds = [last_by_col[c].get(cid) for c in AUCTION_POOL_COLLECTIONS]
+        ds = [d for d in ds if d]
+        return max(ds) if ds else None
+
+    def _leagues(cid: str) -> list[dict]:
+        rows = [
+            {"league": c, "last": last_by_col[c][cid]}
+            for c in AUCTION_POOL_COLLECTIONS
+            if cid in last_by_col[c]
+        ]
+        return sorted(rows, key=lambda r: r["last"], reverse=True)
+
+    asof = max((d for c in last_by_col.values() for d in c.values()), default=None)
+    asof_d = _dt.date.fromisoformat(asof) if asof else None
+    cutoff = (asof_d - _dt.timedelta(days=AUCTION_RECENCY_DAYS)).isoformat() if asof_d else None
+
+    # Age from the one-time Wikidata enrichment (dob), where known.
+    try:
+        dob_by_cid = {
+            cid: rec.get("dob")
+            for cid, rec in json.loads(
+                (DATA_DIR / "curated" / "wikidata_enrichment.json").read_text()
+            ).items()
+        }
+    except (FileNotFoundError, ValueError):
+        dob_by_cid = {}
+
+    def _age(cid: str) -> float | None:
+        dob = dob_by_cid.get(cid)
+        if not dob or not asof_d:
+            return None
+        try:
+            return (asof_d - _dt.date.fromisoformat(str(dob)[:10])).days / 365.25
+        except ValueError:
+            return None
+
+    def _age_factor(age: float | None) -> float | None:
+        if age is None:
+            return None
+        if age <= 32:
+            return 1.0
+        if age >= 42:
+            return 0.35
+        return 1.0 - (age - 32) * 0.065  # 32→1.0 … 42→0.35
+
+    def _relevance(cid: str, team: str | None, country: str | None, age: float | None) -> float:
+        """IPL-relevance weight in [0,1]: how much this player's value should
+        count toward an *IPL* auction. Current IPL players ≈ 1; league-only
+        veterans (Imran Tahir) get hit by IPL-staleness + age."""
+        li = _last_ipl(cid)
+        af = _age_factor(age)
+        if li:
+            yrs = (asof_d - _dt.date.fromisoformat(li)).days / 365.25 if asof_d else 0
+            if yrs <= 1.5:
+                # current IPL regular — proven *now*, so age barely matters
+                # (don't bury a 37-yo Kohli who's playing this season).
+                return 1.0 if (age is None or age < 40) else 0.8
+            ipl_f = max(0.4, 1.0 - (yrs - 1.5) * 0.18)
+            return max(0.3, ipl_f * (af if af is not None else 1.0))
+        # never played IPL
+        if country == "IND" and not team:
+            return 0.7  # uncapped Indian — a genuine draft target
+        if af is not None:
+            return max(0.2, 0.7 * af)  # overseas leaguer: young ~0.7, old ~0.25
+        return 0.5  # unknown age → moderate (mid-pool, not top)
+
+    PEN_SCALE = 0.42  # value units removed at relevance 0 (≈ tier-penalty scale)
     role_map = {
         "wk_batter": "keeper",
         "allrounder": "all_rounder",
         "bowler": "bowler",
         "batter": "batter",
     }
-    asof_d = _dt.date.fromisoformat(asof) if asof else None
+    activity: dict[str, dict] = {}
     out = []
     for cid, b in best.items():
         name = b["name"]
-        ld = last.get(cid)
+        ld = _last_any(cid)
         if not name or not ld or (cutoff and ld < cutoff):
             continue  # active somewhere in the last ~3 years
         tax = taxonomy.get(cid, {})
         country = tax.get("country")
         team = teams.get(name)  # IPL franchise, else None (free agent)
-        # IPL players always qualify; free agents only from IPL-relevant nations
         if not team and country not in AUCTION_COUNTRIES:
             continue
-        # Recency decay: a stale player (last played long ago — Chris Lynn,
-        # Amit Mishra) is worth less at auction than someone in current form.
-        # ~4-month grace, then ramp, capped — applied to the auction value.
-        months = ((asof_d - _dt.date.fromisoformat(ld)).days / 30.4) if asof_d else 0
-        recency_pen = min(0.30, max(0.0, months - 4) * 0.015)
+        age = _age(cid)
+        rel = _relevance(cid, team, country, age)
+        li = _last_ipl(cid)
+        leagues = _leagues(cid)
+        home = leagues[0]["league"] if leagues else None
+        activity[cid] = {
+            "leagues": leagues,
+            "last_ipl": li,
+            "last_any": ld,
+            "home_league": home,
+            "age": round(age, 1) if age is not None else None,
+            "ipl_relevance": round(rel, 3),
+        }
         out.append(
             {
                 "cricsheet_id": cid,
                 "name": name,
-                "value": round(b["value"] - recency_pen, 4),
+                # value decayed by IPL-relevance so a league-only veteran stops
+                # topping the IPL pool (the breakdown columns explain why).
+                "value": round(b["value"] - (1 - rel) * PEN_SCALE, 4),
                 "role": role_map.get(tax.get("primary_role"), "batter"),
                 "country": country,
                 "is_overseas": bool(country) and country != "IND",
                 "team": team,
                 "last_match_date": ld,
+                "last_ipl": li,
+                "home_league": home,
+                "age": round(age, 1) if age is not None else None,
+                "ipl_relevance": round(rel, 3),
             }
         )
     out.sort(key=lambda p: p["value"], reverse=True)
     out = out[:AUCTION_POOL_CAP]
     _write(out_dir / "auction_pool.json", out)
+    _write(out_dir / "activity_index.json", activity)
     return len(out)
 
 
