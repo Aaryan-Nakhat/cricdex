@@ -14,6 +14,7 @@ Subcommand groups, each mounted as its own typer app:
   cricdex phase [powerplay|middle|death]    phase specialists
   cricdex form <metric>                     recent form vs career baseline
   cricdex partnerships [<name>]             batter-pair stands
+  cricdex aging [--role batting|bowling]    performance-vs-age curves
   cricdex scout look-alikes <name>          cross-competition look-alikes
   cricdex auction room                      real-rules IPL auction sim
   cricdex tui                               full Textual UI
@@ -29,6 +30,7 @@ import typer
 
 from cricdex import __version__
 from cricdex.cli import (
+    aging_cmd,
     auction_cmd,
     config_cmd,
     data_cmd,
@@ -104,6 +106,7 @@ app.command(name="form", help="Recent-form vs career baseline per metric.")(form
 app.command(
     name="partnerships", help="Batter-pair stands (best partnerships + a player's partners)."
 )(partnerships_cmd.partnerships)
+app.command(name="aging", help="Performance-vs-age curves (batting / bowling).")(aging_cmd.aging)
 
 
 @app.command(name="dashboard", help="Launch the Streamlit dashboard.")

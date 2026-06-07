@@ -9,6 +9,7 @@ import { Matchups } from "@/pages/Matchups";
 import { Phase } from "@/pages/Phase";
 import { Form } from "@/pages/Form";
 import { Partnerships } from "@/pages/Partnerships";
+import { Aging } from "@/pages/Aging";
 import { Scout } from "@/pages/Scout";
 import { Auction } from "@/pages/Auction";
 import { Records } from "@/pages/Records";
@@ -29,6 +30,7 @@ export function App() {
         <Route path="/phase" element={<Phase />} />
         <Route path="/form" element={<Form />} />
         <Route path="/partnerships" element={<Partnerships />} />
+        <Route path="/aging" element={<Aging />} />
         <Route path="/scout" element={<Scout />} />
         <Route path="/auction" element={<Auction />} />
         <Route path="/records" element={<Records />} />

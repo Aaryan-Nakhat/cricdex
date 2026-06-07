@@ -23,6 +23,8 @@ explainer. Every row carries the Cricsheet people-register bridge
   cooling-down (direction-corrected form Δ).
 - **Partnerships** — batter-pair stands: a player's most productive partners + the
   all-time best partnerships.
+- **Aging** — performance-vs-age curves (batting / bowling) with an optional
+  per-player trajectory overlay (Plotly).
 - **Records** — record books (year-range filterable).
 - **Venues** — ground conditions (phase run-rate chart).
 - **Scout** — cross-competition look-alikes (6 tiers) + a "next big things" gems
