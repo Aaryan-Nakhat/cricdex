@@ -485,6 +485,7 @@ class CricDexApp(App):
     #mu-bat-table, #mu-bowl-table { height: auto; max-height: 18; }
     #ph-bat-table, #ph-bowl-table { height: auto; max-height: 20; }
     #form-up-table, #form-down-table { height: auto; max-height: 20; }
+    #pt-partner-table, #pt-best-table { height: auto; max-height: 20; }
     /* Panels inside a scroll size to their content so the page (not the panel)
        scrolls — keeps the Auction Squads/Player-search reachable. */
     VerticalScroll Panel { height: auto; }
@@ -533,6 +534,8 @@ class CricDexApp(App):
             "#ph-bowl-table": "Pick a phase, then Show ▸",
             "#form-up-table": "Pick a metric, then Show ▸",
             "#form-down-table": "Pick a metric, then Show ▸",
+            "#pt-partner-table": "Pick a player, then Show ▸",
+            "#pt-best-table": "Show ▸ for the all-time best stands",
             "#sim-table": "Set the knobs, then Simulate ▸",
             "#sim-find-table": "Run a simulation, then search a player",
         }
@@ -615,6 +618,8 @@ class CricDexApp(App):
                 yield from self._phase_panel()
             with TabPane("Form", id="tab-form"):
                 yield from self._form_panel()
+            with TabPane("Partners", id="tab-partnerships"):
+                yield from self._partnerships_panel()
             with TabPane("Venues", id="tab-venues"):
                 yield from self._venues_panel()
             with TabPane("Profile", id="tab-profile"):
@@ -2187,6 +2192,83 @@ class CricDexApp(App):
         _fill_datatable(up, rows[:top_n])
         _fill_datatable(down, list(reversed(rows))[:top_n])
 
+    # ===== Partnerships — batter-pair stands ==============================
+
+    def _partnerships_panel(self) -> ComposeResult:
+        with Vertical():
+            yield _tabhead("PARTNERSHIPS", "batter-pair stands")
+            with ControlBar(title="Pick"):
+                yield Label("Player:")
+                yield Input(value="V Kohli", id="pt-name")
+                yield Label("Coll:")
+                yield Select(
+                    options=_collection_options(),
+                    value="ipl",
+                    id="pt-collection",
+                    allow_blank=False,
+                )
+                yield Label("Min runs:")
+                yield Input(value="50", id="pt-minruns", classes="num")
+                yield Button("Show ▸", id="pt-run", variant="primary")
+            yield AutoComplete(target="#pt-name", candidates=self._player_cands("#pt-collection"))
+            with VerticalScroll():
+                with Panel(title="Most productive partners"):
+                    yield DataTable(id="pt-partner-table", zebra_stripes=True)
+                with Panel(title="Best partnerships (all-time)"):
+                    yield DataTable(id="pt-best-table", zebra_stripes=True)
+
+    def _on_run_partnerships(self) -> None:
+        partner = self.query_one("#pt-partner-table", DataTable)
+        best = self.query_one("#pt-best-table", DataTable)
+        collection = self.query_one("#pt-collection", Select).value
+        name = _name_from_label(self.query_one("#pt-name", Input).value)
+        try:
+            min_runs = int(self.query_one("#pt-minruns", Input).value or "50")
+        except ValueError:
+            min_runs = 50
+        path = SITE_DATA / collection / "partnerships.json"
+        if not path.exists():
+            _fill_datatable(partner, [{"error": "no partnerships.json (run export_site.py)"}])
+            _fill_datatable(best, [{"info": "—"}])
+            return
+        pairs = [p for p in json.loads(path.read_text()).get("pairs", []) if p["runs"] >= min_runs]
+        cid = _resolve_cid(collection, name)
+        mine = [p for p in pairs if cid and cid in (p.get("a_cid"), p.get("b_cid"))]
+        mine.sort(key=lambda p: p["runs"], reverse=True)
+        _fill_datatable(
+            partner,
+            [
+                {
+                    "partner": p["b"] if p.get("a_cid") == cid else p["a"],
+                    "runs": p["runs"],
+                    "inns": p["innings"],
+                    "best": p["best"],
+                    "avg": p["avg"],
+                    "sr": p["sr"],
+                    "50+": p["fifties"],
+                    "100+": p["hundreds"],
+                }
+                for p in mine
+            ]
+            or [{"info": f"no partnerships ≥ {min_runs} runs for '{name}'"}],
+        )
+        _fill_datatable(
+            best,
+            [
+                {
+                    "partnership": f"{p['a']} & {p['b']}",
+                    "runs": p["runs"],
+                    "inns": p["innings"],
+                    "best": p["best"],
+                    "avg": p["avg"],
+                    "sr": p["sr"],
+                    "100+": p["hundreds"],
+                }
+                for p in pairs[:60]
+            ]
+            or [{"info": "no partnerships meet the filter"}],
+        )
+
     # ===== Update — refresh data then re-export the JSON ==================
 
     def _update_panel(self) -> ComposeResult:
@@ -2316,6 +2398,7 @@ class CricDexApp(App):
             "mu-run": self._on_run_matchups,
             "ph-run": self._on_run_phase,
             "form-run": self._on_run_form,
+            "pt-run": self._on_run_partnerships,
         }
         if event.button.id in handlers:
             handlers[event.button.id]()

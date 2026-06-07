@@ -72,7 +72,8 @@ cricdex leaderboard <metric> [-c <collection>] [--top 25] [--json]
 
 Metrics: `ngi`, `pressure_runs`, `intent_curve`, `dot_ball_recovery`,
 `counter_attack`, `boundary_dependency`, `pressure_conversion`,
-`wicket_quality`, `crease_longevity`, `slow_start_cost`. Reads
+`wicket_quality`, `crease_longevity`, `slow_start_cost`, `keeping`
+(wicketkeeping dismissals), `fielding` (outfield dismissals). Reads
 `$CRICDEX_HOME/data/metrics/<metric>_<collection>.json` — emit it
 via `cricdex data ingest metrics` first.
 
@@ -112,6 +113,14 @@ cricdex form <metric> [-c ipl] [--top 15] [--window last1y|last3y] \
   defaults to last 1y, else 3y) vs the career baseline; positive form Δ =
   improving (direction-corrected for "lower is better" metrics). Heating-up then
   cooling-down, with the full player filter bar.
+
+```
+cricdex partnerships [<name>] [-c ipl] [--top 15] [--min-runs 50] [--json]
+```
+
+- **partnerships** — batter-pair stands. With a name: that player's most
+  productive partners; always the all-time best partnerships (runs, innings, best
+  stand, SR, average, fifty/hundred stands).
 
 All read the same exported JSON the web app does. The filter flags share the
 `cricdex.common.filters` port with Leaderboards (role values: batter / bowler /

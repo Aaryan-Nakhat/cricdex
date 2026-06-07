@@ -7,7 +7,8 @@ explainer. Every row carries the Cricsheet people-register bridge
 
 ## Pages
 
-- **Leaderboards** — the 10 novel metrics, one tab each, with a time-window
+- **Leaderboards** — 12 metrics (10 novel batting/bowling + Wicketkeeping &
+  Fielding dismissal boards), one tab each, with a time-window
   switcher (all-time / last 3 yrs / last 1 yr), the full filter bar (role /
   activity / bowling / position / country / min matches), inline magnitude bars
   and the Intent-Curve sparkline.
@@ -20,6 +21,8 @@ explainer. Every row carries the Cricsheet people-register bridge
 - **Phase** — powerplay / middle / death specialist boards (best SR, tightest econ).
 - **Form** — a metric recomputed over the recent window vs career, heating-up /
   cooling-down (direction-corrected form Δ).
+- **Partnerships** — batter-pair stands: a player's most productive partners + the
+  all-time best partnerships.
 - **Records** — record books (year-range filterable).
 - **Venues** — ground conditions (phase run-rate chart).
 - **Scout** — cross-competition look-alikes (6 tiers) + a "next big things" gems
@@ -27,9 +30,9 @@ explainer. Every row carries the Cricsheet people-register bridge
 - **Auction** — real-rules IPL auction Monte-Carlo (retain → bid), web-identical.
 - **Update Data** — in-app buttons to re-run the ingest/compute pipeline.
 
-The 10 metrics: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery,
+The metrics: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery,
 Counter-Attack, Boundary Dependency, Pressure Conversion, Wicket Quality,
-Crease Longevity, Slow-Start Cost.
+Crease Longevity, Slow-Start Cost, Wicketkeeping, Fielding.
 
 Sidebar picks the ingested collection — every `data/metrics/*_<collection>.json`
 is auto-discovered.

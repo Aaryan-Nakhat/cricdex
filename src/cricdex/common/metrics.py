@@ -282,6 +282,53 @@ METRICS: list[MetricDef] = [
             Column("setting_balls", "Setting balls", 0),
         ],
     ),
+    MetricDef(
+        slug="keeping",
+        name="Wicketkeeping",
+        one_liner="Dismissals behind the stumps — catches, stumpings, run-outs.",
+        what=(
+            "Counts every dismissal a wicket-keeper is credited with: catches taken, stumpings, and "
+            "run-out involvements. It's a volume tally (longevity rewards it — use the min-matches "
+            "filter), not a per-chance success rate, which ball-by-ball data can't see."
+        ),
+        how=(
+            "From each dismissal's fielder list: caught → catch, stumped → stumping, run out → an "
+            "involvement (every fielder named is credited). A player counts as a keeper if the "
+            "taxonomy says so or they have any stumping. Dismissals = catches + stumpings + run-outs."
+        ),
+        name_col="fielder",
+        higher_is_better=True,
+        columns=[
+            Column("fielder", "Keeper"),
+            Column("dismissals", "Dismissals", 0, primary=True, bar=True),
+            Column("catches", "Catches", 0),
+            Column("stumpings", "Stumpings", 0),
+            Column("runouts", "Run-outs", 0),
+        ],
+    ),
+    MetricDef(
+        slug="fielding",
+        name="Fielding",
+        one_liner="Outfield dismissals — catches and run-out involvements.",
+        what=(
+            "Counts an outfielder's dismissals: catches taken and run-out involvements. Fielding is "
+            "the least-quantified discipline; this is the count broadcast scorecards bury. It's "
+            "volume (use the min-matches filter), not diving range — that needs video."
+        ),
+        how=(
+            "From each dismissal's fielder list: caught → catch, run out → an involvement (every "
+            "fielder named is credited; caught-and-bowled is a bowling wicket, excluded). Keepers "
+            "are split off to their own board. Dismissals = catches + run-outs."
+        ),
+        name_col="fielder",
+        higher_is_better=True,
+        columns=[
+            Column("fielder", "Fielder"),
+            Column("dismissals", "Dismissals", 0, primary=True, bar=True),
+            Column("catches", "Catches", 0),
+            Column("runouts", "Run-outs", 0),
+        ],
+    ),
 ]
 
 METRIC_BY_SLUG: dict[str, MetricDef] = {m.slug: m for m in METRICS}
