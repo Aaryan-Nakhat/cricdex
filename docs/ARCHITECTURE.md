@@ -22,7 +22,7 @@ surfaces just *read* it. The dashed line is the git boundary.
                                                │     data/curated/              ───┘                            • cohorts/<cid>.json
                                                │     • player_taxonomy.json (Gemini)                             • records.json · venues.json
                                                └───► • wikidata_enrichment.json                                  • auction_pool · retentions
-                                                     • bowling_styles.json                                       • scout_index.json · matchups/<cid>.json · phase.json · activity_index.json · partnerships.json
+                                                     • bowling_styles.json                                       • scout_index.json · matchups/<cid>.json · phase.json · activity_index.json · partnerships.json · aging.json
                                                                                                           (+ root collections.json)
         each step = `cricdex data ingest <cricsheet|ratings|metrics|wikidata>`              ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ git: only this snapshot is committed
                                                                                                                           │

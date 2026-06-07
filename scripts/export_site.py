@@ -1144,6 +1144,143 @@ def _export_partnerships(
     return len(pairs)
 
 
+_BOWLER_WKT = (
+    "bowled",
+    "caught",
+    "lbw",
+    "stumped",
+    "caught and bowled",
+    "hit wicket",
+)
+
+
+def _export_aging(con: duckdb.DuckDBPyConnection, collection: str, out_dir: Path) -> int:
+    """aging.json — performance vs age. Per (player, season-year) batting + bowling
+    stats from the ball-by-ball, joined to age that year via the Wikidata dob, then
+    averaged by integer age into a curve (one line per discipline). Dob covers only
+    ~a third of players, so the curve is indicative + elite-skewed (flagged in UI).
+    Also emits a per-player trajectory (dob-known players) for an optional overlay."""
+    safe = _safe(collection)
+    try:
+        dob_by_cid = {
+            cid: rec.get("dob")
+            for cid, rec in json.loads(
+                (DATA_DIR / "curated" / "wikidata_enrichment.json").read_text()
+            ).items()
+        }
+    except (FileNotFoundError, ValueError):
+        dob_by_cid = {}
+    # name -> cid via the same taxonomy reverse-map the leaderboards use.
+    name_tax_cid = {}
+    try:
+        raw = json.loads(TAXONOMY_PATH.read_text())
+        name_tax_cid = {rec["name"]: cid for cid, rec in raw.items() if rec.get("name")}
+    except (FileNotFoundError, ValueError):
+        pass
+
+    def _age(nm: str, yr: int) -> int | None:
+        cid = name_tax_cid.get(nm)
+        dob = dob_by_cid.get(cid) if cid else None
+        if not dob:
+            return None
+        try:
+            return yr - int(str(dob)[:4])
+        except ValueError:
+            return None
+
+    bat = con.execute(
+        f"""
+        SELECT batter AS nm, EXTRACT(YEAR FROM match_date::DATE)::INT AS yr,
+               SUM(runs_batter) AS runs,
+               SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides' THEN 1 ELSE 0 END) AS balls,
+               SUM(CASE WHEN player_out = batter THEN 1 ELSE 0 END) AS outs
+        FROM balls_{safe}
+        WHERE batter IS NOT NULL
+        GROUP BY 1, 2
+        HAVING balls >= 60
+        """
+    ).fetchall()
+    kinds = "', '".join(_BOWLER_WKT)
+    bowl = con.execute(
+        f"""
+        SELECT bowler AS nm, EXTRACT(YEAR FROM match_date::DATE)::INT AS yr,
+               SUM(runs_total) AS runs,
+               SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides'
+                         AND extras_type IS DISTINCT FROM 'noballs' THEN 1 ELSE 0 END) AS balls,
+               SUM(CASE WHEN player_out IS NOT NULL AND wicket_kind IN ('{kinds}')
+                        THEN 1 ELSE 0 END) AS wkts
+        FROM balls_{safe}
+        WHERE bowler IS NOT NULL
+        GROUP BY 1, 2
+        HAVING balls >= 60
+        """
+    ).fetchall()
+
+    # bucket by age + per-player trajectory
+    bat_age: dict[int, list[tuple[float, float | None]]] = {}
+    bowl_age: dict[int, list[tuple[float, float | None]]] = {}
+    players: dict[str, dict] = {}
+    for nm, yr, runs, balls, outs in bat:
+        age = _age(nm, yr)
+        if age is None or not (15 <= age <= 45) or not balls:
+            continue
+        sr = 100.0 * float(runs) / float(balls)
+        avg = float(runs) / outs if outs else None
+        bat_age.setdefault(age, []).append((sr, avg))
+        cid = name_tax_cid.get(nm)
+        if cid:
+            players.setdefault(cid, {"role": "batter", "points": []})["points"].append(
+                {"age": age, "sr": round(sr, 1)}
+            )
+    for nm, yr, runs, balls, wkts in bowl:
+        age = _age(nm, yr)
+        if age is None or not (15 <= age <= 45) or not balls:
+            continue
+        econ = 6.0 * float(runs) / float(balls)
+        srate = float(balls) / wkts if wkts else None
+        bowl_age.setdefault(age, []).append((econ, srate))
+        cid = name_tax_cid.get(nm)
+        if cid and cid not in players:  # don't clobber a batting trajectory
+            players.setdefault(cid, {"role": "bowler", "points": []})["points"].append(
+                {"age": age, "economy": round(econ, 2)}
+            )
+
+    def _mean(xs: list[float]) -> float:
+        return sum(xs) / len(xs)
+
+    MIN_N = 3
+    batting = [
+        {
+            "age": age,
+            "sr": round(_mean([s for s, _ in rows]), 1),
+            "average": round(_mean([a for _, a in rows if a is not None]), 1)
+            if any(a is not None for _, a in rows)
+            else None,
+            "n": len(rows),
+        }
+        for age, rows in sorted(bat_age.items())
+        if len(rows) >= MIN_N
+    ]
+    bowling = [
+        {
+            "age": age,
+            "economy": round(_mean([e for e, _ in rows]), 2),
+            "strike_rate": round(_mean([s for _, s in rows if s is not None]), 1)
+            if any(s is not None for _, s in rows)
+            else None,
+            "n": len(rows),
+        }
+        for age, rows in sorted(bowl_age.items())
+        if len(rows) >= MIN_N
+    ]
+    # keep only multi-season trajectories (signal), bounded
+    players = {cid: p for cid, p in players.items() if len(p["points"]) >= 3}
+    for p in players.values():
+        p["points"].sort(key=lambda r: r["age"])
+    _write(out_dir / "aging.json", {"batting": batting, "bowling": bowling, "players": players})
+    return len(batting) + len(bowling)
+
+
 @app.command()
 def export(
     collection: str | None = typer.Option(
@@ -1209,6 +1346,7 @@ def export(
             _export_phase(col, out_dir, match_counts, name_tax, activity)
             n_match = _export_matchups(col, out_dir, players, taxonomy)
             _export_partnerships(con, col, out_dir, players)
+            _export_aging(con, col, out_dir)
             n_prof, n_cohort = _export_profiles_and_cohorts(
                 col, out_dir, players, taxonomy, activity
             )

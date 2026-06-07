@@ -19,6 +19,13 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 
 ### Added
 
+- **Aging curves** — a new page (web / Streamlit / TUI / CLI) plotting batting &
+  bowling performance vs age. Each player-season (≥60 balls) is a data point,
+  averaged by integer age into a curve (batting SR / average, bowling economy /
+  strike-rate), with an optional per-player trajectory overlay. New `aging.json`
+  export; ages from the Wikidata dob (~⅓ of players, elite-skewed; survivorship
+  uncorrected — flagged in the UI). The IPL batting-SR curve peaks ~26–33 and
+  tapers after ~37, as expected.
 - **Fielding & Wicketkeeping boards** — two new leaderboards from the
   `balls.fielders` dismissal field (the least-quantified discipline). Per fielder:
   catches / stumpings / run-out involvements → **Wicketkeeping** (keepers) and

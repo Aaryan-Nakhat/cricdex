@@ -620,6 +620,8 @@ class CricDexApp(App):
                 yield from self._form_panel()
             with TabPane("Partners", id="tab-partnerships"):
                 yield from self._partnerships_panel()
+            with TabPane("Aging", id="tab-aging"):
+                yield from self._aging_panel()
             with TabPane("Venues", id="tab-venues"):
                 yield from self._venues_panel()
             with TabPane("Profile", id="tab-profile"):
@@ -2269,6 +2271,96 @@ class CricDexApp(App):
             or [{"info": "no partnerships meet the filter"}],
         )
 
+    # ===== Aging curves — performance vs age =============================
+
+    def _aging_panel(self) -> ComposeResult:
+        with Vertical():
+            yield _tabhead("AGING", "performance vs age")
+            with ControlBar(title="Curve"):
+                yield Label("Coll:")
+                yield Select(
+                    options=_collection_options(),
+                    value="ipl",
+                    id="ag-collection",
+                    allow_blank=False,
+                )
+                yield Label("Role:")
+                yield Select(
+                    options=[("Batting", "batting"), ("Bowling", "bowling")],
+                    value="batting",
+                    id="ag-role",
+                    allow_blank=False,
+                )
+                yield Label("Metric:")
+                yield Select(
+                    options=[
+                        ("Bat SR", "sr"),
+                        ("Bat avg", "average"),
+                        ("Bowl econ", "economy"),
+                        ("Bowl SR", "strike_rate"),
+                    ],
+                    value="sr",
+                    id="ag-metric",
+                    allow_blank=False,
+                )
+                yield Label("Overlay:")
+                yield Input(placeholder="player (optional)", id="ag-name", classes="wide")
+                yield Button("Show ▸", id="ag-run", variant="primary")
+            yield AutoComplete(target="#ag-name", candidates=self._player_cands("#ag-collection"))
+            yield Static(
+                "Ages from Wikidata dob (~⅓ of players, elite-skewed); survivorship "
+                "not corrected — indicative, not definitive.",
+                classes="intro",
+            )
+            with Panel(title="Aging curve"):
+                yield Static(id="ag-chart")
+
+    def _on_run_aging(self) -> None:
+        chart = self.query_one("#ag-chart", Static)
+        collection = self.query_one("#ag-collection", Select).value
+        role = self.query_one("#ag-role", Select).value
+        metric = self.query_one("#ag-metric", Select).value
+        # snap the metric to one valid for the chosen role
+        valid = ("sr", "average") if role == "batting" else ("economy", "strike_rate")
+        if metric not in valid:
+            metric = valid[0]
+        path = SITE_DATA / collection / "aging.json"
+        if not path.exists():
+            chart.update("no aging.json (run export_site.py)")
+            return
+        data = json.loads(path.read_text())
+        curve = data.get(role) or []
+        if not curve:
+            chart.update("no aging data for this collection")
+            return
+        ages = [r["age"] for r in curve]
+        vals = [r.get(metric) for r in curve]
+        overlay_key = "sr" if role == "batting" else "economy"
+        oxs: list[int] = []
+        oys: list[float] = []
+        name = _name_from_label(self.query_one("#ag-name", Input).value)
+        if metric == overlay_key and name:
+            cid = _resolve_cid(collection, name)
+            pl = (data.get("players") or {}).get(cid) if cid else None
+            want = "batter" if role == "batting" else "bowler"
+            if pl and pl.get("role") == want:
+                for p in pl["points"]:
+                    if p.get(overlay_key) is not None:
+                        oxs.append(p["age"])
+                        oys.append(p[overlay_key])
+
+        def _build(plt):
+            plt.plot(ages, vals, label="all players", marker="braille")
+            if oxs:
+                plt.plot(oxs, oys, label=name, marker="braille")
+            plt.title(f"{role} {metric} by age")
+            plt.xlabel("age")
+
+        try:
+            chart.update(_plotext_chart(_build))
+        except Exception as e:  # noqa: BLE001
+            chart.update(f"(chart unavailable: {e})")
+
     # ===== Update — refresh data then re-export the JSON ==================
 
     def _update_panel(self) -> ComposeResult:
@@ -2399,6 +2491,7 @@ class CricDexApp(App):
             "ph-run": self._on_run_phase,
             "form-run": self._on_run_form,
             "pt-run": self._on_run_partnerships,
+            "ag-run": self._on_run_aging,
         }
         if event.button.id in handlers:
             handlers[event.button.id]()
