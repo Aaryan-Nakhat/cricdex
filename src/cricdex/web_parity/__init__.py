@@ -28,6 +28,7 @@ from cricdex.web_parity.auction import (
     simulate_auction,
 )
 from cricdex.web_parity.loader import (
+    load_activity_index,
     load_auction_pool,
     load_retentions,
     load_scout_index,
@@ -44,6 +45,7 @@ __all__ = [
     "est_value",
     "gem_threshold",
     "is_gem",
+    "load_activity_index",
     "load_auction_pool",
     "load_retentions",
     "load_scout_index",

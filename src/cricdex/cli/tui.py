@@ -1666,16 +1666,33 @@ class CricDexApp(App):
                     "player": m["player"]["name"],
                     "role": m["player"]["role"].replace("_", "-"),
                     "value": round(m["player"]["projected_value"], 1),
+                    "ipl_fit": self._ipl_fit(m["player"]["cricsheet_id"]),
                     "landing": ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in m["winners"])
                     or "unsold",
                 }
                 for m in res["marquee"]
             ],
-            max_cols=4,
+            max_cols=5,
         )
         # Representative squad for the currently-selected team.
         self._render_squad(self.query_one("#sim-squad-team", Select).value)
         self.notify("auction complete", timeout=1.5)
+
+    def _activity(self) -> dict:
+        # Lazy-load + cache the cross-league activity index (cid -> last-IPL /
+        # age / ipl_relevance), shared by the marquee + player-search tables.
+        if not hasattr(self, "_activity_cache"):
+            try:
+                from cricdex.web_parity import load_activity_index
+
+                self._activity_cache = load_activity_index("ipl")
+            except Exception:  # noqa: BLE001
+                self._activity_cache = {}
+        return self._activity_cache
+
+    def _ipl_fit(self, cid: str) -> str:
+        a = self._activity().get(cid)
+        return f"{round(a['ipl_relevance'] * 100)}%" if a else "—"
 
     def _on_find_sim_player(self) -> None:
         # Search the last run's per-player outcomes: retained / sold / unsold.
@@ -1704,13 +1721,14 @@ class CricDexApp(App):
                 {
                     "player": o["name"],
                     "role": o["role"].replace("_", "-"),
+                    "ipl_fit": self._ipl_fit(o["cricsheet_id"]),
                     "status": o["status"],
                     "avg_cr": "—" if o["status"] == "unsold" else round(o["avgPrice"], 1),
                     "sold%": round(o["soldPct"]) if o["status"] == "sold" else "—",
                     "where": where,
                 }
             )
-        _fill_datatable(out, rows, max_cols=6)
+        _fill_datatable(out, rows, max_cols=7)
 
     # ===== Scout — 3-tier look-alikes (web-identical) =====================
 

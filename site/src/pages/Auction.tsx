@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Gavel, Dices, Plane, Calculator, X, Users } from "lucide-react";
 import { useAsync } from "@/lib/useAsync";
-import { getAuctionPool, getRetentions } from "@/lib/data";
+import { getAuctionPool, getRetentions, getActivityIndex } from "@/lib/data";
 import {
   buildPool,
   simulateAuction,
@@ -248,6 +248,29 @@ function Simulate({
   const [q, setQ] = useState(""); // player-lookup search
   const [result, setResult] = useState<SimResult | null>(null);
   const [running, setRunning] = useState(false);
+  // cross-league activity (last-IPL / age / IPL-relevance) joined by cid, so a
+  // league-only veteran's lower auction standing is explained on screen.
+  const activity = useAsync(() => getActivityIndex("ipl"), []);
+  const relCell = (cid: string) => {
+    const a = activity.data?.[cid];
+    if (!a) return <span className="text-xs text-muted">—</span>;
+    const r = a.ipl_relevance;
+    const yr = a.last_ipl ? a.last_ipl.slice(0, 4) : "never";
+    const bits = [`last IPL ${yr}`];
+    if (a.age != null) bits.push(`age ${a.age}`);
+    if (a.home_league) bits.push(`plays ${a.home_league.toUpperCase()}`);
+    return (
+      <span
+        title={bits.join(" · ")}
+        className={cn(
+          "stat-num text-xs",
+          r >= 0.85 ? "text-willow" : r >= 0.55 ? "text-accent-glow" : "text-ball",
+        )}
+      >
+        {Math.round(r * 100)}%
+      </span>
+    );
+  };
   // a player drafted in from the Scout room (?draft=), and which team keeps him
   const [draftCid, setDraftCid] = useState<string | null>(draftId);
   const [draftTeam, setDraftTeam] = useState(IPL_TEAMS_DEFAULT[0].team);
@@ -485,6 +508,7 @@ function Simulate({
                 <th className="th">Player</th>
                 <th className="th">Role</th>
                 <th className="th text-right">Value</th>
+                <th className="th text-right">IPL fit</th>
                 <th className="th">Most likely landing spot</th>
               </tr>
             </thead>
@@ -494,6 +518,7 @@ function Simulate({
                   <td className="td cursor-pointer font-medium text-fg hover:text-accent-glow" onClick={() => navigate(`/player?cid=${player.cricsheet_id}`)}>{player.name}</td>
                   <td className="td"><Badge tone={ROLE_TONE[player.role]}>{player.role.replace("_", "-")}</Badge></td>
                   <td className="td stat-num text-right">{fmt(player.projected_value, 1)}</td>
+                  <td className="td text-right">{relCell(player.cricsheet_id)}</td>
                   <td className="td">
                     <span className="flex flex-wrap gap-1.5">
                       {winners.length === 0 ? <span className="text-xs text-muted">unsold</span> : winners.map((w) => (
@@ -538,6 +563,7 @@ function Simulate({
                       <tr>
                         <th className="th">Player</th>
                         <th className="th">Role</th>
+                        <th className="th text-right">IPL fit</th>
                         <th className="th">Status</th>
                         <th className="th text-right">Avg price</th>
                         <th className="th text-right">Sold %</th>
@@ -549,6 +575,7 @@ function Simulate({
                         <tr key={o.cricsheet_id} className="hover:bg-surface/50">
                           <td className="td font-medium text-fg">{o.name}</td>
                           <td className="td"><Badge tone={ROLE_TONE[o.role]}>{o.role.replace("_", "-")}</Badge></td>
+                          <td className="td text-right">{relCell(o.cricsheet_id)}</td>
                           <td className="td">
                             {o.status === "retained" ? (
                               <Badge tone="willow">retained</Badge>

@@ -19,6 +19,18 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 
 ### Added
 
+- **IPL-relevance weighting for the auction pool** — league-only veterans (e.g.
+  Imran Tahir, who still plays SA20 at 46 but hasn't featured in the IPL for
+  years) no longer top the IPL auction. The recency penalty was keyed on "last
+  match in *any* league"; now last-played is tracked **per league**, and each
+  player carries an **IPL-relevance** weight (current IPL regular ≈ 1.0 — age
+  barely matters; stale-IPL decays by years-since-IPL; never-IPL = uncapped-
+  Indian prospect 0.7 / overseas leaguer age-driven). It's baked into the
+  exported auction value (so the TS + Python sims stay in lock-step — no
+  algorithm change), with the breakdown exported as columns on `auction_pool`
+  rows (`last_ipl`, `home_league`, `age`, `ipl_relevance`) plus a new
+  per-player **`activity_index.json`** (cross-league last-played + age). Effect:
+  Tahir 0.40 → 0.155 (≈ #5 → #96); current stars unchanged (Kohli #15, Bumrah #2).
 - **`cricdex.web_parity`** — a Python port of the web Auction + Scout logic
   (`site/src/lib/auction.ts`, `site/src/pages/Scout.tsx`): same pricing
   constants, same look-alike formula, same franchise personalities, and a
