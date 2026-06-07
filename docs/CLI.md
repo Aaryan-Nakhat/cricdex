@@ -122,6 +122,13 @@ cricdex partnerships [<name>] [-c ipl] [--top 15] [--min-runs 50] [--json]
   productive partners; always the all-time best partnerships (runs, innings, best
   stand, SR, average, fifty/hundred stands).
 
+```
+cricdex aging [--role batting|bowling] [--metric sr|average|economy|strike_rate] [-c ipl] [--json]
+```
+
+- **aging** — performance-vs-age curve (per-age mean over player-seasons), with a
+  sparkline + table. Ages from Wikidata dob (~⅓ of players; indicative).
+
 All read the same exported JSON the web app does. The filter flags share the
 `cricdex.common.filters` port with Leaderboards (role values: batter / bowler /
 allrounder / wk_batter).
