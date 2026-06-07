@@ -27,6 +27,7 @@ def room(
         IPL_TEAMS_DEFAULT,
         build_pool,
         default_retentions,
+        load_activity_index,
         load_auction_pool,
         load_retentions,
         simulate_auction,
@@ -42,6 +43,7 @@ def room(
 
     mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
     real_prices = {r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows}
+    act = load_activity_index("ipl")  # cid -> last-IPL / age / ipl_relevance
     if purse is None:
         purse = 120.0 if mode == "mega" else 30.0
     retentions = default_retentions(pool, IPL_TEAMS_DEFAULT, mode, mega_ids)
@@ -86,6 +88,14 @@ def room(
                 "player": m["player"]["name"],
                 "role": m["player"]["role"].replace("_", "-"),
                 "value": round(m["player"]["projected_value"], 1),
+                "ipl_fit": (
+                    f"{round(act[m['player']['cricsheet_id']]['ipl_relevance'] * 100)}%"
+                    if m["player"]["cricsheet_id"] in act
+                    else "—"
+                ),
+                "last_ipl": (act.get(m["player"]["cricsheet_id"], {}).get("last_ipl") or "never")[
+                    :4
+                ],
                 "most_likely": ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in m["winners"])
                 or "unsold",
             }
