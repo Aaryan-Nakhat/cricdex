@@ -19,6 +19,7 @@ from cricdex.web_parity import (
     IPL_TEAMS_DEFAULT,
     build_pool,
     default_retentions,
+    load_activity_index,
     load_auction_pool,
     load_retentions,
     simulate_auction,
@@ -71,6 +72,24 @@ except FileNotFoundError as e:
 
 pool = build_pool(pool_rows)
 by_id = {p["cricsheet_id"]: p for p in pool}
+act = load_activity_index("ipl")  # cid -> last-IPL / age / ipl_relevance
+
+
+def _fit(cid: str) -> int | None:
+    a = act.get(cid)
+    return round(a["ipl_relevance"] * 100) if a else None
+
+
+def _last_ipl(cid: str):
+    a = act.get(cid)
+    return (a.get("last_ipl") or "never")[:4] if a else None
+
+
+def _age(cid: str):
+    a = act.get(cid)
+    return a.get("age") if a else None
+
+
 mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
 real_prices = {r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows}
 
@@ -186,6 +205,9 @@ marq_df = pd.DataFrame(
             "Player": m["player"]["name"],
             "Role": m["player"]["role"].replace("_", "-"),
             "Value": round(m["player"]["projected_value"], 1),
+            "IPL fit %": _fit(m["player"]["cricsheet_id"]),
+            "Last IPL": _last_ipl(m["player"]["cricsheet_id"]),
+            "Age": _age(m["player"]["cricsheet_id"]),
             "Most likely": ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in m["winners"])
             or "unsold",
         }
@@ -230,6 +252,9 @@ if pick != _PICK:
                 {
                     "Player": o["name"],
                     "Role": o["role"].replace("_", "-"),
+                    "IPL fit %": _fit(o["cricsheet_id"]),
+                    "Last IPL": _last_ipl(o["cricsheet_id"]),
+                    "Age": _age(o["cricsheet_id"]),
                     "Status": o["status"],
                     "Avg price (cr)": None if o["status"] == "unsold" else round(o["avgPrice"], 1),
                     "Sold %": round(o["soldPct"]) if o["status"] == "sold" else None,
