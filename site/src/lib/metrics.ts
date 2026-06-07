@@ -180,6 +180,37 @@ export const METRICS: MetricDef[] = [
       { key: "setting_balls", label: "Setting balls", digits: 0 },
     ],
   },
+  {
+    slug: "keeping",
+    name: "Wicketkeeping",
+    one_liner: "Dismissals behind the stumps — catches, stumpings, run-outs.",
+    what: "Counts every dismissal a wicket-keeper is credited with: catches taken, stumpings, and run-out involvements. It's a volume tally (longevity rewards it — use the min-matches filter), not a per-chance success rate, which ball-by-ball data can't see.",
+    how: "From each dismissal's fielder list: caught → catch, stumped → stumping, run out → an involvement (every fielder named is credited). A player counts as a keeper if the taxonomy says so or they have any stumping. Dismissals = catches + stumpings + run-outs.",
+    nameCol: "fielder",
+    higherIsBetter: true,
+    columns: [
+      { key: "fielder", label: "Keeper" },
+      { key: "dismissals", label: "Dismissals", digits: 0, primary: true, bar: true },
+      { key: "catches", label: "Catches", digits: 0 },
+      { key: "stumpings", label: "Stumpings", digits: 0 },
+      { key: "runouts", label: "Run-outs", digits: 0 },
+    ],
+  },
+  {
+    slug: "fielding",
+    name: "Fielding",
+    one_liner: "Outfield dismissals — catches and run-out involvements.",
+    what: "Counts an outfielder's dismissals: catches taken and run-out involvements. Fielding is the least-quantified discipline; this is the count broadcast scorecards bury. It's volume (use the min-matches filter), not diving range — that needs video.",
+    how: "From each dismissal's fielder list: caught → catch, run out → an involvement (every fielder named is credited; caught-and-bowled is a bowling wicket, excluded). Keepers are split off to their own board. Dismissals = catches + run-outs.",
+    nameCol: "fielder",
+    higherIsBetter: true,
+    columns: [
+      { key: "fielder", label: "Fielder" },
+      { key: "dismissals", label: "Dismissals", digits: 0, primary: true, bar: true },
+      { key: "catches", label: "Catches", digits: 0 },
+      { key: "runouts", label: "Run-outs", digits: 0 },
+    ],
+  },
 ];
 
 export const METRIC_BY_SLUG: Record<string, MetricDef> = Object.fromEntries(
