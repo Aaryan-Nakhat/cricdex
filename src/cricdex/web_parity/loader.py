@@ -43,3 +43,11 @@ def load_retentions(collection: str = "ipl", base: Path | str | None = None) -> 
 def load_scout_index(collection: str = "ipl", base: Path | str | None = None) -> dict:
     """{"ipl": [...], "smat": [...], "bbl": [...]} look-alike index."""
     return _read(_base(base) / collection / "scout_index.json")
+
+
+def load_activity_index(collection: str = "ipl", base: Path | str | None = None) -> dict:
+    """cricsheet_id -> {leagues, last_ipl, last_any, home_league, age,
+    ipl_relevance} — cross-league activity behind the auction's IPL-relevance
+    weight. Empty dict if not exported yet."""
+    path = _base(base) / collection / "activity_index.json"
+    return json.loads(path.read_text()) if path.exists() else {}
