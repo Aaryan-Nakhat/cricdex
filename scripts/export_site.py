@@ -1090,6 +1090,60 @@ def _export_phase(
         logger.warning(f"phase export skipped for {collection}: {e}")
 
 
+def _export_partnerships(
+    con: duckdb.DuckDBPyConnection, collection: str, out_dir: Path, players: list[dict]
+) -> int:
+    """partnerships.json — batter-pair stands. Aggregates per unordered pair
+    across innings: innings, runs (incl. extras while both at the crease), legal
+    balls, SR, best single-innings stand, average, fifty/hundred stands. The
+    per-player view is derived client-side by filtering pairs containing them."""
+    safe = _safe(collection)
+    rows = con.execute(
+        f"""
+        WITH p AS (
+            SELECT match_id, innings_idx,
+                   LEAST(batter, non_striker) AS a, GREATEST(batter, non_striker) AS b,
+                   SUM(runs_total) AS runs,
+                   SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides' THEN 1 ELSE 0 END) AS balls
+            FROM balls_{safe}
+            WHERE non_striker IS NOT NULL AND batter IS NOT NULL
+            GROUP BY 1, 2, 3, 4
+        )
+        SELECT a, b,
+               COUNT(*) AS innings,
+               SUM(runs) AS runs,
+               SUM(balls) AS balls,
+               MAX(runs) AS best,
+               SUM(CASE WHEN runs >= 50 THEN 1 ELSE 0 END) AS fifties,
+               SUM(CASE WHEN runs >= 100 THEN 1 ELSE 0 END) AS hundreds
+        FROM p
+        GROUP BY a, b
+        HAVING SUM(runs) >= 50
+        ORDER BY runs DESC
+        """
+    ).fetchall()
+    name_to_cid = {p["name"]: p["cricsheet_id"] for p in players if p.get("name")}
+    pairs = [
+        {
+            "a": a,
+            "b": b,
+            "a_cid": name_to_cid.get(a),
+            "b_cid": name_to_cid.get(b),
+            "innings": int(inns),
+            "runs": int(runs),
+            "balls": int(balls),
+            "sr": round(100.0 * runs / balls, 1) if balls else 0.0,
+            "best": int(best),
+            "avg": round(runs / inns, 1) if inns else 0.0,
+            "fifties": int(fifties),
+            "hundreds": int(hundreds),
+        }
+        for a, b, inns, runs, balls, best, fifties, hundreds in rows
+    ]
+    _write(out_dir / "partnerships.json", {"pairs": pairs})
+    return len(pairs)
+
+
 @app.command()
 def export(
     collection: str | None = typer.Option(
@@ -1154,6 +1208,7 @@ def export(
             _export_records_venues(col, out_dir)
             _export_phase(col, out_dir, match_counts, name_tax, activity)
             n_match = _export_matchups(col, out_dir, players, taxonomy)
+            _export_partnerships(con, col, out_dir, players)
             n_prof, n_cohort = _export_profiles_and_cohorts(
                 col, out_dir, players, taxonomy, activity
             )
