@@ -12,7 +12,6 @@ import { Scout } from "@/pages/Scout";
 import { Auction } from "@/pages/Auction";
 import { Records } from "@/pages/Records";
 import { Venues } from "@/pages/Venues";
-import { UmpiresEye } from "@/pages/UmpiresEye";
 import { About } from "@/pages/About";
 import { NotFound } from "@/pages/NotFound";
 
@@ -32,7 +31,6 @@ export function App() {
         <Route path="/auction" element={<Auction />} />
         <Route path="/records" element={<Records />} />
         <Route path="/venues" element={<Venues />} />
-        <Route path="/umpires-eye" element={<UmpiresEye />} />
         <Route path="/about" element={<About />} />
         <Route path="*" element={<NotFound />} />
       </Route>
