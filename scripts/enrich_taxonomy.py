@@ -1,6 +1,6 @@
 """Enrich every player with cricket taxonomy via LLM.
 
-For each player we ask LLM (JSON proxy) for the facts
+For each player we ask LLM  for the facts
 ball-by-ball data can't give us: bowling type (seam vs spin + exact
 style), primary role, usual batting position bucket, batting hand, and
 country. Stored permanently in data/curated/player_taxonomy.json keyed
@@ -11,8 +11,8 @@ Resumable: only players missing from the cache are queried, so a rerun
 fills gaps and a newly-ingested player is picked up next time.
 
 Run:
-    LLM_API_KEY=... uv run python scripts/enrich_taxonomy.py
-    LLM_API_KEY=... uv run python scripts/enrich_taxonomy.py --batch 20 --limit 200
+    LLM_API_BASE=... LLM_API_KEY=... uv run python scripts/enrich_taxonomy.py
+    LLM_API_BASE=... LLM_API_KEY=... uv run python scripts/enrich_taxonomy.py --batch 20 --limit 200
 """
 
 from __future__ import annotations
@@ -30,15 +30,9 @@ from cricdex.config import ROOT  # importing config loads .env (LLM_*)
 SITE_DATA = ROOT / "site" / "public" / "data"
 CACHE = ROOT / "data" / "curated" / "player_taxonomy.json"
 
-# Prefer the LLM_* vars (a full llm base, e.g.
-# https://llm-proxy.example.com/v1); fall back to
-# the older LLM_API_BASE (which lacks the /v1 suffix).
-_TMP_BASE = os.environ.get("LLM_API_BASE")
-if _TMP_BASE:
-    URL = f"{_TMP_BASE.rstrip('/')}/generate_json"
-else:
-    LLM_BASE = os.environ.get("LLM_API_BASE", "https://llm-proxy.example.com")
-    URL = f"{LLM_BASE}/v1/generate_json"
+# LLM_API_BASE is the proxy's full LLM base (it serves /generate_json). No default: set it in .env.
+_TMP_BASE = os.environ.get("LLM_API_BASE", "")
+URL = f"{_TMP_BASE.rstrip('/')}/generate_json"
 MODEL = "llm-model"
 
 SYS = (
@@ -110,9 +104,9 @@ def run(
     limit: int = typer.Option(0, "--limit", help="max players this run (0 = all missing)"),
     sleep: float = typer.Option(0.4, "--sleep", help="pause between calls (s)"),
 ) -> None:
-    key = os.environ.get("LLM_API_KEY") or os.environ.get("LLM_API_KEY")
-    if not key:
-        raise SystemExit("set LLM_API_KEY (or LLM_API_KEY) in the env")
+    key = os.environ.get("LLM_API_KEY")
+    if not key or not _TMP_BASE:
+        raise SystemExit("set LLM_API_BASE and LLM_API_KEY in the env")
 
     players = _collect_players()
     cache = _load_cache()
