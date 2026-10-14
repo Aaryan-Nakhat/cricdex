@@ -18,7 +18,8 @@ from cricdex.scout.ratings import bayesian
 
 
 def _attach_names(df: pl.DataFrame, db_path: Path) -> pl.DataFrame:
-    if not db_path.exists():
+    # bayesian.fit already attaches unique_name; joining again wrote a duplicate `unique_name_right` column.
+    if "unique_name" in df.columns or not db_path.exists():
         return df
     with duckdb.connect(str(db_path), read_only=True) as con:
         tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
