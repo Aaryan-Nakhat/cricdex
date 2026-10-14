@@ -280,7 +280,7 @@ def all_cmd(
     _ngi_min_matches = {"last1y": 3, "last3y": 6}
     ngi_min = next(
         (v for suf, v in _ngi_min_matches.items() if collection.endswith(f"_{suf}")),
-        10,
+        25,
     )
     _ngi_career = _ngi.compute(collection=collection)["career"]
     if not _ngi_career.is_empty():

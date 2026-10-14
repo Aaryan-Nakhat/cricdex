@@ -156,7 +156,7 @@ their economy looks great.
   calibrated on one set of matches and scored on another it never saw;
   per-ball ΔWP credited to batter (+) and bowler (−). Time-window boards
   reuse the whole league's model; leaderboards keep a matches floor
-  (10 all-time, 6 for 3 years, 3 for 1 year). Career table at `data/metrics/ngi_<collection>.json`,
+  (25 all-time, 6 for 3 years, 3 for 1 year). Career table at `data/metrics/ngi_<collection>.json`,
   dashboard tab "NGI (Net Game Impact)".
 - **Wicket Quality** ✅ — Σ(opponent Bayes skill) / wickets taken.
   Lives in `cricdex.metrics.bowler_wicket_quality`. Needs the
