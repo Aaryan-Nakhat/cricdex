@@ -43,18 +43,20 @@ METRICS: list[MetricDef] = [
     MetricDef(
         slug="ngi",
         name="Net Game Impact",
-        one_liner="Total runs added vs a replacement-level player, batting + bowling.",
+        one_liner="How much a player moves their team's chance of winning, per match — batting + bowling.",
         what=(
-            "NGI rolls a player's batting and bowling contribution into one win-currency number — "
-            "runs added above a replacement-level player across their career — then normalises per "
-            "match so part-timers and veterans compare fairly."
+            "NGI scores every ball by how much it changed the batting side's chance of winning, "
+            "credits that to the batter (and the opposite to the bowler), and averages it per "
+            "match — so a 30* that wins a tight chase counts for more than a hundred in a lost "
+            "cause."
         ),
         how=(
-            "For every ball, compute expected runs for a replacement-level player in that exact "
-            "match state (over, wickets, venue). A batter's credit = actual runs − expected; a "
-            "bowler's = expected − conceded (plus a wicket bonus weighted by the batter's value). "
-            "Sum a player's batting + bowling credit across all matches → NGI total, then divide "
-            "by matches → NGI per match."
+            "A win-probability model (gradient-boosted trees, calibrated) trained on every T20 "
+            "ball in the league reads the state before each delivery: innings, balls and wickets "
+            "left, score, target and required rate, and the run rate against the ground's "
+            "average. The change in win chance from before to after the ball is that ball's "
+            "value: + to the batter, − to the bowler. NGI total sums it over a career; NGI per "
+            "match divides by matches played."
         ),
         name_col="name",
         higher_is_better=True,

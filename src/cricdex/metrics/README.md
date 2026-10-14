@@ -33,8 +33,8 @@ runs them all) and writes `data/metrics/<slug>_<collection>.json`.
 
 ## Composite
 
-- **NGI — Net Game Impact** (`ngi`) — leverage/win-probability-weighted
-  runs added above replacement, batting + bowling, normalised per match.
+- **NGI — Net Game Impact** (`ngi`) — per-ball change in win probability,
+  credited to the batter (+) and bowler (−), averaged per match.
 
 Each metric also surfaces per-player on the Player Profile (CLI / TUI /
 Streamlit / web) and feeds the Compare and Leaderboards views.

@@ -610,23 +610,26 @@ normalised per match.
 The model is a binary XGBoost classifier — given the game state at
 ball `t`, predict `P(batting team wins eventually)`.
 
-**Features (10).** All numeric, all derivable from ball-by-ball:
+**Features (9).** All numeric, all known *before* the delivery
+(T20 only; innings 0 = first, 1 = chase; super overs dropped):
 - `innings_idx` (0 or 1)
-- `balls_remaining` in the innings
-- `wickets_left`
+- `balls_remaining` — scheduled legal balls minus legal balls bowled
+  (never how many the innings actually lasted)
+- `wickets_left` (retired hurt isn't a wicket)
 - `score_before` this ball
-- `target` (1st innings + 1; NaN in 1st innings)
-- `runs_needed` (target − score; NaN in 1st innings)
+- `target` (first-innings total + 1 in the chase; 0 in the first innings)
+- `runs_needed` (target − score; 0 in the first innings)
 - `required_rr` (runs/over needed to chase)
-- `current_rr` (runs/over the team has been scoring)
-- `innings1_total` (only meaningful in 2nd innings)
-- `current_rr_minus_venue` — how far above/below the venue's
-  historical median current RR
+- `current_rr` (runs per legal over so far)
+- `current_rr_minus_venue` — how far above/below the ground's average
+  first-innings run rate, from the training matches only
 
 **Holdout split — match-id, not ball-id.** Critical methodological
 choice. If you split balls randomly, the model sees balls 1-99 of a
 match in training and ball 100 in validation — trivial leakage. We
-split *matches* 85/15 so the val set is held-out games entirely.
+split *matches* 70/15/15: train, calibration (early stopping +
+isotonic) and test — accuracy, Brier and reliability are reported on
+the test matches only, which nothing was fitted on.
 
 **Hyperparameters.**
 
@@ -653,14 +656,14 @@ Isotonic regression fits a monotonic step function from raw → true
 probability:
 
 ```python
-val_raw = base.predict_proba(X[va_mask])[:, 1]
 calibrator = IsotonicRegression(out_of_bounds="clip")
-calibrator.fit(val_raw, y[va_mask])
+calibrator.fit(base.predict_proba(X[ca])[:, 1], y[ca])   # calibration matches
+test_cal = calibrator.transform(base.predict_proba(X[te])[:, 1])  # unseen test matches
 ```
 
-After calibration the reliability is perfect: bin by predicted
-probability, the actual win rate in that bin equals the predicted
-midpoint. This matters because we're going to *subtract* WP values
+The reliability table is measured on the test matches: bin by
+predicted probability and compare with the actual win rate in each
+bin (IPL: within about 0.03 on average). This matters because we're going to *subtract* WP values
 to get ΔWP — if the scale is non-linear in true probability, the
 subtractions become meaningless.
 
@@ -671,9 +674,11 @@ For each ball:
 delta_wp = wp_after − wp_before
 ```
 
-Terminal correction: at the last ball of an innings,
-`wp_after = 1.0` if batting team won, `0.0` if not. (Otherwise the
-model's last predicted WP isn't exactly 0/1 and you get drift.)
+Terminal correction: at the last ball of the **chase**,
+`wp_after = 1.0` if the chasing team won, `0.0` if not. At the last
+ball of the **first innings**, `wp_after = 1 − WP` of the chase's
+opening state, so the bowler and batter of that ball aren't credited
+with the whole second innings.
 
 Per-ball credit:
 - batter gets `+delta_wp` for the strike ball

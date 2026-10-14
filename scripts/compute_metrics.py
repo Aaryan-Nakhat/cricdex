@@ -275,8 +275,18 @@ def all_cmd(
     )
     from cricdex.metrics import ngi as _ngi
 
+    # NGI is per-match, so a player with one great game would top the board — keep a matches floor
+    # (lower for the time windows, which hold far fewer games).
+    _ngi_min_matches = {"last1y": 3, "last3y": 6}
+    ngi_min = next(
+        (v for suf, v in _ngi_min_matches.items() if collection.endswith(f"_{suf}")),
+        10,
+    )
+    _ngi_career = _ngi.compute(collection=collection)["career"]
+    if not _ngi_career.is_empty():
+        _ngi_career = _ngi_career.filter(pl.col("matches") >= ngi_min)
     _emit(
-        _ngi.compute(collection=collection)["career"].head(top_n),
+        _ngi_career.head(top_n),
         "ngi",
         collection,
         None,
