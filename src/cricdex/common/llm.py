@@ -1,10 +1,9 @@
 """LLM client — any provider, through LiteLLM.
 
 Which model to call is configuration, not code: set ``LLM_MODEL`` in ``.env`` (or ``cricdex config set
-llm_model ...``) to any LiteLLM model string, e.g. ``openai/gpt-4o-mini``, ``anthropic/claude-sonnet-4-5``,
-``llm/llm-model``, ``ollama/llama3.1``. The provider's key is read by LiteLLM from its usual env var
-(``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``, ``LLM_API_KEY``, …); ``LLM_API_KEY`` / ``LLM_API_BASE`` override
-the key and endpoint when set (a self-hosted or OpenAI-compatible server).
+llm_model ...``) to any LiteLLM model string, ``<provider>/<model>``. The provider's key is read by LiteLLM
+from the env var it documents for that provider; ``LLM_API_KEY`` / ``LLM_API_BASE`` override the key and
+endpoint when set (a self-hosted or custom server).
 
 Used only by the optional player-taxonomy enrichment (``scripts/enrich_taxonomy.py``).
 """

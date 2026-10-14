@@ -34,8 +34,7 @@ def run() -> None:
         c.print(
             "\n[bold]LLM (optional)[/bold] — only for taxonomy enrichment "
             "(player role / seam-spin / country). Skip for metrics / scout / auction.\n"
-            "Any LiteLLM model string, e.g. openai/gpt-4o-mini, anthropic/claude-sonnet-4-5, "
-            "llm/llm-model, ollama/llama3.1."
+            "Any LiteLLM model string: <provider>/<model>."
         )
         model = typer.prompt("LLM model (or hit Enter to skip)", default="", show_default=False)
         if model.strip():

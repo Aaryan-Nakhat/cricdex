@@ -26,10 +26,10 @@ def test_unset_model_is_a_clear_error(monkeypatch):
 def test_json_is_parsed_and_settings_passed_through(monkeypatch):
     import sys
 
-    monkeypatch.setattr(llm.settings, "llm_model", "openai/gpt-4o-mini")
+    monkeypatch.setattr(llm.settings, "llm_model", "provider/model")
     monkeypatch.setattr(llm.settings, "llm_api_key", "k")
     monkeypatch.setattr(llm.settings, "llm_api_base", "")
     monkeypatch.setitem(sys.modules, "litellm", _fake('```json\n{"players": [{"id": "a"}]}\n```'))
     assert llm.generate_json("s", "u") == {"players": [{"id": "a"}]}
-    assert _fake.kw["model"] == "openai/gpt-4o-mini" and _fake.kw["api_key"] == "k"
+    assert _fake.kw["model"] == "provider/model" and _fake.kw["api_key"] == "k"
     assert "api_base" not in _fake.kw

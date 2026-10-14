@@ -46,7 +46,7 @@ cricdex config edit
 Stored at `$CRICDEX_HOME/config.toml`, chmod 600. Allowed keys:
 `llm_model`, `llm_api_key`, `llm_api_base`.
 
-Env vars override the file (e.g., `LLM_MODEL=openai/gpt-4o-mini`).
+Env vars override the file (e.g., `LLM_MODEL=<provider>/<model>`).
 
 ---
 

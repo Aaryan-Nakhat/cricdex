@@ -69,7 +69,7 @@ class Settings(BaseSettings):
 
     # LLM (taxonomy enrichment only) — any LiteLLM model string, see common/llm.py.
     llm_model: str = _setting("llm_model")
-    # Optional: override the provider key / endpoint (self-hosted or OpenAI-compatible server).
+    # Optional: override the provider key / endpoint (a self-hosted or custom server).
     llm_api_key: str = _setting("llm_api_key")
     llm_api_base: str = _setting("llm_api_base")
 

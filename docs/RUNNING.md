@@ -128,8 +128,8 @@ list). The most important ones:
 
 | Variable | Required? | Notes |
 |---|---|---|
-| `LLM_MODEL` | for the taxonomy enrichment | Any LiteLLM model string, e.g. `openai/gpt-4o-mini`, `anthropic/claude-sonnet-4-5`, `llm/llm-model`, `ollama/llama3.1`. The provider's key goes in its usual variable (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LLM_API_KEY`, …). |
-| `LLM_API_KEY` / `LLM_API_BASE` | optional | Override the key / endpoint (a self-hosted or OpenAI-compatible server). |
+| `LLM_MODEL` | for the taxonomy enrichment | Any LiteLLM model string, `<provider>/<model>`. The provider's key goes in the variable LiteLLM documents for that provider. |
+| `LLM_API_KEY` / `LLM_API_BASE` | optional | Override the key / endpoint (a self-hosted or custom server). |
 | `DATABASE_URL` / `REDIS_URL` | wait for those modules | Documented but unused until the cache module lands. |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | for `make backup` | Cloudflare R2 backup target. Always-free 10 GB / zero egress. Create a bucket + API token at `dash.cloudflare.com → R2 → Manage R2 API Tokens`. Without these, the local `data/` directory is the only copy of artifacts that took a while to build. |
 

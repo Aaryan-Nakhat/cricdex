@@ -133,7 +133,7 @@ def run(
                 "batting_hand": g.get("batting_hand"),
                 "country": g.get("country"),
                 "confidence": g.get("confidence"),
-                "source": llm.settings.llm_model,
+                "source": "llm",
             }
             done += 1
         _save_cache(cache)  # durable after every batch
