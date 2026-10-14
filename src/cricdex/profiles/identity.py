@@ -23,6 +23,7 @@ from pathlib import Path
 
 import duckdb
 
+from cricdex.common.sql import table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -41,7 +42,7 @@ def _player_universe(
     collection: str,
     db_path: Path | str = DEFAULT_DB_PATH,
 ) -> list[str]:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     if not Path(db_path).exists():
         return []
     with duckdb.connect(str(db_path), read_only=True) as con:

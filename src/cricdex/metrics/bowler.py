@@ -11,6 +11,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
+from cricdex.common.sql import table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -44,7 +45,7 @@ def pressure_conversion(
       filtered to 0 rows by a hard-coded 30-ball floor.
     - Else default to 30 (the v1 IPL-tuned floor).
     """
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     # Aggregated table (before applying min_pressure_balls).
     agg_sql = f"""
     WITH numbered AS (

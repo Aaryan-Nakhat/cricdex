@@ -17,6 +17,8 @@ import polars as pl
 from loguru import logger
 from tqdm import tqdm
 
+from cricdex.common.sql import table_suffix
+
 CRICSHEET_BASE = "https://cricsheet.org/downloads"
 
 # 35 Indian state teams whose Cricsheet zip files together cover every
@@ -331,7 +333,7 @@ def write_parquet(
 
 def load_to_duckdb(matches_path: Path, balls_path: Path, collection: str, db_path: Path) -> None:
     """(Re)create the matches_<col> / balls_<col> tables from the parquet."""
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     con = duckdb.connect(str(db_path))
     try:
         con.execute(

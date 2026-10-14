@@ -12,6 +12,7 @@ import duckdb
 import typer
 from loguru import logger
 
+from cricdex.common.sql import table_suffix
 from cricdex.config import DATA_DIR
 from cricdex.scout.ingest import cricsheet
 
@@ -25,7 +26,7 @@ def _root() -> None:
 
 def _load_to_duckdb(matches_path: Path, balls_path: Path, collection: str, db_path: Path) -> None:
     con = duckdb.connect(str(db_path))
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     con.execute(
         f"CREATE OR REPLACE TABLE matches_{safe} AS SELECT * FROM read_parquet('{matches_path}')"
     )

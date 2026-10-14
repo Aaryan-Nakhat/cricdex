@@ -32,6 +32,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
+from cricdex.common.sql import table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -53,7 +54,7 @@ def wicket_quality(
     min_wickets: int = 15,
     top_n: int | None = 200,
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     skills = _load_batter_skills(collection)
     if not skills:
         return pl.DataFrame()

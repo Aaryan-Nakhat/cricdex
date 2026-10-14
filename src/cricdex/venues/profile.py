@@ -17,6 +17,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
+from cricdex.common.sql import DISMISSAL, MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -27,7 +28,7 @@ def list_venues(
     db_path: Path | str = DEFAULT_DB_PATH,
     min_matches: int = 5,
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT venue, COUNT(*) AS matches
     FROM matches_{safe}
@@ -45,7 +46,7 @@ def innings_totals(
     collection: str = "ipl",
     db_path: Path | str = DEFAULT_DB_PATH,
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         innings_idx,
@@ -59,11 +60,11 @@ def innings_totals(
         SELECT
             b.match_id, b.innings_idx, m.match_type,
             SUM(b.runs_total) AS total_runs,
-            COUNT(*) FILTER (WHERE b.wicket_kind IS NOT NULL) AS wickets,
+            COUNT(*) FILTER (WHERE {DISMISSAL}) AS wickets,
             MAX(b.over) + 1 AS overs_used
         FROM balls_{safe} b
         JOIN matches_{safe} m USING (match_id)
-        WHERE b.venue = ?
+        WHERE b.venue = ? AND (b.innings_idx <= 1 OR m.match_type IN ('Test', 'MDM'))
         GROUP BY b.match_id, b.innings_idx, m.match_type
     )
     GROUP BY innings_idx, match_type
@@ -78,7 +79,7 @@ def chase_vs_set_winrate(
     collection: str = "ipl",
     db_path: Path | str = DEFAULT_DB_PATH,
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         match_type,
@@ -114,7 +115,7 @@ def phase_run_rates(
     (match_id)` keeps the duplicated column on both sides and duckdb
     refuses to disambiguate it on its own.
     """
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         b.phase,
@@ -147,14 +148,14 @@ def dismissal_mix(
     collection: str = "ipl",
     db_path: Path | str = DEFAULT_DB_PATH,
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         wicket_kind,
         COUNT(*) AS dismissals,
         CAST(ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS DOUBLE) AS pct_share
     FROM balls_{safe}
-    WHERE venue = ? AND wicket_kind IS NOT NULL
+    WHERE venue = ? AND {DISMISSAL} AND {MAIN_INNINGS}
     GROUP BY wicket_kind
     ORDER BY dismissals DESC
     """

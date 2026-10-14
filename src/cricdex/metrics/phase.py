@@ -11,6 +11,7 @@ from pathlib import Path
 
 import duckdb
 
+from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -30,7 +31,7 @@ def phase_leaders(
 ) -> dict[str, dict]:
     """{phase: {"batters": [{name,balls,runs,sr}], "bowlers": [{name,balls,
     runs,wickets,econ}]}} for powerplay / middle / death."""
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     out: dict[str, dict] = {}
     with _connect(db_path) as con:
         for ph in PHASES:
@@ -40,7 +41,7 @@ def phase_leaders(
                        SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides' THEN 1 ELSE 0 END) AS balls,
                        SUM(runs_batter) AS runs
                 FROM balls_{safe}
-                WHERE phase = ? AND batter IS NOT NULL
+                WHERE phase = ? AND batter IS NOT NULL AND {MAIN_INNINGS}
                 GROUP BY batter
                 HAVING balls >= {min_bat_balls}
                 ORDER BY 100.0 * runs / NULLIF(balls, 0) DESC
@@ -54,13 +55,13 @@ def phase_leaders(
                        SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides'
                                  AND extras_type IS DISTINCT FROM 'noballs'
                                 THEN 1 ELSE 0 END) AS balls,
-                       SUM(runs_total) AS runs,
+                       SUM({BOWLER_RUNS}) AS runs,
                        SUM(CASE WHEN player_out IS NOT NULL
                                  AND wicket_kind NOT IN ('run out', 'retired hurt',
                                      'retired out', 'obstructing the field')
                                 THEN 1 ELSE 0 END) AS wickets
                 FROM balls_{safe}
-                WHERE phase = ? AND bowler IS NOT NULL
+                WHERE phase = ? AND bowler IS NOT NULL AND {MAIN_INNINGS}
                 GROUP BY bowler
                 HAVING balls >= {min_bowl_balls}
                 ORDER BY 6.0 * runs / NULLIF(balls, 0) ASC

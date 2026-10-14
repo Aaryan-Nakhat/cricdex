@@ -17,6 +17,7 @@ from pathlib import Path
 
 import duckdb
 
+from cricdex.common.sql import table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -35,7 +36,7 @@ def pairwise(
     min_balls: int = 6,
 ) -> list[dict]:
     """One row per (batter, bowler) meeting `min_balls` legal deliveries."""
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     outs = " OR ".join(f"wicket_kind = '{k}'" for k in _BOWLER_OUTS)
     sql = f"""
     WITH agg AS (
@@ -75,7 +76,7 @@ def pace_spin_splits(
     """
     if not bowler_category:
         return {}
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     outs = " OR ".join(f"wicket_kind = '{k}'" for k in _BOWLER_OUTS)
     pairs = [{"bowler": n, "cat": c} for n, c in bowler_category.items() if c in ("seam", "spin")]
     if not pairs:

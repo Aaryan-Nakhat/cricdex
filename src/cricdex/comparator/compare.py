@@ -13,6 +13,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
+from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
 
 METRIC_DIR = DATA_DIR / "metrics"
@@ -46,7 +47,7 @@ def _safe_get(df: pl.DataFrame, key_col: str, key: str, value_col: str) -> float
 
 
 def _career_totals(con: duckdb.DuckDBPyConnection, collection: str, player: str) -> dict:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     bat = con.execute(
         f"""
         SELECT
@@ -56,7 +57,7 @@ def _career_totals(con: duckdb.DuckDBPyConnection, collection: str, player: str)
             SUM(CASE WHEN runs_batter = 4 THEN 1 ELSE 0 END) AS fours,
             COUNT(DISTINCT match_id) AS matches
         FROM balls_{safe}
-        WHERE batter = ?
+        WHERE batter = ? AND {MAIN_INNINGS}
         """,
         [player],
     ).fetchone()
@@ -66,10 +67,10 @@ def _career_totals(con: duckdb.DuckDBPyConnection, collection: str, player: str)
             SUM(CASE WHEN wicket_kind IS NOT NULL
                   AND wicket_kind NOT IN ('run out','retired hurt','retired out','obstructing the field')
                  THEN 1 ELSE 0 END) AS wickets,
-            SUM(runs_batter + COALESCE(runs_extras,0)) AS runs_conceded,
+            SUM({BOWLER_RUNS}) AS runs_conceded,
             COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides','noballs')) AS legal_balls
         FROM balls_{safe}
-        WHERE bowler = ?
+        WHERE bowler = ? AND {MAIN_INNINGS}
         """,
         [player],
     ).fetchone()

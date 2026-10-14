@@ -24,6 +24,7 @@ from pathlib import Path
 
 import duckdb
 
+from cricdex.common.sql import table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -34,7 +35,7 @@ def ball_volumes(
 ) -> dict[str, tuple[int, int]]:
     """{player_name: (balls_faced, balls_bowled)} for the collection — computed
     once and reused across every player's cohort to pick the batter/bowler axis."""
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     rows = con.execute(
         f"""
         SELECT player, SUM(faced) AS bf, SUM(bowled) AS bb FROM (
@@ -64,7 +65,7 @@ def co_faced(
     if own:
         con = duckdb.connect(str(db_path), read_only=True)
     try:
-        safe = collection.replace("-", "_")
+        safe = table_suffix(collection)
         if vol is None:
             vol = ball_volumes(con, collection)
         bf, bb = vol.get(name, (0, 0))

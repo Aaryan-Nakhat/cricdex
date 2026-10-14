@@ -22,6 +22,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
+from cricdex.common.sql import DISMISSAL, MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_PRESSURE_MULTIPLIER = 1.5
@@ -40,7 +41,7 @@ def pressure_runs(
     min_balls_faced: int = DEFAULT_MIN_BALLS_FACED,
     top_n: int | None = 200,
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     WITH match_meta AS (
         SELECT
@@ -57,11 +58,20 @@ def pressure_runs(
     ),
     chase AS (
         SELECT
-            b.match_id, b.venue, b.phase, b.batter,
+            b.match_id, b.venue, b.phase, b.batter, mm.match_type,
             b.runs_batter, b.runs_total,
+            CASE WHEN b.extras_type IN ('wides', 'noballs') THEN 0 ELSE 1 END AS legal_ball,
+            (b.extras_type = 'wides') AS is_wide,
             (fi.first_innings_total + 1) AS target_runs,
             mm.innings_overs * 6 AS innings_balls,
-            (ROW_NUMBER() OVER (PARTITION BY b.match_id ORDER BY b.over, b.ball_in_over)) - 1 AS balls_before,
+            COALESCE(
+                SUM(CASE WHEN b.extras_type IN ('wides', 'noballs') THEN 0 ELSE 1 END) OVER (
+                    PARTITION BY b.match_id
+                    ORDER BY b.over, b.ball_in_over
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                ),
+                0
+            ) AS balls_before,
             COALESCE(
                 SUM(b.runs_total) OVER (
                     PARTITION BY b.match_id
@@ -87,23 +97,27 @@ def pressure_runs(
         WHERE (target_runs - runs_before) > 0
     ),
     venue_phase_median AS (
-        SELECT venue, phase, median(required_rpb) AS median_required_rpb
+        -- per format too: a T20 and an ODI chase at the same ground aren't one benchmark
+        SELECT match_type, venue, phase, median(required_rpb) AS median_required_rpb
         FROM ball_pressure
         WHERE required_rpb IS NOT NULL
-        GROUP BY 1, 2
+        GROUP BY 1, 2, 3
     ),
     flagged AS (
         SELECT bp.batter, bp.runs_batter, bp.required_rpb, vp.median_required_rpb,
+            -- a wide isn't a ball faced; a no-ball is (the batter can score off it)
+            CASE WHEN COALESCE(bp.is_wide, FALSE) THEN 0 ELSE 1 END AS faced,
             CASE WHEN bp.required_rpb IS NOT NULL
                   AND vp.median_required_rpb IS NOT NULL
                   AND bp.required_rpb > {pressure_multiplier} * vp.median_required_rpb
+                  AND COALESCE(NOT bp.is_wide, TRUE)
                  THEN 1 ELSE 0 END AS is_pressure_ball
         FROM ball_pressure bp
-        LEFT JOIN venue_phase_median vp USING (venue, phase)
+        LEFT JOIN venue_phase_median vp USING (match_type, venue, phase)
     )
     SELECT
         batter,
-        COUNT(*) AS chase_balls_faced,
+        SUM(faced) AS chase_balls_faced,
         SUM(runs_batter) AS chase_runs,
         SUM(is_pressure_ball) AS pressure_balls,
         SUM(CASE WHEN is_pressure_ball = 1 THEN runs_batter ELSE 0 END) AS pressure_runs,
@@ -112,7 +126,7 @@ def pressure_runs(
                              / SUM(is_pressure_ball)
                         ELSE 0 END, 2) AS DOUBLE) AS pressure_sr_per_100_balls,
         CAST(ROUND(CASE WHEN COUNT(*) > 0
-                        THEN 100.0 * SUM(is_pressure_ball) / COUNT(*)
+                        THEN 100.0 * SUM(is_pressure_ball) / NULLIF(SUM(faced), 0)
                         ELSE 0 END, 2) AS DOUBLE) AS pct_balls_under_pressure
     FROM flagged
     WHERE batter IS NOT NULL
@@ -138,7 +152,7 @@ def intent_curve(
     Reveals whether a batter is a slow-starter who heats up, or an
     immediate-aggressor whose intent is high from ball one.
     """
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     WITH ordered AS (
         SELECT
@@ -148,7 +162,7 @@ def intent_curve(
                 OVER (PARTITION BY match_id, innings_idx, batter
                       ORDER BY over, ball_in_over) AS balls_faced_to_date
         FROM balls_{safe}
-        WHERE batter IS NOT NULL
+        WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     ),
     bucketed AS (
         SELECT
@@ -177,7 +191,7 @@ def intent_curve(
     SELECT *
     FROM agg
     WHERE balls >= {min_balls_in_bucket}
-    ORDER BY batter, ball_bucket
+    ORDER BY SUM(balls) OVER (PARTITION BY batter) DESC, batter, ball_bucket
     """
     if top_n is not None:
         sql += f"\nLIMIT {top_n * 6}"
@@ -196,7 +210,7 @@ def dot_ball_recovery(
     Aggregated as runs_per_6_after_dot. High = quick re-engagement after
     pressure; low = batter who lets dots compound.
     """
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     WITH numbered AS (
         SELECT
@@ -252,10 +266,12 @@ def counter_attack_coefficient(
     """Strike rate in the 12 balls immediately after a partner wicket.
 
     The batter who keeps a *non-self* wicket from snowballing into a
-    collapse. Excludes the dismissed striker's own dismissals so the
-    metric is about the surviving batter.
+    collapse: only the batter who was already at the crease counts (not
+    the dismissed one, not the new arrival), each ball once even when two
+    wickets fall close together, and only batters who've seen at least
+    `min_partner_wickets` partners go.
     """
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     WITH numbered AS (
         SELECT
@@ -266,6 +282,18 @@ def counter_attack_coefficient(
             ROW_NUMBER() OVER (PARTITION BY match_id, innings_idx
                                ORDER BY over, ball_in_over) AS ball_seq
         FROM balls_{safe}
+        WHERE {MAIN_INNINGS}
+    ),
+    -- the first ball each batter was involved in (striker or non-striker) = when they came in
+    arrived AS (
+        SELECT match_id, innings_idx, name, MIN(ball_seq) AS first_seq
+        FROM (
+            SELECT match_id, innings_idx, batter AS name, ball_seq FROM numbered
+            UNION ALL
+            SELECT match_id, innings_idx, non_striker AS name, ball_seq FROM numbered
+        )
+        WHERE name IS NOT NULL
+        GROUP BY 1, 2, 3
     ),
     partner_wickets AS (
         SELECT match_id, innings_idx, ball_seq AS wkt_seq,
@@ -275,7 +303,7 @@ def counter_attack_coefficient(
     ),
     next_12 AS (
         SELECT
-            pw.match_id, pw.innings_idx, pw.wkt_seq,
+            pw.match_id, pw.innings_idx, pw.wkt_seq, n.ball_seq,
             n.batter, n.runs_batter, n.legal_ball
         FROM partner_wickets pw
         JOIN numbered n
@@ -283,20 +311,30 @@ def counter_attack_coefficient(
          AND n.innings_idx = pw.innings_idx
          AND n.ball_seq > pw.wkt_seq
          AND n.ball_seq <= pw.wkt_seq + 12
-        -- batter at the crease after the wicket; exclude the dismissed one
+        JOIN arrived a
+          ON a.match_id = n.match_id AND a.innings_idx = n.innings_idx AND a.name = n.batter
+        -- the surviving batter: not the one dismissed, and already in before the wicket
         WHERE n.batter <> COALESCE(pw.player_out, '')
+          AND a.first_seq <= pw.wkt_seq
+    ),
+    balls_once AS (
+        SELECT DISTINCT match_id, innings_idx, ball_seq, batter, runs_batter, legal_ball FROM next_12
     ),
     agg AS (
-        SELECT batter,
-               SUM(legal_ball) AS balls_after_partner_wkt,
-               SUM(runs_batter) AS runs_after_partner_wkt,
-               CAST(ROUND(100.0 * SUM(runs_batter) / NULLIF(SUM(legal_ball), 0), 2) AS DOUBLE) AS counter_attack_sr
-        FROM next_12
+        SELECT b.batter,
+               SUM(b.legal_ball) AS balls_after_partner_wkt,
+               SUM(b.runs_batter) AS runs_after_partner_wkt,
+               CAST(ROUND(100.0 * SUM(b.runs_batter) / NULLIF(SUM(b.legal_ball), 0), 2) AS DOUBLE)
+                   AS counter_attack_sr,
+               ANY_VALUE(w.partner_wickets) AS partner_wickets
+        FROM balls_once b
+        JOIN (SELECT batter, COUNT(DISTINCT (match_id, innings_idx, wkt_seq)) AS partner_wickets
+              FROM next_12 GROUP BY 1) w USING (batter)
         GROUP BY 1
     )
     SELECT *
     FROM agg
-    WHERE balls_after_partner_wkt >= {min_partner_wickets}
+    WHERE partner_wickets >= {min_partner_wickets}
     ORDER BY counter_attack_sr DESC, balls_after_partner_wkt DESC
     """
     if top_n is not None:
@@ -319,18 +357,27 @@ def crease_longevity(
     than the typical qualifying batter; `< 1` means shorter,
     higher-tempo innings (or just thinner accumulation).
     """
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
-    WITH innings_lengths AS (
+    WITH faced AS (
         SELECT
             batter, match_id, innings_idx,
-            COUNT(*) FILTER (WHERE COALESCE(extras_type, '') NOT IN ('wides')) AS balls,
-            MAX(CASE WHEN wicket_kind IS NOT NULL
-                      AND player_out = batter
-                     THEN 1 ELSE 0 END) AS dismissed
+            COUNT(*) FILTER (WHERE COALESCE(extras_type, '') NOT IN ('wides')) AS balls
         FROM balls_{safe}
-        WHERE batter IS NOT NULL
+        WHERE batter IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY 1, 2, 3
+    ),
+    -- out as striker or as non-striker (a run out at the other end ends the innings too)
+    outs AS (
+        SELECT DISTINCT player_out AS batter, match_id, innings_idx
+        FROM balls_{safe}
+        WHERE player_out IS NOT NULL AND {DISMISSAL} AND {MAIN_INNINGS}
+    ),
+    innings_lengths AS (
+        SELECT f.batter, f.match_id, f.innings_idx, f.balls,
+               CASE WHEN o.batter IS NOT NULL THEN 1 ELSE 0 END AS dismissed
+        FROM faced f
+        LEFT JOIN outs o USING (batter, match_id, innings_idx)
     ),
     per_batter AS (
         SELECT
@@ -380,7 +427,7 @@ def slow_start_cost(
     their career as a whole, i.e. their slow starts cost runs.
     Negative → they're already aggressive from ball one.
     """
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     WITH numbered AS (
         SELECT
@@ -450,7 +497,7 @@ def boundary_dependency(
     isn't there. Low BDR = strike-rotator who keeps the strike turning. Both
     profiles win matches; the metric exists to distinguish them.
     """
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         batter,

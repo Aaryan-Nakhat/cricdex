@@ -50,6 +50,7 @@ import duckdb
 import numpy as np
 import polars as pl
 
+from cricdex.common.sql import table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -72,7 +73,7 @@ def _load_edges(
     collection: str,
     min_balls: int,
 ) -> tuple[pl.DataFrame, dict[str, int], dict[str, int]]:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     kinds_sql = ", ".join(f"'{k}'" for k in _BOWLER_WICKET_KINDS)
     with duckdb.connect(str(db_path), read_only=True) as con:
         df = con.execute(

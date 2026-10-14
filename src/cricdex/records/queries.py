@@ -12,6 +12,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
+from cricdex.common.sql import BOWLER_RUNS, BOWLER_WICKET, MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -27,7 +28,7 @@ def _ctx(db_path: Path | str) -> duckdb.DuckDBPyConnection:
 def highest_individual_innings(
     collection: str, db_path: Path | str = DEFAULT_DB_PATH, top_n: int = 25
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         batter,
@@ -39,8 +40,8 @@ def highest_individual_innings(
         SUM(CASE WHEN runs_batter = 4 THEN 1 ELSE 0 END) AS fours,
         SUM(CASE WHEN runs_batter = 6 THEN 1 ELSE 0 END) AS sixes
     FROM balls_{safe}
-    WHERE batter IS NOT NULL
-    GROUP BY batter, match_id, match_date, venue
+    WHERE batter IS NOT NULL AND {MAIN_INNINGS}
+    GROUP BY batter, match_id, innings_idx, match_date, venue
     ORDER BY runs DESC, balls ASC
     LIMIT {top_n}
     """
@@ -52,7 +53,7 @@ def fastest_fifty(
     collection: str, db_path: Path | str = DEFAULT_DB_PATH, top_n: int = 25
 ) -> pl.DataFrame:
     """Fewest legal balls to reach 50 in a single innings."""
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     WITH counted AS (
         SELECT
@@ -89,7 +90,7 @@ def fastest_fifty(
 def fastest_hundred(
     collection: str, db_path: Path | str = DEFAULT_DB_PATH, top_n: int = 25
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     WITH counted AS (
         SELECT
@@ -122,15 +123,15 @@ def fastest_hundred(
 def most_sixes_innings(
     collection: str, db_path: Path | str = DEFAULT_DB_PATH, top_n: int = 25
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         batter, match_id, match_date, venue,
         SUM(CASE WHEN runs_batter = 6 THEN 1 ELSE 0 END) AS sixes,
         SUM(runs_batter) AS runs
     FROM balls_{safe}
-    WHERE batter IS NOT NULL
-    GROUP BY batter, match_id, match_date, venue
+    WHERE batter IS NOT NULL AND {MAIN_INNINGS}
+    GROUP BY batter, match_id, innings_idx, match_date, venue
     ORDER BY sixes DESC, runs DESC
     LIMIT {top_n}
     """
@@ -141,16 +142,16 @@ def most_sixes_innings(
 def career_run_leaders(
     collection: str, db_path: Path | str = DEFAULT_DB_PATH, top_n: int = 25
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         batter,
         SUM(runs_batter) AS career_runs,
-        COUNT(DISTINCT match_id) AS innings_count,
+        COUNT(DISTINCT (match_id, innings_idx)) AS innings_count,
         SUM(CASE WHEN runs_batter = 6 THEN 1 ELSE 0 END) AS sixes,
         SUM(CASE WHEN runs_batter = 4 THEN 1 ELSE 0 END) AS fours
     FROM balls_{safe}
-    WHERE batter IS NOT NULL
+    WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY batter
     ORDER BY career_runs DESC
     LIMIT {top_n}
@@ -165,18 +166,16 @@ def career_run_leaders(
 def best_bowling_innings(
     collection: str, db_path: Path | str = DEFAULT_DB_PATH, top_n: int = 25
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         bowler, match_id, match_date, venue,
-        SUM(CASE WHEN wicket_kind IS NOT NULL
-              AND wicket_kind NOT IN ('run out','retired hurt','retired out','obstructing the field')
-             THEN 1 ELSE 0 END) AS wickets,
-        SUM(runs_batter + COALESCE(runs_extras, 0)) AS runs_conceded,
+        SUM(CASE WHEN {BOWLER_WICKET} THEN 1 ELSE 0 END) AS wickets,
+        SUM({BOWLER_RUNS}) AS runs_conceded,
         COUNT(*) FILTER (WHERE COALESCE(extras_type, '') NOT IN ('wides','noballs')) AS legal_balls
     FROM balls_{safe}
-    WHERE bowler IS NOT NULL
-    GROUP BY bowler, match_id, match_date, venue
+    WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
+    GROUP BY bowler, match_id, innings_idx, match_date, venue
     HAVING legal_balls >= 12
     ORDER BY wickets DESC, runs_conceded ASC
     LIMIT {top_n}
@@ -188,18 +187,16 @@ def best_bowling_innings(
 def career_wicket_leaders(
     collection: str, db_path: Path | str = DEFAULT_DB_PATH, top_n: int = 25
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         bowler,
-        SUM(CASE WHEN wicket_kind IS NOT NULL
-              AND wicket_kind NOT IN ('run out','retired hurt','retired out','obstructing the field')
-             THEN 1 ELSE 0 END) AS wickets,
+        SUM(CASE WHEN {BOWLER_WICKET} THEN 1 ELSE 0 END) AS wickets,
         COUNT(DISTINCT match_id) AS matches,
-        SUM(runs_batter + COALESCE(runs_extras, 0)) AS runs_conceded,
+        SUM({BOWLER_RUNS}) AS runs_conceded,
         COUNT(*) FILTER (WHERE COALESCE(extras_type, '') NOT IN ('wides','noballs')) AS legal_balls
     FROM balls_{safe}
-    WHERE bowler IS NOT NULL
+    WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY bowler
     ORDER BY wickets DESC
     LIMIT {top_n}
@@ -214,7 +211,7 @@ def career_wicket_leaders(
 def highest_team_totals(
     collection: str, db_path: Path | str = DEFAULT_DB_PATH, top_n: int = 25
 ) -> pl.DataFrame:
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
         match_id, match_date, venue,
@@ -222,7 +219,8 @@ def highest_team_totals(
         SUM(runs_total) AS total_runs,
         MAX(over) + 1 AS overs_used
     FROM balls_{safe}
-    GROUP BY match_id, match_date, venue, batting_team
+    WHERE {MAIN_INNINGS}
+    GROUP BY match_id, innings_idx, match_date, venue, batting_team
     ORDER BY total_runs DESC
     LIMIT {top_n}
     """
@@ -233,17 +231,19 @@ def highest_team_totals(
 def highest_runs_in_over(
     collection: str, db_path: Path | str = DEFAULT_DB_PATH, top_n: int = 25
 ) -> pl.DataFrame:
-    """Highest runs conceded by a bowler in a single over (legal balls only, no wides/no-balls extras)."""
-    safe = collection.replace("-", "_")
+    """Most runs conceded by a bowler in one over: runs off the bat plus wides and no-balls (byes and leg-byes
+    aren't the bowler's). `batters` lists who faced the over."""
+    safe = table_suffix(collection)
     sql = f"""
     SELECT
-        bowler, batter, match_id, match_date, venue, over,
-        SUM(runs_batter + COALESCE(runs_extras, 0)) AS runs_in_over,
+        bowler, STRING_AGG(DISTINCT batter, ', ' ORDER BY batter) AS batters,
+        match_id, match_date, venue, over,
+        SUM({BOWLER_RUNS}) AS runs_in_over,
         SUM(CASE WHEN runs_batter = 6 THEN 1 ELSE 0 END) AS sixes_in_over,
         SUM(CASE WHEN runs_batter = 4 THEN 1 ELSE 0 END) AS fours_in_over
     FROM balls_{safe}
-    WHERE bowler IS NOT NULL
-    GROUP BY bowler, batter, match_id, match_date, venue, over
+    WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
+    GROUP BY bowler, match_id, innings_idx, match_date, venue, over
     ORDER BY runs_in_over DESC
     LIMIT {top_n}
     """
@@ -264,16 +264,16 @@ def on_this_day(
     """Return notable individual innings + bowling performances on the
     same calendar day (month + day, ignoring year) across the
     collection's history."""
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     # match_date may land in DuckDB as either DATE or VARCHAR depending on
     # how polars inferred the parquet column. TRY_CAST keeps both paths.
     sql = f"""
     WITH same_day AS (
         SELECT
-            batter, bowler, match_id, match_date, venue,
+            batter, bowler, match_id, innings_idx, match_date, venue,
             runs_batter, wicket_kind, extras_type
         FROM balls_{safe}
-        WHERE EXTRACT(month FROM TRY_CAST(match_date AS DATE)) = {month}
+        WHERE {MAIN_INNINGS} AND EXTRACT(month FROM TRY_CAST(match_date AS DATE)) = {month}
           AND EXTRACT(day FROM TRY_CAST(match_date AS DATE)) = {day}
     ),
     bat AS (
@@ -281,23 +281,29 @@ def on_this_day(
                'batter' AS role,
                SUM(runs_batter) AS value, match_id, venue
         FROM same_day WHERE batter IS NOT NULL
-        GROUP BY 1, 2, 3, 5, 6
+        GROUP BY match_date, batter, match_id, innings_idx, venue
     ),
     bowl AS (
         SELECT match_date, bowler AS player,
                'bowler' AS role,
-               SUM(CASE WHEN wicket_kind IS NOT NULL
-                     AND wicket_kind NOT IN ('run out','retired hurt','retired out','obstructing the field')
-                    THEN 1 ELSE 0 END) AS value,
+               SUM(CASE WHEN {BOWLER_WICKET} THEN 1 ELSE 0 END) AS value,
                match_id, venue
         FROM same_day WHERE bowler IS NOT NULL
-        GROUP BY 1, 2, 3, 5, 6
+        GROUP BY match_date, bowler, match_id, innings_idx, venue
+    ),
+    -- Runs and wickets aren't one scale: rank each list on its own and keep half the rows for each.
+    top_bat AS (
+        SELECT * FROM bat WHERE value >= 50
+        QUALIFY ROW_NUMBER() OVER (ORDER BY value DESC, match_date DESC) <= {max(1, top_n // 2)}
+    ),
+    top_bowl AS (
+        SELECT * FROM bowl WHERE value >= 4
+        QUALIFY ROW_NUMBER() OVER (ORDER BY value DESC, match_date DESC) <= {max(1, top_n - top_n // 2)}
     )
-    SELECT * FROM bat WHERE value >= 50
+    SELECT * FROM top_bat
     UNION ALL
-    SELECT * FROM bowl WHERE value >= 4
-    ORDER BY value DESC, match_date DESC
-    LIMIT {top_n}
+    SELECT * FROM top_bowl
+    ORDER BY role, value DESC, match_date DESC
     """
     with _ctx(db_path) as con:
         return con.execute(sql).pl()

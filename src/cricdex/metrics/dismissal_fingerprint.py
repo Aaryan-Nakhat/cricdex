@@ -32,6 +32,7 @@ from pathlib import Path
 
 import duckdb
 
+from cricdex.common.sql import DISMISSAL, MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -50,7 +51,7 @@ BOWLER_CREDITED = (
 
 
 def _safe(collection: str) -> str:
-    return collection.replace("-", "_")
+    return table_suffix(collection)
 
 
 def _table_exists(con: duckdb.DuckDBPyConnection, table: str) -> bool:
@@ -67,7 +68,7 @@ def batter_modes(name: str, collection: str = "ipl", db_path: Path | str = DEFAU
             f"""
             SELECT wicket_kind AS kind, COUNT(*) AS count
             FROM balls_{safe}
-            WHERE player_out = ? AND wicket_kind IS NOT NULL
+            WHERE player_out = ? AND {DISMISSAL} AND {MAIN_INNINGS}
             GROUP BY 1 ORDER BY 2 DESC
             """,
             [name],

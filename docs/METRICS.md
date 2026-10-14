@@ -20,14 +20,16 @@ historically demands at the same phase.
 **Computation:**
 1. For each 2nd-innings ball in T20 / ODI matches:
    - `runs_needed = (1st_innings_total + 1) − runs_before_ball`
-   - `balls_remaining = innings_balls_allotted − balls_bowled_before`
+   - `balls_remaining = innings_balls_allotted − legal_balls_bowled_before`
    - `required_rpb = runs_needed / balls_remaining`
-2. Compute `median_required_rpb` per (venue, phase) across the whole
-   collection.
+2. Compute `median_required_rpb` per (format, venue, phase) across the
+   whole collection — a T20 and an ODI chase at the same ground aren't
+   one benchmark.
 3. A ball is **under pressure** if
-   `required_rpb > 1.5 × median_required_rpb(venue, phase)`.
+   `required_rpb > 1.5 × median_required_rpb(format, venue, phase)`.
 4. Aggregate per batter: `pressure_balls`, `pressure_runs`,
-   `pressure_sr_per_100_balls`, `pct_balls_under_pressure`.
+   `pressure_sr_per_100_balls`, `pct_balls_under_pressure`. Wides aren't
+   balls faced; no-balls are.
 
 **Why 1.5× venue median (not absolute threshold):** different venues
 demand wildly different chase rates (Bangalore vs Lord's). The venue's
@@ -98,12 +100,14 @@ collapse pressure vs who freezes.
 **Computation:**
 1. For each ball where a wicket fell, mark the next 12 balls in the
    same innings.
-2. For each such ball, attribute the runs to the batter facing —
-   *excluding* the dismissed striker (so we measure the survivor, not
-   the new arrival who's still gauging conditions).
+2. For each such ball, attribute the runs to the batter facing — only
+   the batter who was already at the crease when the wicket fell (not
+   the dismissed one, not the new arrival who's still gauging
+   conditions). A ball after two quick wickets counts once.
 3. Aggregate: `counter_attack_sr = 100 × runs / legal_balls`.
 
-**Filter:** `min_partner_wickets` (default 20).
+**Filter:** `min_partner_wickets` (default 20) — partner wickets the
+batter has survived.
 
 ---
 
@@ -163,7 +167,8 @@ their economy looks great.
   scout NumPyro ratings (`scout_ratings_<collection>.json`) — see
   `docs/SCOUT.md`.
 - **Crease Longevity** ✅ — crease longevity: a batter's average balls
-  faced per dismissal divided by the cohort average. >1 = bats longer
+  faced per dismissal (run outs at the non-striker's end included,
+  retired hurt not) divided by the cohort average. >1 = bats longer
   than the typical qualifying batter; <1 = shorter, higher-tempo
   innings. Lives in `cricdex.metrics.batter`.
 - **Slow-Start Cost** ✅ — career strike rate minus strike rate over the
@@ -197,3 +202,11 @@ Every metric writes a flat JSON list of records. Columns documented in
 each metric function's docstring and in `cricdex/metrics/README.md`.
 The Streamlit dashboard auto-discovers any
 `data/metrics/<slug>_<collection>.json` file.
+
+## Common rules (all metrics, records and boards)
+
+- Super overs are left out everywhere: they decide a tie and aren't part of anyone's batting or bowling record.
+- Runs charged to a bowler (economy, runs conceded, best figures, aging) are runs off the bat plus wides and
+  no-balls; byes and leg-byes aren't the bowler's.
+- Retired hurt / retired not out isn't a dismissal.
+- Records are per innings (a Test match's two innings are two records).

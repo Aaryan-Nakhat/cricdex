@@ -254,8 +254,9 @@ export interface AgingBowl {
   n: number;
 }
 export interface AgingPlayer {
-  role: "batter" | "bowler";
-  points: { age: number; sr?: number; economy?: number }[];
+  // A player's own season-by-season trajectory per discipline (empty when under 3 seasons).
+  batting: { age: number; sr: number }[];
+  bowling: { age: number; economy: number }[];
 }
 export interface AgingData {
   batting: AgingBat[];

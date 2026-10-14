@@ -48,12 +48,9 @@ export function Aging() {
     const overlay = metric.overlay && cid ? data.players[cid] : null;
     const overlayByAge = new Map<number, number>();
     if (overlay && metric.overlay) {
-      const wantRole = role === "batting" ? "batter" : "bowler";
-      if (overlay.role === wantRole) {
-        for (const p of overlay.points) {
-          const v = (p as unknown as Record<string, number | undefined>)[metric.overlay];
-          if (v != null) overlayByAge.set(p.age, v);
-        }
+      for (const p of overlay[role] ?? []) {
+        const v = (p as unknown as Record<string, number | undefined>)[metric.overlay];
+        if (v != null) overlayByAge.set(p.age, v);
       }
     }
     return curve.map((r) => ({

@@ -27,6 +27,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
+from cricdex.common.sql import table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -51,7 +52,7 @@ def _keeper_names() -> set[str]:
 
 def _tally(collection: str, db_path: Path | str) -> pl.DataFrame:
     """Per-fielder {catches, stumpings, runouts, dismissals} + is_keeper."""
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     sql = f"""
     WITH dis AS (
         SELECT unnest(fielders) AS fielder, wicket_kind

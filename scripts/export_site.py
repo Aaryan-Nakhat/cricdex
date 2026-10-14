@@ -39,6 +39,7 @@ import duckdb
 import typer
 from loguru import logger
 
+from cricdex.common.sql import BOWLER_RUNS, table_suffix
 from cricdex.config import DATA_DIR
 
 app = typer.Typer(add_completion=False)
@@ -140,7 +141,7 @@ def _write(path: Path, obj) -> None:
 
 
 def _safe(collection: str) -> str:
-    return collection.replace("-", "_")
+    return table_suffix(collection)
 
 
 def _collection_meta(con: duckdb.DuckDBPyConnection, collection: str) -> dict | None:
@@ -576,8 +577,10 @@ def _export_retentions(players: list[dict], out_dir: Path) -> None:
 
 def _current_teams(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, str]:
     """unique_name -> current franchise code, from the team in each
-    player's most-recent match. Only meaningful for IPL (the 10 franchises);
-    other collections return {} since the codes don't map."""
+    player's most-recent match — only for players who appeared in the
+    latest season (a retired player's last franchise isn't their team).
+    Only meaningful for IPL (the 10 franchises); other collections return
+    {} since the codes don't map."""
     if collection != "ipl":
         return {}
     safe = _safe(collection)
@@ -587,15 +590,21 @@ def _current_teams(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str,
             SELECT batter AS name, batting_team AS team, match_date FROM balls_{safe}
                 WHERE batting_team IS NOT NULL
             UNION ALL
+            SELECT non_striker, batting_team, match_date FROM balls_{safe}
+                WHERE batting_team IS NOT NULL AND non_striker IS NOT NULL
+            UNION ALL
             SELECT bowler, bowling_team, match_date FROM balls_{safe}
                 WHERE bowling_team IS NOT NULL
         ),
         ranked AS (
-            SELECT name, team,
+            SELECT name, team, match_date,
                    ROW_NUMBER() OVER (PARTITION BY name ORDER BY match_date DESC) AS rk
             FROM app
         )
-        SELECT name, team FROM ranked WHERE rk = 1
+        SELECT name, team FROM ranked
+        WHERE rk = 1
+          AND EXTRACT(YEAR FROM match_date::DATE)
+              = (SELECT MAX(EXTRACT(YEAR FROM match_date::DATE)) FROM balls_{safe})
         """
     ).fetchall()
     return {name: IPL_TEAM_CODE[team] for name, team in rows if team in IPL_TEAM_CODE}
@@ -1204,7 +1213,7 @@ def _export_aging(con: duckdb.DuckDBPyConnection, collection: str, out_dir: Path
     bowl = con.execute(
         f"""
         SELECT bowler AS nm, EXTRACT(YEAR FROM match_date::DATE)::INT AS yr,
-               SUM(runs_total) AS runs,
+               SUM({BOWLER_RUNS}) AS runs,
                SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides'
                          AND extras_type IS DISTINCT FROM 'noballs' THEN 1 ELSE 0 END) AS balls,
                SUM(CASE WHEN player_out IS NOT NULL AND wicket_kind IN ('{kinds}')
@@ -1229,7 +1238,7 @@ def _export_aging(con: duckdb.DuckDBPyConnection, collection: str, out_dir: Path
         bat_age.setdefault(age, []).append((sr, avg))
         cid = name_tax_cid.get(nm)
         if cid:
-            players.setdefault(cid, {"role": "batter", "points": []})["points"].append(
+            players.setdefault(cid, {"batting": [], "bowling": []})["batting"].append(
                 {"age": age, "sr": round(sr, 1)}
             )
     for nm, yr, runs, balls, wkts in bowl:
@@ -1240,8 +1249,8 @@ def _export_aging(con: duckdb.DuckDBPyConnection, collection: str, out_dir: Path
         srate = float(balls) / wkts if wkts else None
         bowl_age.setdefault(age, []).append((econ, srate))
         cid = name_tax_cid.get(nm)
-        if cid and cid not in players:  # don't clobber a batting trajectory
-            players.setdefault(cid, {"role": "bowler", "points": []})["points"].append(
+        if cid:
+            players.setdefault(cid, {"batting": [], "bowling": []})["bowling"].append(
                 {"age": age, "economy": round(econ, 2)}
             )
 
@@ -1273,10 +1282,11 @@ def _export_aging(con: duckdb.DuckDBPyConnection, collection: str, out_dir: Path
         for age, rows in sorted(bowl_age.items())
         if len(rows) >= MIN_N
     ]
-    # keep only multi-season trajectories (signal), bounded
-    players = {cid: p for cid, p in players.items() if len(p["points"]) >= 3}
+    # keep only multi-season trajectories (signal): each discipline needs 3+ seasons on its own
     for p in players.values():
-        p["points"].sort(key=lambda r: r["age"])
+        for k in ("batting", "bowling"):
+            p[k] = sorted(p[k], key=lambda r: r["age"]) if len(p[k]) >= 3 else []
+    players = {cid: p for cid, p in players.items() if p["batting"] or p["bowling"]}
     _write(out_dir / "aging.json", {"batting": batting, "bowling": bowling, "players": players})
     return len(batting) + len(bowling)
 

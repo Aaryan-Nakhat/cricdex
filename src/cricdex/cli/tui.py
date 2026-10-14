@@ -2342,9 +2342,8 @@ class CricDexApp(App):
         if metric == overlay_key and name:
             cid = _resolve_cid(collection, name)
             pl = (data.get("players") or {}).get(cid) if cid else None
-            want = "batter" if role == "batting" else "bowler"
-            if pl and pl.get("role") == want:
-                for p in pl["points"]:
+            if pl:
+                for p in pl.get(role) or []:
                     if p.get(overlay_key) is not None:
                         oxs.append(p["age"])
                         oys.append(p[overlay_key])

@@ -90,20 +90,18 @@ fig.add_scatter(
 if overlay_key:
     sel = player_select(collection, key="aging-player", default_name=None)
     if sel:
-        pl = (data.get("players") or {}).get(sel["cricsheet_id"])
-        want_role = "batter" if role == "batting" else "bowler"
-        if pl and pl.get("role") == want_role:
-            pts = [p for p in pl["points"] if p.get(overlay_key) is not None]
-            if pts:
-                fig.add_scatter(
-                    x=[p["age"] for p in pts],
-                    y=[p[overlay_key] for p in pts],
-                    mode="lines+markers",
-                    name=sel["name"],
-                    line={"color": "#fbbf24", "width": 2},
-                )
+        pl = (data.get("players") or {}).get(sel["cricsheet_id"]) or {}
+        pts = [p for p in pl.get(role) or [] if p.get(overlay_key) is not None]
+        if pts:
+            fig.add_scatter(
+                x=[p["age"] for p in pts],
+                y=[p[overlay_key] for p in pts],
+                mode="lines+markers",
+                name=sel["name"],
+                line={"color": "#fbbf24", "width": 2},
+            )
         else:
-            st.info(f"{sel['name']} has no {want_role} trajectory with enough seasons.")
+            st.info(f"{sel['name']} has no {role} trajectory with enough seasons.")
 
 fig.update_layout(
     height=460,

@@ -64,6 +64,7 @@ import numpy as np
 import polars as pl
 from loguru import logger
 
+from cricdex.common.sql import table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -89,7 +90,7 @@ DEFAULT_VENUE_RR = 8.0  # fallback for a ground with no training-set first innin
 def _build_state_table(con: duckdb.DuckDBPyConnection, collection: str) -> pl.DataFrame:
     """One row per delivery of the two main innings of every decided T20 match, with the state *before* the
     delivery. Nothing here depends on how the innings actually ended."""
-    safe = collection.replace("-", "_")
+    safe = table_suffix(collection)
     not_wicket = ", ".join(f"'{w}'" for w in _NOT_A_WICKET)
     illegal = ", ".join(f"'{e}'" for e in _ILLEGAL)
     return con.execute(

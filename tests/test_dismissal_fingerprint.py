@@ -17,12 +17,13 @@ def mini_db(tmp_path):
         """
         CREATE TABLE balls_test (
             batter TEXT, bowler TEXT, player_out TEXT,
-            wicket_kind TEXT, extras_type TEXT
+            wicket_kind TEXT, extras_type TEXT,
+            innings_idx INTEGER DEFAULT 0, match_type TEXT DEFAULT 'T20'
         )
         """
     )
     con.executemany(
-        "INSERT INTO balls_test VALUES (?,?,?,?,?)",
+        "INSERT INTO balls_test (batter, bowler, player_out, wicket_kind, extras_type) VALUES (?,?,?,?,?)",
         [
             # A caught by B ×3, bowled by B ×1, run out ×1 (not bowler-credited)
             ("A", "B", "A", "caught", None),

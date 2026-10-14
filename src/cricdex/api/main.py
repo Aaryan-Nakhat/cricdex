@@ -14,7 +14,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from cricdex import __version__
@@ -29,6 +30,12 @@ app = FastAPI(
     version=__version__,
     description="Open cricket intelligence — REST surface over every module.",
 )
+
+
+@app.exception_handler(ValueError)
+def _bad_input(_request: Request, exc: ValueError) -> JSONResponse:
+    """An unknown / malformed collection name (rejected by `common.sql.table_suffix`) is the caller's mistake."""
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
 @app.get("/health")
