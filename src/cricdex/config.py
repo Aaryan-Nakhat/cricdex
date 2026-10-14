@@ -9,8 +9,8 @@ CricDex is a terminal-first tool. Credentials live in:
 
 Only one credential is user-relevant:
 
-- `llm_api_key` (or `llm_api_base` + `llm_api_key` for the
-  proxy) — optional, only for the LLM taxonomy enrichment.
+- `llm_model` (+ the provider's own key, or `llm_api_key` / `llm_api_base`)
+  — optional, only for the LLM taxonomy enrichment. Any provider LiteLLM supports.
 
 Everything else (DuckDB path, Redis URL) is local-only — sensible
 defaults, forget.
@@ -67,12 +67,11 @@ def _setting(name: str, default: str = "") -> str:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(ROOT / ".env"), extra="ignore")
 
-    # LLM (taxonomy enrichment only).
+    # LLM (taxonomy enrichment only) — any LiteLLM model string, see common/llm.py.
+    llm_model: str = _setting("llm_model")
+    # Optional: override the provider key / endpoint (self-hosted or OpenAI-compatible server).
     llm_api_key: str = _setting("llm_api_key")
-    # LLM. Both fields are read; the
-    # tmp pair wins when set (see scripts/enrich_taxonomy.py).
     llm_api_base: str = _setting("llm_api_base")
-    llm_api_key: str = _setting("llm_api_key")
 
     # Local infra (sensible defaults, rarely touched).
     duckdb_path: str = str(DATA_DIR / "cricdex.duckdb")

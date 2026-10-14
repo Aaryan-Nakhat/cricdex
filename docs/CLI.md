@@ -28,7 +28,7 @@ cricdex init
 ```
 
 First-run wizard. Creates `$CRICDEX_HOME` (default `~/.cricdex/`),
-prompts for the LLM key (used for the player taxonomy enrichment),
+prompts for an optional LLM model + key (used for the player taxonomy enrichment),
 prints the next-step commands. Idempotent.
 
 ---
@@ -44,9 +44,9 @@ cricdex config edit
 ```
 
 Stored at `$CRICDEX_HOME/config.toml`, chmod 600. Allowed keys:
-`llm_api_key`, `llm_api_base`, `llm_api_key`.
+`llm_model`, `llm_api_key`, `llm_api_base`.
 
-Env vars override the file (e.g., `LLM_API_KEY=… cricdex data ingest wikidata`).
+Env vars override the file (e.g., `LLM_MODEL=openai/gpt-4o-mini`).
 
 ---
 

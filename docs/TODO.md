@@ -24,7 +24,7 @@ Pending work, in landing order. The fuller backlog with rationale is
 | Slice | Ref | Verify with |
 |---|---|---|
 | Multi-agent PettingZoo self-play | VNEXT §C | new RL trainer over the auction env |
-| Bid-history-mined personality YAML | VNEXT §C | franchise archetypes extracted via LLM |
+| Bid-history-mined personality YAML | VNEXT §C | franchise archetypes extracted via an LLM |
 
 ## Phase 3 — year-2 advanced (CV + voice)
 

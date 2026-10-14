@@ -1,7 +1,7 @@
 """`cricdex config` — read / write the user's CricDex credential store.
 
 Storage: `$CRICDEX_HOME/config.toml` (default `~/.cricdex/config.toml`),
-chmod 600. Keys are flat strings — `llm_api_key`, `llm_*`.
+chmod 600. Keys are flat strings — `llm_model`, `llm_api_key`, `llm_api_base`.
 """
 
 from __future__ import annotations
@@ -21,9 +21,9 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 # Whitelist what `cricdex config set` accepts — anything else is a typo
 # and we'd rather error than silently write a useless key.
 ALLOWED_KEYS = {
+    "llm_model",
     "llm_api_key",
     "llm_api_base",
-    "llm_api_key",
 }
 
 

@@ -19,7 +19,7 @@ uv run cricdex --help
 cricdex init
 ```
 
-Creates `~/.cricdex/`, prompts for the LLM key (optional — used for the
+Creates `~/.cricdex/`, prompts for an LLM model + key (optional — any provider; used for the
 player-taxonomy enrichment; skip if you only want metrics / scout /
 auction). Writes `~/.cricdex/config.toml` (chmod 600).
 

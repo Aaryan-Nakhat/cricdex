@@ -3,7 +3,7 @@
 Shared utilities, imported across every surface:
 
 - `db.py` — DuckDB connection.
-- `llm.py` — LLM client.
+- `llm.py` — LLM client (any provider via LiteLLM, model from `LLM_MODEL`).
 - `filters.py` — the player-row FilterBar (Python port of `site/src/lib/filters.ts`):
   `Filters`, the `*_OPTS` option lists, `apply_filters`, plus the windowed-leaderboard
   (`load_leaderboard`) and graph-cohort (`load_cohorts`) loaders. Parity-locked to the

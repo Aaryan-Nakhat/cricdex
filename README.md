@@ -25,7 +25,7 @@ uv run cricdex --help
 ## First run (4 commands)
 
 ```bash
-cricdex init                                   # wizard + LLM key
+cricdex init                                   # wizard + optional LLM key
 cricdex data ingest cricsheet -c ipl           # ~600 MB ball-by-ball
 cricdex data ingest metrics -c ipl             # 10 leaderboards
 cricdex leaderboard ngi -c ipl --top 15        # your first query

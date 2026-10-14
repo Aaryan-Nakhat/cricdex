@@ -1,6 +1,7 @@
-"""Enrich every player with cricket taxonomy via LLM.
+"""Enrich every player with cricket taxonomy via an LLM.
 
-For each player we ask LLM  for the facts
+For each player we ask the configured LLM (any provider, via LiteLLM — see
+cricdex/common/llm.py) for the facts
 ball-by-ball data can't give us: bowling type (seam vs spin + exact
 style), primary role, usual batting position bucket, batting hand, and
 country. Stored permanently in data/curated/player_taxonomy.json keyed
@@ -10,30 +11,24 @@ Amit Mishra, and the UI can filter by role / type / country.
 Resumable: only players missing from the cache are queried, so a rerun
 fills gaps and a newly-ingested player is picked up next time.
 
-Run:
-    LLM_API_BASE=... LLM_API_KEY=... uv run python scripts/enrich_taxonomy.py
-    LLM_API_BASE=... LLM_API_KEY=... uv run python scripts/enrich_taxonomy.py --batch 20 --limit 200
+Run (set LLM_MODEL and the provider's key in .env first):
+    uv run python scripts/enrich_taxonomy.py
+    uv run python scripts/enrich_taxonomy.py --batch 20 --limit 200
 """
 
 from __future__ import annotations
 
 import json
-import os
 import time
 
-import httpx
 import typer
 from loguru import logger
 
-from cricdex.config import ROOT  # importing config loads .env (LLM_*)
+from cricdex.common import llm
+from cricdex.config import ROOT  # importing config loads .env
 
 SITE_DATA = ROOT / "site" / "public" / "data"
 CACHE = ROOT / "data" / "curated" / "player_taxonomy.json"
-
-# LLM_API_BASE is the proxy's full LLM base (it serves /generate_json). No default: set it in .env.
-_TMP_BASE = os.environ.get("LLM_API_BASE", "")
-URL = f"{_TMP_BASE.rstrip('/')}/generate_json"
-MODEL = "llm-model"
 
 SYS = (
     "You are an authoritative cricket reference. For each player below return "
@@ -80,18 +75,10 @@ def _save_cache(cache: dict[str, dict]) -> None:
     CACHE.write_text(json.dumps(cache, indent=1, sort_keys=True) + "\n")
 
 
-def _ask(batch: list[dict], key: str) -> list[dict]:
-    payload = {
-        "system_prompt": SYS,
-        "user_prompt": f"{SCHEMA_HELP}\n\nPlayers: {json.dumps(batch)}",
-        "model": MODEL,
-        "temperature": 0.0,
-    }
-    headers = {"x-api-key": key, "Content-Type": "application/json"}
-    r = httpx.post(URL, headers=headers, json=payload, timeout=180)
-    r.raise_for_status()
-    data = r.json()
-    result = data.get("result") or {}
+def _ask(batch: list[dict]) -> list[dict]:
+    result = llm.generate_json(
+        SYS, f"{SCHEMA_HELP}\n\nPlayers: {json.dumps(batch)}", temperature=0.0
+    )
     return result.get("players", []) if isinstance(result, dict) else []
 
 
@@ -104,9 +91,8 @@ def run(
     limit: int = typer.Option(0, "--limit", help="max players this run (0 = all missing)"),
     sleep: float = typer.Option(0.4, "--sleep", help="pause between calls (s)"),
 ) -> None:
-    key = os.environ.get("LLM_API_KEY")
-    if not key or not _TMP_BASE:
-        raise SystemExit("set LLM_API_BASE and LLM_API_KEY in the env")
+    if not llm.configured():
+        raise SystemExit("set LLM_MODEL (and the provider's API key) in .env")
 
     players = _collect_players()
     cache = _load_cache()
@@ -123,12 +109,12 @@ def run(
     for i in range(0, len(todo), batch):
         chunk = todo[i : i + batch]
         try:
-            got = _ask(chunk, key)
+            got = _ask(chunk)
         except Exception as e:  # noqa: BLE001
             logger.warning(f"batch {i // batch} failed: {e}; retrying once")
             time.sleep(2)
             try:
-                got = _ask(chunk, key)
+                got = _ask(chunk)
             except Exception as e2:  # noqa: BLE001
                 logger.error(f"batch {i // batch} failed again: {e2}; skipping")
                 continue
@@ -147,7 +133,7 @@ def run(
                 "batting_hand": g.get("batting_hand"),
                 "country": g.get("country"),
                 "confidence": g.get("confidence"),
-                "source": MODEL,
+                "source": llm.settings.llm_model,
             }
             done += 1
         _save_cache(cache)  # durable after every batch

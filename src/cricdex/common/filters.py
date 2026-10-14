@@ -74,13 +74,13 @@ FILTER_HELP: dict[str, str] = {
         "Active = appeared in this format within ~18 months of the latest match; retired = not. "
         "It's per-format, so a player retired from internationals can still be Active in IPL."
     ),
-    "role": "Primary role (LLM-classified): batter, bowler, all-rounder or wicket-keeper.",
-    "bowling": "Seam/pace vs spin — LLM-classified bowling type (pure batters carry none).",
+    "role": "Primary role (AI-classified): batter, bowler, all-rounder or wicket-keeper.",
+    "bowling": "Seam/pace vs spin — AI-classified bowling type (pure batters carry none).",
     "position": (
         "Usual batting slot bucket: opener, No.3, middle (4–5), finisher (6–7), lower (8), "
         "tailender (9–11)."
     ),
-    "country": "Player's country (LLM-classified).",
+    "country": "Player's country (AI-classified).",
     "years": (
         "Keeps players whose career in this format overlaps the chosen years. Note: the metric "
         "values stay career totals — this filters who's shown, it doesn't recompute per year."

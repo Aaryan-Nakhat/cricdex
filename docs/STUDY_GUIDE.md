@@ -82,7 +82,7 @@ src/cricdex/
 ├── comparator/            Side-by-side metric table + skill head-to-head
 ├── config.py              Pydantic settings + DATA_DIR resolution
 ├── dashboard/             Streamlit pages (mirror the web + TUI)
-├── llm/                   LLM wrapper
+├── llm/                   LLM wrapper (any provider via LiteLLM)
 ├── metrics/               The 10 novel metrics + dismissal_fingerprint
 ├── people/                Cricsheet People Register loader
 ├── profiles/              Single-player JSON assembler (used by all surfaces)

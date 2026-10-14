@@ -16,8 +16,8 @@ Two supported paths: **Docker (recommended for first-time users)** and **local u
 git clone https://github.com/Aaryan-Nakhat/cricdex.git
 cd cricdex
 cp .env.example .env
-# Open .env and fill in any credentials you have (LLM_API_BASE powers
-# the player-taxonomy enrichment; the rest are optional).
+# Open .env and set LLM_MODEL + the provider's key if you want the
+# player-taxonomy enrichment; everything else needs no keys.
 make docker-up
 ```
 
@@ -97,8 +97,8 @@ git clone https://github.com/Aaryan-Nakhat/cricdex.git
 cd cricdex
 uv sync --group dev
 cp .env.example .env
-# Fill in LLM_API_BASE (+ LLM_API_KEY) for the taxonomy
-# enrichment, etc. — all optional.
+# Set LLM_MODEL (+ the provider's key) for the taxonomy
+# enrichment — optional.
 ```
 
 ### Run pipelines
@@ -128,8 +128,8 @@ list). The most important ones:
 
 | Variable | Required? | Notes |
 |---|---|---|
-| `LLM_API_BASE` | for the taxonomy enrichment | LLM endpoint (`/generate`, `/generate_json`). Replace with personal `LLM_API_KEY` + `litellm` before public launch. |
-| `LLM_API_KEY` | optional | Sent as `x-api-key` if the proxy needs auth. |
+| `LLM_MODEL` | for the taxonomy enrichment | Any LiteLLM model string, e.g. `openai/gpt-4o-mini`, `anthropic/claude-sonnet-4-5`, `llm/llm-model`, `ollama/llama3.1`. The provider's key goes in its usual variable (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LLM_API_KEY`, …). |
+| `LLM_API_KEY` / `LLM_API_BASE` | optional | Override the key / endpoint (a self-hosted or OpenAI-compatible server). |
 | `DATABASE_URL` / `REDIS_URL` | wait for those modules | Documented but unused until the cache module lands. |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | for `make backup` | Cloudflare R2 backup target. Always-free 10 GB / zero egress. Create a bucket + API token at `dash.cloudflare.com → R2 → Manage R2 API Tokens`. Without these, the local `data/` directory is the only copy of artifacts that took a while to build. |
 

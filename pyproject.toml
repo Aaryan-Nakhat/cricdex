@@ -29,7 +29,7 @@ dependencies = [
     "rapidfuzz>=3.10.0",
     "rank-bm25>=0.2.2",
     # LLM / RAG
-    "litellm>=0.7.0",
+    "litellm>=1.50.0",
     "qdrant-client>=1.12.0",
     # Modeling
     "numpyro>=0.16.0",

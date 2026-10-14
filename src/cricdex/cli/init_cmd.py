@@ -1,7 +1,7 @@
 """`cricdex init` — first-run wizard.
 
 Walks a fresh user through: (1) creating $CRICDEX_HOME, (2) optional
-LLM key + Jina key entry, (3) an opt-in offer to ingest the IPL
+LLM model + key entry, (3) an opt-in offer to ingest the IPL
 collection so they have something to query immediately.
 
 Idempotent — re-running just re-prompts for missing pieces.
@@ -30,16 +30,24 @@ def run() -> None:
 
     cfg = _read()
 
-    if not cfg.get("llm_api_key") and not cfg.get("llm_api_base"):
+    if not cfg.get("llm_model"):
         c.print(
-            "\n[bold]LLM key (optional)[/bold] — only for taxonomy enrichment "
-            "(player role / seam-spin / country). Skip for metrics / scout / auction."
+            "\n[bold]LLM (optional)[/bold] — only for taxonomy enrichment "
+            "(player role / seam-spin / country). Skip for metrics / scout / auction.\n"
+            "Any LiteLLM model string, e.g. openai/gpt-4o-mini, anthropic/claude-sonnet-4-5, "
+            "llm/llm-model, ollama/llama3.1."
         )
-        key = typer.prompt(
-            "paste LLM_API_KEY (or hit Enter to skip)", default="", show_default=False
-        )
-        if key.strip():
-            cfg["llm_api_key"] = key.strip()
+        model = typer.prompt("LLM model (or hit Enter to skip)", default="", show_default=False)
+        if model.strip():
+            cfg["llm_model"] = model.strip()
+            key = typer.prompt(
+                "API key for that provider (Enter to use its usual env var)",
+                default="",
+                show_default=False,
+                hide_input=True,
+            )
+            if key.strip():
+                cfg["llm_api_key"] = key.strip()
 
     if cfg:
         _write(cfg)

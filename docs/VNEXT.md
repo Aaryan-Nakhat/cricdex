@@ -38,7 +38,7 @@ remaining 11 are obscure players genuinely absent from Wikidata).
 | Slice | DEFERRED ref | Verify with |
 |---|---|---|
 | Multi-agent PettingZoo self-play (every slot a policy) | §2.6 | new RL trainer over the auction env |
-| Bid-history-mined personality YAMLs (replace hand-authored archetypes) | §2.6 | franchise archetypes extracted via LLM |
+| Bid-history-mined personality YAMLs (replace hand-authored archetypes) | §2.6 | franchise archetypes extracted via an LLM |
 
 ## D — year-2 advanced (CV + voice)
 

@@ -45,5 +45,5 @@
 - ScoutVLM — VLM-driven ball-by-ball extraction from YouTube grassroots video.
 - Highlight CV — auto key-moment clip extraction.
 - Tournament management B2B (partner with CricHeroes instead of competing).
-- Multi-agent RL auction-v2 — PettingZoo + per-franchise personality YAML (extracted from 10 yr bid history via LLM) on top of today's fixed-archetype Monte-Carlo room.
+- Multi-agent RL auction-v2 — PettingZoo + per-franchise personality YAML (extracted from 10 yr bid history via an LLM) on top of today's fixed-archetype Monte-Carlo room.
 - BCCI / CricHeroes / Cricinfo scrapers via Playwright + residential proxies, so the datacenter-blocked feeds finally populate.

@@ -38,7 +38,7 @@ Build quietly, ship loud. Flip to public on day-1 of launch week to harvest star
 - Qdrant 1 GB free for vectors.
 - FastAPI for service layer.
 - Next.js + Vercel for web (deferred).
-- the LLM as default LLM (1500/day free), Cerebras Llama for sub-second live, Claude/Perplexity for premium fallback.
+- Any LLM via LiteLLM (`LLM_MODEL` in `.env`); no provider is hard-coded.
 
 ## 2026-05-11 — Cost philosophy
 

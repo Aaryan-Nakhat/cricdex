@@ -125,7 +125,6 @@ def player_multiselect(
 _SOURCE_URLS = {
     "cricsheet": "https://cricsheet.org/",
     "people_register": "https://cricsheet.org/register/people.csv",
-    "llm": "https://docs.litellm.ai",
 }
 
 
