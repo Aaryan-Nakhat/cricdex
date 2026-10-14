@@ -1,18 +1,16 @@
 name: refresh-data
 
 # The "refresh to today" backend. GitHub Pages can't recompute in the
-# browser (no JAX / XGBoost / Neo4j in WASM), so this Action is the
-# compute layer: it re-ingests Cricsheet, recomputes the metrics +
-# dismissal-aware Bayesian ratings, repopulates the scout graph, re-cooks
-# the static JSON snapshot, and commits it. That commit touches
-# site/public/data/** which triggers deploy-pages, so the live site moves
-# to the latest match date.
+# browser (no JAX / XGBoost in WASM), so this Action is the compute layer:
+# it re-downloads Cricsheet, recomputes the metrics + dismissal-aware
+# Bayesian ratings, re-cooks the static JSON snapshot, commits it, and then
+# runs the Pages deploy so the live site moves to the latest match date.
 #
 # MANUAL ONLY — runs when you click "Run workflow" in the Actions tab (no
-# nightly cron, so the 35 MB snapshot isn't re-committed automatically and
-# git history stays lean). This is the heavy path (ingest + 5× ADVI fits +
-# Neo4j): best-effort per collection — a collection that fails to ingest is
-# skipped, the rest still refresh. If nothing changed, no commit/deploy.
+# nightly cron, so the snapshot isn't re-committed automatically and git
+# history stays lean). Best-effort per collection: a collection that fails
+# to ingest is skipped, the rest still refresh. If nothing changed, no
+# commit and no deploy.
 
 on:
   workflow_dispatch:
@@ -32,23 +30,9 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    services:
-      neo4j:
-        image: neo4j:5-community
-        env:
-          NEO4J_AUTH: neo4j/cricdex_dev
-          NEO4J_PLUGINS: '["apoc"]'
-        ports:
-          - 7687:7687
-          - 7474:7474
-        options: >-
-          --health-cmd "wget -q -O /dev/null http://localhost:7474 || exit 1"
-          --health-interval 10s --health-timeout 5s --health-retries 20
-    env:
-      NEO4J_URI: bolt://localhost:7687
-      NEO4J_USER: neo4j
-      NEO4J_PASSWORD: cricdex_dev
+    timeout-minutes: 120
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,7 +48,7 @@ jobs:
         run: |
           INPUT="${{ github.event.inputs.collections }}"
           if [ -z "$INPUT" ]; then
-            INPUT="ipl bbl t20s_male indian_domestic_male recently_played_30_male"
+            INPUT="ipl bbl t20s_male indian_domestic_male recently_played_30_male sa20 cpl blast"
           fi
           echo "list=$INPUT" >> "$GITHUB_OUTPUT"
           echo "Refreshing: $INPUT"
@@ -72,26 +56,29 @@ jobs:
       - name: Ingest people register
         run: uv run python scripts/ingest_people.py || echo "people ingest failed (non-fatal)"
 
-      - name: Bootstrap scout graph
-        run: uv run python scripts/scout_graph.py bootstrap || echo "graph bootstrap failed (non-fatal)"
-
       - name: Ingest + compute per collection
         run: |
           set +e
           for C in ${{ steps.cols.outputs.list }}; do
             echo "::group::$C"
+            # --force: always re-download, so a cached zip can't pin the data to an old date.
             if [ "$C" = "indian_domestic_male" ]; then
-              uv run python scripts/ingest_cricsheet.py indian-domestic
+              uv run python scripts/ingest_cricsheet.py indian-domestic --force
             else
-              uv run python scripts/ingest_cricsheet.py ingest --collection "$C"
+              uv run python scripts/ingest_cricsheet.py ingest --collection "$C" --force
             fi
             uv run python scripts/compute_metrics.py all --collection "$C"
-            uv run python scripts/scout_graph.py populate --collection "$C"
             uv run python scripts/scout_rate.py --collection "$C" --advi-steps 12000
             echo "::endgroup::"
           done
 
-      - name: Enrich new players (taxonomy) — only if key is configured
+      - name: Cook the static snapshot
+        run: uv run python scripts/export_site.py
+
+      # The taxonomy reads the players from the snapshot, so it runs after a first cook and the snapshot is
+      # cooked again — new players get their role / country in this same refresh.
+      - name: Enrich new players (taxonomy) — only if an LLM is configured
+        id: tax
         env:
           # `secrets` can't be used in `if:` — gate inside the step instead.
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
@@ -102,20 +89,37 @@ jobs:
             echo "LLM_MODEL not set — skipping taxonomy enrich"
             exit 0
           fi
-          uv run python scripts/enrich_taxonomy.py --batch 20 || echo "taxonomy enrich failed (non-fatal)"
+          uv run python scripts/enrich_taxonomy.py --batch 20 && echo "ran=1" >> "$GITHUB_OUTPUT" \
+            || echo "taxonomy enrich failed (non-fatal)"
 
-      - name: Cook the static snapshot
+      - name: Re-cook the snapshot with the new players' taxonomy
+        if: steps.tax.outputs.ran == '1'
         run: uv run python scripts/export_site.py
 
       - name: Commit refreshed snapshot
+        id: commit
         run: |
           git config user.name  "cricdex-bot"
           git config user.email "actions@users.noreply.github.com"
           git add site/public/data
           if git diff --cached --quiet; then
             echo "No data changes — nothing to deploy."
+            echo "changed=0" >> "$GITHUB_OUTPUT"
           else
             STAMP=$(date -u +%Y-%m-%d)
-            git commit -m "data: nightly refresh ($STAMP)"
+            git commit -m "data: refresh ($STAMP)"
             git push
+            echo "changed=1" >> "$GITHUB_OUTPUT"
           fi
+
+  # A push made with the workflow's own token doesn't start other workflows, so the deploy is called directly.
+  deploy:
+    needs: refresh
+    if: needs.refresh.outputs.changed == '1'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ref: main
