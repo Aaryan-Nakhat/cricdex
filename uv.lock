@@ -1528,7 +1528,7 @@ dependencies = [
     { name = "google-cloud-bigquery" },
     { name = "google-cloud-resource-manager" },
     { name = "google-cloud-storage" },
-    { name = "litellm" },
+    { name = "google-genai" },
     { name = "packaging" },
     { name = "proto-plus" },
     { name = "protobuf" },
@@ -1634,7 +1634,7 @@ wheels = [
 ]
 
 [[package]]
-name = "litellm"
+name = "google-genai"
 version = "2.30.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
