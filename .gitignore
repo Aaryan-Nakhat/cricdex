@@ -46,6 +46,12 @@ data/rules/*
 !data/drs/
 data/drs/*
 !data/drs/scenarios.jsonl
+# Curated player facts (role / country from the taxonomy, DOB / photo from Wikidata): small, slow to rebuild,
+# and needed by the refresh workflow — committed so a refresh on a fresh runner keeps them.
+!data/curated/
+data/curated/*
+!data/curated/player_taxonomy.json
+!data/curated/wikidata_enrichment.json
 *.parquet
 *.duckdb
 *.duckdb.wal
