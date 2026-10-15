@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { TrendingUp } from "lucide-react";
 import {
   LineChart,
@@ -18,6 +18,7 @@ import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, ErrorBox, Empty, InfoTip } from "@/components/ui";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { useClearOnChange, useUrlId, useUrlParams, useUrlState } from "@/lib/useUrlState";
 
 type Role = "batting" | "bowling";
 
@@ -34,15 +35,23 @@ const METRICS: Record<Role, { key: string; label: string; overlay: string | null
 
 export function Aging() {
   const { collection } = useStore();
-  const { options } = usePlayers(collection);
+  const { options, players, byId } = usePlayers(collection);
   const { data, loading, error } = useAsync(() => getAging(collection), [collection]);
-  const [role, setRole] = useState<Role>("batting");
-  const [metricKey, setMetricKey] = useState("sr");
-  const [cid, setCid] = useState<string | null>(null);
-  const { colors } = useTheme();
-  useEffect(() => setCid(null), [collection]);
-
+  // discipline, metric and overlay player live in the URL (`?role=…&metric=…&player=…`)
+  const { update } = useUrlParams();
+  const [role] = useUrlState<Role>("role", "batting", { valid: ["batting", "bowling"] });
   const metrics = METRICS[role];
+  const [metricKey, setMetricKey] = useUrlState<string>("metric", metrics[0].key, {
+    valid: metrics.map((m) => m.key),
+    replace: false,
+  });
+  const [cid, setCid] = useUrlId("player", byId, players.length > 0);
+  const { colors } = useTheme();
+  // players are per league: a switch clears the overlay
+  useClearOnChange(collection, ["player"]);
+  // a discipline switch starts from that discipline's first metric
+  const setRole = (r: Role) => update({ role: r === "batting" ? null : r, metric: null }, { replace: false });
+
   const metric = metrics.find((m) => m.key === metricKey) ?? metrics[0];
 
   const chartData = useMemo(() => {
@@ -80,10 +89,7 @@ export function Aging() {
           {(["batting", "bowling"] as Role[]).map((r) => (
             <button
               key={r}
-              onClick={() => {
-                setRole(r);
-                setMetricKey(METRICS[r][0].key);
-              }}
+              onClick={() => setRole(r)}
               className={cn(
                 "rounded-lg border px-3.5 py-2 text-sm font-semibold capitalize transition-colors",
                 role === r

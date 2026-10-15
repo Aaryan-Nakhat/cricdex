@@ -10,7 +10,7 @@ import {
   FILTER_HELP,
 } from "@/lib/filters";
 
-type Dim = "minMatches" | "activity" | "role" | "bowling" | "position" | "country" | "years";
+type Dim = "minMatches" | "activity" | "role" | "bowling" | "position" | "country";
 
 function Select({
   value,
@@ -44,7 +44,6 @@ export function FilterBar({
   onChange,
   show,
   countryOpts,
-  yearBounds,
   count,
   total,
   defaults = EMPTY_FILTERS,
@@ -53,7 +52,6 @@ export function FilterBar({
   onChange: (f: Filters) => void;
   show: Dim[];
   countryOpts?: { value: string; label: string }[];
-  yearBounds?: { min: number; max: number };
   count?: number;
   total?: number;
   /** What "reset" returns to — the page's own starting filters. */
@@ -66,9 +64,7 @@ export function FilterBar({
     !!filters.role ||
     !!filters.bowling ||
     !!filters.position ||
-    !!filters.country ||
-    filters.yearFrom > 0 ||
-    filters.yearTo > 0;
+    !!filters.country;
 
   const helpLines = show.map((d) => `• ${labelFor(d)}: ${FILTER_HELP[d]}`).join("\n");
 
@@ -129,52 +125,6 @@ export function FilterBar({
         <Select label={labelFor("country")} value={filters.country} onChange={(v) => set({ country: v })} options={countryOpts} />
       )}
 
-      {show.includes("years") && yearBounds && (
-        <div className="flex items-center gap-1.5 text-sm text-muted">
-          <span>Years</span>
-          {[
-            { label: "All", from: 0, to: 0 },
-            { label: yearBounds.max.toString(), from: yearBounds.max, to: yearBounds.max },
-            { label: `${yearBounds.max - 1}`, from: yearBounds.max - 1, to: yearBounds.max - 1 },
-          ].map((p) => {
-            const on = filters.yearFrom === p.from && filters.yearTo === p.to;
-            return (
-              <button
-                key={p.label}
-                onClick={() => set({ yearFrom: p.from, yearTo: p.to })}
-                className={
-                  "rounded-md border px-2 py-1 text-xs " +
-                  (on
-                    ? "border-accent/40 bg-accent/10 text-accent-glow"
-                    : "border-border bg-surface text-muted hover:text-fg")
-                }
-              >
-                {p.label}
-              </button>
-            );
-          })}
-          <input
-            type="number"
-            className="input w-20 py-1.5"
-            placeholder="from"
-            min={yearBounds.min}
-            max={yearBounds.max}
-            value={filters.yearFrom || ""}
-            onChange={(e) => set({ yearFrom: Number(e.target.value) || 0 })}
-          />
-          <span>–</span>
-          <input
-            type="number"
-            className="input w-20 py-1.5"
-            placeholder="to"
-            min={yearBounds.min}
-            max={yearBounds.max}
-            value={filters.yearTo || ""}
-            onChange={(e) => set({ yearTo: Number(e.target.value) || 0 })}
-          />
-        </div>
-      )}
-
       {active && (
         <button
           onClick={() => onChange({ ...defaults })}
@@ -202,6 +152,5 @@ function labelFor(d: Dim): string {
     bowling: "Bowling type",
     position: "Batting position",
     country: "Country",
-    years: "Year range",
   }[d];
 }

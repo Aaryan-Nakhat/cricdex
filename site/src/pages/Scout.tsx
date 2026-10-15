@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Network, Users, Sprout, Plane, Gem, Gavel } from "lucide-react";
 import { usePlayers } from "@/lib/usePlayers";
@@ -10,6 +10,7 @@ import { similarTo, isGem, gemThreshold, type SimilarRow } from "@/lib/scout";
 import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, Collapsible, ErrorBox } from "@/components/ui";
 import { fmt } from "@/lib/utils";
+import { hasKey, useUrlId, useUrlParams } from "@/lib/useUrlState";
 
 const POS = {
   opener: "Opener",
@@ -236,10 +237,6 @@ export function Scout() {
   const idx = useAsync<ScoutIndex>(() => getScoutIndex("ipl"), []);
   const pool = useAsync(() => getAuctionPool("ipl"), []);
   const inPool = useMemo(() => new Set((pool.data ?? []).map((r) => String(r.cricsheet_id))), [pool.data]);
-  const [cid, setCid] = useState<string | null>(null);
-  const [roleSel, setRoleSel] = useState<Role>("batter");
-  const [posSel, setPosSel] = useState("");
-
   const iplById = useMemo(() => {
     const m = new Map<string, ScoutPlayer>();
     for (const p of idx.data?.ipl ?? []) m.set(p.cricsheet_id, p);
@@ -248,13 +245,19 @@ export function Scout() {
 
   // only IPL players that exist in the scout index are pickable
   const pickOptions = useMemo(() => options.filter((o) => iplById.has(o.value)), [options, iplById]);
+  // pick, role and slot live in the URL (`?pick=…&role=…&pos=…`) so a link reproduces the search
+  const { params, update } = useUrlParams();
+  const [cid] = useUrlId("pick", iplById, !!idx.data);
   const sel = cid ? iplById.get(cid) : null;
+  // a new pick starts from its own role and any slot
+  const setCid = (v: string | null) => update({ pick: v, role: null, pos: null }, { replace: false });
 
-  // default the role filter to the pick's own role whenever the pick changes
-  useEffect(() => {
-    if (sel) setRoleSel(sel.role);
-    setPosSel("");
-  }, [sel]);
+  // the role filter defaults to the pick's own role; only a different one is written to the URL
+  const urlRole = params.get("role");
+  const roleOk = !!urlRole && ROLE_OPTS.some((r) => r.value === urlRole);
+  const roleSel: Role = roleOk ? (urlRole as Role) : (sel?.role ?? "batter");
+  const setRoleSel = (r: Role) => update({ role: sel && r === sel.role ? null : r });
+  const urlPos = params.get("pos") ?? "";
 
   // median SMAT exposure → the gem cutoff (high standing, below-median balls)
   const gemMedian = useMemo(() => gemThreshold(idx.data?.smat ?? []), [idx.data]);
@@ -273,9 +276,14 @@ export function Scout() {
   const selPrice = sel ? estValue(sel.value, sel.role, "ipl") : null;
   const posDisabled = roleSel === "bowler";
   // a batting-slot filter means nothing for a bowler match — drop it rather than keep filtering invisibly
+  const posSel = !posDisabled && hasKey(POS, urlPos) ? urlPos : "";
+  const setPosSel = (p: string) => update({ pos: p || null });
+  // tidy unknown / meaningless role and slot values out of the URL
+  const badRole = !!urlRole && !roleOk;
+  const badPos = !!urlPos && !posSel;
   useEffect(() => {
-    if (posDisabled) setPosSel("");
-  }, [posDisabled]);
+    if (badRole || badPos) update({ ...(badRole ? { role: null } : {}), ...(badPos ? { pos: null } : {}) });
+  }, [badRole, badPos, update]);
 
   return (
     <>
@@ -341,7 +349,7 @@ export function Scout() {
           </label>
           {(roleSel !== sel.role || posSel) && (
             <button
-              onClick={() => { setRoleSel(sel.role); setPosSel(""); }}
+              onClick={() => update({ role: null, pos: null })}
               className="text-xs text-accent-glow hover:underline"
             >
               reset

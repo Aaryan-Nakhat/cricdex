@@ -1,0 +1,40 @@
+name: docker
+
+# Proves the image still builds (and the API imports inside it) whenever
+# something that goes into the image changes. Build only — nothing is pushed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker-compose.yml
+      - pyproject.toml
+      - uv.lock
+      - README.md
+      - src/**
+      - scripts/**
+      - .github/workflows/docker.yml
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: cricdex:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test (API imports, CLI runs)
+        run: |
+          docker run --rm cricdex:ci uv run --frozen python -c "import cricdex.api.main; print('api import ok')"
+          docker run --rm cricdex:ci uv run --frozen cricdex --help
+      - name: Compose file is valid
+        run: docker compose config --quiet

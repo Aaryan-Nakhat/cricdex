@@ -10,8 +10,6 @@ export interface Filters {
   position: string; // batting_position | ""
   country: string; // ISO-3 | ""
   activity: "all" | "active" | "retired";
-  yearFrom: number; // 0 = unset
-  yearTo: number; // 0 = unset
 }
 
 export const EMPTY_FILTERS: Filters = {
@@ -21,8 +19,6 @@ export const EMPTY_FILTERS: Filters = {
   position: "",
   country: "",
   activity: "all",
-  yearFrom: 0,
-  yearTo: 0,
 };
 
 /** Where the player boards (Leaderboards, Form, Phase) start: established, currently active players. */
@@ -33,12 +29,6 @@ export const ACTIVITY_OPTS = [
   { value: "retired", label: "Retired only" },
   { value: "all", label: "Active + retired" },
 ];
-
-function yr(v: unknown): number | null {
-  if (typeof v !== "string") return null;
-  const y = Number(v.slice(0, 4));
-  return Number.isFinite(y) ? y : null;
-}
 
 export const ROLE_OPTS = [
   { value: "", label: "Any role" },
@@ -71,13 +61,9 @@ export const FILTER_HELP: Record<string, string> = {
   bowling: "Seam/pace vs spin — AI-classified bowling type (pure batters carry none).",
   position: "Usual batting slot bucket: opener, No.3, middle (4–5), finisher (6–7), lower (8), tailender (9–11).",
   country: "Player's country (AI-classified).",
-  years: "Keeps players whose career in this format overlaps the chosen years. Note: the metric values stay career totals — this filters who's shown, it doesn't recompute per year.",
 };
 
 export function applyFilters<T extends Record<string, unknown>>(rows: T[], f: Filters): T[] {
-  const lo = f.yearFrom || -Infinity;
-  const hi = f.yearTo || Infinity;
-  const yearGate = f.yearFrom > 0 || f.yearTo > 0;
   return rows.filter((r) => {
     if (Number(r.matches ?? 0) < f.minMatches) return false;
     if (f.activity === "active" && !r.active) return false;
@@ -86,12 +72,6 @@ export function applyFilters<T extends Record<string, unknown>>(rows: T[], f: Fi
     if (f.bowling && r.bowling_category !== f.bowling) return false;
     if (f.position && r.batting_position !== f.position) return false;
     if (f.country && r.country !== f.country) return false;
-    if (yearGate) {
-      const ly = yr(r.last_match_date);
-      const fy = yr(r.first_match_date);
-      // keep if the player's [first,last] span overlaps [lo,hi]
-      if (ly !== null && fy !== null && (ly < lo || fy > hi)) return false;
-    }
     return true;
   });
 }

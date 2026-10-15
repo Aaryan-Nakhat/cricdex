@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import { bumpCacheBust, getCollections, type CollectionMeta } from "./data";
 
 interface Store {
@@ -25,11 +26,18 @@ const Ctx = createContext<Store | null>(null);
 
 const LS_KEY = "cricdex.collection";
 
+/** A shared link's `?c=<league>` wins over the remembered league (validated once the list loads). */
+function initialCollection(): string {
+  const h = typeof window === "undefined" ? "" : window.location.hash;
+  const q = h.indexOf("?");
+  const fromUrl = q >= 0 ? new URLSearchParams(h.slice(q + 1)).get("c") : null;
+  return fromUrl || localStorage.getItem(LS_KEY) || "ipl";
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [collections, setCollections] = useState<CollectionMeta[]>([]);
-  const [collection, setCollectionRaw] = useState<string>(
-    () => localStorage.getItem(LS_KEY) ?? "ipl",
-  );
+  const [collection, setCollectionRaw] = useState<string>(initialCollection);
+  const [params, setParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,9 +50,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cols = await getCollections();
       setCollections(cols);
       // keep current selection if still present, else first
-      setCollectionRaw((prev) =>
-        cols.some((c) => c.collection === prev) ? prev : (cols[0]?.collection ?? "ipl"),
-      );
+      setCollectionRaw((prev) => {
+        const next = cols.some((c) => c.collection === prev) ? prev : (cols[0]?.collection ?? "ipl");
+        localStorage.setItem(LS_KEY, next);
+        return next;
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -56,10 +66,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void load(true);
   }, [load]);
 
-  const setCollection = useCallback((c: string) => {
-    setCollectionRaw(c);
-    localStorage.setItem(LS_KEY, c);
-  }, []);
+  const setCollection = useCallback(
+    (c: string) => {
+      setCollectionRaw(c);
+      localStorage.setItem(LS_KEY, c);
+      // keep a shared link's league tag in step, so a reload doesn't switch back
+      if (params.has("c")) {
+        const next = new URLSearchParams(params);
+        next.set("c", c);
+        setParams(next, { replace: true });
+      }
+    },
+    [params, setParams],
+  );
 
   // "Refresh" in a no-backend world = re-pull the cooked JSON past the
   // cache. The GitHub Action (manual "Run workflow") is what re-computes

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -7,7 +7,8 @@ import { getLeaderboard, type LeaderboardRow } from "@/lib/data";
 import { METRICS, METRIC_BY_SLUG } from "@/lib/metrics";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, countriesIn, DEFAULT_FILTERS, type Filters } from "@/lib/filters";
+import { applyFilters, countriesIn, DEFAULT_FILTERS } from "@/lib/filters";
+import { useUrlFilters, useUrlState } from "@/lib/useUrlState";
 import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip, StatTile, Segmented } from "@/components/ui";
 import { cn, fmtSigned } from "@/lib/utils";
 
@@ -25,16 +26,20 @@ const WINDOW_LABEL: Record<string, string> = {
 export function Form() {
   const { collection, meta } = useStore();
   const navigate = useNavigate();
-  const [slug, setSlug] = useState("ngi");
+  // metric, window and non-default filters live in the URL (shareable links)
+  const [slug, setSlug] = useUrlState<string>("metric", "ngi", {
+    valid: FORM_METRICS.map((m) => m.slug),
+    replace: false,
+  });
   // same defaults as the leaderboards: established, active players
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useUrlFilters(DEFAULT_FILTERS);
   const metric = METRIC_BY_SLUG[slug];
   const valueKey = metric.columns.find((c) => c.primary)?.key ?? metric.columns[1]?.key;
   const nameKey = metric.nameCol;
 
   // Recent-window picker — whichever recomputed windows this collection cooked.
   const windows: string[] = (meta?.windows ?? []).filter((w) => w === "last1y" || w === "last3y");
-  const [win, setWin] = useState<string | null>(null);
+  const [win, setWin] = useUrlState<string>("window", "", { valid: windows, ready: !!meta, replace: false });
   const recentWin = win && windows.includes(win) ? win : (windows[0] ?? null);
 
   const career = useAsync(() => getLeaderboard(collection, slug, "all"), [collection, slug]);

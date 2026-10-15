@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Handshake } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -8,6 +8,7 @@ import { usePlayers } from "@/lib/usePlayers";
 import { Combobox } from "@/components/Combobox";
 import { DataTable, type Col } from "@/components/DataTable";
 import { PageTitle, Card, CardHeader, Spinner, ErrorBox, Empty } from "@/components/ui";
+import { useUrlId, useUrlNumber } from "@/lib/useUrlState";
 
 type Row = Record<string, unknown>;
 
@@ -37,10 +38,11 @@ const BEST_COLS: Col<Row>[] = [
 export function Partnerships() {
   const { collection } = useStore();
   const navigate = useNavigate();
-  const { options } = usePlayers(collection);
+  const { options, players, byId } = usePlayers(collection);
   const { data, loading, error } = useAsync(() => getPartnerships(collection), [collection]);
-  const [cid, setCid] = useState<string | null>(null);
-  const [minRuns, setMinRuns] = useState(50);
+  // player + min-runs live in the URL (`?player=…&minruns=…`) so a link reproduces the view
+  const [cid, setCid] = useUrlId("player", byId, players.length > 0);
+  const [minRuns, setMinRuns] = useUrlNumber("minruns", 50);
 
   const pairs = data?.pairs ?? [];
 

@@ -3,7 +3,9 @@
 # Stage 2 copies the source + the exported site data the API, CLI and dashboard read.
 
 ARG PYTHON_VERSION=3.12
-ARG UV_VERSION=0.5.10
+# uv.lock is written in lock format `version = 1, revision = 3`; uv older than ~0.8 can't
+# read it, so keep this at (or near) the uv that writes the lock.
+ARG UV_VERSION=0.11.19
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv_bin
 
@@ -34,6 +36,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra ui
 
 ENV PYTHONPATH=/app/src
+# `uv run` (CMD, compose, Makefile) must not pull the dev group in at container start
+ENV UV_NO_DEV=1
 
 EXPOSE 8080
 CMD ["uv", "run", "--frozen", "uvicorn", "cricdex.api.main:app", "--host", "0.0.0.0", "--port", "8080"]

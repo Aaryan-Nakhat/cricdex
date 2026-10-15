@@ -19,7 +19,7 @@ const fixture: Record<string, unknown>[] = [
 
 const base: Filters = {
   minMatches: 0, role: "", bowling: "", position: "", country: "",
-  activity: "all", yearFrom: 0, yearTo: 0,
+  activity: "all",
 };
 
 const cases: Record<string, Filters> = {
@@ -31,7 +31,6 @@ const cases: Record<string, Filters> = {
   spin: { ...base, bowling: "spin" },
   openers: { ...base, position: "opener" },
   india: { ...base, country: "IND" },
-  years_2014_2020: { ...base, yearFrom: 2014, yearTo: 2020 },
   combo: { ...base, minMatches: 20, activity: "active", role: "bowler", country: "ENG" },
 };
 

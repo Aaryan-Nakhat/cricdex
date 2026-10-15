@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { MapPin } from "lucide-react";
 import {
   BarChart,
@@ -17,16 +17,18 @@ import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, Empty, StatTile, ErrorBox } from "@/components/ui";
 import { useTheme } from "@/lib/theme";
 import { fmt } from "@/lib/utils";
+import { hasKey, useClearOnChange, useUrlId } from "@/lib/useUrlState";
 
 const PHASE_ORDER = ["powerplay", "middle", "death"];
 
 export function Venues() {
   const { collection } = useStore();
   const { data, loading, error } = useAsync(() => getVenues(collection), [collection]);
-  const [venue, setVenue] = useState<string | null>(null);
+  // the ground lives in the URL (`?venue=…`) so a link reproduces the view
+  const [venue, setVenue] = useUrlId("venue", { has: (v) => hasKey(data, v) }, !!data);
   const { colors } = useTheme();
   // grounds are per league: a switch clears the pick
-  useEffect(() => setVenue(null), [collection]);
+  useClearOnChange(collection, ["venue"]);
 
   const names = data ? Object.keys(data) : [];
   // search matches a ground's other names too ("Kotla" finds Arun Jaitley Stadium); a former name shows as a hint

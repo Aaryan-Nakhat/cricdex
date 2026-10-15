@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Crosshair, Zap, Disc } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
@@ -8,6 +8,7 @@ import { Combobox } from "@/components/Combobox";
 import { DataTable, type Col } from "@/components/DataTable";
 import { PageTitle, Card, CardHeader, Spinner, Empty, StatTile, Badge, ErrorBox } from "@/components/ui";
 import { fmt } from "@/lib/utils";
+import { useUrlId, useUrlNumber } from "@/lib/useUrlState";
 
 type Row = Record<string, unknown>;
 
@@ -76,9 +77,10 @@ function Splits({ splits }: { splits: MatchupsData["splits"] }) {
 
 export function Matchups() {
   const { collection } = useStore();
-  const { options, loading: playersLoading } = usePlayers(collection);
-  const [cid, setCid] = useState<string | null>(null);
-  const [minBalls, setMinBalls] = useState(6);
+  const { options, players, byId, loading: playersLoading } = usePlayers(collection);
+  // player + min-balls live in the URL (`?player=…&minballs=…`) so a link reproduces the view
+  const [cid, setCid] = useUrlId("player", byId, players.length > 0);
+  const [minBalls, setMinBalls] = useUrlNumber("minballs", 6, { min: 1 });
   const { data, loading, error } = useAsync<MatchupsData | null>(
     () => (cid ? getMatchups(collection, cid) : Promise.resolve(null)),
     [collection, cid],

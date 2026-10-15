@@ -14,12 +14,6 @@ export function fmt(n: number | string | null | undefined, digits = 2): string {
   return x.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-/** Compact form (9.3K, 1.2M) — only for tight spaces like chart axes, never for a value in a table. */
-export function fmtCompact(n: number | null | undefined): string {
-  if (n === null || n === undefined || Number.isNaN(n)) return "—";
-  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
-}
-
 /** "+1.20" / "−0.42" — a signed delta without "+-". */
 export function fmtSigned(n: number | null | undefined, digits = 2): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
