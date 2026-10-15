@@ -358,6 +358,10 @@ def load_to_duckdb(matches_path: Path, balls_path: Path, collection: str, db_pat
         con.execute(
             f"CREATE OR REPLACE TABLE balls_{safe} AS SELECT * FROM read_parquet('{balls_path}')"
         )
+        # one name per ground, across every collection (keeps the raw spelling + aliases)
+        from cricdex.common.venue_names import normalize_venues
+
+        normalize_venues(con)
     finally:
         con.close()
 

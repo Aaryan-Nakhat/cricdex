@@ -29,7 +29,13 @@ export function Venues() {
   useEffect(() => setVenue(null), [collection]);
 
   const names = data ? Object.keys(data) : [];
-  const options = names.map((n) => ({ value: n, label: n }));
+  // search matches a ground's other names too ("Kotla" finds Arun Jaitley Stadium); a former name shows as a hint
+  const options = names.map((n) => {
+    const aliases = (data?.[n]?.aliases as string[] | undefined) ?? [];
+    const short = n.split(",")[0].toLowerCase();
+    const former = aliases.find((a) => !a.toLowerCase().startsWith(short));
+    return { value: n, label: n, search: aliases.join(" "), hint: former ? `was ${former.split(",")[0]}` : undefined };
+  });
   const selected = venue && data ? data[venue] : null;
 
   const phaseRows = useMemo(() => {

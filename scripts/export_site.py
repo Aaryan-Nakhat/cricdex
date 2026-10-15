@@ -920,10 +920,13 @@ def _export_records_venues(collection: str, out_dir: Path) -> None:
         logger.warning(f"records export skipped for {collection}: {e}")
 
     try:
+        from cricdex.common.venue_names import aliases_for
         from cricdex.venues import profile as vp
 
         venue_names = vp.list_venues(collection, min_matches=10)
         names = venue_names["venue"].to_list() if not venue_names.is_empty() else []
+        with duckdb.connect(str(vp.DEFAULT_DB_PATH), read_only=True) as con:
+            aliases = aliases_for(con)
         venues_out = {}
         for v in names[:60]:
             try:
@@ -931,6 +934,8 @@ def _export_records_venues(collection: str, out_dir: Path) -> None:
                     "innings_totals": vp.innings_totals(v, collection).to_dicts(),
                     "phase_run_rates": vp.phase_run_rates(v, collection).to_dicts(),
                     "chase_vs_set": vp.chase_vs_set_winrate(v, collection).to_dicts(),
+                    # other names the ground has had (spellings, former names) — the venue search matches these
+                    "aliases": aliases.get(v, []),
                 }
             except Exception:  # noqa: BLE001
                 continue

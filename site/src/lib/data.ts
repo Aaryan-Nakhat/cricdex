@@ -126,8 +126,9 @@ export const getLeaderboard = (c: string, slug: string, window?: string) =>
   );
 export const getRecords = (c: string) =>
   getJSON<Record<string, Record<string, unknown>[]>>(`${c}/records.json`);
-export const getVenues = (c: string) =>
-  getJSON<Record<string, Record<string, Record<string, unknown>[]>>>(`${c}/venues.json`);
+/** One ground: its condition tables plus `aliases` — other names it has had (spellings, former names). */
+export type VenueData = Record<string, Record<string, unknown>[]> & { aliases?: string[] };
+export const getVenues = (c: string) => getJSON<Record<string, VenueData>>(`${c}/venues.json`);
 export const getProfile = (c: string, cid: string) =>
   getJSON<Profile>(`${c}/profiles/${cid}.json`);
 

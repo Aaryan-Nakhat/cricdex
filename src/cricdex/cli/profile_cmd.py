@@ -345,7 +345,20 @@ def venues(
     except Exception as e:  # noqa: BLE001
         die(f"venue lookup failed: {e}")
     if venue not in known:
-        hits = [k for k in known if venue.lower() in k.lower()]
+        # any of a ground's names counts (spellings, former names like "Feroz Shah Kotla")
+        try:
+            import duckdb
+
+            from cricdex.common.venue_names import aliases_for
+
+            with duckdb.connect(str(v.DEFAULT_DB_PATH), read_only=True) as con:
+                names_of = aliases_for(con)
+        except Exception:  # noqa: BLE001
+            names_of = {}
+        q = venue.lower()
+        hits = [
+            k for k in known if q in k.lower() or any(q in a.lower() for a in names_of.get(k, []))
+        ]
         if not hits:
             die(
                 f"no venue matching '{venue}' in {collection}",
