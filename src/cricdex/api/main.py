@@ -11,6 +11,8 @@ Conventions
 
 from __future__ import annotations
 
+import json
+from functools import lru_cache
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -19,7 +21,9 @@ from pydantic import BaseModel
 
 from cricdex import __version__
 from cricdex.comparator import compare as comparator
+from cricdex.config import DATA_DIR
 from cricdex.profiles import builder as profiles
+from cricdex.profiles import identity
 from cricdex.records import queries as records
 from cricdex.scout.search import style_twin as st
 from cricdex.venues import profile as venues
@@ -95,9 +99,48 @@ def venue_profile(venue: str, collection: str = Query("ipl")) -> dict[str, Any]:
 
 # ---- players ---------------------------------------------------------------
 
+_DB_PATH = identity.DEFAULT_DB_PATH
+
+
+@lru_cache(maxsize=32)
+def _player_names(collection: str, db_path: str, mtime: float) -> frozenset[str]:
+    # keyed on the DuckDB mtime so a re-ingest is picked up without a restart
+    return frozenset(identity._player_universe(collection, db_path=db_path))
+
+
+def _require_players(names: list[str], collection: str) -> None:
+    """404 for a player the collection has never seen (instead of a 200 with
+    empty data); 503 when there is no DuckDB to look them up in."""
+    from cricdex.common.sql import table_suffix
+
+    table_suffix(collection)  # a malformed collection is still a 400 (ValueError handler)
+    if not _DB_PATH.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="no cricsheet DuckDB yet — run `cricdex data ingest cricsheet -c "
+            f"{collection}` first",
+        )
+    known = _player_names(collection, str(_DB_PATH), _DB_PATH.stat().st_mtime)
+    if not known:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no ball-by-ball data for collection {collection!r} — run "
+            f"`cricdex data ingest cricsheet -c {collection}`",
+        )
+    for name in names:
+        if name not in known:
+            _, close = identity.resolve_name(name, collection=collection, db_path=_DB_PATH)
+            hint = f" — did you mean {', '.join(repr(m.name) for m in close)}?" if close else ""
+            raise HTTPException(
+                status_code=404,
+                detail=f"unknown player {name!r} in {collection}{hint} "
+                "(use the exact Cricsheet scorecard name, e.g. 'V Kohli')",
+            )
+
 
 @app.get("/v1/players/{name}")
 def player_profile(name: str, collection: str = Query("ipl")) -> dict[str, Any]:
+    _require_players([name], collection)
     return profiles.build(name, collection=collection)
 
 
@@ -108,6 +151,7 @@ def player_style_twins(
     k: int = Query(10, ge=1, le=50),
     collection: str = Query("ipl"),
 ) -> list[dict]:
+    _require_players([name], collection)
     try:
         return st.style_twin(name, role=role, k=k, collection=collection).to_dicts()
     except KeyError as e:
@@ -123,6 +167,7 @@ class CompareReq(BaseModel):
 def compare_players(req: CompareReq) -> list[dict]:
     if len(req.players) < 2:
         raise HTTPException(status_code=422, detail="need ≥2 players to compare")
+    _require_players(req.players, req.collection)
     return comparator.compare(req.players, collection=req.collection).to_dicts()
 
 
@@ -135,26 +180,23 @@ def metrics_ngi(
     min_matches: int = Query(20, ge=0),
     top_n: int = Query(50, ge=1, le=500),
 ) -> dict[str, Any]:
-    """NGI (Net Game Impact) leaderboard. Reads the pre-computed JSON
-    written by `scripts/compute_metrics.py ngi` if present; otherwise
-    falls back to a live fit on the requested collection."""
-    import json
-
+    """NGI (Net Game Impact) leaderboard from the pre-computed JSON written by
+    `cricdex data ingest metrics`. A cache miss is a 503 with that hint — the
+    model fit is far too heavy to run inside a GET."""
     import polars as pl
 
-    from cricdex.config import DATA_DIR
+    from cricdex.common.sql import table_suffix
 
+    table_suffix(collection)  # a malformed collection is a 400, not a 503
     cached = DATA_DIR / "metrics" / f"ngi_{collection}.json"
-    if cached.exists():
-        rows = json.loads(cached.read_text())
-        df = pl.DataFrame(rows)
-    else:
-        from cricdex.metrics import ngi as _ngi
-
-        res = _ngi.compute(collection=collection)
-        df = res["career"]
-        if df.is_empty():
-            raise HTTPException(404, f"no NGI data for collection {collection!r}")
+    if not cached.exists():
+        raise HTTPException(
+            status_code=503,
+            detail=f"NGI for {collection!r} isn't computed yet — run "
+            f"`cricdex data ingest metrics -c {collection}`",
+        )
+    rows = json.loads(cached.read_text(encoding="utf-8"))
+    df = pl.DataFrame(rows, infer_schema_length=None)
     if "matches" in df.columns:
         df = df.filter(pl.col("matches") >= min_matches)
     if "ngi_per_match" in df.columns:

@@ -7,6 +7,7 @@ chmod 600. Keys are flat strings — `llm_model`, `llm_api_key`, `llm_api_base`.
 from __future__ import annotations
 
 import os
+import re
 import stat
 import tomllib
 from pathlib import Path
@@ -39,8 +40,48 @@ def _read() -> dict:
     p = _config_path()
     if not p.exists():
         return {}
-    with open(p, "rb") as f:
-        return tomllib.load(f)
+    try:
+        with open(p, "rb") as f:
+            return tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        die(
+            f"{p} is not valid TOML ({e})",
+            code=EXIT_USER_ERROR,
+            hint="fix it with `cricdex config edit`, or delete the file and `config set` again",
+        )
+
+
+_TOML_ESCAPES = {
+    '"': '\\"',
+    "\\": "\\\\",
+    "\b": "\\b",
+    "\t": "\\t",
+    "\n": "\\n",
+    "\f": "\\f",
+    "\r": "\\r",
+}
+_BARE_KEY = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def _toml_str(s: str) -> str:
+    """A TOML basic string: quotes, backslashes and control characters escaped."""
+    out = []
+    for ch in s:
+        if ch in _TOML_ESCAPES:
+            out.append(_TOML_ESCAPES[ch])
+        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
+            out.append(f"\\u{ord(ch):04X}")
+        else:
+            out.append(ch)
+    return '"' + "".join(out) + '"'
+
+
+def _toml_value(v: object) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, int | float):
+        return repr(v)
+    return _toml_str(str(v))
 
 
 def _write(d: dict) -> None:
@@ -48,9 +89,9 @@ def _write(d: dict) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     lines = ["# CricDex CLI config — edit by hand or via `cricdex config set`.\n"]
     for k, v in d.items():
-        # Simple TOML emit — keys are flat strings.
-        lines.append(f'{k} = "{v}"\n')
-    p.write_text("".join(lines))
+        key = k if _BARE_KEY.fullmatch(k) else _toml_str(k)
+        lines.append(f"{key} = {_toml_value(v)}\n")
+    p.write_text("".join(lines), encoding="utf-8")
     p.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 600 — credential safety.
 
 

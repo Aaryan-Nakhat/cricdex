@@ -12,7 +12,7 @@ from pathlib import Path
 import typer
 
 from cricdex.cli import _copy, _render
-from cricdex.cli._shared import EXIT_MISSING_DATA, die
+from cricdex.cli._shared import EXIT_MISSING_DATA, die, sort_missing_last
 from cricdex.common.metrics import METRIC_BY_SLUG
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -48,7 +48,7 @@ def leaderboard(
     rows = json.loads(path.read_text())
     if not isinstance(rows, list):
         rows = rows.get("rows", []) if isinstance(rows, dict) else []
-    rows = sorted(rows, key=lambda r: r.get(sort_col, 0) or 0, reverse=higher)[:top]
+    rows = sort_missing_last(rows, sort_col, higher)[:top]
 
     if output_json:
         typer.echo(json.dumps(rows, indent=2))

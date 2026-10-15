@@ -57,8 +57,19 @@ load_dotenv(ROOT / ".env", override=False)
 def _read_toml_config() -> dict:
     if not CONFIG_PATH.exists():
         return {}
-    with open(CONFIG_PATH, "rb") as f:
-        return tomllib.load(f)
+    try:
+        with open(CONFIG_PATH, "rb") as f:
+            return tomllib.load(f)
+    except (tomllib.TOMLDecodeError, OSError) as e:
+        # A broken hand edit must not take every command down with it: say so, carry on without it.
+        import sys
+
+        print(
+            f"warning: ignoring {CONFIG_PATH}: not valid TOML ({e}). "
+            "Fix it with `cricdex config edit`, or delete it.",
+            file=sys.stderr,
+        )
+        return {}
 
 
 _TOML = _read_toml_config()

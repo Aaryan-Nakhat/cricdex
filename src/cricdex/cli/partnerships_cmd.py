@@ -10,18 +10,15 @@ import json
 import typer
 
 from cricdex.cli import _render
-from cricdex.cli._shared import EXIT_MISSING_DATA, console, die, resolve_or_die
+from cricdex.cli._shared import EXIT_MISSING_DATA, console, die, load_players, resolve_or_die
 from cricdex.web_parity.loader import SITE_DATA
 
 
 def _cid_for(collection: str, name: str) -> str | None:
-    path = SITE_DATA / collection / "players.json"
-    if not path.exists():
-        return None
-    for p in json.loads(path.read_text()):
-        if p.get("name") == name:
-            return p.get("cricsheet_id")
-    return None
+    return next(
+        (p.get("cricsheet_id") for p in load_players(collection) or [] if p.get("name") == name),
+        None,
+    )
 
 
 def partnerships(
@@ -46,6 +43,8 @@ def partnerships(
     if name:
         name = resolve_or_die(name, collection=collection)
         cid = _cid_for(collection, name)
+        if cid is None:
+            die(f"no exported player matching {name!r} in {collection}", code=EXIT_MISSING_DATA)
         mine = sorted(
             (p for p in pairs if cid and cid in (p.get("a_cid"), p.get("b_cid"))),
             key=lambda p: p["runs"],

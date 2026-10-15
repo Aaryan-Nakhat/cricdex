@@ -13,7 +13,7 @@ import typer
 EXIT_OK = 0
 EXIT_USER_ERROR = 1
 EXIT_MISSING_DATA = 2
-EXIT_MISSING_CRED = 3
+# 3 was "missing credential"; nothing raises it any more, so it is left unused.
 EXIT_RUNTIME_ERROR = 4  # a pipeline step (ingest / metrics / export) failed
 
 
@@ -35,32 +35,6 @@ def die(msg: str, code: int = EXIT_USER_ERROR, hint: str | None = None) -> t.NoR
     if hint:
         c.print(f"[dim]hint:[/dim] {hint}")
     raise typer.Exit(code=code)
-
-
-def require_path(path, what: str, next_cmd: str) -> None:
-    """Bail with a helpful message if `path` doesn't exist."""
-    from pathlib import Path
-
-    if not Path(path).exists():
-        die(
-            f"missing {what} at {path}",
-            code=EXIT_MISSING_DATA,
-            hint=f"run `{next_cmd}` first",
-        )
-
-
-def require_cred(key: str, *, label: str, set_cmd: str) -> str:
-    """Bail with a helpful message if credential `key` is empty."""
-    from cricdex.config import settings
-
-    value = getattr(settings, key, "") or ""
-    if not value:
-        die(
-            f"missing credential `{key}` ({label})",
-            code=EXIT_MISSING_CRED,
-            hint=f"`{set_cmd}` or set the env var {key.upper()}",
-        )
-    return value
 
 
 def render_table(
@@ -100,27 +74,156 @@ def render_table(
     console().print("[dim]tip: run `cricdex tui` for an interactive view.[/dim]")
 
 
-def resolve_or_die(query: str, collection: str = "ipl") -> str:
-    """CLI-side wrapper around profiles.identity.resolve_name.
+def sort_missing_last(rows: list[dict], col: str, higher_is_better: bool) -> list[dict]:
+    """Sort leaderboard rows best-first on `col`; rows with no usable value
+    (None, NaN, non-numeric) go last whichever way the metric points."""
 
-    Returns the unique_name when an exact match is found; otherwise
-    prints the top-K suggestions, hints the user to re-run with the
-    exact name, and exits 1.
+    def num(v: object) -> float | None:
+        try:
+            f = float(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        return None if f != f else f
+
+    present = [(n, r) for r in rows if (n := num(r.get(col))) is not None]
+    missing = [r for r in rows if num(r.get(col)) is None]
+    present.sort(key=lambda nr: nr[0], reverse=higher_is_better)
+    return [r for _, r in present] + missing
+
+
+def load_players(collection: str) -> list[dict] | None:
+    """The exported `players.json` rows for `collection`, or None when the file
+    is missing or unreadable (a fresh clone before `export_site.py`)."""
+    import json
+
+    from cricdex.config import SITE_DATA
+
+    try:
+        data = json.loads((SITE_DATA / collection / "players.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, list):
+        return None
+    return [p for p in data if isinstance(p, dict) and p.get("name")]
+
+
+def match_player(query: str, players: list[dict]) -> tuple[dict | None, list[dict]]:
+    """Pick the one player a typed name means, without guessing.
+
+    Order: exact scorecard or full name (case-insensitive), then a unique
+    word-start prefix ("Bumr", "Jasp"), then a unique substring. Returns `(row, [])` for a single hit,
+    `(None, candidates)` when several players fit (most matches first), and
+    `(None, [])` when nothing does. Shared by the CLI and the TUI.
     """
-    from cricdex.profiles.identity import resolve_name
+    q = " ".join((query or "").split()).lower()
+    if not q:
+        return None, []
 
-    exact, suggestions = resolve_name(query, collection=collection)
+    def names(p: dict) -> list[str]:
+        return [str(n).lower() for n in (p.get("name"), p.get("full_name")) if n]
+
+    def by_matches(rows: list[dict]) -> list[dict]:
+        return sorted(rows, key=lambda p: -(p.get("matches") or 0))
+
+    exact = [p for p in players if q in names(p)]
     if exact:
-        return exact
+        return (exact[0], []) if len(exact) == 1 else (None, by_matches(exact))
+
+    def starts_a_word(n: str) -> bool:  # "bumr" / "jasp" / "kohli" — the start of any word
+        return n.startswith(q) or f" {q}" in n
+
+    for fits in (starts_a_word, lambda n: q in n):
+        hits = [p for p in players if any(fits(n) for n in names(p))]
+        if len(hits) == 1:
+            return hits[0], []
+        if hits:
+            return None, by_matches(hits)
+    return None, []
+
+
+def player_label(p: dict) -> str:
+    """'RG Sharma (Rohit Sharma)' — the scorecard name plus the full name when different."""
+    name, full = p.get("name", ""), p.get("full_name")
+    return f"{name} ({full})" if full and full != name else name
+
+
+def _close_names(query: str, players: list[dict], k: int = 3) -> list[str]:
+    from rapidfuzz import fuzz, process
+
+    by_label = {}
+    for p in players:
+        for n in (p.get("name"), p.get("full_name")):
+            if n:
+                by_label.setdefault(str(n), p["name"])
+    out: list[str] = []
+    for label, _score, _ in process.extract(
+        query, list(by_label), scorer=fuzz.WRatio, limit=k * 3, score_cutoff=60
+    ):
+        if by_label[label] not in out:
+            out.append(by_label[label])
+    return out[:k]
+
+
+def resolve_or_die(query: str, collection: str = "ipl") -> str:
+    """Turn a typed player name into the exact scorecard name, or exit.
+
+    Looks in the exported `players.json` first (what the TUI and web use, so
+    it works without the DuckDB) and only falls back to the live DuckDB when
+    the export has no match. Several matches → lists them and exits 1 rather
+    than picking one; no player list at all → exits 2 with how to get one.
+    """
+    from rich.markup import escape
+
+    from cricdex.config import SITE_DATA
+    from cricdex.profiles.identity import DEFAULT_DB_PATH, resolve_name
+
     c = console()
-    c.print(f"[yellow]no exact match for[/yellow] {query!r}")
-    if not suggestions:
-        c.print("[dim](no fuzzy matches above 60% — check spelling / collection)[/dim]")
-    else:
-        c.print("[bold]closest matches:[/bold]")
+    players = load_players(collection)
+    if players:
+        row, candidates = match_player(query, players)
+        if row:
+            return row["name"]
+        if candidates:
+            c.print(
+                f"[yellow]{escape(query)!r} matches {len(candidates)} players in "
+                f"{collection}[/yellow] — which one?"
+            )
+            for i, p in enumerate(candidates[:10], 1):
+                c.print(f"  [cyan]{i}[/cyan]  {escape(player_label(p))}")
+            if len(candidates) > 10:
+                c.print(f"  [dim]… and {len(candidates) - 10} more — type more of the name[/dim]")
+            c.print(
+                f'[dim]hint:[/dim] re-run with the full name in quotes, e.g. "{candidates[0]["name"]}"'
+            )
+            raise typer.Exit(code=EXIT_USER_ERROR)
+
+    # Not in the export (or no export yet): the live DuckDB knows every player.
+    has_db = DEFAULT_DB_PATH.exists()
+    suggestions: list[str] = []
+    if has_db:
+        exact, matches = resolve_name(query, collection=collection)
+        if exact:
+            return exact
+        suggestions = [m.name for m in matches]
+    if players is None and not has_db:
+        die(
+            f"no player list for collection {collection!r}: "
+            f"{SITE_DATA / collection / 'players.json'} is missing or unreadable, "
+            "and there is no DuckDB to fall back on",
+            code=EXIT_MISSING_DATA,
+            hint=f"run `uv run python scripts/export_site.py -c {collection}` "
+            f"(or `cricdex data ingest cricsheet -c {collection}`)",
+        )
+    if not suggestions and players:
+        suggestions = _close_names(query, players)
+    c.print(f"[yellow]no player matching[/yellow] {escape(query)!r} in {collection}")
+    if suggestions:
+        c.print("[bold]closest names:[/bold]")
         for i, s in enumerate(suggestions, 1):
-            c.print(f"  [cyan]{i}[/cyan]  {s.name}  [dim]({s.score}%)[/dim]")
-        c.print(f'\nre-run with the exact name, e.g. --name "{suggestions[0].name}"')
+            c.print(f"  [cyan]{i}[/cyan]  {escape(s)}")
+        c.print(f'[dim]hint:[/dim] re-run with the exact name in quotes, e.g. "{suggestions[0]}"')
+    else:
+        c.print("[dim](no close names — check the spelling or the --collection)[/dim]")
     raise typer.Exit(code=EXIT_USER_ERROR)
 
 
