@@ -49,13 +49,13 @@ function CollectionSelect() {
     <div className="relative">
       <button
         ref={btn}
-        className="btn min-w-[150px] justify-between sm:min-w-[210px]"
+        className="btn max-w-[60vw] justify-between whitespace-nowrap sm:max-w-none"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`League: ${collectionLabel(collection)}`}
       >
-        <span className="truncate">{collectionLabel(collection)}</span>
+        <span className="truncate sm:overflow-visible">{collectionLabel(collection)}</span>
         <ChevronDown className={cn("h-4 w-4 text-muted transition-transform", open && "rotate-180")} />
       </button>
       {open && (
@@ -68,7 +68,7 @@ function CollectionSelect() {
             aria-label="League"
             aria-activedescendant={`league-${active}`}
             onKeyDown={onKey}
-            className="absolute right-0 z-50 mt-2 w-[min(19rem,calc(100vw-2rem))] rounded-xl border border-border bg-card p-1.5 shadow-card outline-none"
+            className="absolute right-0 z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-border bg-card p-1.5 shadow-card outline-none"
           >
             {collections.map((c, i) => (
               <div
@@ -86,7 +86,7 @@ function CollectionSelect() {
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <Check className={cn("h-3.5 w-3.5 shrink-0", c.collection === collection ? "opacity-100" : "opacity-0")} />
-                  <span className="truncate">{collectionLabel(c.collection)}</span>
+                  <span className="whitespace-normal leading-snug">{collectionLabel(c.collection)}</span>
                 </span>
                 <span className="shrink-0 stat-num text-xs text-muted">{fmt(c.n_matches)} matches</span>
               </div>
@@ -165,9 +165,9 @@ export function Header() {
         <div className="ml-auto flex items-center gap-2 sm:gap-2.5">
           <div className="hidden items-center gap-2 rounded-xl border border-border bg-surface/70 px-3 py-1.5 lg:flex">
             <CalendarClock className="h-4 w-4 text-accent" />
-            <div className="leading-tight">
-              <div className="eyebrow">Data up to</div>
-              <div className="text-xs font-semibold text-fg">{prettyDate(meta?.data_as_of)}</div>
+            <div className="flex flex-col gap-1">
+              <div className="eyebrow leading-none">Data up to</div>
+              <div className="text-xs font-semibold leading-none text-fg">{prettyDate(meta?.data_as_of)}</div>
             </div>
           </div>
 
