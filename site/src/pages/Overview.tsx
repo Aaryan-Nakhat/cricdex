@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Database, CalendarClock, Trophy, Users, CircleDot, Layers } from "lucide-react";
+import { ArrowRight, Database, CalendarClock, Trophy, Users, CircleDot, Layers, Gavel } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { NAV, NAV_GROUPS } from "@/lib/nav";
 import { Card, StatTile, Badge } from "@/components/ui";
@@ -19,16 +19,19 @@ export function Overview() {
             <CircleDot className="h-3 w-3" /> open cricket intelligence
           </Badge>
           <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-fg sm:text-[42px]">
-            The numbers behind the game, <span className="grad-text">honestly modelled.</span>
+            Run the IPL mega auction <span className="grad-text">yourself.</span>
           </h1>
           <p className="mt-4 text-base leading-relaxed text-muted">
-            CricDex turns Cricsheet ball-by-ball data into win-probability impact, ten more context metrics,
-            Bayesian skill ratings, cross-league scouting and a real-rules IPL auction — computed offline and
-            served as a static site. Every model is explained.
+            Ten franchises keep their real 2025 retentions, then bid for every active T20 player, each in its own
+            style, hundreds of times over. See who lands each star, for how much, and how every squad ends up.
+            Player prices come from ball-by-ball skill ratings, and you can change any retention.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link to="/leaderboards" className="btn btn-accent">
-              Explore leaderboards <ArrowRight className="h-4 w-4" />
+            <Link to="/auction?run=1" className="btn btn-accent">
+              <Gavel className="h-4 w-4" /> Run the mega auction <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link to="/leaderboards" className="btn">
+              Explore leaderboards
             </Link>
             <Link to="/scout" className="btn">
               Scout a player

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Gavel, Dices, Plane, Calculator, X, Users } from "lucide-react";
 import { useAsync } from "@/lib/useAsync";
@@ -351,6 +351,24 @@ function Simulate({
     }, 20);
   }
 
+  // ?run=1 (the home page's "Run the mega auction") runs once the default retentions are in;
+  // it stays in the URL so a shared link runs too.
+  const [autoRun, setAutoRun] = useState(params.get("run") === "1");
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const [scrollToResults, setScrollToResults] = useState(false);
+  useEffect(() => {
+    if (!autoRun || Object.keys(retentions).length === 0) return;
+    setAutoRun(false);
+    setScrollToResults(true);
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRun, retentions]);
+  useEffect(() => {
+    if (!scrollToResults || !result) return;
+    setScrollToResults(false);
+    resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [scrollToResults, result]);
+
   const draft = result?.sampleDraft[focus];
 
   return (
@@ -498,6 +516,7 @@ function Simulate({
         </button>
       </Card>
 
+      <div ref={resultsRef} className="scroll-mt-20" />
       {!result ? (
         <Empty>Pick the auction type &amp; personalities, then <b className="mx-1 text-accent-glow">Run simulation</b>.</Empty>
       ) : (
