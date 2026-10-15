@@ -196,6 +196,50 @@ def _vectorise(df: pl.DataFrame) -> tuple[np.ndarray, list[str], list[str]]:
     return X, names, feature_cols
 
 
+class TwinIndex:
+    """The k-NN for one role's feature table, fitted once. Build it once per
+    collection and `query` it per player (the profile export does this —
+    `style_twin` refits the whole table on every call)."""
+
+    def __init__(
+        self,
+        role: str = "batter",
+        collection: str = "ipl",
+        db_path: Path | str = DEFAULT_DB_PATH,
+    ) -> None:
+        if role == "batter":
+            df = build_batter_features(collection, db_path)
+        elif role == "bowler":
+            df = build_bowler_features(collection, db_path)
+        else:
+            raise ValueError(f"role must be 'batter' or 'bowler', got {role!r}")
+        self.role = role
+        self.names: list[str] = []
+        self._nn: NearestNeighbors | None = None
+        if df.is_empty():
+            return
+        X, self.names, _ = _vectorise(df)
+        self._X = StandardScaler().fit_transform(X)
+        self._nn = NearestNeighbors(metric="cosine").fit(self._X)
+        self._idx = {n: i for i, n in enumerate(self.names)}
+
+    def query(self, name: str, k: int = 10) -> pl.DataFrame:
+        if self._nn is None:
+            return pl.DataFrame()
+        if name not in self._idx:
+            raise KeyError(f"{name!r} not in {self.role} feature table; sample: {self.names[:5]}")
+        idx = self._idx[name]
+        dists, ids = self._nn.kneighbors(
+            self._X[idx : idx + 1], n_neighbors=min(k + 1, len(self.names))
+        )
+        out_rows = []
+        for d, j in zip(dists[0], ids[0], strict=True):
+            if j == idx:
+                continue
+            out_rows.append({"name": self.names[j], "distance": float(d)})
+        return pl.DataFrame(out_rows).head(k)
+
+
 def style_twin(
     name: str,
     role: str = "batter",
@@ -203,27 +247,4 @@ def style_twin(
     collection: str = "ipl",
     db_path: Path | str = DEFAULT_DB_PATH,
 ) -> pl.DataFrame:
-    if role == "batter":
-        df = build_batter_features(collection, db_path)
-    elif role == "bowler":
-        df = build_bowler_features(collection, db_path)
-    else:
-        raise ValueError(f"role must be 'batter' or 'bowler', got {role!r}")
-    if df.is_empty():
-        return pl.DataFrame()
-
-    X, names, _ = _vectorise(df)
-    if name not in names:
-        raise KeyError(f"{name!r} not in {role} feature table; sample: {names[:5]}")
-    scaler = StandardScaler()
-    X_s = scaler.fit_transform(X)
-    nn = NearestNeighbors(n_neighbors=min(k + 1, len(names)), metric="cosine")
-    nn.fit(X_s)
-    idx = names.index(name)
-    dists, ids = nn.kneighbors(X_s[idx : idx + 1])
-    out_rows = []
-    for d, j in zip(dists[0], ids[0], strict=True):
-        if j == idx:
-            continue
-        out_rows.append({"name": names[j], "distance": float(d)})
-    return pl.DataFrame(out_rows).head(k)
+    return TwinIndex(role, collection, db_path).query(name, k)

@@ -66,13 +66,17 @@ def _load():
 
 try:
     pool_rows, ret = _load()
-except FileNotFoundError as e:
+except (FileNotFoundError, ValueError) as e:  # missing or corrupt export
     st.error(f"{e}")
     st.stop()
 
 pool = build_pool(pool_rows)
 by_id = {p["cricsheet_id"]: p for p in pool}
-act = load_activity_index("ipl")  # cid -> last-IPL / age / ipl_relevance
+try:
+    act = load_activity_index("ipl")  # cid -> last-IPL / age / ipl_relevance
+except ValueError as e:
+    st.error(f"Could not read `activity_index.json` ({e}); IPL fit / last IPL / age left blank.")
+    act = {}
 
 
 def _fit(cid: str) -> int | None:
@@ -158,24 +162,44 @@ with st.expander("Retentions (editable per team)", expanded=True):
         )
         retentions[team] = sel
 
-run = st.button("🎲 Run simulation", type="primary")
-if not run:
+# The result lives in session_state so the lookups below ("Find a player",
+# "Team") don't wipe it on rerun. It is dropped as soon as any setting that
+# shaped it changes (mode / purse / caps / trials / personalities /
+# retentions) — the same reset rule as the web Auction room.
+_settings = (
+    mode,
+    float(purse),
+    int(squad_size),
+    int(overseas_cap),
+    int(trials),
+    tuple(t["personality"] for t in teams),
+    tuple((team, tuple(ids)) for team, ids in retentions.items()),
+)
+_saved = st.session_state.get("auction_result")
+if _saved is not None and _saved[0] != _settings:
+    del st.session_state["auction_result"]
+    _saved = None
+
+if st.button("🎲 Run simulation", type="primary"):
+    res = simulate_auction(
+        pool,
+        teams,
+        {
+            "purse": purse,
+            "squad_size": int(squad_size),
+            "overseas_cap": int(overseas_cap),
+            "trials": int(trials),
+            "mode": mode,
+            "retentions": retentions,
+            "real_prices": real_prices,
+        },
+    )
+    st.session_state["auction_result"] = (_settings, res)
+elif _saved is not None:
+    res = _saved[1]
+else:
     st.info("Set the knobs and retentions, then **Run simulation**.")
     st.stop()
-
-res = simulate_auction(
-    pool,
-    teams,
-    {
-        "purse": purse,
-        "squad_size": int(squad_size),
-        "overseas_cap": int(overseas_cap),
-        "trials": int(trials),
-        "mode": mode,
-        "retentions": retentions,
-        "real_prices": real_prices,
-    },
-)
 
 st.subheader("How each squad shapes up")
 st.caption(
@@ -266,6 +290,9 @@ else:
     st.caption("Pick a player to see where they landed, for how much, or if they went unsold.")
 
 st.subheader("A representative squad")
+if not res["sample_draft"]:
+    st.caption("No sample squad in this run.")
+    st.stop()
 squad_team = st.selectbox("Team", [s["team"] for s in res["sample_draft"]], key="squad_team")
 st_state = next(s for s in res["sample_draft"] if s["team"] == squad_team)
 

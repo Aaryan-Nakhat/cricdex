@@ -15,7 +15,7 @@ import json
 import streamlit as st
 
 from cricdex.common.filters import load_cohorts
-from cricdex.dashboard._widgets import player_select, provenance_banner
+from cricdex.dashboard._widgets import player_select, provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Profile", page_icon="🪪", layout="wide")
@@ -36,18 +36,33 @@ POS_LABEL = {
     "tailender": "Tailender",
 }
 
-# slug -> (title, value-key, subtitle) — mirror PlayerProfile.tsx MetricCard
+# slug -> (title, value-key, subtitle, digits) — mirror PlayerProfile.tsx
+# MetricCard. One card per catalog metric the player appears in.
 METRIC_CARDS = {
-    "pressure_runs": ("Pressure Runs", "pressure_sr_per_100_balls", "SR under chase pressure"),
+    "ngi": ("Net Game Impact", "ngi_per_match", "win chance added per match", 3),
+    "pressure_runs": ("Pressure Runs", "pressure_sr_per_100_balls", "SR under chase pressure", 1),
+    "intent_curve": ("Intent Curve", "early_sr", "SR over the first 10 balls", 1),
     "dot_ball_recovery": (
         "Dot-Ball Recovery",
         "runs_per_6_after_dot",
         "runs / 6 balls after a dot",
+        1,
     ),
-    "counter_attack": ("Counter-Attack", "counter_attack_sr", "SR after a partner falls"),
-    "boundary_dependency": ("Boundary Dependency", "bdr_pct", "% of runs from boundaries"),
-    "pressure_conversion": ("Pressure Conversion", "wicket_rate_pct", "pressure balls → wickets"),
+    "counter_attack": ("Counter-Attack", "counter_attack_sr", "SR after a partner falls", 1),
+    "boundary_dependency": ("Boundary Dependency", "bdr_pct", "% of runs from boundaries", 1),
+    "pressure_conversion": (
+        "Pressure Conversion",
+        "wicket_rate_pct",
+        "pressure balls → wickets",
+        1,
+    ),
+    "wicket_quality": ("Wicket Quality", "wicket_quality", "avg skill of batters dismissed", 3),
+    "crease_longevity": ("Crease Longevity", "longevity_index", "balls per dismissal vs cohort", 2),
+    "slow_start_cost": ("Slow-Start Cost", "slow_start_cost", "career SR − first-20-ball SR", 1),
+    "keeping": ("Wicketkeeping", "dismissals", "catches + stumpings + run-outs", 0),
+    "fielding": ("Fielding", "dismissals", "catches + run-outs", 0),
 }
+INTENT_BUCKETS = ["0-5", "6-10", "11-20", "21-30", "31-50", "51+"]
 
 
 def _num(v: object) -> float | None:
@@ -103,17 +118,14 @@ def list_collections() -> list[str]:
 
 @st.cache_data(ttl=300)
 def load_profile(collection: str, cid: str) -> dict | None:
-    path = SITE_DATA / collection / "profiles" / f"{cid}.json"
-    if not path.exists():
-        return None
-    return json.loads(path.read_text())
+    return read_json(SITE_DATA / collection / "profiles" / f"{cid}.json")
 
 
 @st.cache_data(ttl=300)
 def load_cohort(collection: str, cid: str) -> dict:
     try:
         return load_cohorts(collection, cid)
-    except FileNotFoundError:
+    except (FileNotFoundError, ValueError):
         return {}
 
 
@@ -169,7 +181,8 @@ with info_col:
     if dob:
         age = _age_from(dob)
         try:
-            pretty = dt.date.fromisoformat(dob[:10]).strftime("%-d %b %Y")
+            d = dt.date.fromisoformat(dob[:10])
+            pretty = f"{d.day} {d:%b %Y}"  # no "%-d": glibc-only, raises on Windows
         except (ValueError, TypeError):
             pretty = dob
         st.caption(f"🎂 Born {pretty}" + (f" · {age} yrs" if age is not None else ""))
@@ -294,16 +307,27 @@ with sk_right:
         st.caption(f"From {_fmt(_num(bowl.get('balls')), 0)} balls bowled.")
 
 # --- novel metrics cards ------------------------------------------------
-if any(metrics.get(slug) for slug in METRIC_CARDS):
+shown = [slug for slug in METRIC_CARDS if isinstance(metrics.get(slug), dict)]
+if shown:
     st.subheader("Novel metrics")
-    cols = st.columns(5)
-    for col, (slug, (title, val_key, sub)) in zip(cols, METRIC_CARDS.items(), strict=True):
-        with col:
-            m = metrics.get(slug)
-            v = _num(m.get(val_key)) if isinstance(m, dict) else None
-            st.markdown(f"**{title}**")
-            st.markdown(f"### {_fmt(v, 1)}")
-            st.caption(sub)
+    for start in range(0, len(shown), 4):
+        cols = st.columns(4)
+        for col, slug in zip(cols, shown[start : start + 4], strict=False):
+            title, val_key, sub, digits = METRIC_CARDS[slug]
+            m = metrics[slug]
+            with col:
+                st.markdown(f"**{title}**")
+                st.markdown(f"### {_fmt(_num(m.get(val_key)), digits)}")
+                st.caption(sub)
+                curve = m.get("curve") if slug == "intent_curve" else None
+                if isinstance(curve, list) and any(c is not None for c in curve):
+                    st.caption(
+                        "SR by balls faced: "
+                        + " · ".join(
+                            f"{b} {_fmt(_num(c), 0)}"
+                            for b, c in zip(INTENT_BUCKETS, curve, strict=False)
+                        )
+                    )
 
 # --- dismissal fingerprint ----------------------------------------------
 fp = profile.get("dismissal_fingerprint") or {}

@@ -28,6 +28,7 @@ Reading the mix (rule of thumb):
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 
 import duckdb
@@ -58,10 +59,20 @@ def _table_exists(con: duckdb.DuckDBPyConnection, table: str) -> bool:
     return table in {r[0] for r in con.execute("SHOW TABLES").fetchall()}
 
 
-def batter_modes(name: str, collection: str = "ipl", db_path: Path | str = DEFAULT_DB_PATH) -> dict:
+def _connect(db_path: Path | str, con: duckdb.DuckDBPyConnection | None):
+    """Reuse the caller's connection (left open), else open a read-only one."""
+    return nullcontext(con) if con is not None else duckdb.connect(str(db_path), read_only=True)
+
+
+def batter_modes(
+    name: str,
+    collection: str = "ipl",
+    db_path: Path | str = DEFAULT_DB_PATH,
+    con: duckdb.DuckDBPyConnection | None = None,
+) -> dict:
     """How `name` gets out. Returns {total, rows:[{kind,count,pct}], read}."""
     safe = _safe(collection)
-    with duckdb.connect(str(db_path), read_only=True) as con:
+    with _connect(db_path, con) as con:
         if not _table_exists(con, f"balls_{safe}"):
             return {"total": 0, "rows": [], "read": ""}
         rows = con.execute(
@@ -69,18 +80,23 @@ def batter_modes(name: str, collection: str = "ipl", db_path: Path | str = DEFAU
             SELECT wicket_kind AS kind, COUNT(*) AS count
             FROM balls_{safe}
             WHERE player_out = ? AND {DISMISSAL} AND {MAIN_INNINGS}
-            GROUP BY 1 ORDER BY 2 DESC
+            GROUP BY 1 ORDER BY 2 DESC, 1
             """,
             [name],
         ).fetchall()
     return _assemble(rows, role="batter")
 
 
-def bowler_modes(name: str, collection: str = "ipl", db_path: Path | str = DEFAULT_DB_PATH) -> dict:
+def bowler_modes(
+    name: str,
+    collection: str = "ipl",
+    db_path: Path | str = DEFAULT_DB_PATH,
+    con: duckdb.DuckDBPyConnection | None = None,
+) -> dict:
     """How `name` takes wickets (bowler-credited kinds only)."""
     safe = _safe(collection)
     kinds_sql = ", ".join(f"'{k}'" for k in BOWLER_CREDITED)
-    with duckdb.connect(str(db_path), read_only=True) as con:
+    with _connect(db_path, con) as con:
         if not _table_exists(con, f"balls_{safe}"):
             return {"total": 0, "rows": [], "read": ""}
         rows = con.execute(
@@ -89,7 +105,7 @@ def bowler_modes(name: str, collection: str = "ipl", db_path: Path | str = DEFAU
             FROM balls_{safe}
             WHERE bowler = ? AND player_out IS NOT NULL
               AND wicket_kind IN ({kinds_sql})
-            GROUP BY 1 ORDER BY 2 DESC
+            GROUP BY 1 ORDER BY 2 DESC, 1
             """,
             [name],
         ).fetchall()
@@ -115,7 +131,7 @@ def matchup_log(
             FROM balls_{safe}
             WHERE batter = ? AND bowler = ? AND player_out = ?
               AND wicket_kind IN ({kinds_sql})
-            GROUP BY 1 ORDER BY 2 DESC
+            GROUP BY 1 ORDER BY 2 DESC, 1
             """,
             [batter, bowler, batter],
         ).fetchall()

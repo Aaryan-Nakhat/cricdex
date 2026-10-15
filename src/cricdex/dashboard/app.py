@@ -62,24 +62,29 @@ the Scout + Auction run the *same* logic as the site via `cricdex.web_parity`
 
 | Page | What it answers | Source |
 |---|---|---|
-| **Leaderboards** | Top players by each of the 10 novel metrics — with a time-window switcher (all-time / last 3 yrs / last 1 yr), full filter bar (role / activity / bowling / position / country / min matches), inline magnitude bars + the Intent-Curve sparkline | Cricsheet → metric JSONs |
-| **Player Profile** | Everything CricDex knows about one player | all of the below |
-| **Compare** | 2–4 players side-by-side, radar + table | career totals + metrics + Bayes |
-| **Head-to-head** | P(A is better than B) from the Bayesian posteriors | scout ratings |
-| **Scout** | Cross-competition look-alikes (IPL / SMAT / BBL / SA20 / CPL / Blast) + est. price, savings, gem flag, draft | exported scout index via `cricdex.web_parity` |
-| **Auction** | Real-rules IPL auction Monte-Carlo (retain → bid), web-identical | exported pool via `cricdex.web_parity` |
-| **Records** | Highest score, fastest fifty, most sixes, on-this-day | exported `records.json` |
+| **Leaderboards** | Top players by each of the 12 metrics — with a time-window switcher (all-time / last 3 yrs / last 1 yr), full filter bar (role / activity / bowling / position / country / min matches), inline magnitude bars + the Intent-Curve sparkline | exported leaderboards |
+| **Records** | Highest score, fastest fifty / hundred, most sixes, best bowling, team totals | exported `records.json` |
+| **Head-to-head** | P(A is better than B) from the Bayesian posteriors | local scout ratings |
+| **Compare** | 2–4 players side-by-side, radar + table | exported profiles |
 | **Venues** | Per-venue totals, chase vs set, phase run-rates | exported `venues.json` |
+| **Auction** | Real-rules IPL auction Monte-Carlo (retain → bid), web-identical | exported pool via `cricdex.web_parity` |
+| **Player Profile** | Everything CricDex knows about one player | exported profiles + cohorts |
+| **Scout** | Cross-competition look-alikes (IPL / SMAT / BBL / SA20 / CPL / Blast) + est. price, savings, gem flag, draft | exported scout index via `cricdex.web_parity` |
 | **Update Data** | Refresh a collection → re-export the JSON every page reads | local pipeline → exported JSON |
+| **Matchups** | One player vs every bowler / batter faced, plus pace vs spin | exported `matchups/` |
+| **Phase** | Best strike rates and tightest economies in the powerplay / middle / death | exported `phase.json` |
+| **Form** | Who is heating up or cooling down: recent window vs career, per metric | exported leaderboards |
+| **Partnerships** | A player's most productive partners, and the best pairs all-time | exported `partnerships.json` |
+| **Aging** | Strike rate / average / economy by age, with one player's curve on top | exported `aging.json` |
 
-All read-only pages read the **exported JSON** (the same files the web app
-fetches); **Update Data** is the one page that *writes* — it re-ingests +
-re-exports so the rest stay in sync. Best of both worlds: edit once, read
-everywhere.
+The read-only pages read the **exported JSON** (the same files the web app
+fetches), except **Head-to-head**, which reads the local scout ratings.
+**Update Data** is the one page that *writes* — it re-ingests + re-exports so
+the rest stay in sync. Best of both worlds: edit once, read everywhere.
 
 ---
 
-### The 10 metrics, in plain English
+### The 12 metrics, in plain English
 
 The Leaderboards page splits these across tabs; the Player Profile page
 surfaces them per-player with the same definitions.
@@ -102,6 +107,8 @@ surfaces them per-player with the same definitions.
 - **Slow-Start Cost (batter)** — career SR minus setting (1st-innings) SR.
 - **Wicket Quality (bowler)** — wickets weighted by the Bayes batting skill
   of the batter dismissed.
+- **Wicketkeeping** — keeper dismissals: catches + stumpings + run-outs.
+- **Fielding** — outfield dismissals: catches + run-outs.
 
 ### CLI commands you'll touch
 
@@ -130,8 +137,7 @@ cricdex tui                                       # full Textual UI
 `blast`. Ratings / metrics are fit per-collection so cross-collection
 comparisons stay honest.
 
-Full reference: [`docs/CLI.md`](docs/CLI.md). Onboarding:
-[`docs/FIRST_RUN.md`](docs/FIRST_RUN.md). Architecture:
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Full reference: `docs/CLI.md` in the repo. Onboarding: `docs/FIRST_RUN.md`.
+Architecture: `docs/ARCHITECTURE.md`.
 """
 )

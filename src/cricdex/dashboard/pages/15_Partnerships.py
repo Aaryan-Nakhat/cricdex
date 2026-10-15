@@ -7,11 +7,9 @@ dashboard matches the live site.
 
 from __future__ import annotations
 
-import json
-
 import streamlit as st
 
-from cricdex.dashboard._widgets import player_select, provenance_banner
+from cricdex.dashboard._widgets import player_select, provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Partnerships", page_icon="🤝", layout="wide")
@@ -35,8 +33,7 @@ def list_collections() -> list[str]:
 
 @st.cache_data(ttl=300)
 def load_partnerships(collection: str) -> list[dict]:
-    path = SITE_DATA / collection / "partnerships.json"
-    return json.loads(path.read_text()).get("pairs", []) if path.exists() else []
+    return read_json(SITE_DATA / collection / "partnerships.json", {}).get("pairs", [])
 
 
 collections = list_collections()

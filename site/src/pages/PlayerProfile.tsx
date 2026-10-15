@@ -64,23 +64,57 @@ function SkillAxis({
   );
 }
 
+const INTENT_BUCKETS = ["0-5", "6-10", "11-20", "21-30", "31-50", "51+"];
+
+// slug -> [title, value key, subtitle, digits] — one card per catalog metric
+// the player appears in (all 12 boards). Mirrored by 8_Player_Profile.py.
+const METRIC_CARDS: Record<string, [string, string, string, number]> = {
+  ngi: ["Net Game Impact", "ngi_per_match", "win chance added per match", 3],
+  pressure_runs: ["Pressure Runs", "pressure_sr_per_100_balls", "SR under chase pressure", 1],
+  intent_curve: ["Intent Curve", "early_sr", "SR over the first 10 balls", 1],
+  dot_ball_recovery: ["Dot-Ball Recovery", "runs_per_6_after_dot", "runs / 6 balls after a dot", 1],
+  counter_attack: ["Counter-Attack", "counter_attack_sr", "SR after a partner falls", 1],
+  boundary_dependency: ["Boundary Dependency", "bdr_pct", "% of runs from boundaries", 1],
+  pressure_conversion: ["Pressure Conversion", "wicket_rate_pct", "pressure balls → wickets", 1],
+  wicket_quality: ["Wicket Quality", "wicket_quality", "avg skill of batters dismissed", 3],
+  crease_longevity: ["Crease Longevity", "longevity_index", "balls per dismissal vs cohort", 2],
+  slow_start_cost: ["Slow-Start Cost", "slow_start_cost", "career SR − first-20-ball SR", 1],
+  keeping: ["Wicketkeeping", "dismissals", "catches + stumpings + run-outs", 0],
+  fielding: ["Fielding", "dismissals", "catches + run-outs", 0],
+};
+
+/** Intent curve: SR per balls-faced bucket as mini bars, scaled to the player's own peak. */
+function IntentBars({ curve }: { curve: unknown }) {
+  if (!Array.isArray(curve)) return null;
+  const values = curve.map(num);
+  const present = values.filter((v): v is number => v !== null);
+  if (present.length === 0) return null;
+  const max = Math.max(...present, 1);
+  const title = values.map((v, i) => `${INTENT_BUCKETS[i]}: ${v === null ? "—" : Math.round(v)}`).join("   ");
+  return (
+    <div className="mt-1.5 flex h-6 items-end gap-[3px]" title={title}>
+      {values.map((v, i) => (
+        <span
+          key={i}
+          className={cn("w-[7px] rounded-sm", v === null ? "bg-border/40" : "bg-accent/70")}
+          style={{ height: v === null ? "12%" : `${Math.max(14, (v / max) * 100)}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function MetricCard({ slug, m }: { slug: string; m: Record<string, unknown> }) {
-  const titles: Record<string, [string, string, string]> = {
-    pressure_runs: ["Pressure Runs", "pressure_sr_per_100_balls", "SR under chase pressure"],
-    dot_ball_recovery: ["Dot-Ball Recovery", "runs_per_6_after_dot", "runs / 6 balls after a dot"],
-    counter_attack: ["Counter-Attack", "counter_attack_sr", "SR after a partner falls"],
-    boundary_dependency: ["Boundary Dependency", "bdr_pct", "% of runs from boundaries"],
-    pressure_conversion: ["Pressure Conversion", "wicket_rate_pct", "pressure balls → wickets"],
-  };
-  const t = titles[slug];
+  const t = METRIC_CARDS[slug];
   if (!t) return null;
-  const [name, valKey, sub] = t;
+  const [name, valKey, sub, digits] = t;
   const v = num(m[valKey]);
   return (
     <Card className="px-4 py-3">
       <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{name}</div>
-      <div className="mt-1 stat-num text-lg font-bold text-fg">{fmt(v, 1)}</div>
+      <div className="mt-1 stat-num text-lg font-bold text-fg">{fmt(v, digits)}</div>
       <div className="mt-0.5 text-[11px] text-muted">{sub}</div>
+      {slug === "intent_curve" && <IntentBars curve={m.curve} />}
     </Card>
   );
 }
@@ -375,7 +409,7 @@ export function PlayerProfile() {
           {metrics && Object.entries(metrics).some(([, m]) => m && Object.keys(m).length > 0) && (
             <div>
               <h3 className="mb-3 text-sm font-semibold text-fg">Novel metrics</h3>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {Object.entries(metrics).map(([slug, m]) => (m ? <MetricCard key={slug} slug={slug} m={m} /> : null))}
               </div>
             </div>

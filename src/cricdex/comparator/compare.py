@@ -13,8 +13,8 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
+from cricdex.profiles.builder import career_totals
 
 METRIC_DIR = DATA_DIR / "metrics"
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -46,44 +46,22 @@ def _safe_get(df: pl.DataFrame, key_col: str, key: str, value_col: str) -> float
         return None
 
 
+# compare's row keys -> the shared profile career_totals keys.
+_CAREER_KEYS = {
+    "career_runs": "career_runs",
+    "career_balls": "career_balls_faced",
+    "career_sixes": "career_sixes",
+    "career_fours": "career_fours",
+    "career_matches": "career_matches",
+    "career_wickets": "career_wickets",
+    "career_runs_conceded": "career_runs_conceded",
+    "career_legal_balls_bowled": "career_legal_balls_bowled",
+}
+
+
 def _career_totals(con: duckdb.DuckDBPyConnection, collection: str, player: str) -> dict:
-    safe = table_suffix(collection)
-    bat = con.execute(
-        f"""
-        SELECT
-            SUM(runs_batter) AS runs,
-            COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides')) AS balls,
-            SUM(CASE WHEN runs_batter = 6 THEN 1 ELSE 0 END) AS sixes,
-            SUM(CASE WHEN runs_batter = 4 THEN 1 ELSE 0 END) AS fours,
-            COUNT(DISTINCT match_id) AS matches
-        FROM balls_{safe}
-        WHERE batter = ? AND {MAIN_INNINGS}
-        """,
-        [player],
-    ).fetchone()
-    bowl = con.execute(
-        f"""
-        SELECT
-            SUM(CASE WHEN wicket_kind IS NOT NULL
-                  AND wicket_kind NOT IN ('run out','retired hurt','retired out','obstructing the field')
-                 THEN 1 ELSE 0 END) AS wickets,
-            SUM({BOWLER_RUNS}) AS runs_conceded,
-            COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides','noballs')) AS legal_balls
-        FROM balls_{safe}
-        WHERE bowler = ? AND {MAIN_INNINGS}
-        """,
-        [player],
-    ).fetchone()
-    return {
-        "career_runs": int(bat[0] or 0),
-        "career_balls": int(bat[1] or 0),
-        "career_sixes": int(bat[2] or 0),
-        "career_fours": int(bat[3] or 0),
-        "career_matches": int(bat[4] or 0),
-        "career_wickets": int(bowl[0] or 0),
-        "career_runs_conceded": int(bowl[1] or 0),
-        "career_legal_balls_bowled": int(bowl[2] or 0),
-    }
+    totals = career_totals(con, collection, player)
+    return {out: totals[src] for out, src in _CAREER_KEYS.items()}
 
 
 def _bayes_skill(

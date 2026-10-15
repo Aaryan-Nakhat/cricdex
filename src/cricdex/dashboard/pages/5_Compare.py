@@ -14,7 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from cricdex.dashboard._widgets import player_multiselect, provenance_banner
+from cricdex.dashboard._widgets import player_multiselect, provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Compare", page_icon="🆚", layout="wide")
@@ -146,10 +146,7 @@ def list_collections() -> list[str]:
 
 @st.cache_data(ttl=300)
 def load_profile(collection: str, cid: str) -> dict | None:
-    path = SITE_DATA / collection / "profiles" / f"{cid}.json"
-    if not path.exists():
-        return None
-    return json.loads(path.read_text())
+    return read_json(SITE_DATA / collection / "profiles" / f"{cid}.json")
 
 
 def _fmt(v: float | None, digits: int) -> str:
@@ -189,11 +186,17 @@ if len(picked) < 2:
     st.info("Pick at least two players to compare.")
     st.stop()
 
+# Keyed by cricsheet_id: two picked players can share a short name, so each
+# column / trace gets a unique label (the id is appended on a clash).
+_name_count: dict[str, int] = {}
+for p in picked:
+    _name_count[p["name"]] = _name_count.get(p["name"], 0) + 1
 profiles: list[tuple[str, dict]] = []
 for p in picked:
     prof = load_profile(collection, p["cricsheet_id"])
     if prof:
-        profiles.append((p["name"], prof))
+        label = p["name"] if _name_count[p["name"]] == 1 else f"{p['name']} ({p['cricsheet_id']})"
+        profiles.append((label, prof))
 
 if len(profiles) < 2:
     st.error("Could not load at least two profiles from the exported data.")
