@@ -1,7 +1,11 @@
 """Cricsheet downloader + parser.
 
 Pulls JSON match archives from https://cricsheet.org/downloads/, extracts
-per-match files, flattens into two tables (matches + balls), writes Parquet.
+per-match files, flattens into tables, writes Parquet:
+
+- `matches_<col>` / `balls_<col>` — one row per match / delivery (a delivery keeps only its first wicket)
+- `players_<col>` — each match's `info.registry.people`: scorecard name → Cricsheet identifier
+- `wickets_<col>` — every wicket on every delivery (a delivery can have two)
 """
 
 from __future__ import annotations
@@ -10,6 +14,7 @@ import json
 import shutil
 import zipfile
 from pathlib import Path
+from typing import NamedTuple
 
 import duckdb
 import httpx
@@ -163,7 +168,74 @@ def _phase(over: int, total_overs: int | None, match_type: str | None = None) ->
     return "middle"
 
 
+PLAYERS_SCHEMA = {"match_id": pl.String, "name": pl.String, "identifier": pl.String}
+WICKETS_SCHEMA = {
+    "match_id": pl.String,
+    "innings_idx": pl.Int64,
+    "over": pl.Int64,
+    "ball_in_over": pl.Int64,
+    "ball_id": pl.String,
+    "player_out": pl.String,
+    "wicket_kind": pl.String,
+    "fielders": pl.List(pl.String),
+}
+
+
+class ParsedMatch(NamedTuple):
+    match: dict
+    balls: list[dict]
+    players: list[dict]
+    wickets: list[dict]
+
+
+class ParsedCollection(NamedTuple):
+    matches: pl.DataFrame
+    balls: pl.DataFrame
+    players: pl.DataFrame
+    wickets: pl.DataFrame
+
+
+def _registry_rows(match_id: str, info: dict) -> list[dict]:
+    people = (info.get("registry") or {}).get("people") or {}
+    return [
+        {"match_id": match_id, "name": name, "identifier": ident}
+        for name, ident in people.items()
+        if name and ident
+    ]
+
+
+def _wicket_rows(match_id: str, data: dict) -> list[dict]:
+    """Every wicket on every delivery, with the same ball_id as the balls table."""
+    rows: list[dict] = []
+    for innings_idx, innings in enumerate(data.get("innings") or []):
+        for over_block in innings.get("overs") or []:
+            over = over_block.get("over", 0)
+            for ball_idx, d in enumerate(over_block.get("deliveries") or [], start=1):
+                for w in d.get("wickets") or []:
+                    rows.append(
+                        {
+                            "match_id": match_id,
+                            "innings_idx": innings_idx,
+                            "over": over,
+                            "ball_in_over": ball_idx,
+                            "ball_id": f"{match_id}::{innings_idx}::{over}::{ball_idx}",
+                            "player_out": w.get("player_out"),
+                            "wicket_kind": w.get("kind"),
+                            "fielders": [
+                                f.get("name") for f in (w.get("fielders") or []) if f.get("name")
+                            ],
+                        }
+                    )
+    return rows
+
+
 def parse_match(path: Path) -> tuple[dict, list[dict]]:
+    """(match row, ball rows) — `parse_match_full` also returns the registry and wicket rows."""
+    full = parse_match_full(path)
+    return full.match, full.balls
+
+
+def parse_match_full(path: Path) -> ParsedMatch:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
@@ -241,23 +313,29 @@ def parse_match(path: Path) -> tuple[dict, list[dict]]:
                         "fielders": fielders,
                     }
                 )
-    return match_row, ball_rows
+    return ParsedMatch(
+        match_row, ball_rows, _registry_rows(match_id, info), _wicket_rows(match_id, data)
+    )
 
 
-def parse_collection(extracted_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
-    files = [fp for fp in sorted(extracted_dir.glob("*.json")) if fp.name.lower() != "readme.txt"]
+def parse_collection(extracted_dir: Path) -> ParsedCollection:
+    files = sorted(extracted_dir.glob("*.json"))
     match_rows: list[dict] = []
     ball_rows: list[dict] = []
+    player_rows: list[dict] = []
+    wicket_rows: list[dict] = []
     skipped: list[str] = []
     for fp in tqdm(files, desc="parsing matches"):
         try:
-            m, b = parse_match(fp)
+            parsed = parse_match_full(fp)
         except Exception as e:
             logger.warning(f"skip {fp.name}: {e}")
             skipped.append(fp.name)
             continue
-        match_rows.append(m)
-        ball_rows.extend(b)
+        match_rows.append(parsed.match)
+        ball_rows.extend(parsed.balls)
+        player_rows.extend(parsed.players)
+        wicket_rows.extend(parsed.wickets)
     if skipped:
         # Say how many matches were lost, so a bad parse can't silently shrink a collection.
         logger.warning(
@@ -272,9 +350,30 @@ def parse_collection(extracted_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
     # the indian-domestic merge where early rows can have NULL city and
     # later rows pull in proper city names (e.g. "Jaipur"), which the
     # default 100-row inference misclassifies.
-    return (
+    return ParsedCollection(
         pl.DataFrame(match_rows, infer_schema_length=None),
         pl.DataFrame(ball_rows, infer_schema_length=None),
+        pl.DataFrame(player_rows, schema=PLAYERS_SCHEMA),
+        pl.DataFrame(wicket_rows, schema=WICKETS_SCHEMA),
+    )
+
+
+def parse_identity(extracted_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """(players, wickets) only — reads the match JSON but skips building the far bigger ball rows."""
+    player_rows: list[dict] = []
+    wicket_rows: list[dict] = []
+    for fp in tqdm(sorted(extracted_dir.glob("*.json")), desc="reading registries"):
+        try:
+            with open(fp, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            logger.warning(f"skip {fp.name}: {e}")
+            continue
+        player_rows.extend(_registry_rows(fp.stem, data.get("info") or {}))
+        wicket_rows.extend(_wicket_rows(fp.stem, data))
+    return (
+        pl.DataFrame(player_rows, schema=PLAYERS_SCHEMA),
+        pl.DataFrame(wicket_rows, schema=WICKETS_SCHEMA),
     )
 
 
@@ -335,35 +434,92 @@ def write_parquet(
     balls: pl.DataFrame,
     out_dir: Path,
     collection: str,
+    players: pl.DataFrame | None = None,
+    wickets: pl.DataFrame | None = None,
 ) -> tuple[Path, Path]:
+    """Writes `<table>_<collection>.parquet` for each frame given and returns the matches + balls
+    paths. `players` / `wickets` land next to them, where `load_to_duckdb` picks them up."""
     out_dir.mkdir(parents=True, exist_ok=True)
     m_path = out_dir / f"matches_{collection}.parquet"
     b_path = out_dir / f"balls_{collection}.parquet"
-    matches.write_parquet(m_path)
-    balls.write_parquet(b_path)
-    logger.info(f"wrote {m_path} ({len(matches)} rows)")
-    logger.info(f"wrote {b_path} ({len(balls)} rows)")
+    frames = {m_path: matches, b_path: balls}
+    if players is not None:
+        frames[out_dir / f"players_{collection}.parquet"] = players
+    if wickets is not None:
+        frames[out_dir / f"wickets_{collection}.parquet"] = wickets
+    for path, df in frames.items():
+        df.write_parquet(path)
+        logger.info(f"wrote {path} ({len(df)} rows)")
     return m_path, b_path
 
 
+def _sql_path(path: Path) -> str:
+    return str(path).replace("'", "''")
+
+
 def load_to_duckdb(matches_path: Path, balls_path: Path, collection: str, db_path: Path) -> None:
-    """(Re)create the matches_<col> / balls_<col> tables from the parquet."""
+    """(Re)create matches_<col> / balls_<col> from the parquet, plus players_<col> / wickets_<col>
+    when their parquet sits next to the balls file."""
     safe = table_suffix(collection)
     con = duckdb.connect(str(db_path))
     try:
         con.execute(
             f"CREATE OR REPLACE TABLE matches_{safe} AS "
-            f"SELECT * FROM read_parquet('{matches_path}')"
+            f"SELECT * FROM read_parquet('{_sql_path(matches_path)}')"
         )
         con.execute(
-            f"CREATE OR REPLACE TABLE balls_{safe} AS SELECT * FROM read_parquet('{balls_path}')"
+            f"CREATE OR REPLACE TABLE balls_{safe} AS "
+            f"SELECT * FROM read_parquet('{_sql_path(balls_path)}')"
         )
+        for table in ("players", "wickets"):
+            path = balls_path.with_name(f"{table}_{collection}.parquet")
+            if path.exists():
+                con.execute(
+                    f"CREATE OR REPLACE TABLE {table}_{safe} AS "
+                    f"SELECT * FROM read_parquet('{_sql_path(path)}')"
+                )
         # one name per ground, across every collection (keeps the raw spelling + aliases)
         from cricdex.common.venue_names import normalize_venues
 
         normalize_venues(con)
     finally:
         con.close()
+
+
+def extracted_dir_for(collection: str, base: Path) -> Path:
+    """Where `build` (or the Indian-domestic merge) extracted this collection's match JSON."""
+    if collection == "indian_domestic_male":
+        return base / "extracted" / "indian_domestic_male"
+    if collection not in COLLECTIONS:
+        raise ValueError(f"unknown collection '{collection}'. options: {sorted(COLLECTIONS)}")
+    return base / "extracted" / Path(COLLECTIONS[collection]).stem
+
+
+def backfill_identity(
+    collection: str, base: Path | None = None, db_path: Path | None = None
+) -> tuple[int, int]:
+    """Build players_<col> + wickets_<col> for a DB ingested before those tables existed, from the
+    match JSON already extracted on disk. No download; balls / matches are left untouched.
+    Returns (player rows, wicket rows)."""
+    from cricdex.config import DATA_DIR
+
+    base = base or (DATA_DIR / "cricsheet")
+    db_path = db_path or (base / "cricsheet.duckdb")
+    src = extracted_dir_for(collection, base)
+    if not src.exists() or not any(src.glob("*.json")):
+        raise FileNotFoundError(f"no extracted match JSON for '{collection}' at {src}")
+    players, wickets = parse_identity(src)
+    safe = table_suffix(collection)
+    con = duckdb.connect(str(db_path))
+    try:
+        con.register("players_df", players.to_arrow())
+        con.register("wickets_df", wickets.to_arrow())
+        con.execute(f"CREATE OR REPLACE TABLE players_{safe} AS SELECT * FROM players_df")
+        con.execute(f"CREATE OR REPLACE TABLE wickets_{safe} AS SELECT * FROM wickets_df")
+    finally:
+        con.close()
+    logger.info(f"{collection}: players_{safe} {len(players)} rows, wickets_{safe} {len(wickets)}")
+    return len(players), len(wickets)
 
 
 def build(collection: str, out: Path | None = None, force: bool = False) -> Path:
@@ -376,8 +532,15 @@ def build(collection: str, out: Path | None = None, force: bool = False) -> Path
     base = out or (DATA_DIR / "cricsheet")
     zip_path = download(collection, base / "raw", force=force)
     extracted = extract(zip_path, base / "extracted", force=force)
-    matches, balls = parse_collection(extracted)
-    m_path, b_path = write_parquet(matches, balls, base / "parquet", collection)
+    parsed = parse_collection(extracted)
+    m_path, b_path = write_parquet(
+        parsed.matches,
+        parsed.balls,
+        base / "parquet",
+        collection,
+        players=parsed.players,
+        wickets=parsed.wickets,
+    )
     db_path = base / "cricsheet.duckdb"
     load_to_duckdb(m_path, b_path, collection, db_path)
     logger.info(f"duckdb loaded: {db_path}")

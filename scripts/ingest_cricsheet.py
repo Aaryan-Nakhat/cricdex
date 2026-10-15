@@ -53,12 +53,19 @@ def indian_domestic(
     db_path = base / "cricsheet.duckdb"
 
     merged_dir = cricsheet.aggregate_indian_domestic(raw_dir, extracted_dir, force=force)
-    matches, balls = cricsheet.parse_collection(merged_dir)
-    m_path, b_path = cricsheet.write_parquet(matches, balls, parquet_dir, "indian_domestic_male")
+    parsed = cricsheet.parse_collection(merged_dir)
+    m_path, b_path = cricsheet.write_parquet(
+        parsed.matches,
+        parsed.balls,
+        parquet_dir,
+        "indian_domestic_male",
+        players=parsed.players,
+        wickets=parsed.wickets,
+    )
     _load_to_duckdb(m_path, b_path, "indian_domestic_male", db_path)
     logger.info(
         f"duckdb loaded: {db_path} (indian_domestic_male — "
-        f"{len(matches)} matches, {len(balls)} balls)"
+        f"{len(parsed.matches)} matches, {len(parsed.balls)} balls)"
     )
 
 

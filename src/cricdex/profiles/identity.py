@@ -23,7 +23,7 @@ from pathlib import Path
 
 import duckdb
 
-from cricdex.common.sql import table_suffix
+from cricdex.common.sql import scorecard_names, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -68,7 +68,8 @@ def _alias_map(collection: str, db_path: Path | str = DEFAULT_DB_PATH) -> dict[s
     Lets aliases / full names ("Jasprit Bumrah", "J Bumrah", "J B") resolve to
     the scorecard name the ball-by-ball data keys off ("JJ Bumrah"). The
     Register ships ~7.5k such variations; without this, search only matched the
-    terse scorecard spellings.
+    terse scorecard spellings. Aliases are tied to the scorecard name by Cricsheet
+    identifier (not by `people.name`, which several players can share).
     """
     universe = set(_player_universe(collection, db_path=db_path))
     if not universe or not Path(db_path).exists():
@@ -76,12 +77,19 @@ def _alias_map(collection: str, db_path: Path | str = DEFAULT_DB_PATH) -> dict[s
     universe_lower = {n.lower() for n in universe}
     with duckdb.connect(str(db_path), read_only=True) as con:
         tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
-        if "people" not in tables or "people_names" not in tables:
+        names = scorecard_names(con, collection)
+        if "people" not in tables or names is None:
             return {}
+        variants = [
+            "SELECT name, identifier FROM people",
+            "SELECT unique_name, identifier FROM people",
+        ]
+        if "people_names" in tables:
+            variants.append("SELECT name, identifier FROM people_names")
         rows = con.execute(
-            "SELECT pn.name AS alias, p.name AS canonical "
-            "FROM people_names pn JOIN people p ON pn.identifier = p.identifier "
-            "WHERE pn.name IS NOT NULL AND p.name IS NOT NULL"
+            f"SELECT a.name AS alias, s.name AS canonical "
+            f"FROM ({' UNION '.join(variants)}) a JOIN {names} s ON s.identifier = a.identifier "
+            f"WHERE a.name IS NOT NULL ORDER BY alias, canonical"
         ).fetchall()
     out: dict[str, str] = {}
     for alias, canonical in rows:

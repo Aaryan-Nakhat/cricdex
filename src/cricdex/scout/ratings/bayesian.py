@@ -44,7 +44,7 @@ polars DataFrame keyed by `cricsheet_id` with columns:
     runs            total runs associated with this role
     survival_skill(_sd) / strike_skill(_sd)   batter / bowler dismissal axis
     value           skill + the dismissal axis (dismissal-aware fit only)
-    unique_name     People Register name (when the `people` table exists)
+    unique_name     the player's scorecard name in this collection (else the People Register's)
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ import duckdb
 import numpy as np
 import polars as pl
 
-from cricdex.common.sql import table_suffix
+from cricdex.common.sql import player_ids, scorecard_names, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -82,6 +82,7 @@ def _load_edges(
     safe = table_suffix(collection)
     kinds_sql = ", ".join(f"'{k}'" for k in _BOWLER_WICKET_KINDS)
     with duckdb.connect(str(db_path), read_only=True) as con:
+        ids = player_ids(con, collection) or "(SELECT NULL AS name, NULL AS identifier)"
         df = con.execute(
             f"""
             WITH labelled AS (
@@ -98,8 +99,8 @@ def _load_edges(
                         THEN 1 ELSE 0
                     END AS is_out
                 FROM balls_{safe} b
-                LEFT JOIN people rb ON rb.unique_name = b.batter
-                LEFT JOIN people rk ON rk.unique_name = b.bowler
+                LEFT JOIN {ids} rb ON rb.name = b.batter
+                LEFT JOIN {ids} rk ON rk.name = b.bowler
                 WHERE b.batter IS NOT NULL AND b.bowler IS NOT NULL
             )
             SELECT batter_id, bowler_id,
@@ -380,9 +381,25 @@ def fit(
     # silently drop that column.
     df = pl.DataFrame(rows, infer_schema_length=None)
 
-    # Attach human-readable unique_name so the saved JSON is
-    # self-contained (downstream readers + head-to-head resolve by name).
+    # Attach a human-readable unique_name so the saved JSON is self-contained (downstream readers +
+    # head-to-head resolve by name). The collection's scorecard name comes first because that is the
+    # name every other table keys on; the register's unique_name can differ ("NA Saini").
     with duckdb.connect(str(db_path), read_only=True) as con:
-        ppl = con.execute("SELECT identifier, unique_name FROM people").pl()
-    df = df.join(ppl, left_on="cricsheet_id", right_on="identifier", how="left")
+        tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+        names = scorecard_names(con, collection)
+        parts = []
+        if names:
+            parts.append(f"SELECT identifier, name AS unique_name, 0 AS pri FROM {names}")
+        if "people" in tables:
+            parts.append("SELECT identifier, unique_name, 1 AS pri FROM people")
+        ppl = (
+            con.execute(
+                "SELECT identifier, FIRST(unique_name ORDER BY pri) AS unique_name "
+                f"FROM ({' UNION ALL '.join(parts)}) GROUP BY identifier"
+            ).pl()
+            if parts
+            else None
+        )
+    if ppl is not None:
+        df = df.join(ppl, left_on="cricsheet_id", right_on="identifier", how="left")
     return df

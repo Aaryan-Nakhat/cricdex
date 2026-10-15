@@ -39,7 +39,7 @@ import duckdb
 import typer
 from loguru import logger
 
-from cricdex.common.sql import BOWLER_RUNS, table_suffix
+from cricdex.common.sql import BOWLER_RUNS, player_ids, table_suffix
 from cricdex.config import CURATED_DIR, DATA_DIR
 
 app = typer.Typer(add_completion=False)
@@ -621,33 +621,37 @@ def _players(
     cross-source ids needed for profile/cohort file lookups."""
     safe = _safe(collection)
     teams = _current_teams(con, collection)
+    # scorecard name -> Cricsheet id, from each match's own registry (falls back to the People Register)
+    ids = player_ids(con, collection)
+    if ids is None:
+        return []
     rows = con.execute(
         f"""
         WITH bats AS (
-            SELECT p.identifier AS cid, p.unique_name AS name,
+            SELECT p.identifier AS cid, MODE(b.batter) AS name,
                    COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides')) AS bf
-            FROM balls_{safe} b JOIN people p ON p.unique_name = b.batter
-            GROUP BY 1, 2
+            FROM balls_{safe} b JOIN {ids} p ON p.name = b.batter
+            GROUP BY 1
         ),
         bowls AS (
-            SELECT p.identifier AS cid,
+            SELECT p.identifier AS cid, MODE(b.bowler) AS name,
                    COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides')) AS bb
-            FROM balls_{safe} b JOIN people p ON p.unique_name = b.bowler
+            FROM balls_{safe} b JOIN {ids} p ON p.name = b.bowler
             GROUP BY 1
         ),
         -- matches a player appeared in, whether batting or bowling
         appeared AS (
             SELECT p.identifier AS cid, b.match_id FROM balls_{safe} b
-                JOIN people p ON p.unique_name = b.batter
+                JOIN {ids} p ON p.name = b.batter
             UNION
             SELECT p.identifier AS cid, b.match_id FROM balls_{safe} b
-                JOIN people p ON p.unique_name = b.bowler
+                JOIN {ids} p ON p.name = b.bowler
         ),
         mt AS (
             SELECT cid, COUNT(DISTINCT match_id) AS matches FROM appeared GROUP BY 1
         )
         SELECT COALESCE(bats.cid, bowls.cid) AS cid,
-               bats.name AS name,
+               COALESCE(bats.name, bowls.name) AS name,
                COALESCE(bats.bf, 0) AS balls_faced,
                COALESCE(bowls.bb, 0) AS balls_bowled,
                COALESCE(mt.matches, 0) AS matches
