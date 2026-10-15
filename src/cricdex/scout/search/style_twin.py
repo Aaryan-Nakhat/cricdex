@@ -20,9 +20,12 @@ batter:
     bayes_skill                             (latent batter skill)
 bowler:
     sticky wicket_rate_pct                  (pressure-to-wicket rate)
+    pressure_balls                          (pressure-spell volume)
     bayes_skill                             (latent bowler skill)
 
-Missing axes → 0 (centered later via z-score).
+A missing (or non-finite) axis is filled with that axis's mean across
+players before scaling, so after z-scoring it sits at 0 — neutral, not an
+extreme low. An axis nobody has is dropped.
 
 Output: `style_twin(name, role, k=10)` returns top-k closest rows.
 """
@@ -74,8 +77,8 @@ def _people_index(db_path: Path | str) -> pl.DataFrame:
         con.close()
 
 
-def _bowler_intent_curve(intent: pl.DataFrame) -> pl.DataFrame:
-    """Spread the long-format intent_curve into one SR column per bucket."""
+def _batter_intent_curve(intent: pl.DataFrame) -> pl.DataFrame:
+    """Spread the long-format batter intent_curve into one SR column per bucket."""
     if intent.is_empty():
         return pl.DataFrame()
     return (
@@ -139,7 +142,7 @@ def build_batter_features(collection: str, db_path: Path | str) -> pl.DataFrame:
             how="left",
         )
     if not intent.is_empty():
-        wide = _bowler_intent_curve(intent)
+        wide = _batter_intent_curve(intent)
         if not wide.is_empty():
             df = df.join(wide, on="name", how="left")
     if not ratings.is_empty():
@@ -189,10 +192,14 @@ def build_bowler_features(collection: str, db_path: Path | str) -> pl.DataFrame:
 def _vectorise(df: pl.DataFrame) -> tuple[np.ndarray, list[str], list[str]]:
     if df.is_empty():
         return np.empty((0, 0)), [], []
-    df = df.fill_null(0.0)
     names = df["name"].to_list()
     feature_cols = [c for c in df.columns if c not in ("name", "role")]
-    X = df.select(feature_cols).to_numpy(allow_copy=True).astype(float)
+    X = df.select(pl.col(c).cast(pl.Float64, strict=False) for c in feature_cols).to_numpy()
+    X = np.where(np.isfinite(X), X, np.nan)  # nulls and x/0 alike are "missing"
+    keep = ~np.isnan(X).all(axis=0)
+    X, feature_cols = X[:, keep], [c for c, k in zip(feature_cols, keep, strict=True) if k]
+    # Mean-impute in raw units: a missing SR filled with 0 would be an extreme outlier.
+    X = np.where(np.isnan(X), np.nanmean(X, axis=0), X)
     return X, names, feature_cols
 
 

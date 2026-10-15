@@ -35,10 +35,14 @@ app = typer.Typer(add_completion=False)
 @app.command()
 def fit(
     collection: str = typer.Option("ipl", "--collection", "-c"),
-    min_balls: int = typer.Option(6, "--min-balls"),
+    min_balls: int = typer.Option(
+        0, "--min-balls", help="speed knob: fit only matchups this long (reported balls stay true)"
+    ),
     advi_steps: int = typer.Option(12000, "--advi-steps"),
     seed: int = typer.Option(42, "--seed"),
-    sampler: str = typer.Option("advi", "--sampler", help="advi|nuts"),
+    sampler: str = typer.Option(
+        "advi", "--sampler", help="advi (default; checked against nuts) | nuts (logs r-hat / ESS)"
+    ),
     nuts_draws: int = typer.Option(1000, "--nuts-draws"),
     nuts_chains: int = typer.Option(2, "--nuts-chains"),
     nuts_tune: int = typer.Option(500, "--nuts-tune"),
@@ -55,26 +59,27 @@ def fit(
         nuts_tune=nuts_tune,
     )
     if df.is_empty():
-        logger.warning("no edges met the min_balls filter — nothing to fit")
+        logger.warning("no matchups to fit")
         raise typer.Exit(code=1)
     df = _attach_names(df, bayesian.DEFAULT_DB_PATH)
     out_path = out_json or (DATA_DIR / "metrics" / f"scout_ratings_{collection}.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.write_json(str(out_path))
     logger.info(f"wrote {out_path} ({df.height} rows)")
+    rank_by = "value" if "value" in df.columns else "skill"
     top_batters = (
         df.filter((pl.col("role") == "batter") & (pl.col("balls") >= 200))
-        .sort("skill", descending=True)
+        .sort(rank_by, descending=True)
         .head(15)
     )
     top_bowlers = (
         df.filter((pl.col("role") == "bowler") & (pl.col("balls") >= 200))
-        .sort("skill", descending=True)
+        .sort(rank_by, descending=True)
         .head(15)
     )
-    typer.echo("\n=== Top 15 batters by skill ===")
+    typer.echo(f"\n=== Top 15 batters by {rank_by} ===")
     typer.echo(top_batters.to_pandas().to_string(index=False))
-    typer.echo("\n=== Top 15 bowlers by skill ===")
+    typer.echo(f"\n=== Top 15 bowlers by {rank_by} ===")
     typer.echo(top_bowlers.to_pandas().to_string(index=False))
 
 

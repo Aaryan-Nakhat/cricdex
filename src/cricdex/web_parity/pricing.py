@@ -19,8 +19,11 @@ ROLE_MULT: dict[str, float] = {
     "keeper": 1.05,
 }
 
-PV_BASE = 1.6
-PV_SCALE = 5.8
+# value is in population-sd units (see scout/ratings/bayesian._value_draws);
+# re-fitted to the earlier 2025-anchored curve (same pool median, same count of
+# 10cr+ players). See the comment in auction.ts.
+PV_BASE = 1.1
+PV_SCALE = 0.95
 PV_MAX = 27.0
 
 # IPL base-price set bands (cr).
@@ -28,13 +31,15 @@ PRICE_TIERS = [0.3, 0.5, 0.75, 1.0, 1.5, 2.0]
 
 # Cross-tier value discount — runs in a weaker comp aren't worth IPL crore.
 # Mirrors the export-time penalty so Scout's est. prices agree with the pool.
+# In value units (population sds): the old log-scale penalties × 6.4, the
+# measured sd ratio of the new IPL values to the old ones.
 TIER_PENALTY: dict[str, float] = {
     "ipl": 0.0,
-    "smat": 0.2,
-    "bbl": 0.07,
-    "sa20": 0.07,
-    "cpl": 0.1,
-    "blast": 0.1,
+    "smat": 1.28,
+    "bbl": 0.45,
+    "sa20": 0.45,
+    "cpl": 0.64,
+    "blast": 0.64,
 }
 
 

@@ -22,28 +22,29 @@ inventing a fair price from skill, calibrated to recent real auctions.
 ## Part 1 — Turn skill into a crore price
 
 Think Zillow estimating a house price from its features. Our one feature
-is the player's **skill score** (a small number from the Bayesian model:
-average ≈ 0, stars ~+0.5, weak players negative).
+is the player's **skill score** — the Bayesian model's complete value, in
+"typical spreads above average": average ≈ 0, stars ~+3, weak players
+negative (see `scout/ratings/README.md`).
 
-1. **Amplify exponentially.** `1.6 × e^(5.8 × skill)`, times a small role
-   weight (all-rounders / keepers are rarer → weighted up). The `5.8`
+1. **Amplify exponentially.** `1.1 × e^(0.95 × skill)`, times a small role
+   weight (all-rounders / keepers are rarer → weighted up). The `0.95`
    stretches the curve so the spread matches recent real money — the top
-   names land ~27 cr (the 2025 ceiling), the median ~3–4 cr — and the
-   result is clamped to `[0.3, 27]`.
+   names land in the 20s (27 cr, the 2025 ceiling, is the cap), the pool
+   median ~0.9 cr — and the result is clamped to `[0.3, 27]`.
 2. **Decay for staleness.** A player who's barely featured lately is worth
    less *now*. We subtract a recency penalty from the value, scaled by
    months since his last match (a few months' grace, then it ramps, capped
-   at −0.30). This is what stops retired/dormant names topping the buys.
+   at about −2.2). This is what stops retired/dormant names topping the buys.
 3. **Out come two numbers:**
    - **projected value** — what he's worth, in crore.
    - **base price** — his opening tag, snapped to real IPL bands:
      0.3 / 0.5 / 0.75 / 1.0 / 1.5 / 2.0 cr. Bidding pushes the final price
      up from there.
 
-**Worked example — "Player X", skill +0.25, played last month:**
+**Worked example — "Player X", skill +1.6, played last month:**
 
 ```
-1.6 × e^(5.8 × 0.25)        ≈ 6.5 cr   ← projected value
+1.1 × e^(0.95 × 1.6)        ≈ 5.0 cr   ← projected value
 (− recency penalty if stale)
 opening tag                 = 0.75 cr  ← base price
 ```
@@ -67,8 +68,8 @@ With guardrails so it stays realistic:
   domestic unknown outranking Kohli).
 - **Excludes** men's-T20I associate noise and non-IPL nations (e.g. PAK).
 - **Tier penalty** — runs against weaker attacks aren't worth as much as runs
-  in the IPL, so cross-tier values are discounted before pricing (**BBL −0.07**,
-  **SA20 −0.07**, **CPL −0.10**, **T20 Blast −0.10**, **SMAT −0.20**; IPL 0).
+  in the IPL, so cross-tier values are discounted before pricing (**BBL −0.45**,
+  **SA20 −0.45**, **CPL −0.64**, **T20 Blast −0.64**, **SMAT −1.28**; IPL 0).
 
 ---
 

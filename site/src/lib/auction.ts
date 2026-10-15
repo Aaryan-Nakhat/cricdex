@@ -22,11 +22,14 @@ const ROLE_MULT: Record<Role, number> = {
   all_rounder: 1.15,
   keeper: 1.05,
 };
-// Calibrated to real IPL crore: the Bayes `value` is compressed (~ -0.27..+0.48),
-// so amplify exponentially. value 0.48 -> ~26cr (Klaasen/Pant tier), 0.33 -> ~11,
-// 0.13 -> ~3.5, -0.27 -> floor 0.3. Anchored to the 2025 auction/retention prices.
-const PV_BASE = 1.6;
-const PV_SCALE = 5.8;
+// Calibrated to real IPL crore. The Bayes `value` is in population-sd units
+// (scoring + survival, or economy + strike, each per its spread; pool ~ -2..+3.5),
+// amplified exponentially: value 3.5 -> cap 27cr, 2.5 -> ~12, 1.5 -> ~4.6,
+// 0 -> 1.1, -1.4 -> floor 0.3. Re-fitted to the earlier curve, which was anchored
+// to the 2025 auction/retention prices: same pool median (~0.9cr) and as many
+// 10cr+ players (22).
+const PV_BASE = 1.1;
+const PV_SCALE = 0.95;
 const PV_MAX = 27;
 
 // IPL base-price set bands (cr) — what a player ENTERS the auction at.
@@ -45,7 +48,8 @@ function priceTier(pv: number): number {
 // Mirrors the export-time penalty so Scout's est. prices agree with the
 // Auction pool. The auction_pool `value` is already penalised at export; raw
 // scout `value` is not, so callers pricing scout players pass their tier.
-export const TIER_PENALTY = { ipl: 0, smat: 0.2, bbl: 0.07, sa20: 0.07, cpl: 0.1, blast: 0.1 } as const;
+// In value units (population sds): the old log-scale penalties × 6.4.
+export const TIER_PENALTY = { ipl: 0, smat: 1.28, bbl: 0.45, sa20: 0.45, cpl: 0.64, blast: 0.64 } as const;
 export type PriceTier = keyof typeof TIER_PENALTY;
 
 /** Estimated crore value from a raw Bayes value — same curve the auction uses.

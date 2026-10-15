@@ -88,6 +88,8 @@ export interface RatingRow {
   strike_skill: number | null;
   strike_skill_sd: number | null;
   value: number | null;
+  /** Posterior sd of `value` — absent in rating files written before it existed. */
+  value_sd?: number | null;
   balls: number;
   runs: number;
 }
@@ -174,8 +176,8 @@ export interface ScoutPlayer {
   bowling_category: string | null;
   batting_position: string | null;
   country: string | null;
-  value: number;
-  z: number; // skill standing within the tier (mean 0, sd 1)
+  value: number; // price basis: the better of batting / bowling value (as in the auction pool)
+  z: number; // standing on own role among the shown players of that role in the tier (mean 0, sd 1)
   balls: number; // exposure in this tier — powers the uncapped-gem flag
   last_match_date: string | null;
 }

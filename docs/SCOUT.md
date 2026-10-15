@@ -60,9 +60,11 @@ likelihoods (a runs Negative-Binomial + a per-ball dismissal
 Binomial) gives each batter both a **scoring** skill and a **survival**
 (dismissal-resistance) skill, and each bowler both an **economy** and
 a **strike** (wicket-taking) skill — four opponent-adjusted axes, all
-higher = better. A player's **complete value** is the sum of their two
-relevant axes, so a fast slogger who gets out often is no longer
-over-rated on scoring alone. See `docs/STUDY_GUIDE.md` §5.7 for the
+higher = better. A player's **complete value** adds their two relevant
+axes after putting each in the same unit (its population spread — the
+axes are a runs rate and a wicket log-odds), so a fast slogger who gets
+out often is no longer over-rated on scoring alone. Every matchup is
+fitted, even a 1-ball one; the prior does the shrinking. See `docs/STUDY_GUIDE.md` §5.7 for the
 full model.
 
 The same model design extends downward later: when we add CricHeroes

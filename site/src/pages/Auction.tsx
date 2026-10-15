@@ -54,9 +54,9 @@ function AuctionMath() {
           </div>
           <div className="space-y-3">
             <Step n={1} title="Amplify skill exponentially">
-              Skill is a compressed number (avg 0, stars ~+0.5). Exponentiate and scale so the spread
-              matches real money — top players land ~27 cr, the median ~3–4 cr. All-rounders/keepers get
-              a small scarcity premium.
+              Skill is counted in typical spreads above average (avg 0, stars ~+3). Exponentiate and
+              scale so the spread matches real money — top players land in the 20s (27 cr cap), the
+              median ~0.9 cr. All-rounders/keepers get a small scarcity premium.
             </Step>
             <Step n={2} title="Decay for staleness">
               A player who's barely featured lately (last game years ago) is worth less now — value
@@ -68,8 +68,8 @@ function AuctionMath() {
               the final price up from there.
             </Step>
           </div>
-          <Code>{`"Player X", skill +0.25:
-  1.6 × e^(5.8 × 0.25)        ≈ 6.5 cr   ← projected value
+          <Code>{`"Player X", skill +1.6:
+  1.1 × e^(0.95 × 1.6)        ≈ 5.0 cr   ← projected value
   (− recency penalty if stale)
   opening tag                 = 0.75 cr  ← base price`}</Code>
         </div>
@@ -89,7 +89,7 @@ function AuctionMath() {
           </ul>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             Value isn't comparable across tiers (runs vs weak attacks ≠ vs IPL), so lower tiers are
-            penalised (BBL/SA20 −0.07, CPL/Blast −0.10, SMAT −0.20) before pricing.
+            penalised (BBL/SA20 −0.45, CPL/Blast −0.64, SMAT −1.28) before pricing.
           </p>
         </div>
 

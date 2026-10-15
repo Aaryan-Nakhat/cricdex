@@ -10,7 +10,8 @@ export const GEM_Z = 0.6;
 
 export type SimilarRow = ScoutPlayer & { sim: number };
 
-/** Median SMAT exposure (balls > 0) — the gem cutoff. balls[floor(len/2)]. */
+/** Median SMAT exposure (balls > 0) — the gem cutoff. balls[floor(len/2)]: the
+ * upper-middle value for an even count (not averaged), the middle one for an odd count. */
 export function gemThreshold(smat: ScoutPlayer[]): number | null {
   const vals = smat.filter((p) => (p.balls ?? 0) > 0).map((p) => p.balls).sort((a, b) => a - b);
   if (!vals.length) return null;

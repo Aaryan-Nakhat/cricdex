@@ -279,6 +279,10 @@ AUCTION_COUNTRIES = {
     "IRE",
 }
 AUCTION_MIN_BALLS = 150  # drop tiny-sample players whose Bayes value is inflated
+# Value removed from a player with zero IPL relevance (league-only veteran). In
+# value units (population sds, see bayesian._value_draws): 2.7 ≈ the old 0.42
+# log-scale units × 6.4, the measured sd ratio of new to old IPL values.
+PEN_SCALE_VALUE = 2.7
 
 
 def _export_auction_pool(
@@ -295,13 +299,16 @@ def _export_auction_pool(
 
     # Value isn't comparable across tiers (a number vs weak SMAT attacks ≠ vs
     # IPL), so penalise lower tiers and take each player's best PENALISED value.
+    # One table for export + Scout pricing (web_parity/pricing ⇄ lib/auction.ts).
+    from cricdex.web_parity.pricing import TIER_PENALTY as _PEN
+
     TIER_PENALTY = {
-        "ipl": 0.0,
-        "bbl": 0.07,
-        "sa20": 0.07,  # SA20 — strong overseas league, ~BBL
-        "cpl": 0.10,  # CPL — slightly weaker than BBL/SA20
-        "blast": 0.10,  # T20 Blast — English county T20, deep but uneven
-        "indian_domestic_male": 0.20,
+        "ipl": _PEN["ipl"],
+        "bbl": _PEN["bbl"],
+        "sa20": _PEN["sa20"],  # SA20 — strong overseas league, ~BBL
+        "cpl": _PEN["cpl"],  # CPL — slightly weaker than BBL/SA20
+        "blast": _PEN["blast"],  # T20 Blast — English county T20, deep but uneven
+        "indian_domestic_male": _PEN["smat"],
     }
     best: dict[str, dict] = {}
     max_balls: dict[str, int] = {}
@@ -309,7 +316,7 @@ def _export_auction_pool(
         f = METRIC_DIR / f"scout_ratings_{col}.json"
         if not f.exists():
             continue
-        pen = TIER_PENALTY.get(col, 0.1)
+        pen = TIER_PENALTY.get(col, _PEN["cpl"])
         for r in json.loads(f.read_text()):
             cid, v = r.get("cricsheet_id"), r.get("value")
             if cid is None or v is None:
@@ -411,7 +418,7 @@ def _export_auction_pool(
             return max(0.2, 0.7 * af)  # overseas leaguer: young ~0.7, old ~0.25
         return 0.5  # unknown age → moderate (mid-pool, not top)
 
-    PEN_SCALE = 0.42  # value units removed at relevance 0 (≈ tier-penalty scale)
+    PEN_SCALE = PEN_SCALE_VALUE  # value units removed at relevance 0
     role_map = {
         "wk_batter": "keeper",
         "allrounder": "all_rounder",
@@ -468,12 +475,24 @@ def _export_auction_pool(
     return len(out)
 
 
+def _scout_role_score(role: str, bat: float | None, bowl: float | None) -> float:
+    """A player's standing on the role he is matched in: batters and keepers on
+    batting value, bowlers on bowling value, all-rounders on both added (each
+    value is centred on the average player, so a missing side counts as 0)."""
+    if role == "all_rounder":
+        return (bat or 0.0) + (bowl or 0.0)
+    if role == "bowler":
+        return bowl if bowl is not None else (bat or 0.0)
+    return bat if bat is not None else (bowl or 0.0)
+
+
 def _export_scout_index(
     con: duckdb.DuckDBPyConnection, out_dir: Path, taxonomy: dict[str, dict]
 ) -> int:
     """Cross-tier scouting index: for IPL, SMAT (uncapped Indian) and BBL
     (overseas), per recently-active player emit role/type + skill standing
-    (z within that tier, so levels compare across competitions). Powers
+    (z on the player's own role, among the shown players of that role in
+    that tier, so levels compare across competitions). Powers
     'players similar to <IPL player> in each tier'."""
     import datetime as _dt
     import statistics as _st
@@ -498,15 +517,19 @@ def _export_scout_index(
         if not f.exists():
             index[tier] = []
             continue
-        best: dict[str, dict] = {}
+        # Each player's batting and bowling value, kept apart so a player is
+        # scored on the role he is matched in (not his better side).
+        bat: dict[str, float] = {}
+        bowl: dict[str, float] = {}
+        names: dict[str, str | None] = {}
         balls: dict[str, int] = {}
         for r in json.loads(f.read_text()):
             cid, v = r.get("cricsheet_id"), r.get("value")
             if cid is None or v is None:
                 continue
             balls[cid] = max(balls.get(cid, 0), int(r.get("balls") or 0))
-            if cid not in best or v > best[cid]["value"]:
-                best[cid] = {"value": v, "name": r.get("unique_name")}
+            (bowl if r.get("role") == "bowler" else bat)[cid] = v
+            names[cid] = names.get(cid) or r.get("unique_name")
         # recency in this tier
         safe = _safe(col)
         last = {
@@ -521,30 +544,41 @@ def _export_scout_index(
         cutoff = (
             (_dt.date.fromisoformat(asof) - _dt.timedelta(days=900)).isoformat() if asof else None
         )
-        vals = [b["value"] for b in best.values()]
-        mean = _st.mean(vals) if vals else 0.0
-        sd = _st.pstdev(vals) if len(vals) > 1 else 1.0
         rows = []
-        for cid, b in best.items():
-            nm = b["name"]
-            ld = last.get(nm)
+        scores: list[float] = []
+        for cid in sorted(set(bat) | set(bowl)):
+            nm = names.get(cid)
+            ld = last.get(nm) if nm else None
             if not nm or balls.get(cid, 0) < 150 or not ld or (cutoff and ld < cutoff):
                 continue
             tax = taxonomy.get(cid, {})
+            role = role_map.get(tax.get("primary_role"), "batter")
+            b, w = bat.get(cid), bowl.get(cid)
+            sides = [x for x in (b, w) if x is not None]
             rows.append(
                 {
                     "cricsheet_id": cid,
                     "name": nm,
-                    "role": role_map.get(tax.get("primary_role"), "batter"),
+                    "role": role,
                     "bowling_category": tax.get("bowling_category"),
                     "batting_position": tax.get("batting_position"),
                     "country": tax.get("country"),
-                    "value": round(b["value"], 4),
-                    "z": round((b["value"] - mean) / (sd or 1), 3),
+                    # price basis: the better side, as in the auction pool
+                    "value": round(max(sides), 4),
                     "balls": balls.get(cid, 0),  # exposure — for the uncapped-gem flag
                     "last_match_date": ld,
                 }
             )
+            scores.append(_scout_role_score(role, b, w))
+        # z = standing on the matched role among the players SHOWN with that
+        # role in this tier (look-alikes only ever compare within a role).
+        for role in {r["role"] for r in rows}:
+            idx = [i for i, r in enumerate(rows) if r["role"] == role]
+            vals = [scores[i] for i in idx]
+            mean = _st.mean(vals)
+            sd = _st.pstdev(vals) if len(vals) > 1 else 0.0
+            for i in idx:
+                rows[i]["z"] = round((scores[i] - mean) / (sd or 1), 3)
         rows.sort(key=lambda r: r["z"], reverse=True)
         index[tier] = rows
     _write(out_dir / "scout_index.json", index)

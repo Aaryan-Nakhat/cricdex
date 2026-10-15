@@ -1,4 +1,4 @@
-"""3-tier Scout look-alikes. EXACT mirror of `site/src/pages/Scout.tsx`.
+"""Scout look-alikes + gems. EXACT mirror of `site/src/lib/scout.ts`.
 
 Pick an active IPL player -> similar players at three levels (IPL peers,
 uncapped SMAT, overseas BBL), ranked by closeness of within-tier skill
@@ -17,7 +17,8 @@ def gem_threshold(smat: list[dict]) -> float | None:
     vals = sorted(p["balls"] for p in smat if p.get("balls", 0) > 0)
     if not vals:
         return None
-    # Mirror the TS: balls[floor(len/2)] (lower-middle, not averaged).
+    # Mirror the TS: balls[floor(len/2)] — the upper-middle value for an even
+    # count (not averaged), the middle one for an odd count.
     return float(vals[len(vals) // 2])
 
 
