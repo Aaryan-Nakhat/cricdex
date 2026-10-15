@@ -32,7 +32,7 @@ from pathlib import Path
 
 import duckdb
 
-from cricdex.common.sql import DISMISSAL, MAIN_INNINGS, table_suffix
+from cricdex.common.sql import DISMISSAL, MAIN_INNINGS, table_suffix, wickets_rel
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -64,10 +64,11 @@ def batter_modes(name: str, collection: str = "ipl", db_path: Path | str = DEFAU
     with duckdb.connect(str(db_path), read_only=True) as con:
         if not _table_exists(con, f"balls_{safe}"):
             return {"total": 0, "rows": [], "read": ""}
+        # every wicket on a delivery: the second one (say, a non-striker run out) is lost from balls_
         rows = con.execute(
             f"""
             SELECT wicket_kind AS kind, COUNT(*) AS count
-            FROM balls_{safe}
+            FROM {wickets_rel(con, collection)}
             WHERE player_out = ? AND {DISMISSAL} AND {MAIN_INNINGS}
             GROUP BY 1 ORDER BY 2 DESC
             """,

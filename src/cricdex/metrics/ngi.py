@@ -64,7 +64,7 @@ import numpy as np
 import polars as pl
 from loguru import logger
 
-from cricdex.common.sql import table_suffix
+from cricdex.common.sql import player_ids, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -355,7 +355,9 @@ def _delta_wp(model, state: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def _per_player(df: pl.DataFrame, con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+def _per_player(
+    df: pl.DataFrame, con: duckdb.DuckDBPyConnection, collection: str = "ipl"
+) -> pl.DataFrame:
     """Aggregate ΔWP per (player, match), then per (player, career)."""
     batter_match = (
         df.group_by(["match_id", "batter"])
@@ -386,10 +388,15 @@ def _per_player(df: pl.DataFrame, con: duckdb.DuckDBPyConnection) -> pl.DataFram
         )
         .with_columns((pl.col("ngi_total") / pl.col("matches")).alias("ngi_per_match"))
     )
-    # Resolve to cricsheet_id via the people register so the table is
+    # Resolve to cricsheet_id (match registry first, then the people register) so the table is
     # joinable with all the other scout / metrics outputs.
-    people = con.execute("SELECT unique_name, identifier AS cricsheet_id FROM people").pl()
-    career = career.join(people, left_on="name", right_on="unique_name", how="left")
+    ids = player_ids(con, collection)
+    if ids is None:
+        return career.with_columns(pl.lit(None, pl.String).alias("cricsheet_id")).sort(
+            "ngi_per_match", descending=True
+        )
+    people = con.execute(f"SELECT name, identifier AS cricsheet_id FROM {ids}").pl()
+    career = career.join(people, on="name", how="left")
     return career.sort("ngi_per_match", descending=True)
 
 
@@ -443,7 +450,7 @@ def compute(
         else:
             state = train_state
         scored = _delta_wp(model, state)
-        career = _per_player(scored, con)
+        career = _per_player(scored, con, collection)
 
     return {
         "career": career,

@@ -32,7 +32,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-from cricdex.common.sql import table_suffix
+from cricdex.common.sql import player_ids, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -60,7 +60,8 @@ def wicket_quality(
         return pl.DataFrame()
     with duckdb.connect(str(db_path), read_only=True) as con:
         tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
-        if f"balls_{safe}" not in tables or "people" not in tables:
+        ids = player_ids(con, collection)
+        if f"balls_{safe}" not in tables or ids is None:
             return pl.DataFrame()
         rows = con.execute(
             f"""
@@ -69,8 +70,8 @@ def wicket_quality(
                 COALESCE(b.player_out, b.batter) AS dismissed_name,
                 p.identifier AS dismissed_cricsheet_id
             FROM balls_{safe} b
-            LEFT JOIN people p
-                ON p.unique_name = COALESCE(b.player_out, b.batter)
+            LEFT JOIN {ids} p
+                ON p.name = COALESCE(b.player_out, b.batter)
             WHERE b.wicket_kind IS NOT NULL
               AND b.wicket_kind NOT IN (
                   'run out', 'retired hurt', 'retired out',

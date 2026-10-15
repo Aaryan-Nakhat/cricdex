@@ -40,6 +40,7 @@ import duckdb
 import httpx
 from loguru import logger
 
+from cricdex.common.sql import WINDOW_SUFFIXES, player_ids
 from cricdex.config import CURATED_DIR, DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -50,6 +51,9 @@ USER_AGENT = "cricdex/0.1 (https://github.com/Aaryan-Nakhat/cricdex)"
 
 ENRICHMENT_PATH = CURATED_DIR / "wikidata_enrichment.json"
 SLEEP_BETWEEN_REQUESTS_S = 0.6  # ~100 req/min; well under MediaWiki API soft cap.
+# Enrich everyone who has batted or bowled at least this many balls across the ingested collections.
+DEFAULT_MIN_BALLS = 30
+CRICKETER_QID = "Q12299841"  # occupation (P106) "cricketer"
 
 # Wikidata properties we care about, mapped to flat output keys.
 PROPS = {
@@ -136,12 +140,77 @@ def _qid_via_statsguru(statsguru_id: str, cx: httpx.Client) -> str | None:
     return hits[0]["title"] if hits else None
 
 
-def search_qid(name: str, cx: httpx.Client) -> str | None:
+def _claim_values(claims: dict, prop: str) -> list:
+    """Every value of `prop` (Q-ids for items, raw strings for external ids)."""
+    out = []
+    for c in claims.get(prop, []):
+        v = c.get("mainsnak", {}).get("datavalue", {}).get("value")
+        if isinstance(v, dict):
+            v = v.get("id")
+        if v is not None:
+            out.append(str(v))
+    return out
+
+
+def _ids(value: Any) -> set[str]:
+    """Register key(s) as a set of plain strings ("625383", not "625383.0")."""
+    vals = value if isinstance(value, list | tuple | set) else [value]
+    out = set()
+    for v in vals:
+        if v is None or v == "":
+            continue
+        if isinstance(v, float) and v.is_integer():
+            v = int(v)
+        out.add(str(v).strip())
+    return out
+
+
+def entity_matches_player(entity: dict, player: dict) -> bool:
+    """Is this Wikidata entity really the register player? Guards the free-text name fallback, which
+    otherwise attaches whoever shares the name ("Abdul Nasir" is several people).
+
+    - It must be a cricketer: occupation (P106) cricketer, or a description that says so.
+    - When the register has the player's ESPNcricinfo (P2697) or Cricbuzz (P2698) id, the entity must
+      carry a matching one, and none that contradicts it.
+    """
+    claims = entity.get("claims", {}) or {}
+    desc = ((entity.get("descriptions", {}) or {}).get("en") or {}).get("value", "") or ""
+    if CRICKETER_QID not in _claim_values(claims, "P106") and "cricket" not in desc.lower():
+        return False
+    known = {
+        "P2697": _ids(player.get("statsguru_ids") or player.get("statsguru_id")),
+        "P2698": _ids(player.get("register_cricbuzz_id")),
+    }
+    if not any(known.values()):
+        return True
+    matched = False
+    for prop, ours in known.items():
+        theirs = _ids(_claim_values(claims, prop))
+        if not ours or not theirs:
+            continue
+        if ours & theirs:
+            matched = True
+        else:
+            return False  # the entity names a different player id
+    return matched
+
+
+def _get_entity(qid: str, cx: httpx.Client) -> dict | None:
+    r = cx.get(WD_ENTITY_URL.format(qid=qid))
+    if r.status_code != 200:
+        return None
+    return r.json().get("entities", {}).get(qid)
+
+
+def search_qid(name: str, cx: httpx.Client, player: dict | None = None) -> str | None:
     """Fall-back resolver: free-text name search via `wbsearchentities`.
 
     Only used when the statsguru bridge can't resolve. Wikidata search
     is poor at matching cricket-style initials ("Z Khan" → "Zaheer
     Khan"), so this catches ~15-20% of players the bridge misses.
+    Each candidate is checked with `entity_matches_player`; with no
+    register ids to check against, an ambiguous name (two cricketers
+    match) resolves to nothing rather than a guess.
     """
     r = cx.get(
         WD_SEARCH_URL,
@@ -156,26 +225,36 @@ def search_qid(name: str, cx: httpx.Client) -> str | None:
     )
     if r.status_code != 200:
         return None
+    player = player or {"unique_name": name}
+    has_ids = bool(
+        _ids(player.get("statsguru_ids") or player.get("statsguru_id"))
+        | _ids(player.get("register_cricbuzz_id"))
+    )
+    verified: list[str] = []
     for hit in r.json().get("search", []):
         desc = (hit.get("description") or "").lower()
-        if any(kw in desc for kw in ("cricket", "batsman", "bowler", "wicket")):
-            return hit["id"]
-    return None
+        if not any(kw in desc for kw in ("cricket", "batsman", "bowler", "wicket")):
+            continue
+        ent = _get_entity(hit["id"], cx)
+        time.sleep(SLEEP_BETWEEN_REQUESTS_S)
+        if ent and entity_matches_player(ent, player):
+            if has_ids:
+                return hit["id"]  # an id matched: as good as the bridge
+            verified.append(hit["id"])
+    return verified[0] if len(verified) == 1 else None
 
 
 def resolve_qid(player: dict, cx: httpx.Client) -> str | None:
-    """Try statsguru-bridge first, then fall back to name search."""
-    qid = _qid_via_statsguru(player.get("statsguru_id"), cx)
-    if qid:
-        return qid
-    return search_qid(player["unique_name"], cx)
+    """Try statsguru-bridge first, then fall back to a verified name search."""
+    for sg in sorted(_ids(player.get("statsguru_ids") or player.get("statsguru_id"))):
+        qid = _qid_via_statsguru(sg, cx)
+        if qid:
+            return qid
+    return search_qid(player["unique_name"], cx, player)
 
 
 def fetch_entity(qid: str, cx: httpx.Client) -> dict[str, Any] | None:
-    r = cx.get(WD_ENTITY_URL.format(qid=qid))
-    if r.status_code != 200:
-        return None
-    ent = r.json().get("entities", {}).get(qid)
+    ent = _get_entity(qid, cx)
     if not ent:
         return None
     claims = ent.get("claims", {})
@@ -195,62 +274,91 @@ def fetch_entity(qid: str, cx: httpx.Client) -> dict[str, Any] | None:
     return out
 
 
+_REGISTER_COLS = (
+    "p.identifier AS cricsheet_id, "
+    "CAST(p.key_cricinfo AS VARCHAR) AS statsguru_id, "
+    "list_filter([CAST(p.key_cricinfo AS VARCHAR), CAST(p.key_cricinfo_2 AS VARCHAR), "
+    "CAST(p.key_cricinfo_3 AS VARCHAR)], x -> x IS NOT NULL) AS statsguru_ids, "
+    "CAST(p.key_cricbuzz AS VARCHAR) AS register_cricbuzz_id"
+)
+
+
+def _player_dict(r: tuple) -> dict:
+    return {
+        "unique_name": r[0],
+        "cricsheet_id": r[1],
+        "statsguru_id": r[2],
+        "statsguru_ids": list(r[3] or []),
+        "register_cricbuzz_id": r[4],
+    }
+
+
+def _register_cols(con: duckdb.DuckDBPyConnection) -> str:
+    # older registers lack the secondary cricinfo keys
+    cols = {r[0] for r in con.execute("DESCRIBE people").fetchall()}
+    sel = _REGISTER_COLS
+    for c in ("key_cricinfo_2", "key_cricinfo_3", "key_cricbuzz"):
+        if c not in cols:
+            sel = sel.replace(f"p.{c}", "NULL")
+    return sel
+
+
 def _load_register_players(
     db_path: Path | str,
     only_active: bool = True,
-    top_n_by_balls: int | None = 300,
+    min_balls: int = DEFAULT_MIN_BALLS,
 ) -> list[dict]:
-    """Players we want to enrich: name + cricsheet_id + cricinfo statsguru id.
+    """Players we want to enrich: name + cricsheet_id + cricinfo statsguru id(s) + cricbuzz id.
 
-    `only_active=True` filters to players who actually appear in any
-    ingested `balls_<collection>` table. The full `people` register has
-    >17k entries — most are obscure names with no Wikidata page.
-    Restricting to ingested-collection players keeps enrichment fast +
-    actually useful.
+    `only_active=True` keeps players who batted or bowled at least `min_balls` balls across the
+    ingested `balls_<collection>` tables (the `_last1y` / `_last3y` window copies are left out, or
+    recent players would be counted two or three times). Names are tied to the register through
+    each collection's match registry, falling back to `people.unique_name`. Most-involved first.
     """
     with duckdb.connect(str(db_path), read_only=True) as con:
         tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
         if "people" not in tables:
             raise RuntimeError("`people` table missing — run cricdex data ingest people")
+        cols = _register_cols(con)
 
         if not only_active:
             rows = con.execute(
-                "SELECT unique_name, identifier AS cricsheet_id, "
-                "CAST(key_cricinfo AS VARCHAR) AS statsguru_id "
-                "FROM people WHERE identifier IS NOT NULL"
+                f"SELECT p.unique_name, {cols} FROM people p WHERE p.identifier IS NOT NULL"
             ).fetchall()
-            return [{"unique_name": r[0], "cricsheet_id": r[1], "statsguru_id": r[2]} for r in rows]
+            return [_player_dict(r) for r in rows]
 
-        ball_tables = [t for t in tables if t.startswith("balls_")]
-        if not ball_tables:
+        collections = sorted(
+            t.removeprefix("balls_")
+            for t in tables
+            if t.startswith("balls_") and not t.endswith(WINDOW_SUFFIXES)
+        )
+        if not collections:
             raise RuntimeError("no balls_<collection> tables yet — ingest cricsheet first")
-        # Per-name ball volume across every ingested collection — both
-        # batting and bowling — so we can rank.
+        # Per-player ball volume (batting + bowling) across every collection, keyed by identifier
+        # so a player who goes by different names in different collections is counted once.
         unions = []
-        for t in ball_tables:
-            unions.append(f"SELECT batter AS name, 1 AS n FROM {t} WHERE batter IS NOT NULL")
-            unions.append(f"SELECT bowler, 1 FROM {t} WHERE bowler IS NOT NULL")
-            unions.append(f"SELECT non_striker, 1 FROM {t} WHERE non_striker IS NOT NULL")
-        active_sql = " UNION ALL ".join(unions)
-        limit_clause = f" LIMIT {top_n_by_balls}" if top_n_by_balls else ""
+        for col in collections:
+            ids = player_ids(con, col)
+            for role in ("batter", "bowler"):
+                unions.append(
+                    f"SELECT i.identifier, COUNT(*) AS n FROM balls_{col} b "
+                    f"JOIN {ids} i ON i.name = b.{role} GROUP BY 1"
+                )
         rows = con.execute(
             f"""
-            WITH all_apps AS ({active_sql}),
-                 ranked AS (
-                     SELECT name, COUNT(*) AS appearances
-                     FROM all_apps GROUP BY name
-                 )
-            SELECT p.unique_name,
-                   p.identifier AS cricsheet_id,
-                   CAST(p.key_cricinfo AS VARCHAR) AS statsguru_id,
-                   r.appearances
+            WITH volume AS (
+                SELECT identifier, SUM(n) AS balls
+                FROM ({" UNION ALL ".join(unions)}) GROUP BY identifier
+            )
+            SELECT p.unique_name, {cols}
             FROM people p
-            JOIN ranked r ON r.name = p.unique_name
-            WHERE p.identifier IS NOT NULL
-            ORDER BY r.appearances DESC{limit_clause}
-            """
+            JOIN volume v ON v.identifier = p.identifier
+            WHERE v.balls >= ?
+            ORDER BY v.balls DESC, p.identifier
+            """,
+            [min_balls],
         ).fetchall()
-    return [{"unique_name": r[0], "cricsheet_id": r[1], "statsguru_id": r[2]} for r in rows]
+    return [_player_dict(r) for r in rows]
 
 
 def _load_existing_cache() -> dict:
@@ -268,6 +376,7 @@ def enrich_via_entity_api(
     limit: int | None = None,
     force: bool = False,
     db_path: Path | str = DEFAULT_DB_PATH,
+    min_balls: int = DEFAULT_MIN_BALLS,
 ) -> dict:
     """Walk the people register, search Wikidata by name, fetch the
     entity, persist to ~/.cricdex/data/curated/wikidata_enrichment.json.
@@ -277,7 +386,7 @@ def enrich_via_entity_api(
     polite-use limit.
     """
     cache = _load_existing_cache()
-    players = _load_register_players(db_path)
+    players = _load_register_players(db_path, min_balls=min_balls)
     if limit:
         players = players[:limit]
 

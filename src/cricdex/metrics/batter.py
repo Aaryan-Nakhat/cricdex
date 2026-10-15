@@ -22,7 +22,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-from cricdex.common.sql import DISMISSAL, MAIN_INNINGS, table_suffix
+from cricdex.common.sql import DISMISSAL, MAIN_INNINGS, table_suffix, wickets_rel
 from cricdex.config import DATA_DIR
 
 DEFAULT_PRESSURE_MULTIPLIER = 1.5
@@ -358,6 +358,8 @@ def crease_longevity(
     higher-tempo innings (or just thinner accumulation).
     """
     safe = table_suffix(collection)
+    with _connect(db_path) as con:
+        wickets = wickets_rel(con, collection)
     sql = f"""
     WITH faced AS (
         SELECT
@@ -367,10 +369,11 @@ def crease_longevity(
         WHERE batter IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY 1, 2, 3
     ),
-    -- out as striker or as non-striker (a run out at the other end ends the innings too)
+    -- out as striker or as non-striker (a run out at the other end ends the innings too), counting
+    -- every wicket on a delivery, not just the first
     outs AS (
         SELECT DISTINCT player_out AS batter, match_id, innings_idx
-        FROM balls_{safe}
+        FROM {wickets}
         WHERE player_out IS NOT NULL AND {DISMISSAL} AND {MAIN_INNINGS}
     ),
     innings_lengths AS (
