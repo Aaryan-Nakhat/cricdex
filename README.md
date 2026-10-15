@@ -17,8 +17,8 @@ Live demo: https://aaryan-nakhat.github.io/cricdex/
 ```bash
 git clone git@github.com:Aaryan-Nakhat/cricdex.git
 cd cricdex
-uv sync                       # base CLI
-uv sync --extra ui              # CLI + TUI are in the base install; + Streamlit dashboard
+uv sync                       # CLI + TUI
+uv sync --extra ui            # + Streamlit dashboard
 uv run cricdex --help
 ```
 
@@ -27,12 +27,13 @@ uv run cricdex --help
 ```bash
 cricdex init                                   # wizard + optional LLM key
 cricdex data ingest cricsheet -c ipl           # IPL ball-by-ball (a few MB)
-cricdex data ingest metrics -c ipl             # 10 leaderboards
+cricdex data ingest metrics -c ipl             # 12 leaderboards + rebuilds the site data
 cricdex leaderboard ngi -c ipl --top 15        # your first query
 ```
 
-Optional next step — `cricdex dashboard` opens the Streamlit UI on
-a free local port (8501 if available), reading the same exported data as the site.
+Bare `cricdex` opens the Textual TUI. Optional next step — `cricdex dashboard`
+(run from the repo root) opens the Streamlit UI on a free local port (it prints the URL;
+`--port` pins one), reading the same exported data as the site.
 
 Full command reference: [`docs/CLI.md`](docs/CLI.md). Onboarding flow:
 [`docs/FIRST_RUN.md`](docs/FIRST_RUN.md). Architecture:
@@ -72,20 +73,20 @@ CricHeroes grassroots tier.
 - Python 3.12, `uv` package manager
 - DuckDB (analytics) · NumPyro / JAX (Bayesian ratings) · exported JSON snapshots (file-driven; no vector DB, no graph DB)
 - FastAPI + Uvicorn (REST) · React + Vite static site (GitHub Pages)
-- Docker + Docker Compose (local stack + the nightly refresh pipeline)
+- Docker + Docker Compose (local stack) · GitHub Actions (manual data refresh → Pages redeploy)
 
 ## Repository layout
 
 ```
 src/cricdex/        Python package; one subfolder per module
 scripts/            Typer CLIs for each pipeline
-data/               raw + processed datasets (gitignored except curated/)
-notebooks/          exploration
+data/               raw + processed datasets (gitignored except curated/ player facts)
+site/               React + Vite static web app; site/public/data is the committed JSON snapshot
 tests/              pytest
-docs/               ARCHITECTURE, ROADMAP, DECISIONS, RUNNING, DOCKER
-docker/             (placeholder for future Dockerfiles per service)
+test_scripts/       web ↔ Python parity tests (need Node + the exported JSON)
+docs/               architecture, CLI, metrics, scout, auction math, running, Docker, roadmap, …
 Dockerfile          multi-stage app image
-docker-compose.yml  local stack — app
+docker-compose.yml  local stack — cricdex (API) + dashboard (profile)
 Makefile            top-level workflow targets
 ```
 

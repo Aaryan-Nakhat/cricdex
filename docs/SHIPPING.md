@@ -15,10 +15,11 @@ The web app is the ship: https://aaryan-nakhat.github.io/cricdex/
   backend, everything runs in the browser.
 - **`deploy.yml`** builds `site/` and publishes to GitHub Pages on
   every push touching `site/**`.
-- **`refresh-data.yml`** (manual "Run workflow") re-ingests Cricsheet,
-  recomputes everything, re-cooks the snapshot, commits it, and triggers a
-  redeploy — the only path that moves the site to the latest match date
-  (browsers can't run JAX / XGBoost).
+- **`refresh-data.yml`** (manual "Run workflow") re-ingests all 8
+  Cricsheet collections, recomputes everything, re-cooks the snapshot,
+  commits it, and then calls `deploy.yml` (`workflow_call`) to redeploy —
+  the only path that moves the site to the latest match date (browsers
+  can't run JAX / XGBoost).
 
 Cost: $0. GitHub Pages hosts the static site; GitHub Actions does the
 periodic recompute.
@@ -32,8 +33,8 @@ The CLI / TUI / Streamlit / FastAPI surfaces run locally over your own
 git clone git@github.com:Aaryan-Nakhat/cricdex.git
 cd cricdex
 uv sync --extra ui
-uv run cricdex --help              # CLI / TUI
-uv run streamlit run src/cricdex/dashboard/app.py   # dashboard
+uv run cricdex                     # TUI (`uv run cricdex --help` for the CLI)
+uv run cricdex dashboard           # Streamlit dashboard
 ```
 
 Or the full stack via Docker:

@@ -1,6 +1,6 @@
 // Data layer — fetches the pre-cooked JSON tree under public/data.
 // Everything the UI shows is computed offline by scripts/export_site.py
-// and re-cooked nightly by the GitHub Action; the browser only displays.
+// and refreshed on demand by the GitHub Action; the browser only displays.
 
 const DATA_ROOT = `${import.meta.env.BASE_URL}data`;
 

@@ -15,13 +15,12 @@ Two supported paths: **Docker (recommended for first-time users)** and **local u
 ```bash
 git clone https://github.com/Aaryan-Nakhat/cricdex.git
 cd cricdex
-cp .env.example .env
-# Open .env and set LLM_MODEL + the provider's key if you want the
-# player-taxonomy enrichment; everything else needs no keys.
+cp .env.example .env   # optional — only for the LLM taxonomy (LLM_MODEL + the provider's key)
 make docker-up
 ```
 
-This brings up one service:
+This brings up one service (the Streamlit `dashboard` service is behind a
+compose profile, see below):
 
 | Service | Container name | Port | Purpose |
 |---|---|---|---|
@@ -30,10 +29,14 @@ This brings up one service:
 ### Run the data pipelines (one-shot)
 
 ```bash
-make docker-ingest-cricsheet        # download a Cricsheet collection → Parquet + DuckDB
-make docker-ingest-people           # Cricsheet People Register (cross-IDs)
-make docker-metrics-all COLLECTION=ipl  # compute every novel metric → data/metrics/
+make docker-ingest-cricsheet COLLECTION=ipl  # download a Cricsheet collection → Parquet + DuckDB
+make docker-ingest-people                    # Cricsheet People Register (cross-IDs)
+make docker-metrics-all COLLECTION=ipl       # quick metrics pass → data/metrics/ (top 100 per board by default)
+make docker-export COLLECTION=ipl            # re-cook site/public/data so the dashboard sees it
 ```
+
+For a full refresh of one collection (download → all metrics → ratings →
+site data) use `make refresh COLLECTION=ipl` from a local uv setup (B below).
 
 ### Browse the leaderboards
 
@@ -78,7 +81,9 @@ make docker-down    # stop everything
 ### Volume layout
 
 - `./data` (bind mount) — Cricsheet downloads, DuckDB, metrics / ratings
-  JSON, curated JSON, exported snapshots. Editable from the host.
+  JSON, curated JSON. Editable from the host.
+- `./site/public/data` (bind mount) — the exported JSON snapshot the API,
+  CLI and dashboard read.
 - `./src`, `./scripts` (bind mount) — code is hot-reloaded into the container
   so iteration is fast. Comment those mounts out in `docker-compose.yml`
   for a frozen image.
@@ -104,8 +109,14 @@ cp .env.example .env
 ### Run pipelines
 
 ```bash
-uv run python scripts/ingest_cricsheet.py --collection recently_played_30_male
-uv run python scripts/compute_metrics.py all -c ipl
+make refresh COLLECTION=ipl   # download → metrics → ratings → site data, one collection
+
+# or step by step:
+uv run python scripts/ingest_cricsheet.py ingest --collection ipl --force
+uv run python scripts/ingest_cricsheet.py indian-domestic        # the indian_domestic_male collection
+uv run python scripts/compute_metrics.py all --collection ipl
+uv run python scripts/scout_rate.py --collection ipl
+uv run python scripts/export_site.py -c ipl
 ```
 
 ### Run the API
@@ -130,22 +141,16 @@ list). The most important ones:
 |---|---|---|
 | `LLM_MODEL` | for the taxonomy enrichment | Any LiteLLM model string, `<provider>/<model>`. The provider's key goes in the variable LiteLLM documents for that provider. |
 | `LLM_API_KEY` / `LLM_API_BASE` | optional | Override the key / endpoint (a self-hosted or custom server). |
-| `DATABASE_URL` / `REDIS_URL` | wait for those modules | Documented but unused until the cache module lands. |
-| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | for `make backup` | Cloudflare R2 backup target. Always-free 10 GB / zero egress. Create a bucket + API token at `dash.cloudflare.com → R2 → Manage R2 API Tokens`. Without these, the local `data/` directory is the only copy of artifacts that took a while to build. |
+| `CRICDEX_HOME` | optional | Where config lives (default `~/.cricdex`). |
+| `CRICDEX_DATA_DIR` | optional | Override the data folder (default: the repo's `data/` in a clone). |
 
-### Off-VM persistence
+### Persistence
 
-`data/` is `.gitignore`d and the Cricsheet DuckDB, computed metrics, and
-Bayes ratings are the only copies on disk. To survive a VM rebuild, push
-them to Cloudflare R2 (private bucket, 10 GB free forever, zero egress):
-
-```bash
-# one-time R2 setup: create a bucket, mint an API token, paste creds into .env
-make backup WHAT=all                  # tarball + upload metrics + cricsheet
-make backup-list                      # show all stamps in the bucket
-make restore WHAT=all                 # pull the latest tarball back over data/
-make restore WHAT=all STAMP=20260513-164100   # pin a specific timestamp
-```
+`data/` is `.gitignore`d except the curated player facts
+(`data/curated/player_taxonomy.json`, `data/curated/wikidata_enrichment.json`),
+which are committed. The Cricsheet DuckDB, computed metrics and Bayes ratings
+can always be rebuilt from Cricsheet (`make refresh`), and the exported
+snapshot in `site/public/data` is committed.
 
 ## Troubleshooting
 
@@ -153,6 +158,6 @@ make restore WHAT=all STAMP=20260513-164100   # pin a specific timestamp
   `t20s_male`) can be hundreds of MB. The downloader caches by zip name
   so re-running resumes from the cached zip.
 
-- **Docker build very slow first time**: `uv sync` pulls ~2 GB of wheels
-  (torch + jax dominate). Subsequent builds reuse those layers and finish
-  in seconds.
+- **Docker build slow first time**: the deps layer installs the locked
+  wheels (jax for the Bayesian ratings is the largest). Subsequent builds
+  reuse that layer and finish in seconds.

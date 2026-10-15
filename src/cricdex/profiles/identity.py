@@ -67,7 +67,7 @@ def _alias_map(collection: str, db_path: Path | str = DEFAULT_DB_PATH) -> dict[s
 
     Lets aliases / full names ("Jasprit Bumrah", "J Bumrah", "J B") resolve to
     the scorecard name the ball-by-ball data keys off ("JJ Bumrah"). The
-    Register ships 8.8k such variations; without this, search only matched the
+    Register ships ~7.5k such variations; without this, search only matched the
     terse scorecard spellings.
     """
     universe = set(_player_universe(collection, db_path=db_path))

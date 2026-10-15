@@ -1,9 +1,9 @@
 """Streamlit Update — refresh a collection, then re-export the JSON.
 
 The "best of both worlds" refresh: re-ingest from Cricsheet → recompute
-Bayesian ratings + the 10 metrics → re-export `site/public/data/` (the same
-JSON the React web app and every other dashboard page now read). So an update
-flows DuckDB → exported JSON → all pages, just like the web's nightly Action.
+Bayesian ratings + the 12 leaderboards → re-export `site/public/data/` (the
+same JSON the React web app and the other dashboard pages read). So an update
+flows DuckDB → exported JSON → all pages, like the manual `refresh-data` Action.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ st.set_page_config(page_title="CricDex Update", page_icon="🔄", layout="wide")
 st.title("🔄 CricDex — refresh data")
 st.caption(
     "Re-ingest → recompute ratings + metrics → re-export the JSON every page reads "
-    "(the same pipeline the web's nightly Action runs). Updates DuckDB, then the "
+    "(the same pipeline the refresh workflow runs). Updates DuckDB, then the "
     "exported JSON; all other pages read that JSON, so they reflect the refresh."
 )
 

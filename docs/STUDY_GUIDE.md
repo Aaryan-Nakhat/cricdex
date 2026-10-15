@@ -79,16 +79,15 @@ src/cricdex/
 ├── api/                   FastAPI REST surface + /docs
 ├── auction/               real-rules Monte-Carlo pool builder
 ├── cli/                   typer console script (one file per command group)
+├── common/                shared: db, llm.py (LiteLLM client), filters, metric catalog, sql, spark
 ├── comparator/            Side-by-side metric table + skill head-to-head
 ├── config.py              Pydantic settings + DATA_DIR resolution
 ├── dashboard/             Streamlit pages (mirror the web + TUI)
-├── llm/                   LLM wrapper (any provider via LiteLLM)
-├── metrics/               The 10 novel metrics + dismissal_fingerprint
-├── people/                Cricsheet People Register loader
-├── profiles/              Single-player JSON assembler (used by all surfaces)
+├── metrics/               10 context metrics + fielding/keeping, matchups, phase, dismissal_fingerprint
+├── profiles/              Single-player profile assembler + fuzzy name resolution
 ├── records/               9 record SQL queries + on-this-day digest
 ├── scout/
-│   ├── ingest/            Cricsheet → DuckDB; Wikidata enrichment
+│   ├── ingest/            Cricsheet → DuckDB; people_register.py; Wikidata enrichment
 │   ├── ratings/           NumPyro hierarchical Bayes (dismissal-aware)
 │   └── search/            Cosine style-twin
 ├── web_parity/            Python port of the web's TS auction + scout
@@ -108,7 +107,7 @@ Cricsheet JSON ──> scripts/ingest_cricsheet.py ──> DuckDB (~100 MB, all 
         ┌─────────────────────────┬────────────────────┼──────────────────┐
         ▼                         ▼                    ▼                  ▼
    metrics/*.py            scout/ratings              records/         venues/
-   (10 metrics JSON)       (Bayes JSON)               (on-this-day)    (innings/phase)
+   (12 boards JSON)        (Bayes JSON)               (on-this-day)    (innings/phase)
         │                         │
         ▼                         ▼
    profiles/builder.py     scripts/export_site.py ──> site/public/data/*.json
@@ -123,10 +122,14 @@ People Register (cricsheet) ──> cross-source ID bridge ──> Wikidata enri
                                                               (DOB, photo, socials)
 ```
 
-Single canonical storage root: `~/.cricdex/data/` (or
-`$CRICDEX_HOME/data/`). Every surface reads from there directly, so
-running `cricdex data ingest metrics --force` then opening the TUI
-shows fresh JSON without restarting.
+Two storage roots. The pipeline writes to `DATA_DIR` — the repo's
+`data/` when running from a clone (`CRICDEX_DATA_DIR` overrides; an
+installed package falls back to `~/.cricdex/data/`). The read-only
+surfaces (web, Streamlit, TUI and the JSON-backed CLI commands) read the
+exported snapshot in `site/public/data/`, so a refresh only shows up
+after an export — `cricdex data ingest metrics` re-exports for you. The
+CLI `profile` / `compare` / `records` / `venues` commands and the
+FastAPI app query `DATA_DIR` (DuckDB + `data/metrics/`) directly.
 
 ---
 
@@ -168,18 +171,20 @@ names that collide: `Rashid Khan` → Afghanistan (not Nepal),
 `cricdex data ingest wikidata` enriches each cricketer with DOB,
 country / birthplace Q-ids, profile photo URL, Twitter / Instagram
 handles, and ESPNcricinfo / Cricbuzz IDs. See §9 for the technical
-bridge (the SPARQL endpoint blocks GCP IPs so we use the action API
-with a P2697-statsguru-ID search instead). 289 / 300 active players
-are enriched today.
+bridge (the public SPARQL endpoint rate-limits datacenter IPs, so we use
+the entity API instead). 342 players are cached today, 331 of them found
+on Wikidata (all with a DOB).
 
 ---
 
 ## 4. The 10 novel cricket metrics
 
 Each metric outputs a polars DataFrame and writes to
-`data/metrics/<slug>_<collection>.json`. The Streamlit Leaderboards
-page auto-discovers them; the CLI `cricdex leaderboard <slug>` reads
-the same files.
+`data/metrics/<slug>_<collection>.json`. `scripts/export_site.py`
+cooks those into `site/public/data/<collection>/leaderboards/`, which
+the web, the Streamlit Leaderboards page, the TUI and the CLI
+`cricdex leaderboard <slug>` all read. Wicketkeeping and Fielding
+dismissal boards make 12 leaderboards in all.
 
 Common scaffolding: every metric SQL excludes wides from the legal
 ball count, treats `runs_batter` (the runs the *batter* gets credit
@@ -237,8 +242,9 @@ doesn't dominate a bucket.
 **Intuition.** A batter's ability to re-engage after a dot ball.
 Mental-reset proxy.
 
-**Math.** For every dot ball, sum runs scored in the *next 6 balls
-faced* (same innings, same batter). Aggregate per batter:
+**Math.** For every dot ball (no runs off the bat, not a wide or
+no-ball), sum the runs off the bat over the *next 6 deliveries the
+batter is on strike for* (same innings; wides included). Aggregate per batter:
 
 ```
 runs_per_6_after_dot = 6 × Σ runs / Σ following_balls
@@ -287,10 +293,10 @@ versus the cohort average.
 
 **Math.** `avg_balls_per_dismissal = total_balls / dismissals` per
 batter. Cohort average = mean of that across batters with
-`dismissals >= 5`. `dilation_index = avg_balls_per_dismissal /
+`dismissals >= 5`. `longevity_index = avg_balls_per_dismissal /
 cohort_avg`.
 
-A dilation index of 1.5 means this batter faces 50% more balls per
+A longevity index of 1.5 means this batter faces 50% more balls per
 dismissal than the cohort. Anchor batters score high here.
 
 **Filter.** `min_dismissals=10`.
@@ -436,10 +442,10 @@ for facing a hard attack the way raw average would.
 ### 5.3 NumPyro / JAX — why this stack
 
 `numpyro` is a probabilistic programming language that sits on top of
-JAX (Google's autodiff + XLA-compiled numerical computing). It was
+JAX (autodiff + XLA-compiled numerical computing). It was
 chosen over the older PyMC for a 10-50× speed-up on this exact
 class of hierarchical GLM. The fit on the IPL collection (~6k
-batters × bowlers, 1M+ edges) runs in ~30 s on CPU.
+batters × bowlers, 1M+ edges) runs in tens of seconds on CPU with ADVI.
 
 ### 5.4 ADVI vs NUTS
 
@@ -448,10 +454,10 @@ posterior, but they get there differently:
 
 **ADVI (Automatic Differentiation Variational Inference).** Fits a
 *surrogate* normal distribution to the posterior by minimising
-KL-divergence via gradient descent. Fast (~10 s for IPL). The
+KL-divergence via gradient descent. Fast (tens of seconds for IPL). The
 output `skill_sd` is *under-estimated* compared to truth because
 the variational family is constrained to mean-field normal (no
-correlations between parameters). Default for daily updates.
+correlations between parameters). The default for every refresh.
 
 ```python
 guide = AutoNormal(model)
@@ -463,7 +469,7 @@ for _ in range(12000):
 
 **NUTS (No-U-Turn Sampler).** Runs Hamiltonian Monte Carlo with
 adaptive trajectory length — the gold standard for posterior
-sampling. Output is calibrated (the SDs match truth). Slow (~5 min
+sampling. Output is calibrated (the SDs match truth). Slower (minutes
 on IPL with 2 chains × 1000 draws + 500 warmup).
 
 ```python
@@ -472,9 +478,9 @@ mcmc = MCMC(kernel, num_warmup=500, num_samples=1000, num_chains=2)
 mcmc.run(rng_key, bi=bi, ki=ki, balls=balls, runs=runs, ...)
 ```
 
-We default to ADVI for the daily fit and surface NUTS when
-publishing leaderboards — the skill *ranking* is identical to 3
-decimals between the two engines; only the uncertainty widths differ.
+ADVI is the default everywhere, including the `refresh-data`
+workflow and `make refresh`. Run `scripts/scout_rate.py --sampler nuts`
+when calibrated uncertainty widths matter.
 
 ### 5.5 Key snippet — the model definition
 
@@ -505,11 +511,11 @@ composite `value` (the two axes summed):
 
 ```json
 [
-  {"cricsheet_id": "ba607b88", "name": "V Kohli", "role": "batter",
+  {"cricsheet_id": "ba607b88", "unique_name": "V Kohli", "role": "batter",
    "skill": 0.051, "skill_sd": 0.023,
    "survival_skill": 0.212, "survival_skill_sd": 0.060,
    "value": 0.263, "balls": 6499},
-  {"cricsheet_id": "ba607b88", "name": "V Kohli", "role": "bowler",
+  {"cricsheet_id": "ba607b88", "unique_name": "V Kohli", "role": "bowler",
    "skill": -0.037, "skill_sd": 0.062,
    "strike_skill": -0.190, "strike_skill_sd": 0.174,
    "value": -0.227, "balls": 172},
@@ -809,7 +815,8 @@ uncapped) from the 120 cr purse; Mini = teams keep most of their squad
 free and bid only a small leftover purse. Retained players leave the
 pool and count toward the overseas cap (8).
 
-**Bidding** runs player-by-player, stars first. Each team's max bid is
+**Bidding** runs player-by-player over the top 200 unretained players
+by value (`AUCTION_LOTS`), stars first. Each team's max bid is
 `value × aggression × need × overseas-bias × luck`, bounded by
 remaining money / squad cap / overseas cap. The highest max bid wins
 but pays just **above the second-highest** (second-price clearing). A
@@ -824,7 +831,7 @@ time, then averaged: each team's typical spend / squad size / value /
 overseas count, and for each star the **% of trials each team won him**
 ("Bumrah → MI 62%, CSK 21%"). The sim emits a per-player `outcomes`
 summary across all trials, which powers a **post-sim search** (web,
-Streamlit, and the TUI Sim tab): after a run, look up any player —
+Streamlit, and the TUI Auction tab): after a run, look up any player —
 retained (by which team), sold (most-likely buyers, sold-%, avg price),
 or unsold. The RNG is seeded, so identical settings reproduce identical
 results.
@@ -839,8 +846,9 @@ about.
 ### 9.1 The blocker
 
 Wikidata's SPARQL endpoint (`query.wikidata.org`) returns HTTP 429
-(Too Many Requests) from any GCP / AWS / datacenter IP — they have
-a separate rate-limit pool for datacenter traffic. Our VM is on GCP.
+(Too Many Requests) from datacenter IPs — they have a separate
+rate-limit pool for datacenter traffic, and the pipeline ran on a
+cloud VM.
 
 ### 9.2 The bridge
 
@@ -867,11 +875,11 @@ def _qid_via_statsguru(statsguru_id, cx):
 ```
 
 This 1:1 maps Cricsheet `key_cricinfo` → Wikidata Q-id without ever
-touching SPARQL. 289 / 300 active IPL players resolved this way.
+touching SPARQL. Of the 342 players cached today, 331 resolved.
 
 ### 9.3 Fallback — name search
 
-For the 11 misses we fall back to `wbsearchentities` (free-text
+For players without a Statsguru hit we fall back to `wbsearchentities` (free-text
 name search), filtered to entries whose descriptions mention
 `cricket | batsman | bowler | wicket`. Catches a few more; messy for
 players named with initials (`"Z Khan"`) because Wikidata search
@@ -914,30 +922,26 @@ stays at parity with the Streamlit dashboard.
 
 ### 10.2 TUI — `cricdex/cli/tui.py`
 
-Textual app whose tabs mirror the web pages:
-1. Leaderboard
-2. Records
-3. Compare
-4. Venues
-5. Profile
-6. Scout
-7. Auction (Sim) — with the post-sim player search + Mega/Mini toggle
-8. Update Data — buttons that shell into `data_cmd.run_ingest`
+Textual app whose 14 tabs mirror the web pages: Leaders, Records,
+Compare, H2H, Matchups, Phase, Form, Partners, Aging, Venues, Profile,
+Auction (with the post-sim player search + Mega/Mini toggle), Scout,
+and Update (buttons that shell into `data_cmd.run_ingest` and re-export).
 
 Default behaviour: `cricdex` (no args) launches TUI. `cricdex
 --help` lists subcommands as before.
 
 ### 10.3 Streamlit dashboard — `cricdex/dashboard/`
 
-Pages mirroring the web + TUI: Leaderboards, Player Profile, Compare,
-Head-to-head, Scout, Auction room, Records, Venues, Update Data. Same
-`_widgets.py` helpers (`collection_picker`, `fuzzy_player_input`,
+Home + 14 pages mirroring the web + TUI: Leaderboards, Records,
+Head-to-head, Compare, Venues, Auction, Player Profile, Scout, Update
+Data, Matchups, Phase, Form, Partnerships, Aging. Same `_widgets.py`
+helpers (`player_select`, `player_multiselect`, `collection_picker`,
 `provenance_banner`) across pages so the chrome stays uniform.
 
 ### 10.4 FastAPI — `cricdex/api/`
 
-REST endpoints (records / venues / players / compare) + OpenAPI at
-`/docs`. Public surface for programmatic access. Currently no auth
+REST endpoints (records / venues / players / compare / NGI) over the
+local DuckDB + OpenAPI at `/docs`. Public surface for programmatic access. Currently no auth
 (vNext §E.2 — Cloudflare Worker + API keys table).
 
 ---
@@ -948,12 +952,15 @@ REST endpoints (records / venues / players / compare) + OpenAPI at
 
 Workflows in `.github/workflows/`:
 
-- `ci.yml` — ruff lint + format + pre-commit + pytest on every push
-  / PR to main. Runs in ~90 s.
+- `ci.yml` — pre-commit (ruff lint + format) + pytest (including the
+  `test_scripts/` web ↔ Python parity tests, which need Node) + a
+  TypeScript type-check of `site/`, on every push / PR to main.
 - `deploy.yml` — builds the static `site/` and publishes it to
   GitHub Pages on pushes touching `site/**`.
-- `refresh-data.yml` — manual ("Run workflow"): re-ingest + recompute +
-  re-cook the snapshot, then redeploy.
+- `refresh-data.yml` — manual ("Run workflow"): re-download all 8
+  collections, recompute metrics + ratings, re-cook the snapshot, run
+  the LLM taxonomy only if the `LLM_MODEL` secret is set, commit, then
+  call `deploy.yml` to redeploy.
 
 ### 11.2 Docker
 
@@ -961,11 +968,13 @@ Workflows in `.github/workflows/`:
 The stack is file-driven (DuckDB + exported JSON), so there is no
 vector or graph DB service. `make docker-up` builds + runs it.
 
-### 11.3 Off-VM persistence
+### 11.3 Persistence
 
-`data/` is gitignored. The DuckDB + metrics + Bayes JSONs are the only
-copies on disk. `make backup WHAT=all` tarballs them and pushes to
-Cloudflare R2 (always-free 10 GB / zero egress).
+`data/` is gitignored except the curated player facts
+(`data/curated/player_taxonomy.json`, `wikidata_enrichment.json`). The
+DuckDB, metrics and Bayes JSONs can always be rebuilt from Cricsheet
+(`make refresh COLLECTION=<c>`), and the exported snapshot in
+`site/public/data` is committed.
 
 ---
 
@@ -1012,7 +1021,8 @@ they're out of scope.
 - **GraphQL** layer (Strawberry on top of existing FastAPI).
 - **Auth + rate-limit** — Cloudflare Worker + API keys table.
   Mandatory before any public deploy.
-- **Public deploy** — HuggingFace Spaces or Oracle Cloud Always Free.
+- **Public API / dashboard hosting** — the web app is already live on
+  GitHub Pages; the FastAPI app and Streamlit dashboard are local-only.
 
 ### Group F — maintenance cadence
 

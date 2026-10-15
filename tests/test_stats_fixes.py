@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import duckdb
 import polars as pl
 import pytest
 
 from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, table_suffix
+from cricdex.config import DATA_DIR
 from cricdex.records import queries as q
 
-DB = Path("data/cricsheet/cricsheet.duckdb")
+DB = (
+    DATA_DIR / "cricsheet" / "cricsheet.duckdb"
+)  # same lookup as the code (honours CRICDEX_DATA_DIR)
 needs_data = pytest.mark.skipif(not DB.exists(), reason="needs data/cricsheet/cricsheet.duckdb")
 
 

@@ -95,5 +95,5 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-testpaths = ["tests"]
+testpaths = ["tests", "test_scripts"]
 addopts = "-q --strict-markers"

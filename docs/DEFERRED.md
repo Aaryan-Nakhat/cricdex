@@ -9,8 +9,8 @@ the prioritised backlog with rationale is [`VNEXT.md`](VNEXT.md).
 > SA20 2023 / BCCI Code rule PDFs) and the LLM-convenience features on
 > them (commentary translate, match reports, newsletter, DRS placeholder)
 > were deleted from the codebase — they are **out of scope**, not pending.
-> Wikidata one-time enrichment **shipped** (dob/photo/socials for 289/300
-> active players; the other 11 are genuinely absent from Wikidata).
+> Wikidata one-time enrichment **shipped** (dob/photo/socials for 331 of 342
+> cached players; the other 11 are absent from Wikidata).
 
 ---
 
@@ -49,7 +49,8 @@ the prioritised backlog with rationale is [`VNEXT.md`](VNEXT.md).
 ## §maintenance — rolling cadence
 
 - People Register refresh (Cricsheet `people.csv`, ~monthly).
-- Cricsheet ETL refresh when new matches land in a collection.
-- Metrics + records JSON refresh after a Cricsheet update
-  (`cricdex data ingest metrics --force -c <collection>`).
+- Cricsheet ETL refresh when new matches land in a collection (the manual
+  `refresh-data` workflow, or `make refresh COLLECTION=<c>` locally).
+- Metrics + site JSON refresh after a Cricsheet update
+  (`cricdex data ingest metrics -c <collection>`, which also re-exports).
 - Bayes refits when the underlying data shifts materially.

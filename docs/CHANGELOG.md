@@ -366,10 +366,8 @@ over the same `~/.cricdex/data/`.
 - Newsletter email send via Resend (BYO mailer if needed; digest
   remains a Markdown artifact).
 - `python-telegram-bot` + `praw` extras (never wired).
-- Dead config slots: `openai_api_key`, `groq_api_key`,
-  `cerebras_api_key`, `anthropic_api_key`, `cohere_api_key`,
-  `qdrant_api_key`, `reddit_*`, `telegram_bot_token`, `resend_*`,
-  `langfuse_*`, `hf_token`.
+- Dead config slots: the per-provider LLM API keys, `qdrant_api_key`,
+  `reddit_*`, `telegram_bot_token`, `resend_*`, `langfuse_*`, `hf_token`.
 
 ### Known caveats (see [`docs/VNEXT.md`](VNEXT.md))
 

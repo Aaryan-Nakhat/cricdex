@@ -20,11 +20,13 @@ Subcommand groups, each mounted as its own typer app:
   cricdex tui                               full Textual UI
   cricdex dashboard                         optional Streamlit dashboard (`--extra ui`)
 
-`uvx --from cricdex cricdex --help` or `pip install cricdex` + run
-`cricdex --help` from anywhere.
+There is no PyPI package: clone the repo, `uv sync`, then run
+`uv run cricdex --help` from the repo root.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import typer
 
@@ -135,7 +137,7 @@ def dashboard(
             "-m",
             "streamlit",
             "run",
-            "src/cricdex/dashboard/app.py",
+            str(Path(__file__).resolve().parents[1] / "dashboard" / "app.py"),
             "--server.port",
             str(bound),
             "--server.headless",

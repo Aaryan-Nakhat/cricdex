@@ -44,7 +44,7 @@ export const METRICS: MetricDef[] = [
     name: "Pressure Runs",
     one_liner: "Strike rate when the required rate is climbing in a chase.",
     what: "Isolates balls faced under genuine chase pressure (required rate above par) and reports how fast a batter scores in exactly those moments — separating flat-track bullies from players who lift when it's tight.",
-    how: "Look only at 2nd-innings (chasing) balls. Flag a ball as 'under pressure' when the required run-rate exceeds a multiplier of par. Over just those flagged balls, Pressure SR = (runs / balls) × 100. % balls is how often this player was actually put under that pressure.",
+    how: "Look only at chasing balls. A ball is 'under pressure' when the required rate is above 1.5× the usual required rate at that ground, in that phase and format. Over just those balls, Pressure SR = (runs / balls) × 100 (wides aren't balls faced). % balls is how often this player was actually put under that pressure.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [
@@ -76,7 +76,7 @@ export const METRICS: MetricDef[] = [
     name: "Dot-Ball Recovery",
     one_liner: "Runs scored in the 6 balls after eating a dot.",
     what: "Measures how a batter responds to a dot ball: runs accumulated over the next six deliveries. High scorers refuse to let pressure compound; low scorers let dots snowball into more dots.",
-    how: "Find every dot ball the batter faced. For each, sum the runs they scored over the following six deliveries. Metric = total of those runs ÷ (dots faced) — average runs reclaimed in the six balls after a dot.",
+    how: "Find every dot ball the batter faced and the deliveries they faced right after it. Metric = runs per six balls over those following deliveries — how quickly they score again once a dot has landed.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [
@@ -91,7 +91,7 @@ export const METRICS: MetricDef[] = [
     name: "Counter-Attack",
     one_liner: "Strike rate immediately after a partner is dismissed.",
     what: "Captures the player who counter-punches when a wicket has just fallen — strike rate on balls faced right after losing a partner, when most batters retreat into their shell.",
-    how: "Mark the balls a batter faced in the window right after a partner was dismissed. Counter SR = (runs / balls) × 100 over just those balls — high means they accelerate through a wicket, not shut down.",
+    how: "Take the 12 balls after each partner wicket and keep the ones faced by the batter who was already at the crease (not the one out, not the new arrival); a ball after two quick wickets counts once. Counter SR = (runs / balls) × 100 over those balls — high means they accelerate through a wicket, not shut down.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [
@@ -138,7 +138,7 @@ export const METRICS: MetricDef[] = [
     name: "Wicket Quality",
     one_liner: "Wickets weighted by the calibre of batter dismissed.",
     what: "Not all wickets are equal. This weights each dismissal by the quality of the batter removed (their Bayesian rating), rewarding bowlers who take the big scalps over those who pad stats against tail-enders.",
-    how: "For each wicket, look up the dismissed batter's Bayesian batting value. Sum those values across all the bowler's wickets → wicket quality. Removing top-order stars scores far higher than mopping up the tail.",
+    how: "For each wicket, look up the dismissed batter's Bayesian batting skill. Wicket quality = the average of those skills across the bowler's wickets, so removing top-order stars scores far higher than mopping up the tail.",
     nameCol: "bowler",
     higherIsBetter: true,
     columns: [
@@ -153,7 +153,7 @@ export const METRICS: MetricDef[] = [
     name: "Crease Longevity",
     one_liner: "Balls survived per dismissal vs the cohort average.",
     what: "How long a batter typically lasts at the crease — balls faced per dismissal — indexed against the cohort. Above 1.0 means they stick around longer than peers; an anchor's signature.",
-    how: "Balls per dismissal = total balls faced ÷ dismissals. Longevity index = that figure ÷ the cohort average. 1.0 = exactly average survival; 1.3 = lasts 30% longer than peers per dismissal.",
+    how: "Balls per dismissal = total balls faced ÷ times out (run outs at either end count; retired hurt doesn't). Longevity index = that figure ÷ the cohort average. 1.0 = exactly average survival; 1.3 = lasts 30% longer than peers per dismissal.",
     nameCol: "batter",
     higherIsBetter: true,
     columns: [

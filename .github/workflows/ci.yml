@@ -15,6 +15,21 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install 3.12
-      - run: uv sync --group dev
+      # `ui` brings Streamlit for the dashboard tests
+      - run: uv sync --frozen --group dev --extra ui
+      # the web/Python parity tests (test_scripts/) run the site's TypeScript through Node
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: site
       - run: uv run pre-commit run --all-files --show-diff-on-failure
       - run: uv run pytest
+      - name: Type-check the website
+        run: ./node_modules/.bin/tsc --noEmit -p .
+        working-directory: site

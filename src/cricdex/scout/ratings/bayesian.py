@@ -31,14 +31,20 @@ vectorised NUTS. Two samplers are wired:
   consumer cares about confidence intervals (player-profile
   uncertainty bars, wager-grade analytics).
 
+The default fit (`dismissal_aware=True`) adds a per-ball dismissal
+Binomial to the runs model — see `_model_dismissal`.
+
 Output
 ------
 polars DataFrame keyed by `cricsheet_id` with columns:
     role            "batter" | "bowler"
-    skill           posterior mean
+    skill           posterior mean (scoring / economy)
     skill_sd        posterior std-dev (proxy for confidence)
     balls           total balls associated with this role
     runs            total runs associated with this role
+    survival_skill(_sd) / strike_skill(_sd)   batter / bowler dismissal axis
+    value           skill + the dismissal axis (dismissal-aware fit only)
+    unique_name     People Register name (when the `people` table exists)
 """
 
 from __future__ import annotations

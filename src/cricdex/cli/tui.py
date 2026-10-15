@@ -2380,7 +2380,7 @@ class CricDexApp(App):
                 yield Button("Full refresh", id="upd-all", variant="primary")
             yield Static(
                 "Re-ingest → recompute ratings + metrics → re-export the JSON every "
-                "tab reads (the same pipeline the web's nightly Action runs).",
+                "tab reads (the same pipeline the refresh workflow runs).",
                 classes="intro",
             )
             with Panel(title="Log"):

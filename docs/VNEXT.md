@@ -22,8 +22,8 @@ sources and the LLM-convenience features built on them were
 - Commentary translate, match reports, newsletter digest, the DRS
   placeholder.
 
-Wikidata one-time enrichment stays (289/300 active players; the
-remaining 11 are obscure players genuinely absent from Wikidata).
+Wikidata one-time enrichment stays (331 of 342 cached players found,
+all with a DOB; the remaining 11 are obscure players absent from Wikidata).
 
 ## A — grassroots + identity (year 2)
 
@@ -57,15 +57,17 @@ remaining 11 are obscure players genuinely absent from Wikidata).
 |---|---|---|
 | GraphQL layer over REST | §4.1 | Strawberry on top of existing FastAPI functions. Speculative consumer demand. |
 | Auth + rate-limit | §4.2 | Cloudflare Worker in front of the API + API keys table. Required before any public deploy. |
-| Live → dashboard websocket | §2.8 (blocked by §A) | Push insights to a new dashboard page when the live feed unblocks. |
-| Public deploy | n/a | HuggingFace Spaces (16 GB free, Docker, ephemeral disk) or Oracle Cloud Always Free (24 GB / 4 vCPU ARM, persistent). Both options scoped in earlier sessions. |
+| Public API / dashboard hosting | n/a | The web app is already live on GitHub Pages; only the FastAPI app and Streamlit dashboard are local-only today. Hosting them needs the auth + rate-limit row above first. |
 
 ## F — maintenance cadence
 
 Rolling work the v1 release surfaces but doesn't automate:
 
 - People Register refresh — Cricsheet's `people.csv` updates monthly.
-- Cricsheet ETL refresh — pull when new matches add to a collection.
-- Metrics + records JSON refresh — `cricdex data ingest metrics
-  --force -c <collection>` after a Cricsheet update.
+- Cricsheet ETL refresh — pull when new matches add to a collection
+  (the manual `refresh-data` workflow for the live site, or
+  `make refresh COLLECTION=<c>` locally).
+- Metrics + site JSON refresh — `cricdex data ingest metrics
+  -c <collection>` after a Cricsheet update (it also re-exports that
+  collection's site data).
 - WP / Bayes refits when the underlying data shifts materially.

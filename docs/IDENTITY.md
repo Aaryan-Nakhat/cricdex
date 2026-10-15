@@ -72,9 +72,12 @@ does not scrape these sources.
 Two on-disk caches extend the register by `cricsheet_id`, both committed:
 
 1. **Wikidata** (`data/curated/wikidata_enrichment.json`) — dob / photo /
-   socials for 289/300 active players (one-time pull).
+   socials for 342 players, 331 with a DOB (one-time pull via the Wikidata
+   entity API).
 2. **LLM taxonomy** (`data/curated/player_taxonomy.json`) — role /
-   seam-spin / batting slot / country for 2040 players.
+   seam-spin / batting slot / country for 2,525 players, built by an LLM
+   via LiteLLM (configured with `LLM_MODEL` in `.env`) and shown as
+   "AI-classified".
 
 Out of scope (year-2 at the earliest): a grassroots **CricHeroes** tier —
 see [`DEFERRED.md`](DEFERRED.md) §grassroots. Cricbuzz and BCCI-domestic
@@ -89,8 +92,8 @@ an integer FK join.
 
 **Planned upgrade:** during cricsheet ingest, lift
 `info.registry.people` into the ball rows so every ball has
-`batter_id`, `bowler_id`, `non_striker_id` columns. See
-`docs/ROADMAP.md` Phase 2.
+`batter_id`, `bowler_id`, `non_striker_id` columns. Not yet scheduled
+(not on the roadmap).
 
 ## Identity edge cases
 

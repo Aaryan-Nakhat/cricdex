@@ -53,7 +53,7 @@ def indian_domestic(
     out: Path | None = typer.Option(None, "--out"),
     force: bool = typer.Option(False, "--force"),
 ) -> None:
-    """Download all 35 Indian state-team zips, dedupe by match_id, and
+    """Download all 38 Indian state-team zips, dedupe by match_id, and
     ingest as a single `indian_domestic_male` collection."""
     base = out or (DATA_DIR / "cricsheet")
     raw_dir = base / "raw"

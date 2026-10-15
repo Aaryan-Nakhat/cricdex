@@ -1,11 +1,10 @@
-"""Public REST surface — every shipped CricDex feature is callable here.
+"""Public REST surface — records, venues, players, compare and NGI over DuckDB.
 
 Conventions
 -----------
 - All read endpoints are GET with query-string params.
 - Outputs are JSON — either a list of records or a single object.
-- Write-shape endpoints (rules QA, auction solve) are POST
-  with a JSON body for forward-compat.
+- Write-shape endpoints (`/v1/compare`) are POST with a JSON body.
 - No auth yet; expose only behind a reverse proxy with rate-limiting
   in front (Cloudflare Workers planned).
 """

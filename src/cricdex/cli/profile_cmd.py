@@ -339,6 +339,24 @@ def venues(
 ) -> None:
     from cricdex.venues import profile as v
 
+    # Accept part of a ground's name ("Wankhede"): exact match first, then the busiest ground containing it.
+    try:
+        known = v.list_venues(collection, min_matches=1)["venue"].to_list()
+    except Exception as e:  # noqa: BLE001
+        die(f"venue lookup failed: {e}")
+    if venue not in known:
+        hits = [k for k in known if venue.lower() in k.lower()]
+        if not hits:
+            die(
+                f"no venue matching '{venue}' in {collection}",
+                hint="try part of the ground's name, e.g. Wankhede or Eden",
+            )
+        if len(hits) > 1:
+            typer.echo(
+                f"{len(hits)} grounds match — showing the busiest: {hits[0]}  (others: {', '.join(hits[1:4])})"
+            )
+        venue = hits[0]
+
     _render.header(venue, subtitle=f"collection: {collection}")
     _render.intro_panel(_copy.VENUES_INTRO, title="Venue")
     try:

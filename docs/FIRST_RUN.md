@@ -13,8 +13,11 @@ uv sync --extra ui      # CLI + TUI are in the base install; `ui` adds the Strea
 uv run cricdex --help
 ```
 
-The repo already ships the exported data for all 8 collections (`site/public/data/`), so every
-command below works straight after the clone. Steps 2–3 are only for refreshing it yourself.
+The repo already ships the exported data for all 8 collections (`site/public/data/`), so
+`leaderboard`, `matchups`, `phase`, `form`, `partnerships`, `aging`, `scout`, `auction`, the TUI's
+read-only tabs and the dashboard work straight after the clone. The CLI `profile`, `compare`,
+`records` and `venues` commands and the REST API query the local DuckDB (`data/`), and the
+Head-to-head tab/page reads the local Bayes ratings, so those need step 3 first.
 
 ## 2. Initialise (optional)
 
@@ -59,7 +62,7 @@ cricdex auction room --mode mega             # IPL; --purse / --trials / --squad
 ## 5. Browser preference?
 
 ```bash
-cricdex dashboard         # opens Streamlit on a free local port (8501 if available)
+cricdex dashboard         # opens Streamlit on a free local port (prints the URL; needs --extra ui)
 ```
 
 Same data, same artifacts. No drift.

@@ -86,7 +86,9 @@ With guardrails so it stays realistic:
 Retained players leave the pool and count toward the **overseas cap (8)**.
 Everyone else goes under the hammer.
 
-**Then the bidding.** Players go up one at a time, stars first. Each team
+**Then the bidding.** The 200 most valuable unretained players are the
+lots (a real auction lists far more, but most go unsold). They go up one
+at a time, stars first. Each team
 works out a **max bid**:
 
 ```

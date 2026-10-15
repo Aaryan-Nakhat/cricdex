@@ -7,7 +7,8 @@ Pending work, in landing order. The fuller backlog with rationale is
 > (Reddit/Cricbuzz/ESPNcricinfo scrape, BCCI Ranji/Hazare, extra rule
 > PDFs) and the LLM-convenience features on top of them (commentary
 > translate, match reports, newsletter, sentiment) were **removed**, not
-> deferred. Wikidata one-time enrichment stays (289/300 active players).
+> deferred. Wikidata one-time enrichment stays (331 of 342 cached players found;
+> the other 11 aren't on Wikidata).
 
 ---
 

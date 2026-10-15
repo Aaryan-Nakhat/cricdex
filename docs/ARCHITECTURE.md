@@ -17,16 +17,16 @@ surfaces just *read* it. The dashed line is the git boundary.
   (per league)          • balls_<col>          │     (NumPyro/JAX Bayes: 4         │    flattens DuckDB +       • meta.json
  Cricsheet People       • matches_<col>        │      latent skills/player)        ├──► metrics + ratings +     • players.json
   Register              • balls_<col>_last1y   │     <metric>_<col>[_win].json  ───┤    curated, builds         • ratings.json
-  (ids + 8.8k           •        _last3y       │     (10 metrics ×8 col ×3 win,     │   windowed boards +        • leaderboards/<slug>[.win].json
+  (ids + 7.5k           •        _last3y       │     (12 boards ×8 col ×3 win,     │   windowed boards +        • leaderboards/<slug>[.win].json
    name variations)     • people / people_names│      compute_metrics.py)          │   cohorts (SQL)            • profiles/<cid>.json
                                                │     data/curated/              ───┘                            • cohorts/<cid>.json
                                                │     • player_taxonomy.json (LLM)                             • records.json · venues.json
                                                └───► • wikidata_enrichment.json                                  • auction_pool · retentions
                                                      • bowling_styles.json                                       • scout_index.json · matchups/<cid>.json · phase.json · activity_index.json · partnerships.json · aging.json
                                                                                                           (+ root collections.json)
-        each step = `cricdex data ingest <cricsheet|ratings|metrics|wikidata>`              ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ git: only this snapshot is committed
+        each step = `cricdex data ingest <cricsheet|ratings|metrics|wikidata>`              ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ git: this snapshot (+ data/curated player facts) is committed
                                                                                                                           │
-                                                              ┌───────────────────────────────────────────────────────────┤  all read the SAME JSON
+                                                              ┌───────────────────────────────────────────────────────────┤  read-only views read the SAME JSON (see Fresh checkout)
                                                               ▼                                ▼                ▼          ▼
                                                         React (web)                     Streamlit            TUI         CLI
                                                         getJSON("<col>/…")              web_parity.loader.SITE_DATA + common.filters/metrics
@@ -42,9 +42,15 @@ surfaces just *read* it. The dashed line is the git boundary.
   Scout/Auction/H2H run identical logic — TypeScript in the browser, a bit-exact
   Python port (`cricdex.web_parity`) elsewhere, locked by
   `test_scripts/test_web_parity.py` + `test_filters_parity.py`.
-- **Fresh checkout**: read-only tabs work from the committed `site/public/data`
-  alone. H2H + the Update/refresh path also need the gitignored `data/`
-  (DuckDB + `scout_ratings` + curated) — transferred once or rebuilt via Update.
+- **Fresh checkout**: the web app, the Streamlit/TUI read-only tabs and the
+  JSON-backed CLI commands (`leaderboard`, `matchups`, `phase`, `form`,
+  `partnerships`, `aging`, `scout`, `auction`) work from the committed
+  `site/public/data` alone. These need the local `data/` (DuckDB +
+  `data/metrics/`, rebuilt via `cricdex data ingest …`, `make refresh` or the
+  Update tab): the CLI `profile` / `compare` / `records` / `venues` commands,
+  the whole FastAPI app, H2H (`scout_ratings_<col>.json`) and the Update path.
+  The curated player facts (`data/curated/player_taxonomy.json`,
+  `wikidata_enrichment.json`) are committed.
 
 ## Layers
 
@@ -79,9 +85,14 @@ surfaces just *read* it. The dashed line is the git boundary.
 
 - Cricsheet ingest + metrics + Bayes ratings + scout/auction snapshot +
   static-site re-cook → on demand via GitHub Actions (`refresh-data.yml`,
-  manual "Run workflow"), then a Pages redeploy. This is the only "refresh
-  to the latest match date" path (browsers can't run JAX / XGBoost).
-  Manual (not cron) so the 35 MB snapshot isn't re-committed nightly.
+  manual "Run workflow"): re-downloads all 8 collections with `--force`,
+  recomputes, re-cooks, runs the LLM taxonomy for new players only if the
+  `LLM_MODEL` secret is set, commits the snapshot, then calls `deploy.yml`
+  (`workflow_call`) to redeploy Pages. This is the only "refresh to the
+  latest match date" path for the live site (browsers can't run JAX /
+  XGBoost); locally, `make refresh COLLECTION=<c>` does the same for one
+  collection. Manual (not cron) so the ~70 MB snapshot isn't re-committed
+  on a schedule.
 - People Register / Wikidata / taxonomy → one-time, refreshed on demand.
 
 ## Module boundaries

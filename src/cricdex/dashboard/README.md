@@ -1,8 +1,10 @@
 # dashboard
 
 Streamlit app surfacing every CricDex feature. Multi-page (Streamlit
-auto-discovers `pages/`); the home module (`app.py`) is the landing
-explainer. Every row carries the Cricsheet people-register bridge
+auto-discovers `pages/`): the home module (`app.py`) is the landing
+explainer, plus 14 pages (`1_Leaderboards` … `16_Aging`). Shared widgets in
+`_widgets.py`: `player_select`, `player_multiselect`, `collection_picker`,
+`provenance_banner`. Every row carries the Cricsheet people-register bridge
 (cricsheet_id + cross-source identifiers) for deeper linking.
 
 ## Pages
@@ -15,7 +17,8 @@ explainer. Every row carries the Cricsheet people-register bridge
 - **Player Profile** — per-player dossier: Bayesian skills (with ±σ band),
   metrics, dismissal fingerprint, style twins, the graph cohort, Wikidata identity.
 - **Compare** — 2–4 players side by side (radar + table).
-- **Head-to-Head** — P(A better than B) from the Bayesian posteriors, with a gauge.
+- **Head-to-Head** — P(A better than B) from the Bayesian posteriors, with a gauge
+  (reads the local `data/metrics/scout_ratings_<col>.json`, not the snapshot).
 - **Matchups** — batter-vs-bowler head-to-heads (as batter / as bowler) + a
   batter's pace-vs-spin split with a "weaker vs" read.
 - **Phase** — powerplay / middle / death specialist boards (best SR, tightest econ).
@@ -30,14 +33,16 @@ explainer. Every row carries the Cricsheet people-register bridge
 - **Scout** — cross-competition look-alikes (6 tiers) + a "next big things" gems
   board + draft to Auction.
 - **Auction** — real-rules IPL auction Monte-Carlo (retain → bid), web-identical.
-- **Update Data** — in-app buttons to re-run the ingest/compute pipeline.
+- **Update Data** — in-app buttons to re-run the ingest → compute → export pipeline.
 
 The metrics: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery,
 Counter-Attack, Boundary Dependency, Pressure Conversion, Wicket Quality,
 Crease Longevity, Slow-Start Cost, Wicketkeeping, Fielding.
 
-Sidebar picks the ingested collection — every `data/metrics/*_<collection>.json`
-is auto-discovered.
+Every page except Head-to-Head and Update Data reads the exported JSON snapshot
+(`site/public/data/`, the same files the web app reads). The Leaderboards page
+lists the collections found there; the other pages' `collection_picker` lists the
+`balls_*` tables in the local DuckDB (falling back to `ipl` when there is none).
 
 ## Run
 
@@ -46,20 +51,20 @@ make docker-dashboard-up      # serves on http://localhost:8511
 make docker-dashboard-down    # stop it
 ```
 
-Local without Docker:
+Local without Docker (from the repo root):
 
 ```bash
 uv sync --extra ui
-uv run streamlit run src/cricdex/dashboard/app.py
+uv run cricdex dashboard     # free local port, prints the URL; --port pins one
 ```
 
 ## Refresh data
 
-The app reads JSON snapshots, not the database directly:
+The app reads the exported snapshot, so a refresh has to re-export it:
 
 ```bash
-make docker-metrics-all COLLECTION=ipl  # regenerate JSONs
-# then rerun the page — Streamlit re-reads on rerun
+make refresh COLLECTION=ipl   # download → metrics → ratings → export
+# or use the Update Data page; then rerun the page — Streamlit re-reads on rerun
 ```
 
 ## Add a new metric
@@ -68,7 +73,10 @@ make docker-metrics-all COLLECTION=ipl  # regenerate JSONs
    `scripts/compute_metrics.py`.
 2. Append a `MetricDef` to the shared catalog `cricdex.common.metrics.METRICS`
    (slug, name, what/how copy, `name_col`, `higher_is_better`, and the column
-   layout with one `primary=True` column).
+   layout with one `primary=True` column), and mirror it in
+   `site/src/lib/metrics.ts` for the web.
+3. Add the slug to `METRIC_SLUGS` in `scripts/export_site.py` and re-run it so
+   the leaderboard JSON lands in the snapshot.
 
 That one catalog drives the Streamlit + TUI leaderboards and the `cricdex
 leaderboard` CLI generically — no per-surface edits needed.

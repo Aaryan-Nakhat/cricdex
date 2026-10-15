@@ -32,20 +32,23 @@ pnpm preview      # serve the build locally
 
 ## How it ships
 
-- **`deploy-pages`** workflow builds `dist/` and publishes to GitHub
-  Pages on every push to `site/**`.
-- **`refresh-data`** workflow (nightly) re-ingests Cricsheet, recomputes
-  metrics + Bayesian ratings + the scout & auction snapshots, re-cooks
-  `public/data/`, and commits it — which triggers a redeploy. That is
-  the "refresh to the latest match date" mechanism; it can't run in the
-  browser because the models need JAX.
+- **`deploy-pages`** workflow (`deploy.yml`) builds `dist/` and publishes
+  to GitHub Pages on every push to `site/**`, on demand, or when called by
+  the refresh workflow.
+- **`refresh-data`** workflow (manual "Run workflow") re-ingests all 8
+  Cricsheet collections, recomputes metrics + Bayesian ratings + the scout
+  & auction snapshots, re-cooks `public/data/`, commits it, and then calls
+  `deploy-pages` to redeploy. That is the "refresh to the latest match
+  date" mechanism; it can't run in the browser because the models need JAX.
 
 ## Features
 
-Overview · Leaderboards (10 metrics) · Player profile (4 Bayesian skill
-axes + uncertainty, career, metrics, dismissal fingerprint, style twins) ·
-Compare · Head-to-head P(A>B) · Scout (cross-competition look-alikes across
-IPL / SMAT / BBL / SA20 / CPL / Blast) · Auction room (real-rules IPL
-auction sim) · Records · Venues · How it works.
+Overview · Leaderboards (12 leaderboards: 10 context metrics +
+wicketkeeping + fielding) · Player profile (4 Bayesian skill axes +
+uncertainty, career, metrics, dismissal fingerprint, style twins) ·
+Compare · Head-to-head P(A>B) · Matchups · Phase · Form · Partnerships ·
+Aging · Scout (cross-competition look-alikes across IPL / SMAT / BBL /
+SA20 / CPL / Blast) · Auction room (real-rules IPL auction sim) · Records ·
+Venues · How it works. Light / dark / auto theme with bundled fonts.
 
 <!-- deploy: Pages source set to GitHub Actions -->

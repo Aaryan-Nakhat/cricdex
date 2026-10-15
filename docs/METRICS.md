@@ -7,7 +7,9 @@ to put context back in. Every formula is computable directly from
 Cricsheet ball-by-ball data — no scraping, no proprietary feeds.
 
 All metrics output a polars DataFrame and are dumped to
-`data/metrics/<slug>_<collection>.json` for the dashboard to consume.
+`data/metrics/<slug>_<collection>.json`; `scripts/export_site.py` then cooks
+them into the `site/public/data/<collection>/leaderboards/` snapshot that the
+web app, dashboard, TUI and leaderboard CLI read.
 
 ---
 
@@ -78,9 +80,11 @@ buckets (plain strike rate, once set) dominate the top.
 Mental-reset proxy.
 
 **Computation:**
-1. Identify every dot ball faced by the batter.
-2. For each, sum the runs they scored in the *next 6 balls they faced*
-   in the same innings.
+1. Identify every dot ball faced by the batter (no runs off the bat, not
+   a wide or no-ball).
+2. For each, sum the runs they scored off the bat over the *next 6
+   deliveries they were on strike for* in the same innings (wides
+   included; a ball inside two dots' windows counts for both).
 3. Aggregate per batter: `runs_per_6_after_dot = 6 × Σruns / Σfollowing_balls`.
 
 **Reading:** a value of 9 means the batter averages 9 runs over the
@@ -134,7 +138,8 @@ after building a streak of 4+ consecutive dots in the same over.
 
 **Computation:**
 1. Walk every over delivered by each bowler, tracking running
-   `streak_len` of consecutive dot balls.
+   `streak_len` of consecutive dot balls (nothing scored, not a wide or
+   no-ball).
 2. When `streak_len ≥ threshold` (default 4), look at the next
    delivery in the same over.
 3. Wicket rate = wickets on that "post-pressure" ball ÷ total
@@ -148,7 +153,9 @@ sustaining the pressure.
 never converts the pressure into a wicket scores low here even though
 their economy looks great.
 
-**Filter:** `min_pressure_balls` (default 30).
+**Filter:** `min_pressure_balls` — by default set per collection to
+`max(5, ½ × 75th-percentile pressure_balls)` so small collections aren't
+emptied; pass a number to fix it (30 was the old IPL floor).
 
 ---
 
@@ -162,7 +169,9 @@ their economy looks great.
   reuse the whole league's model; leaderboards keep a matches floor
   (25 all-time, 6 for 3 years, 3 for 1 year). Career table at `data/metrics/ngi_<collection>.json`,
   dashboard tab "NGI (Net Game Impact)".
-- **Wicket Quality** ✅ — Σ(opponent Bayes skill) / wickets taken.
+- **Wicket Quality** ✅ — the mean Bayes batting skill of the batters a
+  bowler dismissed (run outs, retirements and obstructing the field
+  excluded); higher = harder wickets.
   Lives in `cricdex.metrics.bowler_wicket_quality`. Needs the
   scout NumPyro ratings (`scout_ratings_<collection>.json`) — see
   `docs/SCOUT.md`.
@@ -200,8 +209,11 @@ their economy looks great.
 
 Every metric writes a flat JSON list of records. Columns documented in
 each metric function's docstring and in `cricdex/metrics/README.md`.
-The Streamlit dashboard auto-discovers any
-`data/metrics/<slug>_<collection>.json` file.
+The leaderboard surfaces don't read `data/metrics/` directly: they (and the
+Streamlit Leaderboards page's collection list) come from the exported
+`site/public/data/` snapshot, so
+re-run `scripts/export_site.py` (or `cricdex data ingest metrics`, which
+exports for you) after recomputing.
 
 ## Common rules (all metrics, records and boards)
 

@@ -4,7 +4,17 @@ Bayesian opponent-adjusted skill ratings.
 
 ## Model
 
-Negative-Binomial regression on (batter, bowler) edges:
+The default fit is **dismissal-aware**: two coupled likelihoods on the same
+(batter, bowler) edges — a runs Negative-Binomial (below) plus a per-ball
+dismissal Binomial,
+
+```
+outs_ij ~ Binomial(balls_ij, sigmoid(w_int + bowl_strike[j] − bat_survive[i]))
+```
+
+— so each batter gets a scoring `skill` and a `survival_skill`, and each
+bowler an economy `skill` and a `strike_skill` (four latent axes, all
+higher = better). The runs part on its own:
 
 ```
 runs_ij ~ NegBin(mu_ij, alpha)
@@ -29,40 +39,43 @@ dominates only journeymen is shrunk back.
 
 ## Fit
 
-Two samplers wired behind a flag:
+NumPyro (JAX). Two samplers wired behind `--sampler`:
 
-- `advi` (default) — mean-field variational. ~1-3 min on IPL.
-  Under-estimates posterior variance, so `skill_sd` is directional.
-  Use for routine refreshes.
-- `nuts` — full Hamiltonian. 2 chains × 1000 draws + 500 tune by
-  default. ~20-30 min on IPL. Produces a properly calibrated
+- `advi` (default) — mean-field variational (`--advi-steps`, default
+  12000). Fast; under-estimates posterior variance, so `skill_sd` is
+  directional. Use for routine refreshes.
+- `nuts` — full No-U-Turn HMC, `--nuts-chains 2` × `--nuts-draws 1000`
+  + `--nuts-tune 500` by default. Slower; produces a properly calibrated
   posterior — use this when downstream consumers actually plot
-  confidence bars (player-profile uncertainty, wager-grade
-  analytics).
+  confidence bars (player-profile uncertainty).
 
 ```bash
-make docker-scout-rate                                    # advi, fast default
-make docker-scout-rate SAMPLER=nuts                       # nuts, calibrated
-make docker-scout-rate-nuts DRAWS=2000 CHAINS=4 COLLECTION=ipl
+make docker-scout-rate COLLECTION=ipl STEPS=12000          # advi, fast default
+uv run python scripts/scout_rate.py --collection ipl --sampler nuts   # nuts, calibrated
+uv run python scripts/scout_rate.py -c ipl --sampler nuts --nuts-draws 2000 --nuts-chains 4
 ```
 
-Output: `data/metrics/scout_ratings_<collection>.json` with columns
-`cricsheet_id, role, skill, skill_sd, balls, runs`.
+There is no `make` target for NUTS; call the script directly.
+
+Output: `data/metrics/scout_ratings_<collection>.json` (one row per
+player-role) with columns `cricsheet_id, unique_name, role, skill,
+skill_sd, balls, runs, value` plus `survival_skill, survival_skill_sd`
+(batters) or `strike_skill, strike_skill_sd` (bowlers). `value` is the sum
+of the role's two axes (a player's complete value).
 
 ## Caveats
 
-- Single global skill per role today — no era / venue / format break-out
+- One skill set per role today — no era / venue / format break-out
   yet. Easy to add as fixed effects in the linear predictor (`+ era[e]`).
-- ADVI under-estimates posterior variance. Confidence intervals are
-  directional, not calibrated. NUTS run planned.
+- ADVI (the default) under-estimates posterior variance, so its
+  confidence intervals are directional, not calibrated; run with
+  `--sampler nuts` when calibration matters.
 - Players present only as bowler (or only as batter) get one role row;
   all-rounders get two rows in the output.
 
 ## Next
 
 - Add venue + phase fixed effects.
-- Switch to NUTS with 2 chains × 1000 draws (≈20 min, acceptable for
-  weekly refresh).
 - Use the resulting opponent strengths as the bridge that lifts
   grassroots (CricHeroes) ratings — this is the Opposition-Adjusted
   Rating (OAR) referenced in `docs/METRICS.md`.

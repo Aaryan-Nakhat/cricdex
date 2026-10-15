@@ -21,7 +21,7 @@ from cricdex.common.sql import table_suffix
 
 CRICSHEET_BASE = "https://cricsheet.org/downloads"
 
-# 35 Indian state teams whose Cricsheet zip files together cover every
+# 38 Indian state teams whose Cricsheet zip files together cover every
 # Ranji Trophy, Vijay Hazare, and Syed Mushtaq Ali match that Cricsheet
 # tracks. Each match is in multiple state-team zips (one per side), so the
 # aggregator must de-dup by file name (= cricsheet match_id).
@@ -129,7 +129,7 @@ def extract(zip_path: Path, dest: Path, force: bool = False) -> Path:
     fresh = out_dir.exists() and any(out_dir.iterdir())
     # Re-extract when forced OR when the downloaded zip is newer than what we
     # last extracted — otherwise a refreshed Cricsheet zip is silently ignored
-    # and we keep parsing the stale match set (this is what stalled the nightly
+    # and we keep parsing the stale match set (this is what stalled the scheduled
     # refresh). A stem-name match alone is not enough; compare mtimes.
     if fresh and not force and zip_path.stat().st_mtime <= out_dir.stat().st_mtime:
         logger.info(f"already extracted (up to date): {out_dir}")
@@ -292,7 +292,7 @@ def _download_url(url: str, dest_dir: Path, force: bool = False) -> Path:
 
 
 def aggregate_indian_domestic(raw_dir: Path, extracted_dir: Path, force: bool = False) -> Path:
-    """Download all 35 Indian state-team zips and merge match JSONs into
+    """Download all 38 Indian state-team zips and merge match JSONs into
     a single deduped directory keyed by match_id (= filename).
 
     With `force`, re-downloads every state zip and rebuilds the merge from

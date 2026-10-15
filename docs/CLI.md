@@ -18,6 +18,7 @@ Exit codes:
 | 1 | user error (bad arguments / missing argument) |
 | 2 | missing data (run `cricdex data ingest …` first) |
 | 3 | missing credential (run `cricdex config set …`) |
+| 4 | a pipeline step (ingest / metrics / export) failed |
 
 ---
 
@@ -90,8 +91,12 @@ cricdex compare "V Kohli" "RG Sharma"
 cricdex records today                        # on-this-day
 cricdex records list                         # list record keys
 cricdex records career_run_leaders --top-n 25
-cricdex venues "Wankhede"
+cricdex venues "Wankhede Stadium, Mumbai"   # exact Cricsheet venue name
 ```
+
+These four query the local DuckDB (`data/cricsheet.duckdb`) plus `data/metrics/`,
+so they need `cricdex data ingest cricsheet` (and `metrics`) first; they don't
+read the exported snapshot.
 
 ---
 
@@ -174,9 +179,10 @@ See [`AUCTION_MATH.md`](AUCTION_MATH.md).
 cricdex dashboard
 ```
 
-Launches the Streamlit dashboard on a free local port (8501 if available).
-Streamlit reads the same `$CRICDEX_HOME/data/` so it's always in
-sync with the CLI.
+Launches the Streamlit dashboard (needs `uv sync --extra ui`; run from
+the repo root) on a free local port picked by the OS — it prints the URL;
+`--port` pins one. Streamlit reads the same exported `site/public/data/`
+as the web app and the JSON-backed CLI commands.
 
 ---
 
@@ -186,5 +192,6 @@ sync with the CLI.
 cricdex tui
 ```
 
-Full Textual TUI for interactive browsing. Requires the `cli`
-packages, which are part of the base install (`uv sync`).
+Full Textual TUI for interactive browsing (same as bare `cricdex`), part of
+the base install (`uv sync`). 14 tabs: Leaders, Records, Compare, H2H,
+Matchups, Phase, Form, Partners, Aging, Venues, Profile, Auction, Scout, Update.

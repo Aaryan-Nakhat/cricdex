@@ -10,8 +10,9 @@ eventual product is a tool an IPL analyst (or a fan!) can use to ask:
 
 Today's reality is narrower — we have the pro tier (Cricsheet + people
 register) and the ratings infrastructure that the answers ride on. Scout
-is file-driven (DuckDB + exported JSON); there is no graph database. Other
-tiers (BCCI domestic, CricHeroes grassroots) land in Phase 2 follow-ups.
+is file-driven (DuckDB + exported JSON); there is no graph database. The
+semi-pro tier is SMAT via Cricsheet; a CricHeroes grassroots tier is year-2
+backlog, and BCCI-domestic scrapes are out of scope (Cricsheet-only).
 
 ## Tiers
 
@@ -20,12 +21,12 @@ tiers (BCCI domestic, CricHeroes grassroots) land in Phase 2 follow-ups.
 | Pro (intl + IPL + major T20) | Cricsheet ball-by-ball | ✅ ingested |
 | Identity bridge | Cricsheet People Register (17,981 players, 99.8% Cricinfo coverage) | ✅ — see [IDENTITY.md](IDENTITY.md) |
 | Bayesian opponent-adjusted ratings | NumPyro / JAX (ADVI default, NUTS available) | ✅ — first cut |
-| Player profile (DOB, photo, socials) | Wikidata one-time enrichment | ✅ — 289/300 active players |
-| Role / bowling type (seam-spin) / batting slot / country | LLM taxonomy | ✅ — 2040 players |
+| Player profile (DOB, photo, socials) | Wikidata one-time enrichment | ✅ — 342 players cached, 331 with a DOB |
+| Role / bowling type (seam-spin) / batting slot / country | LLM taxonomy (an LLM via LiteLLM, `LLM_MODEL`; shown as "AI-classified") | ✅ — 2,525 players |
 | Semi-pro (SMAT) | Cricsheet `indian_domestic_male` | ✅ ingested (Ranji / Hazare removed — out of scope) |
 | Grassroots (CricHeroes) | CricHeroes scrape / partner API | year-2 ([`DEFERRED.md`](DEFERRED.md) §grassroots) |
 | Style-twin (k-NN over rating vector) | feature-space nearest neighbours | ✅ — on every profile |
-| Scout look-alikes (all surfaces) | **One implementation** (`cricdex.web_parity` ⇄ `site/src/pages/Scout.tsx`, locked by `test_web_parity.py`) shipped identically on the React site, Streamlit, CLI (`cricdex scout look-alikes`) and the TUI **Scout** tab: pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL / SA20 / CPL / T20 Blast (within-tier skill-standing z-score), with per-row est. crore price + saving-vs-pick (budget swap), an uncapped-**gem** flag, role/batting-slot filters, and one-click **draft** into the Auction room | ✅ |
+| Scout look-alikes (all surfaces) | **One implementation** (`cricdex.web_parity` ⇄ `site/src/pages/Scout.tsx`, locked by `test_web_parity.py` in CI) shipped identically on the React site, Streamlit, CLI (`cricdex scout look-alikes`) and the TUI **Scout** tab: pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL / SA20 / CPL / T20 Blast (within-tier skill-standing z-score), with per-row est. crore price + saving-vs-pick (budget swap), an uncapped-**gem** flag, role/batting-slot filters, and one-click **draft** into the Auction room | ✅ |
 
 ## End-to-end pipeline today
 
@@ -36,6 +37,9 @@ make docker-ingest-people
 
 # Bayesian ratings
 make docker-scout-rate COLLECTION=ipl STEPS=12000
+
+# Re-cook the exported JSON the scout surfaces read
+make docker-export COLLECTION=ipl
 
 # Look-alikes (web-identical) + browse
 cricdex scout look-alikes "V Kohli"
@@ -67,11 +71,13 @@ semi-pro bowlers get their grassroots ratings sharpened via the
 "bridge" of those known opponents. That's the
 Opposition-Adjusted Rating (OAR) that powers the grassroots scout.
 
-## What's strictly Phase 2 work, not yet shipped
+## Not yet shipped
 
-- BCCI Domestic / CricHeroes scrapers + their identity bridges.
+- CricHeroes grassroots tier + its identity bridge (year-2; BCCI-domestic
+  scrapes are out of scope).
 - Photo-CLIP embedding for hard identity disambiguation.
-- `/scout` web UI with 25+ filter dimensions.
+- A `/scout` filter UI with 25+ filter dimensions (today: role /
+  batting-slot filters).
 - Press-tour outreach to KKR / GT / RR analytics teams.
 
 ## Where to read next

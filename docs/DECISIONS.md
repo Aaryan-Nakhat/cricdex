@@ -52,6 +52,11 @@ Voice analyst and OpenBoundary / ChuckCheck deferred to year 2. They are user's 
 
 Women's data treated as first-class from day 1 across every module. Avoids retrofitting later and creates a press/PR angle.
 
+> **Status (not yet delivered):** no women's collection is ingested or
+> exported today; all 8 shipped collections are men's. The Cricsheet
+> ingester knows the women's zips (e.g. `wpl`, `wbbl`), but nothing
+> downstream has been run or checked on them yet.
+
 ## 2026-05-11 — Do not build a tournament management product
 
 CricHeroes already does grassroots tournament management. Partner via API instead of competing — they own the user funnel, we own the analytics layer.
@@ -72,9 +77,8 @@ Pakistan Super League playing conditions excluded from rule-RAG ingest. Re-evalu
 
 Every contributor runs the stack the same way: `make docker-up`. The
 same image is the production artefact. Compose covers the `cricdex` app
-(API) + `dashboard` today; Postgres / Redis are commented-out
-placeholders that come online with the cache module. No vector or graph
-DB is involved — the stack is file-driven (DuckDB + exported JSON).
+(API) + `dashboard` (behind a compose profile) today, and nothing
+else. No database, cache, vector or graph DB is involved — the stack is file-driven (DuckDB + exported JSON).
 
 Rationale: the project's positioning is "open cricket intelligence —
 anyone can run it locally and verify the data themselves." A friction-
@@ -107,7 +111,7 @@ match reports, dashboard, REST API) at production-functional v1.
 
 Three modules ship as "pipeline correct, data fetch blocked" because
 their underlying feed (Wikidata SPARQL, Reddit JSON, Cricbuzz mobile
-API) hard-rate-limits or 403s GCP / AWS datacenter IPs. The code is
+API) hard-rate-limits or 403s datacenter IPs. The code is
 correct end-to-end; the next step is to populate from a residential
 network, a VPN, or wire the official partner-API path for each
 source. Documented in each module's README + in `scout/ingest/README.md`.

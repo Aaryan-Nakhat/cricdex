@@ -6,14 +6,15 @@ that crashed the dashboard Venues page (Eden Gardens).
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import polars as pl
 import pytest
 
+from cricdex.config import DATA_DIR
 from cricdex.venues import profile
 
-DB = Path("data/cricsheet/cricsheet.duckdb")
+DB = (
+    DATA_DIR / "cricsheet" / "cricsheet.duckdb"
+)  # same lookup as the code (honours CRICDEX_DATA_DIR)
 needs_data = pytest.mark.skipif(not DB.exists(), reason="needs cricsheet duckdb")
 
 
