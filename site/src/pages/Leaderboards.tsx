@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Trophy, Info, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -7,7 +7,8 @@ import { getLeaderboard } from "@/lib/data";
 import { METRIC_BY_SLUG } from "@/lib/metrics";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, countriesIn, DEFAULT_FILTERS, type Filters } from "@/lib/filters";
+import { applyFilters, countriesIn, DEFAULT_FILTERS } from "@/lib/filters";
+import { hasKey, useUrlFilters, useUrlState } from "@/lib/useUrlState";
 import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip, Segmented } from "@/components/ui";
 import { cn, collectionLabel } from "@/lib/utils";
 
@@ -67,14 +68,20 @@ function Sparkline({ values }: { values: (number | null)[] }) {
 export function Leaderboards() {
   const { collection, meta } = useStore();
   const navigate = useNavigate();
-  const [slug, setSlug] = useState("ngi");
-  const [period, setPeriod] = useState("all");
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const metric = METRIC_BY_SLUG[slug];
-
+  // metric, period and non-default filters live in the URL (shareable links)
+  const [slug, setSlug] = useUrlState<string>("metric", "ngi", {
+    valid: (v) => hasKey(METRIC_BY_SLUG, v),
+    replace: false,
+  });
   // recomputed periods: All-time + whatever windows this collection cooked
   const periods = useMemo(() => ["all", ...(meta?.windows ?? [])], [meta]);
-  const activePeriod = periods.includes(period) ? period : "all";
+  const [activePeriod, setPeriod] = useUrlState<string>("period", "all", {
+    valid: periods,
+    ready: !!meta,
+    replace: false,
+  });
+  const [filters, setFilters] = useUrlFilters(DEFAULT_FILTERS);
+  const metric = METRIC_BY_SLUG[slug];
 
   const { data, loading, error } = useAsync(
     () => getLeaderboard(collection, slug, activePeriod),

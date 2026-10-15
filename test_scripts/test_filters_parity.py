@@ -26,8 +26,6 @@ _KEYMAP = {
     "position": "position",
     "country": "country",
     "activity": "activity",
-    "yearFrom": "year_from",
-    "yearTo": "year_to",
 }
 
 

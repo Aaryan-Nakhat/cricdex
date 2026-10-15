@@ -22,3 +22,6 @@ data
 .env.*.local
 hf-cache
 qdrant_storage
+# the website build is not part of the image (only site/public/data is copied)
+site/node_modules
+site/dist

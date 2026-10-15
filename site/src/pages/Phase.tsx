@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Timer } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getPhase } from "@/lib/data";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, countriesIn, DEFAULT_FILTERS, type Filters } from "@/lib/filters";
+import { applyFilters, countriesIn, DEFAULT_FILTERS } from "@/lib/filters";
+import { useUrlFilters, useUrlState } from "@/lib/useUrlState";
 import { PageTitle, Spinner, ErrorBox, Empty } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -36,9 +37,12 @@ const TOP = 25;
 export function Phase() {
   const { collection } = useStore();
   const { data, loading, error } = useAsync(() => getPhase(collection), [collection]);
-  const [phase, setPhase] = useState<PhaseKey>("powerplay");
+  const [phase, setPhase] = useUrlState<PhaseKey>("phase", "powerplay", {
+    valid: PHASES.map((p) => p.key),
+    replace: false,
+  });
   // same defaults as the other boards — keeps tiny samples from long-retired players off the top
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useUrlFilters(DEFAULT_FILTERS);
 
   const board = data?.[phase];
   const rawBatters = (board?.batters ?? []) as unknown as Row[];

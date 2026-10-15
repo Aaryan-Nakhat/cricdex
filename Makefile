@@ -61,7 +61,7 @@ docker-shell:
 	docker compose exec cricdex bash
 
 docker-test:
-	docker compose run --rm cricdex uv run pytest -q
+	docker compose run --rm -e UV_NO_DEV=false cricdex uv run --frozen --group dev pytest -q
 
 docker-ingest-cricsheet:
 	docker compose run --rm cricdex uv run python scripts/ingest_cricsheet.py ingest --collection "$${COLLECTION:-recently_played_30_male}"

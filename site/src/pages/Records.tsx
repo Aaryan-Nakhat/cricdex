@@ -5,6 +5,7 @@ import { useAsync } from "@/lib/useAsync";
 import { getRecords } from "@/lib/data";
 import { PageTitle, Card, Spinner, ErrorBox, Empty, InfoTip } from "@/components/ui";
 import { cn, collectionLabel, fmt } from "@/lib/utils";
+import { useUrlState } from "@/lib/useUrlState";
 
 function yearOf(v: unknown): number | null {
   if (typeof v !== "string") return null;
@@ -50,9 +51,9 @@ function prettyCell(v: unknown): string {
 export function Records() {
   const { collection } = useStore();
   const { data, loading, error } = useAsync(() => getRecords(collection), [collection]);
-  const [tab, setTab] = useState<string | null>(null);
-
   const keys = data ? Object.keys(data).filter((k) => (data[k]?.length ?? 0) > 0) : [];
+  // the open table lives in the URL (`?tab=…`) so a link reproduces the view
+  const [tab, setTab] = useUrlState<string>("tab", "", { valid: keys, ready: !!data, replace: false });
   const active = tab && keys.includes(tab) ? tab : keys[0];
   const rawRows = active && data ? data[active] : [];
   const cols = rawRows.length ? Object.keys(rawRows[0]).filter((c) => c !== "match_id") : [];

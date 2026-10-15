@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { UserSearch, Activity, Target, Shield, Swords, Users2, Instagram, Twitter, Cake, ExternalLink } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -295,19 +295,20 @@ export function PlayerProfile() {
   // resolve incoming ?name= / ?cid= to a cricsheet_id
   const qName = params.get("name");
   const qCid = params.get("cid");
-  const [cid, setCid] = useState<string | null>(null);
+  // the URL is the source of truth, so back/forward (or losing ?cid=) updates the view
+  const nameCid = qName ? (byName.get(qName)?.cricsheet_id ?? null) : null;
+  const cid = qCid || nameCid;
 
+  // normalise a resolved ?name= link to the stable ?cid= form
   useEffect(() => {
-    if (qCid) setCid(qCid);
-    else if (qName && byName.has(qName)) setCid(byName.get(qName)!.cricsheet_id);
-  }, [qName, qCid, byName]);
+    if (!qCid && nameCid) setParams({ cid: nameCid }, { replace: true });
+  }, [qCid, nameCid, setParams]);
 
   // players are per league: on a switch, drop the selection rather than asking for a file that isn't there
   const prevCollection = useRef(collection);
   useEffect(() => {
     if (prevCollection.current === collection) return;
     prevCollection.current = collection;
-    setCid(null);
     setParams({});
   }, [collection, setParams]);
 
@@ -323,7 +324,6 @@ export function PlayerProfile() {
   );
 
   function pick(id: string | null) {
-    setCid(id);
     if (id) setParams({ cid: id });
     else setParams({});
   }

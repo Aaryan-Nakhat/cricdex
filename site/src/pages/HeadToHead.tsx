@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Swords } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { usePlayers } from "@/lib/usePlayers";
@@ -8,6 +8,7 @@ import { headToHead, rolesFor } from "@/lib/headtohead";
 import { Combobox } from "@/components/Combobox";
 import { ErrorBox, PageTitle, Card, Spinner, Empty, Badge, Collapsible } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useClearOnChange, useUrlId, useUrlState } from "@/lib/useUrlState";
 
 function H2HMath() {
   return (
@@ -47,16 +48,17 @@ combined spread = 0.28 → gap is only 0.7× spread → P ≈ 76%`}</pre>
 
 export function HeadToHead() {
   const { collection } = useStore();
-  const { options } = usePlayers(collection);
+  const { options, players, byId } = usePlayers(collection);
   const ratings = useAsync(() => getRatings(collection), [collection]);
-  const [a, setA] = useState<string | null>(null);
-  const [b, setB] = useState<string | null>(null);
-  const [role, setRole] = useState<"batter" | "bowler">("batter");
+  // the pair and role live in the URL (`?a=…&b=…&role=bowler`) so a link reproduces the matchup
+  const [a, setA] = useUrlId("a", byId, players.length > 0);
+  const [b, setB] = useUrlId("b", byId, players.length > 0);
+  const [role, setRole] = useUrlState<"batter" | "bowler">("role", "batter", {
+    valid: ["batter", "bowler"],
+    replace: false,
+  });
   // players are per league: a switch clears the pair
-  useEffect(() => {
-    setA(null);
-    setB(null);
-  }, [collection]);
+  useClearOnChange(collection, ["a", "b"]);
 
   const rows = ratings.data ?? [];
 

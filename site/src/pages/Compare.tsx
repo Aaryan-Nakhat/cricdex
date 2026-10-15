@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo } from "react";
 import { GitCompareArrows, Plus, X } from "lucide-react";
 import {
   Radar,
@@ -16,6 +16,7 @@ import { getProfile, type Profile } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, Empty, InfoTip, ErrorBox } from "@/components/ui";
 import { useTheme } from "@/lib/theme";
+import { useClearOnChange, useUrlParams } from "@/lib/useUrlState";
 import { cn, fmt } from "@/lib/utils";
 
 function num(v: unknown): number | null {
@@ -55,13 +56,32 @@ const GROUPS = ["Bayesian skill", "Career", "Metrics"];
 
 export function Compare() {
   const { collection } = useStore();
-  const { options } = usePlayers(collection);
-  const [cids, setCids] = useState<(string | null)[]>([null, null]);
+  const { options, players, byId } = usePlayers(collection);
   const { colors } = useTheme();
   const SERIES_COLORS = [colors.accent, colors.gold, colors.sky, colors.ball];
 
+  // The picks live in the URL as `?cids=a,b` (an empty slot is an empty entry),
+  // so a link reproduces the comparison. Ids not in this league are dropped.
+  const { params, update } = useUrlParams();
+  const cidsParam = params.get("cids") ?? "";
+  const ready = players.length > 0;
+  const cids = useMemo(() => {
+    const list = cidsParam ? cidsParam.split(",").slice(0, 4) : [];
+    const out = list.map((id) => (id && (!ready || byId.has(id)) ? id : null));
+    while (out.length < 2) out.push(null);
+    return out;
+  }, [cidsParam, ready, byId]);
+  const encode = (c: (string | null)[]) =>
+    c.length <= 2 && !c.some(Boolean) ? null : c.map((x) => x ?? "").join(",");
+  const setCids = (next: (string | null)[]) => update({ cids: encode(next) }, { replace: false });
+
+  // tidy the URL once the league's players are known (unknown ids, >4 slots)
+  useEffect(() => {
+    if (ready && (encode(cids) ?? "") !== cidsParam) update({ cids: encode(cids) });
+  }, [ready, cids, cidsParam, update]);
+
   // players are per league: a switch clears the picks instead of asking for files that don't exist
-  useEffect(() => setCids([null, null]), [collection]);
+  useClearOnChange(collection, ["cids"]);
 
   const picked = cids.filter(Boolean) as string[];
   const profiles = useAsync(async () => {
@@ -105,7 +125,7 @@ export function Compare() {
   })();
 
   function setAt(i: number, v: string | null) {
-    setCids((c) => c.map((x, j) => (j === i ? v : x)));
+    setCids(cids.map((x, j) => (j === i ? v : x)));
   }
 
   return (
@@ -123,7 +143,7 @@ export function Compare() {
             {cids.length > 2 && (
               <button
                 className="absolute -right-1 -top-1 rounded-full bg-card p-0.5 text-muted hover:text-ball"
-                onClick={() => setCids((c) => c.filter((_, j) => j !== i))}
+                onClick={() => setCids(cids.filter((_, j) => j !== i))}
                 aria-label={`Remove player ${i + 1}`}
               >
                 <X className="h-3.5 w-3.5" />
@@ -132,7 +152,7 @@ export function Compare() {
           </div>
         ))}
         {cids.length < 4 && (
-          <button className="btn h-[42px]" onClick={() => setCids((c) => [...c, null])}>
+          <button className="btn h-[42px]" onClick={() => setCids([...cids, null])}>
             <Plus className="h-4 w-4" /> Add player
           </button>
         )}

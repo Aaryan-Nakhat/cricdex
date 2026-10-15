@@ -117,7 +117,6 @@ export interface Cohorts {
 // ---- fetchers -------------------------------------------------------------
 
 export const getCollections = () => getJSON<CollectionMeta[]>("collections.json");
-export const getMeta = (c: string) => getJSON<CollectionMeta>(`${c}/meta.json`);
 export const getPlayers = (c: string) => getJSON<PlayerRow[]>(`${c}/players.json`);
 export const getRatings = (c: string) => getJSON<RatingRow[]>(`${c}/ratings.json`);
 export const getLeaderboard = (c: string, slug: string, window?: string) =>

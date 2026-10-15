@@ -8,8 +8,8 @@ implementation, no drift. `test_scripts/test_filters_parity.py` locks
 `apply_filters` against the TS `applyFilters`.
 
 Rows carry the LLM taxonomy fields (`primary_role` / `bowling_category` /
-`batting_position` / `country`), an `active` flag, a `matches` count, and
-`first_match_date` / `last_match_date` — injected at export time, so any
+`batting_position` / `country`), an `active` flag and a `matches` count —
+injected at export time, so any
 player-keyed table filters on them with one helper.
 """
 
@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from cricdex.web_parity.loader import _base, _read
 
@@ -32,8 +31,6 @@ class Filters:
     position: str = ""  # batting_position | ""
     country: str = ""  # ISO-3 | ""
     activity: str = "all"  # "all" | "active" | "retired"
-    year_from: int = 0  # 0 = unset
-    year_to: int = 0  # 0 = unset
 
 
 # ---- option lists (mirror filters.ts `*_OPTS`) ------------------------------
@@ -81,28 +78,11 @@ FILTER_HELP: dict[str, str] = {
         "tailender (9–11)."
     ),
     "country": "Player's country (AI-classified).",
-    "years": (
-        "Keeps players whose career in this format overlaps the chosen years. Note: the metric "
-        "values stay career totals — this filters who's shown, it doesn't recompute per year."
-    ),
 }
-
-
-def _yr(v: Any) -> int | None:
-    """First 4 chars of an ISO date → year, mirroring filters.ts `yr`."""
-    if not isinstance(v, str):
-        return None
-    try:
-        return int(v[:4])
-    except ValueError:
-        return None
 
 
 def apply_filters(rows: list[dict], f: Filters) -> list[dict]:
     """Port of filters.ts `applyFilters` — same gates, same order."""
-    lo = f.year_from or float("-inf")
-    hi = f.year_to or float("inf")
-    year_gate = f.year_from > 0 or f.year_to > 0
     out = []
     for r in rows:
         if float(r.get("matches") or 0) < f.min_matches:
@@ -119,12 +99,6 @@ def apply_filters(rows: list[dict], f: Filters) -> list[dict]:
             continue
         if f.country and r.get("country") != f.country:
             continue
-        if year_gate:
-            ly = _yr(r.get("last_match_date"))
-            fy = _yr(r.get("first_match_date"))
-            # keep if the player's [first,last] span overlaps [lo,hi]
-            if ly is not None and fy is not None and (ly < lo or fy > hi):
-                continue
         out.append(r)
     return out
 

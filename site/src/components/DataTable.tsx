@@ -16,22 +16,18 @@ export function DataTable<T extends Record<string, unknown>>({
   rows,
   cols,
   initialSort,
-  rankCol = true,
   onRowClick,
   rowLabel,
   higherIsBetter = true,
-  maxHeight = "70vh",
 }: {
   rows: T[];
   cols: Col<T>[];
   initialSort?: { key: string; dir: "asc" | "desc" };
-  rankCol?: boolean;
   onRowClick?: (row: T) => void;
   /** Accessible name for a clickable row (e.g. "Open V Kohli's profile"). */
   rowLabel?: (row: T) => string;
   /** False for metrics where smaller is better: the best rows rank first and get the longest bars. */
   higherIsBetter?: boolean;
-  maxHeight?: string;
 }) {
   const primary = cols.find((c) => c.primary)?.key ?? cols[1]?.key ?? cols[0]?.key;
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>(
@@ -70,11 +66,11 @@ export function DataTable<T extends Record<string, unknown>>({
 
   return (
     <div className="card overflow-hidden">
-      <div className="overflow-auto" style={{ maxHeight }}>
+      <div className="overflow-auto" style={{ maxHeight: "70vh" }}>
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              {rankCol && <th className="th w-12 text-right">#</th>}
+              <th className="th w-12 text-right">#</th>
               {cols.map((c) => {
                 const sortable = c.sortable !== false;
                 const isSort = sort.key === c.key;
@@ -139,9 +135,7 @@ export function DataTable<T extends Record<string, unknown>>({
                     : undefined
                 }
               >
-                {rankCol && (
-                  <td className="td text-right stat-num text-muted">{i + 1}</td>
-                )}
+                <td className="td text-right stat-num text-muted">{i + 1}</td>
                 {cols.map((c) => {
                   const raw = row[c.key];
                   const isNum = c.digits !== undefined || c.primary;
