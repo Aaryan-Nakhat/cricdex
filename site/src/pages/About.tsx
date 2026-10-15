@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Sigma, Network, Gavel, Database } from "lucide-react";
+import { BookOpen, Brain, Sigma, Network, Gavel, Database, Target } from "lucide-react";
 import { PageTitle, Card } from "@/components/ui";
 
 interface Section {
@@ -87,6 +87,25 @@ const SECTIONS: Section[] = [
         squads under the purse + overseas cap. You see who likely lands each remaining star. Runs
         entirely in your browser — and identically on the CLI, TUI and Streamlit from the same inputs
         (one shared implementation with a seeded RNG, locked by a parity test).
+      </>
+    ),
+  },
+  {
+    icon: <Target className="h-5 w-5" />,
+    title: "Do the ratings predict anything? (backtest)",
+    body: (
+      <>
+        We checked, out of sample: for each IPL season the model is fitted on matches{" "}
+        <strong>before</strong> it only, then its ranking of players is compared with how the season
+        actually went (rank correlation: 1 = same order, 0 = no link). The honest result has two parts.{" "}
+        <strong>Established IPL players</strong> (2021–26): the ratings predict next season about as well
+        as plain career averages — around 0.15 overall for batters, 0.07 for bowlers — and weighting
+        recent seasons more didn't change that. A single T20 season is mostly noise, for any method.{" "}
+        <strong>IPL newcomers</strong> (2014–26, rated only from the BBL, SA20, CPL, Blast and SMAT):
+        here the opponent- and league-adjusted ratings ranked <em>batters</em> better than their raw
+        numbers from those leagues on every measure (overall 0.18 vs 0.12, staying in 0.34 vs 0.22); for{" "}
+        <em>bowlers</em> there was no clear edge (overall 0.20 vs 0.25). With ~100 players per group these
+        gaps are suggestive, not proven. Both backtests are scripts in the repo, so you can re-run them.
       </>
     ),
   },

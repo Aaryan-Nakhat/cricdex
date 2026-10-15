@@ -85,6 +85,29 @@ spread better; 0 = the average player. `value_sd` is the posterior sd of
 that sum. The auction price curve (`web_parity/pricing.py` ⇄
 `site/src/lib/auction.ts`) is calibrated to these units.
 
+## Backtest
+
+Two walk-forward scripts check the ratings out of sample (Spearman rank
+correlation with what happened):
+
+```bash
+# established players: fit on matches before each season, score that season
+uv run python scripts/backtest_ratings.py -c ipl --seasons 2021-2026 [--half-life 2]
+# IPL newcomers: rate from BBL/SA20/CPL/Blast/SMAT only (tier-penalised), score the first IPL season
+uv run python scripts/backtest_newcomers.py --seasons 2014-2026
+```
+
+`fit(before=...)` fits on matches before a date; `fit(half_life=...)`
+weights each season by `0.5 ** (age / half_life)` (off by default).
+
+Results (2026-10, ADVI 12000 steps): for established IPL players the
+ratings match raw career averages season-ahead (overall ~0.15 batters,
+~0.07 bowlers, model and baseline within 0.04 on every axis); half-lives
+of 1 / 2 / 4 years didn't help, so recency weighting stays off. For IPL
+newcomers rated from other leagues, batters: model 0.18 vs raw 0.12
+overall (0.20 vs 0.14 scoring, 0.34 vs 0.22 survival, n=96); bowlers:
+model 0.20 vs raw 0.25 overall (n=110). Suggestive, not significant.
+
 ## Caveats
 
 - One skill set per role today — no era / venue / format break-out

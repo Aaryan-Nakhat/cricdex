@@ -64,6 +64,26 @@ Cricsheet-only: all data derives from Cricsheet ball-by-ball + the
 People Register + (one-time) Wikidata enrichment. Live-feed, scrape,
 and non-Cricsheet sources are intentionally out of scope.
 
+### Do the ratings predict anything?
+
+Backtested out of sample — each season the model is fitted on earlier
+matches only, then its player ranking is compared with the season
+(Spearman rank correlation):
+
+| | Model | Baseline |
+|---|---|---|
+| Established IPL batters, next season (2021–26), overall | 0.14 | 0.15 (career average) |
+| Established IPL bowlers, next season (2021–26), overall | 0.09 | 0.07 (career average) |
+| IPL newcomer batters, from other leagues (2014–26, n=96), overall | **0.18** | 0.12 (raw other-league numbers) |
+| IPL newcomer bowlers, from other leagues (2014–26, n=110), overall | 0.20 | **0.25** (raw other-league numbers) |
+
+So: for players the IPL already knows, the ratings match career
+averages (one T20 season is mostly noise; weighting recent seasons
+didn't help). Their edge is judging **newcomer batters** from weaker or
+different leagues; for newcomer bowlers there is none. ~100 players per
+group, so treat the gaps as suggestive. Re-run with
+`scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`.
+
 Deferred to year 2: OpenBoundary (Hawk-Eye OSS), ChuckCheck (elbow flex
 biomechanics), ScoutVLM (video → ball-by-ball), Highlight CV,
 CricHeroes grassroots tier.

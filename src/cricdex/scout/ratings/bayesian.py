@@ -51,6 +51,7 @@ polars DataFrame keyed by `cricsheet_id` with columns:
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -77,11 +78,41 @@ _BOWLER_WICKET_KINDS = (
 )
 
 
-def _load_edges(db_path: Path | str, collection: str) -> pl.DataFrame:
+def _load_edges(
+    db_path: Path | str,
+    collection: str,
+    since: str | None = None,
+    before: str | None = None,
+    by_year: bool = False,
+) -> pl.DataFrame:
     """Every (batter, bowler) matchup with its legal balls, runs off the bat,
-    bowler-credited dismissals and dismissal trials — nothing dropped."""
+    bowler-credited dismissals and dismissal trials — nothing dropped.
+
+    `since` / `before` (ISO dates) keep only matches played in that window —
+    the ratings backtest fits on everything before a season, then scores it.
+    `by_year` splits each matchup by calendar year (a `yr` column), so the fit
+    can weight recent seasons more."""
     safe = table_suffix(collection)
     kinds_sql = ", ".join(f"'{k}'" for k in _BOWLER_WICKET_KINDS)
+    window = ""
+    if since or before:
+        conds = []
+        if since:
+            conds.append(f"m.match_date >= '{date.fromisoformat(since).isoformat()}'")
+        if before:
+            conds.append(f"m.match_date < '{date.fromisoformat(before).isoformat()}'")
+        window = (
+            f"AND b.match_id IN (SELECT m.match_id FROM matches_{safe} m "
+            f"WHERE {' AND '.join(conds)})"
+        )
+    year_col = year_join = year_key = ""
+    if by_year:
+        year_col = ", my.yr"
+        year_join = (
+            " LEFT JOIN (SELECT match_id, CAST(LEFT(match_date, 4) AS INTEGER) AS yr"
+            f" FROM matches_{safe}) my ON my.match_id = b.match_id"
+        )
+        year_key = ", yr"
     with duckdb.connect(str(db_path), read_only=True) as con:
         ids = player_ids(con, collection) or "(SELECT NULL AS name, NULL AS identifier)"
         df = con.execute(
@@ -98,13 +129,13 @@ def _load_edges(db_path: Path | str, collection: str) -> pl.DataFrame:
                         WHEN b.wicket_kind IN ({kinds_sql})
                          AND b.player_out = b.batter
                         THEN 1 ELSE 0
-                    END AS is_out
-                FROM balls_{safe} b
+                    END AS is_out{year_col}
+                FROM balls_{safe} b{year_join}
                 LEFT JOIN {ids} rb ON rb.name = b.batter
                 LEFT JOIN {ids} rk ON rk.name = b.bowler
-                WHERE b.batter IS NOT NULL AND b.bowler IS NOT NULL
+                WHERE b.batter IS NOT NULL AND b.bowler IS NOT NULL {window}
             )
-            SELECT batter_id, bowler_id,
+            SELECT batter_id, bowler_id{year_key},
                    SUM(legal_ball) AS balls,
                    SUM(runs_batter) AS runs,
                    SUM(is_out) AS outs,
@@ -112,7 +143,7 @@ def _load_edges(db_path: Path | str, collection: str) -> pl.DataFrame:
                    -- dismissal off a wide (a stumping), so outs <= trials always.
                    SUM(CASE WHEN legal_ball = 1 OR is_out = 1 THEN 1 ELSE 0 END) AS trials
             FROM labelled
-            GROUP BY batter_id, bowler_id
+            GROUP BY ALL
             """
         ).pl()
     return df
@@ -154,9 +185,10 @@ def _skill(site: str, plate: str, n: int, sigma):
     return numpyro.deterministic(site, sigma * raw)
 
 
-def _runs_likelihood(site: str, bi, ki, balls, runs, b_skill, k_skill):
+def _runs_likelihood(site: str, bi, ki, balls, runs, b_skill, k_skill, weight=None):
     """NegBin runs on each edge. Edges with no legal ball (a wide-only
-    dismissal edge) carry no runs information and are masked out."""
+    dismissal edge) carry no runs information and are masked out. `weight`
+    (per edge, optional) scales each edge's log-likelihood — recency decay."""
     import jax.numpy as jnp
     import numpyro
     import numpyro.distributions as dist
@@ -165,11 +197,15 @@ def _runs_likelihood(site: str, bi, ki, balls, runs, b_skill, k_skill):
     alpha = numpyro.sample("alpha", dist.HalfNormal(5.0))
     has_balls = balls > 0
     mu = jnp.where(has_balls, jnp.exp(intercept + b_skill[bi] - k_skill[ki]) * balls, 1.0)
-    with numpyro.handlers.mask(mask=has_balls):
+    with numpyro.handlers.mask(mask=has_balls), numpyro.handlers.scale(scale=_scale(weight)):
         numpyro.sample(site, dist.NegativeBinomial2(mean=mu, concentration=alpha), obs=runs)
 
 
-def _model(bi, ki, balls, runs, n_batters: int, n_bowlers: int):
+def _scale(weight):
+    return 1.0 if weight is None else weight
+
+
+def _model(bi, ki, balls, runs, n_batters: int, n_bowlers: int, weight=None):
     """NumPyro model — hierarchical NegBin GLM on (batter, bowler) edges.
 
     Runs-only model (legacy). Kept for `dismissal_aware=False`.
@@ -181,10 +217,12 @@ def _model(bi, ki, balls, runs, n_batters: int, n_bowlers: int):
     sigma_k = numpyro.sample("sigma_k", dist.HalfNormal(1.0))
     b_skill = _skill("b_skill", "batters", n_batters, sigma_b)
     k_skill = _skill("k_skill", "bowlers", n_bowlers, sigma_k)
-    _runs_likelihood("y", bi, ki, balls, runs, b_skill, k_skill)
+    _runs_likelihood("y", bi, ki, balls, runs, b_skill, k_skill, weight)
 
 
-def _model_dismissal(bi, ki, balls, runs, outs, trials, n_batters: int, n_bowlers: int):
+def _model_dismissal(
+    bi, ki, balls, runs, outs, trials, n_batters: int, n_bowlers: int, weight=None
+):
     """Joint runs + dismissals model — two GLMs sharing the same
     (batter, bowler) edge structure.
 
@@ -212,7 +250,7 @@ def _model_dismissal(bi, ki, balls, runs, outs, trials, n_batters: int, n_bowler
     sigma_k = numpyro.sample("sigma_k", dist.HalfNormal(1.0))
     b_skill = _skill("b_skill", "batters", n_batters, sigma_b)
     k_skill = _skill("k_skill", "bowlers", n_bowlers, sigma_k)
-    _runs_likelihood("y_runs", bi, ki, balls, runs, b_skill, k_skill)
+    _runs_likelihood("y_runs", bi, ki, balls, runs, b_skill, k_skill, weight)
 
     # --- dismissal sub-model ---
     sigma_surv = numpyro.sample("sigma_surv", dist.HalfNormal(1.0))
@@ -224,11 +262,12 @@ def _model_dismissal(bi, ki, balls, runs, outs, trials, n_batters: int, n_bowler
     w_intercept = numpyro.sample("w_intercept", dist.Normal(-3.0, 2.0))
 
     logit_p = w_intercept + bowl_strike[ki] - bat_survive[bi]
-    numpyro.sample(
-        "y_outs",
-        dist.Binomial(total_count=trials.astype(jnp.int32), logits=logit_p),
-        obs=outs,
-    )
+    with numpyro.handlers.scale(scale=_scale(weight)):
+        numpyro.sample(
+            "y_outs",
+            dist.Binomial(total_count=trials.astype(jnp.int32), logits=logit_p),
+            obs=outs,
+        )
 
 
 # Sites summarised for the NUTS convergence check.
@@ -348,8 +387,17 @@ def fit(
     nuts_tune: int = 500,
     nuts_target_accept: float = 0.9,
     dismissal_aware: bool = True,
+    before: str | None = None,
+    half_life: float | None = None,
 ) -> pl.DataFrame:
     """Fit the model and return one row per (cricsheet_id, role).
+
+    `before` (ISO date) fits on matches before that date only — used by the
+    ratings backtest; the normal fit uses every match.
+
+    `half_life` (years, optional) weights each season's matchups by
+    0.5 ** (age / half_life), age counted back from the latest season fitted,
+    so old form fades. None = every season counts the same.
 
     `sampler` ∈ {"advi", "nuts"}. ADVI is fast and approximate, NUTS
     is the calibrated full-Bayes run. Both run through NumPyro / JAX.
@@ -365,7 +413,7 @@ def fit(
     if sampler not in ("advi", "nuts"):
         raise ValueError(f"sampler must be 'advi' or 'nuts', got {sampler!r}")
 
-    all_edges = _load_edges(db_path, collection)
+    all_edges = _load_edges(db_path, collection, before=before, by_year=half_life is not None)
     edges, batter_idx, bowler_idx = _index_edges(all_edges, min_balls)
     if edges.is_empty():
         return pl.DataFrame()
@@ -381,6 +429,10 @@ def fit(
         "n_batters": n_batters,
         "n_bowlers": n_bowlers,
     }
+    if half_life is not None:
+        age = (edges["yr"].max() - edges["yr"]).fill_null(0)
+        weight = (0.5 ** (age.cast(pl.Float32) / half_life)).to_numpy()
+        model_kwargs["weight"] = jnp.asarray(weight)
     model_fn: Any
     if dismissal_aware:
         model_fn = _model_dismissal

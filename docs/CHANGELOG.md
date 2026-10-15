@@ -112,6 +112,15 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
   auction sim, coloured plotext charts, a two-colour H2H probability gauge, and a
   styled key-hint footer.
 
+- **Ratings backtests** — `scripts/backtest_ratings.py` (established players,
+  fit before each season, score that season vs raw career averages) and
+  `scripts/backtest_newcomers.py` (IPL newcomers rated from BBL/SA20/CPL/Blast/
+  SMAT only vs their raw numbers there). Results on the How-it-works page and
+  in the README: no edge over career averages for established players; an edge
+  for newcomer batters, none for newcomer bowlers. `bayesian.fit` gains
+  `before=` (date cutoff) and `half_life=` (recency weighting, off by default —
+  it didn't help in the backtest).
+
 ### Fixed
 
 - **Auction room: a team with a big purse left half of it unspent, and stars
