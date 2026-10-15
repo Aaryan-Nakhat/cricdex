@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Medal, CalendarRange } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getRecords } from "@/lib/data";
 import { PageTitle, Card, Spinner, ErrorBox, Empty, InfoTip } from "@/components/ui";
-import { cn, fmt } from "@/lib/utils";
+import { cn, collectionLabel, fmt } from "@/lib/utils";
 
 function yearOf(v: unknown): number | null {
   if (typeof v !== "string") return null;
@@ -58,8 +58,9 @@ export function Records() {
   const cols = rawRows.length ? Object.keys(rawRows[0]).filter((c) => c !== "match_id") : [];
   const hasDate = rawRows.some((r) => yearOf(r.match_date) !== null);
 
-  // year span present in this record table (only for dated records)
+  // year span present in this record table (only for dated records); each tab starts at its full range
   const [span, setSpan] = useState<{ from: number; to: number } | null>(null);
+  useEffect(() => setSpan(null), [active, collection]);
   const bounds = useMemo(() => {
     const ys = rawRows.map((r) => yearOf(r.match_date)).filter((y): y is number => y !== null);
     return ys.length ? { min: Math.min(...ys), max: Math.max(...ys) } : null;
@@ -76,7 +77,7 @@ export function Records() {
   return (
     <>
       <PageTitle
-        title="Record books"
+        title="Records"
         icon={<Medal className="h-6 w-6" />}
         desc="The all-time tables for this collection — biggest innings, fastest milestones, career leaders, and team feats — straight from the ball-by-ball record."
       />
@@ -86,7 +87,7 @@ export function Records() {
       ) : error ? (
         <ErrorBox message={error} />
       ) : keys.length === 0 ? (
-        <Empty>No records available for {collection}.</Empty>
+        <Empty>No records for {collectionLabel(collection)} yet.</Empty>
       ) : (
         <>
           <div className="mb-5 flex flex-wrap gap-2">
@@ -115,11 +116,19 @@ export function Records() {
                   records (career-leader tables have no single date, so they're unaffected).
                 </InfoTip>
               </span>
-              <input type="number" className="input w-24 py-1.5" min={bounds.min} max={range.to}
-                value={range.from} onChange={(e) => setSpan({ from: Number(e.target.value), to: range.to })} />
+              <input type="number" aria-label="From year" className="input w-24 py-1.5" min={bounds.min} max={range.to}
+                value={range.from}
+                onChange={(e) => {
+                  const v = Math.min(Math.max(Number(e.target.value) || bounds.min, bounds.min), range.to);
+                  setSpan({ from: v, to: range.to });
+                }} />
               <span>to</span>
-              <input type="number" className="input w-24 py-1.5" min={range.from} max={bounds.max}
-                value={range.to} onChange={(e) => setSpan({ from: range.from, to: Number(e.target.value) })} />
+              <input type="number" aria-label="To year" className="input w-24 py-1.5" min={range.from} max={bounds.max}
+                value={range.to}
+                onChange={(e) => {
+                  const v = Math.max(Math.min(Number(e.target.value) || bounds.max, bounds.max), range.from);
+                  setSpan({ from: range.from, to: v });
+                }} />
               {span && (
                 <button onClick={() => setSpan(null)} className="text-xs text-muted hover:text-ball">reset</button>
               )}

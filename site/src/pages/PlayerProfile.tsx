@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { UserSearch, Activity, Target, Shield, Swords, Users2, Instagram, Twitter, Cake, ExternalLink } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -7,7 +7,7 @@ import { useAsync } from "@/lib/useAsync";
 import { getProfile, getCohorts, type Profile } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, ErrorBox, Empty, Badge, StatTile } from "@/components/ui";
-import { cn, fmt } from "@/lib/utils";
+import { cn, collectionLabel, fmt } from "@/lib/utils";
 
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -94,8 +94,14 @@ const POS_LABEL: Record<string, string> = {
   tailender: "Tailender",
 };
 
+/** "1988-11-05" as a local date (new Date("1988-11-05") is UTC midnight, a day early west of Greenwich). */
+function localDate(iso: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(iso);
+}
+
 function ageFrom(dob: string): number | null {
-  const d = new Date(dob);
+  const d = localDate(dob);
   if (Number.isNaN(d.getTime())) return null;
   const now = new Date();
   let a = now.getFullYear() - d.getFullYear();
@@ -159,7 +165,7 @@ function Identity({
         {dob && (
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
             <Cake className="h-3.5 w-3.5" />
-            Born {new Date(dob).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+            Born {localDate(dob).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
             {age !== null && <span>· {age} yrs</span>}
           </div>
         )}
@@ -262,6 +268,17 @@ export function PlayerProfile() {
     else if (qName && byName.has(qName)) setCid(byName.get(qName)!.cricsheet_id);
   }, [qName, qCid, byName]);
 
+  // players are per league: on a switch, drop the selection rather than asking for a file that isn't there
+  const prevCollection = useRef(collection);
+  useEffect(() => {
+    if (prevCollection.current === collection) return;
+    prevCollection.current = collection;
+    setCid(null);
+    setParams({});
+  }, [collection, setParams]);
+
+  const nameNotFound = !qCid && !!qName && !pl && !byName.has(qName);
+
   const { data: profile, loading, error } = useAsync<Profile | null>(
     () => (cid ? getProfile(collection, cid) : Promise.resolve(null)),
     [collection, cid],
@@ -299,9 +316,15 @@ export function PlayerProfile() {
         />
       </div>
 
-      {!cid ? (
+      {!cid && qName && pl ? (
+        <Spinner label="Finding player…" />
+      ) : nameNotFound ? (
+        <Empty>
+          No player called “{qName}” in {collectionLabel(collection)} — search for them above, or switch league.
+        </Empty>
+      ) : !cid ? (
         <Empty>Pick a player to see their dossier.</Empty>
-      ) : loading ? (
+      ) : loading && !profile ? (
         <Spinner label="Building dossier…" />
       ) : error ? (
         <ErrorBox message={error} />
@@ -349,7 +372,7 @@ export function PlayerProfile() {
           </div>
 
           {/* novel metrics */}
-          {metrics && Object.values(metrics).some(Boolean) && (
+          {metrics && Object.entries(metrics).some(([, m]) => m && Object.keys(m).length > 0) && (
             <div>
               <h3 className="mb-3 text-sm font-semibold text-fg">Novel metrics</h3>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -398,11 +421,14 @@ function TwinList({
   return (
     <div className="mb-2">
       <div className="px-2 pb-1 text-[11px] uppercase tracking-wider text-muted">{role}</div>
-      {twins.slice(0, 6).map((t, i) => {
+      {twins.slice(0, 6).map((t, i, list) => {
         const name = String(t.name);
         const cid = byName.get(name)?.cricsheet_id;
+        const dists = list.map((x) => Number(x.distance)).filter(Number.isFinite);
         const dist = Number(t.distance);
-        const sim = Number.isFinite(dist) ? Math.max(0, 1 - dist) : null;
+        const closest = dists.length ? Math.min(...dists) : NaN;
+        // 1 = as close as the closest twin, falling with distance
+        const rel = Number.isFinite(dist) && dist > 0 ? Math.min(1, closest / dist) : Number.isFinite(dist) ? 1 : null;
         return (
           <button
             key={i}
@@ -410,8 +436,15 @@ function TwinList({
             onClick={() => cid && onPick(cid)}
             className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-surface disabled:opacity-60"
           >
-            <span className="text-fg">{name}</span>
-            {sim !== null && <span className="stat-num text-xs text-muted">{(sim * 100).toFixed(1)}% alike</span>}
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="stat-num w-5 text-right text-xs text-faint">{i + 1}</span>
+              <span className="truncate text-fg">{name}</span>
+            </span>
+            {rel !== null && (
+              <span className="ml-3 h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-border/60" title="How close, relative to the closest twin">
+                <span className="block h-full rounded-full bg-grad" style={{ width: `${Math.max(8, rel * 100)}%` }} />
+              </span>
+            )}
           </button>
         );
       })}

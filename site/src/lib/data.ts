@@ -12,16 +12,37 @@ export function bumpCacheBust() {
   cache.clear();
 }
 
-const cache = new Map<string, unknown>();
+/** A file that isn't in this collection's export (e.g. a page with no data for a league yet). */
+export class NotAvailableError extends Error {
+  constructor(public rel: string) {
+    super("Not available for this league yet.");
+    this.name = "NotAvailableError";
+  }
+}
 
-async function getJSON<T>(rel: string): Promise<T> {
-  const key = rel;
-  if (cache.has(key)) return cache.get(key) as T;
-  const res = await fetch(`${DATA_ROOT}/${rel}${bust}`);
-  if (!res.ok) throw new Error(`${rel}: ${res.status}`);
-  const data = (await res.json()) as T;
-  cache.set(key, data);
-  return data;
+// One promise per file: concurrent callers share a request, and a missing file isn't re-fetched on every mount.
+const cache = new Map<string, Promise<unknown>>();
+
+function getJSON<T>(rel: string): Promise<T> {
+  const hit = cache.get(rel);
+  if (hit) return hit as Promise<T>;
+  const p = (async () => {
+    let res: Response;
+    try {
+      res = await fetch(`${DATA_ROOT}/${rel}${bust}`);
+    } catch {
+      cache.delete(rel); // offline / blocked — let the next attempt retry
+      throw new Error("Couldn't reach the data — check your connection and press Refresh.");
+    }
+    if (res.status === 404) throw new NotAvailableError(rel);
+    if (!res.ok) {
+      cache.delete(rel);
+      throw new Error(`Couldn't load the data (HTTP ${res.status}) — press Refresh to try again.`);
+    }
+    return (await res.json()) as T;
+  })();
+  cache.set(rel, p);
+  return p;
 }
 
 // ---- types ----------------------------------------------------------------

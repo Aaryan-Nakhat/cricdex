@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MapPin } from "lucide-react";
 import {
   BarChart,
@@ -8,21 +8,25 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
+  Legend,
 } from "recharts";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getVenues } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, CardHeader, Spinner, Empty, StatTile } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Empty, StatTile, ErrorBox } from "@/components/ui";
+import { useTheme } from "@/lib/theme";
 import { fmt } from "@/lib/utils";
 
 const PHASE_ORDER = ["powerplay", "middle", "death"];
 
 export function Venues() {
   const { collection } = useStore();
-  const { data, loading } = useAsync(() => getVenues(collection), [collection]);
+  const { data, loading, error } = useAsync(() => getVenues(collection), [collection]);
   const [venue, setVenue] = useState<string | null>(null);
+  const { colors } = useTheme();
+  // grounds are per league: a switch clears the pick
+  useEffect(() => setVenue(null), [collection]);
 
   const names = data ? Object.keys(data) : [];
   const options = names.map((n) => ({ value: n, label: n }));
@@ -42,9 +46,19 @@ export function Venues() {
       }));
   }, [selected]);
 
-  const totals = (selected?.innings_totals as Record<string, unknown>[])?.filter(
-    (r) => Number(r.innings_idx) <= 1 && Number(r.innings_count) >= 3,
+  // the format this ground has the most innings in (a league is one format, a mixed collection may not be)
+  const allTotals = (selected?.innings_totals as Record<string, unknown>[] | undefined) ?? [];
+  const mainType = useMemo(() => {
+    const by = new Map<string, number>();
+    for (const r of allTotals) by.set(String(r.match_type ?? ""), (by.get(String(r.match_type ?? "")) ?? 0) + Number(r.innings_count));
+    return [...by.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  }, [allTotals]);
+  const totals = allTotals.filter(
+    (r) => String(r.match_type ?? "") === mainType && Number(r.innings_idx) <= 1 && Number(r.innings_count) >= 3,
   );
+  // look innings up by number, never by position in the list
+  const first = totals.find((r) => Number(r.innings_idx) === 0);
+  const second = totals.find((r) => Number(r.innings_idx) === 1);
   const chase = (selected?.chase_vs_set as Record<string, unknown>[])?.[0];
   const firstWinPct =
     chase && Number(chase.decided_matches)
@@ -54,7 +68,7 @@ export function Venues() {
   return (
     <>
       <PageTitle
-        title="Venue conditions"
+        title="Venues"
         icon={<MapPin className="h-6 w-6" />}
         desc="What a ground actually plays like — typical first- vs second-innings totals, how scoring breaks down by phase, and whether batting first or chasing wins more often here."
       />
@@ -63,21 +77,23 @@ export function Venues() {
         <Combobox options={options} value={venue} onChange={setVenue} placeholder={loading ? "Loading venues…" : "Search a venue…"} />
       </div>
 
-      {!venue ? (
+      {error ? (
+        <ErrorBox message={error} />
+      ) : !venue ? (
         <Empty>Pick a venue to see how it plays.</Empty>
-      ) : loading ? (
-        <Spinner />
+      ) : loading && !data ? (
+        <Spinner label="Loading venues…" />
       ) : !selected ? (
         <Empty>No data for this venue.</Empty>
       ) : (
         <div className="space-y-5 animate-fade-up">
           {/* headline tiles */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {totals?.[0] && (
-              <StatTile label="1st innings avg" value={fmt(Number(totals[0].avg_runs), 0)} hint={`${totals[0].innings_count} innings`} />
+            {first && (
+              <StatTile label="1st innings avg" value={fmt(Number(first.avg_runs), 0)} hint={`${first.innings_count} innings`} />
             )}
-            {totals?.[1] && (
-              <StatTile label="2nd innings avg" value={fmt(Number(totals[1].avg_runs), 0)} hint={`${totals[1].innings_count} innings`} />
+            {second && (
+              <StatTile label="2nd innings avg" value={fmt(Number(second.avg_runs), 0)} hint={`${second.innings_count} innings`} />
             )}
             {firstWinPct !== null && (
               <StatTile label="Bat-first win %" value={`${firstWinPct.toFixed(0)}%`} hint={`${chase!.decided_matches} decided`} />
@@ -87,33 +103,50 @@ export function Venues() {
             )}
           </div>
 
-          {/* phase run rate */}
-          <Card>
-            <CardHeader title="Scoring by phase" subtitle="Run rate, dot-ball % and boundary % across powerplay / middle / death" />
-            <div className="h-72 p-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={phaseRows} barGap={4}>
-                  <CartesianGrid stroke="#1e2836" vertical={false} />
-                  <XAxis dataKey="phase" tick={{ fill: "#8a97a8", fontSize: 12 }} tickFormatter={(s) => s[0].toUpperCase() + s.slice(1)} />
-                  <YAxis tick={{ fill: "#8a97a8", fontSize: 12 }} />
-                  <Tooltip
-                    contentStyle={{ background: "#141b27", border: "1px solid #1e2836", borderRadius: 10, fontSize: 12 }}
-                    labelStyle={{ color: "#e6edf3" }}
-                  />
-                  <Bar dataKey="rpo" name="Runs / over" radius={[4, 4, 0, 0]}>
-                    {phaseRows.map((_, i) => (
-                      <Cell key={i} fill="#34d399" />
-                    ))}
-                  </Bar>
-                  <Bar dataKey="dot_pct" name="Dot %" radius={[4, 4, 0, 0]} fill="#475569" />
-                  <Bar dataKey="boundary_pct" name="Boundary %" radius={[4, 4, 0, 0]} fill="#a3e635" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+          {/* phase scoring: run rate and percentages on their own scales */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <Card>
+              <CardHeader title="Run rate by phase" subtitle="Runs per over in the powerplay, middle overs and death" />
+              <div className="h-64 p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={phaseRows}>
+                    <CartesianGrid stroke={colors.grid} vertical={false} />
+                    <XAxis dataKey="phase" tick={{ fill: colors.muted, fontSize: 12 }} tickFormatter={(s) => s[0].toUpperCase() + s.slice(1)} />
+                    <YAxis tick={{ fill: colors.muted, fontSize: 12 }} />
+                    <Tooltip
+                      formatter={(v: number) => fmt(v, 2)}
+                      contentStyle={{ background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, fontSize: 12 }}
+                      labelStyle={{ color: colors.fg }}
+                    />
+                    <Bar dataKey="rpo" name="Runs / over" radius={[6, 6, 0, 0]} fill={colors.accent} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+            <Card>
+              <CardHeader title="Dots and boundaries by phase" subtitle="Share of balls that were dots or went to the rope" />
+              <div className="h-64 p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={phaseRows} barGap={4}>
+                    <CartesianGrid stroke={colors.grid} vertical={false} />
+                    <XAxis dataKey="phase" tick={{ fill: colors.muted, fontSize: 12 }} tickFormatter={(s) => s[0].toUpperCase() + s.slice(1)} />
+                    <YAxis unit="%" tick={{ fill: colors.muted, fontSize: 12 }} />
+                    <Tooltip
+                      formatter={(v: number) => `${fmt(v, 1)}%`}
+                      contentStyle={{ background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, fontSize: 12 }}
+                      labelStyle={{ color: colors.fg }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, color: colors.muted }} />
+                    <Bar dataKey="dot_pct" name="Dot %" radius={[6, 6, 0, 0]} fill={colors.muted} />
+                    <Bar dataKey="boundary_pct" name="Boundary %" radius={[6, 6, 0, 0]} fill={colors.gold} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
 
           {/* innings totals table */}
-          {totals && totals.length > 0 && (
+          {totals.length > 0 && (
             <Card className="overflow-hidden">
               <CardHeader title="Innings totals" subtitle="Average and median by batting position" />
               <div className="overflow-auto">

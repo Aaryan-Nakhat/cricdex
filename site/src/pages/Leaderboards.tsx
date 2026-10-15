@@ -4,12 +4,31 @@ import { Trophy, Info, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getLeaderboard } from "@/lib/data";
-import { METRICS, METRIC_BY_SLUG } from "@/lib/metrics";
+import { METRIC_BY_SLUG } from "@/lib/metrics";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, countriesIn, EMPTY_FILTERS, type Filters } from "@/lib/filters";
-import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { applyFilters, countriesIn, DEFAULT_FILTERS, type Filters } from "@/lib/filters";
+import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip, Segmented } from "@/components/ui";
+import { cn, collectionLabel } from "@/lib/utils";
+
+// Metric switcher, grouped so twelve boards scan as three short rows.
+const METRIC_GROUPS: { label: string; slugs: string[] }[] = [
+  { label: "All-round", slugs: ["ngi"] },
+  {
+    label: "Batting",
+    slugs: [
+      "pressure_runs",
+      "intent_curve",
+      "dot_ball_recovery",
+      "counter_attack",
+      "boundary_dependency",
+      "crease_longevity",
+      "slow_start_cost",
+    ],
+  },
+  { label: "Bowling", slugs: ["pressure_conversion", "wicket_quality"] },
+  { label: "Fielding", slugs: ["keeping", "fielding"] },
+];
 
 const PERIOD_LABEL: Record<string, string> = {
   all: "All-time",
@@ -50,11 +69,7 @@ export function Leaderboards() {
   const navigate = useNavigate();
   const [slug, setSlug] = useState("ngi");
   const [period, setPeriod] = useState("all");
-  const [filters, setFilters] = useState<Filters>({
-    ...EMPTY_FILTERS,
-    minMatches: 20,
-    activity: "active",
-  });
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const metric = METRIC_BY_SLUG[slug];
 
   // recomputed periods: All-time + whatever windows this collection cooked
@@ -91,7 +106,10 @@ export function Leaderboards() {
             align: (c.digits !== undefined ? "right" : "left") as "left" | "right",
           },
     ),
-    { key: "matches", label: "Mts", digits: 0, align: "right" as const },
+    // a matches column, unless the metric already shows one (NGI does)
+    ...(metric.columns.some((c) => c.key === "matches")
+      ? []
+      : [{ key: "matches", label: "Mts", digits: 0, align: "right" as const }]),
   ];
 
   return (
@@ -99,24 +117,35 @@ export function Leaderboards() {
       <PageTitle
         title="Leaderboards"
         icon={<Trophy className="h-6 w-6" />}
-        desc="Ten metrics built from ball-by-ball data — each isolates a skill that batting average and economy can't see. Pick one, sort any column, click a player for their full dossier."
+        desc="Twelve boards built from ball-by-ball data — ten context metrics that batting average and economy can't see, plus wicketkeeping and fielding. Pick one, sort any column, open a player for their full dossier."
       />
 
-      {/* metric switcher */}
-      <div className="mb-5 flex flex-wrap gap-2">
-        {METRICS.map((m) => (
-          <button
-            key={m.slug}
-            onClick={() => setSlug(m.slug)}
-            className={cn(
-              "rounded-lg border px-3 py-1.5 text-sm font-medium transition-all",
-              m.slug === slug
-                ? "border-accent/40 bg-accent/10 text-accent-glow shadow-glow"
-                : "border-border bg-surface text-muted hover:border-accent/30 hover:text-fg",
-            )}
-          >
-            {m.name}
-          </button>
+      {/* metric switcher, grouped */}
+      <div role="radiogroup" aria-label="Metric" className="card mb-5 grid gap-3 p-3 sm:grid-cols-[auto_1fr] sm:items-center">
+        {METRIC_GROUPS.map((g) => (
+          <div key={g.label} className="contents">
+            <div className="eyebrow px-1 sm:pt-0.5">{g.label}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {g.slugs
+                .filter((sl) => METRIC_BY_SLUG[sl])
+                .map((sl) => (
+                  <button
+                    key={sl}
+                    role="radio"
+                    aria-checked={sl === slug}
+                    onClick={() => setSlug(sl)}
+                    className={cn(
+                      "rounded-lg border px-3 py-1.5 text-sm font-medium transition-all",
+                      sl === slug
+                        ? "border-accent/40 bg-accent/10 text-accent-glow shadow-glow"
+                        : "border-border bg-surface/70 text-muted hover:border-accent/30 hover:text-fg",
+                    )}
+                  >
+                    {METRIC_BY_SLUG[sl].name}
+                  </button>
+                ))}
+            </div>
+          </div>
         ))}
       </div>
 
@@ -148,20 +177,12 @@ export function Leaderboards() {
             they're not just a row filter. Windows are relative to the latest match in this
             collection.
           </InfoTip>
-          {periods.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={cn(
-                "rounded-lg border px-3 py-1.5 text-sm font-medium transition-all",
-                p === activePeriod
-                  ? "border-accent/40 bg-accent/10 text-accent-glow"
-                  : "border-border bg-surface text-muted hover:text-fg",
-              )}
-            >
-              {PERIOD_LABEL[p] ?? p}
-            </button>
-          ))}
+          <Segmented
+            label="Period"
+            value={activePeriod}
+            onChange={setPeriod}
+            options={periods.map((p) => ({ value: p, label: PERIOD_LABEL[p] ?? p }))}
+          />
         </div>
       )}
 
@@ -169,6 +190,7 @@ export function Leaderboards() {
       <FilterBar
         filters={filters}
         onChange={setFilters}
+        defaults={DEFAULT_FILTERS}
         show={["minMatches", "activity", "role", "bowling", "position", "country"]}
         countryOpts={countryOpts}
         count={filtered.length}
@@ -180,13 +202,16 @@ export function Leaderboards() {
       ) : error ? (
         <ErrorBox message={error} />
       ) : !data || data.length === 0 ? (
-        <Empty>No data for this metric in {collection}.</Empty>
+        <Empty>No {metric.name} board for {collectionLabel(collection)} yet.</Empty>
       ) : filtered.length === 0 ? (
         <Empty>No players match these filters — loosen them.</Empty>
       ) : (
         <DataTable
+          key={`${slug}-${activePeriod}`}
           rows={filtered}
           cols={cols}
+          higherIsBetter={metric.higherIsBetter}
+          rowLabel={(row) => `Open ${String(row[metric.nameCol])}'s profile`}
           onRowClick={(row) => {
             const name = row[metric.nameCol];
             if (typeof name === "string")

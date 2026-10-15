@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TrendingUp } from "lucide-react";
 import {
   LineChart,
@@ -16,6 +16,7 @@ import { getAging } from "@/lib/data";
 import { usePlayers } from "@/lib/usePlayers";
 import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, ErrorBox, Empty, InfoTip } from "@/components/ui";
+import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 type Role = "batting" | "bowling";
@@ -38,6 +39,8 @@ export function Aging() {
   const [role, setRole] = useState<Role>("batting");
   const [metricKey, setMetricKey] = useState("sr");
   const [cid, setCid] = useState<string | null>(null);
+  const { colors } = useTheme();
+  useEffect(() => setCid(null), [collection]);
 
   const metrics = METRICS[role];
   const metric = metrics.find((m) => m.key === metricKey) ?? metrics[0];
@@ -61,6 +64,8 @@ export function Aging() {
   }, [data, role, metric, cid]);
 
   const selName = options.find((o) => o.value === cid)?.label ?? "player";
+  // a picked player with no trajectory for this discipline (needs a known date of birth and 3+ seasons)
+  const noOverlay = !!(metric.overlay && cid && data && !chartData.some((r) => r.player !== null));
 
   return (
     <>
@@ -117,8 +122,14 @@ export function Aging() {
         )}
       </div>
 
-      {loading ? (
-        <Spinner />
+      {noOverlay && (
+        <div className="mb-3 text-sm text-muted">
+          No {role} trajectory for {selName} — it needs a known date of birth and at least three seasons
+          {role === "bowling" ? " of bowling" : " of batting"}.
+        </div>
+      )}
+      {loading && !data ? (
+        <Spinner label="Loading aging curves…" />
       ) : error ? (
         <ErrorBox message={error} />
       ) : !data || chartData.length === 0 ? (
@@ -139,25 +150,25 @@ export function Aging() {
           <div className="h-96 p-4">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                <CartesianGrid stroke="#1e2836" vertical={false} />
-                <XAxis dataKey="age" tick={{ fill: "#8a97a8", fontSize: 12 }} />
-                <YAxis tick={{ fill: "#8a97a8", fontSize: 12 }} domain={["auto", "auto"]} />
+                <CartesianGrid stroke={colors.grid} vertical={false} />
+                <XAxis dataKey="age" tick={{ fill: colors.muted, fontSize: 12 }} />
+                <YAxis tick={{ fill: colors.muted, fontSize: 12 }} domain={["auto", "auto"]} />
                 <Tooltip
                   contentStyle={{
-                    background: "#141b27",
-                    border: "1px solid #1e2836",
+                    background: colors.card,
+                    border: `1px solid ${colors.border}`,
                     borderRadius: 10,
                     fontSize: 12,
                   }}
-                  labelStyle={{ color: "#e6edf3" }}
+                  labelStyle={{ color: colors.fg }}
                   labelFormatter={(a) => `Age ${a}`}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 12, color: colors.muted }} />
                 <Line
                   type="monotone"
                   dataKey="avg"
                   name={`All players (${metric.label})`}
-                  stroke="#34d399"
+                  stroke={colors.accent}
                   strokeWidth={2.5}
                   dot={false}
                 />
@@ -166,7 +177,7 @@ export function Aging() {
                     type="monotone"
                     dataKey="player"
                     name={selName}
-                    stroke="#fbbf24"
+                    stroke={colors.gold}
                     strokeWidth={2}
                     dot={{ r: 2 }}
                     connectNulls

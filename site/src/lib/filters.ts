@@ -25,6 +25,9 @@ export const EMPTY_FILTERS: Filters = {
   yearTo: 0,
 };
 
+/** Where the player boards (Leaderboards, Form, Phase) start: established, currently active players. */
+export const DEFAULT_FILTERS: Filters = { ...EMPTY_FILTERS, minMatches: 20, activity: "active" };
+
 export const ACTIVITY_OPTS = [
   { value: "active", label: "Active only" },
   { value: "retired", label: "Retired only" },

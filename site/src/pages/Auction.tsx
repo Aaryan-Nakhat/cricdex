@@ -13,7 +13,7 @@ import {
   type SimResult,
   type AuctionMode,
 } from "@/lib/auction";
-import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox } from "@/components/ui";
 import { cn, fmt } from "@/lib/utils";
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
@@ -150,12 +150,23 @@ const ROLE_TONE: Record<string, "accent" | "willow" | "muted" | "ball"> = {
 function NumberField({ label, value, onChange, min = 0, max = 999, step = 1, suffix }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; suffix?: string;
 }) {
+  // keep what's typed while editing; clamp to [min, max] when the field is left (no NaN, no 0 trials)
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const n = Number(text);
+    const v = Number.isFinite(n) && text.trim() !== "" ? Math.min(max, Math.max(min, n)) : value;
+    setText(String(v));
+    if (v !== value) onChange(v);
+  };
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-muted">{label}</span>
       <div className="flex items-center gap-2">
-        <input type="number" className="input" value={value} min={min} max={max} step={step}
-          onChange={(e) => onChange(Number(e.target.value))} />
+        <input type="number" className="input" value={text} min={min} max={max} step={step}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === "Enter" && commit()} />
         {suffix && <span className="text-xs text-muted">{suffix}</span>}
       </div>
     </label>
@@ -209,7 +220,9 @@ export function Auction() {
 
       <AuctionMath />
 
-      {poolData.loading || retentions.loading ? (
+      {poolData.error || retentions.error ? (
+        <ErrorBox message={(poolData.error || retentions.error)!} />
+      ) : (poolData.loading && !poolData.data) || (retentions.loading && !retentions.data) ? (
         <Spinner label="Pricing the pool…" />
       ) : pool.length === 0 ? (
         <Empty>No rated IPL pool available.</Empty>
@@ -273,6 +286,7 @@ function Simulate({
   };
   // a player drafted in from the Scout room (?draft=), and which team keeps him
   const [draftCid, setDraftCid] = useState<string | null>(draftId);
+  const [params, setParams] = useSearchParams();
   const [draftTeam, setDraftTeam] = useState(IPL_TEAMS_DEFAULT[0].team);
   const draftPlayer = draftCid ? pool.find((p) => p.cricsheet_id === draftCid) : null;
   // editable retentions per team — reset to the mode's default when mode/pool changes
@@ -290,7 +304,30 @@ function Simulate({
     setPurse(mode === "mega" ? 120 : 30);
     setResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pool, megaIds, draftCid, draftTeam]);
+  }, [mode, pool, megaIds]);
+
+  // The drafted prospect moves between teams without wiping anyone's retention edits.
+  useEffect(() => {
+    if (!draftCid || !pool.some((p) => p.cricsheet_id === draftCid)) return;
+    setRetentions((cur) => {
+      const next: Record<string, string[]> = {};
+      for (const [team, ids] of Object.entries(cur)) next[team] = ids.filter((id) => id !== draftCid);
+      next[draftTeam] = [...(next[draftTeam] ?? []), draftCid];
+      return next;
+    });
+  }, [draftCid, draftTeam, pool]);
+
+  // Any change to the setup makes the last result stale — clear it rather than show numbers from other settings.
+  useEffect(() => setResult(null), [purse, squadSize, overseasCap, trials, teams, retentions]);
+
+  function releaseDraft() {
+    if (draftCid) {
+      setRetentions((cur) => Object.fromEntries(Object.entries(cur).map(([t, ids]) => [t, ids.filter((id) => id !== draftCid)])));
+    }
+    setDraftCid(null);
+    params.delete("draft");
+    setParams(params, { replace: true });
+  }
 
   // roster per team (active players on that team), best-value first, for the editor
   const rosters = useMemo(() => {
@@ -335,7 +372,7 @@ function Simulate({
                 <option key={t.team} value={t.team} className="bg-card">{t.team}</option>
               ))}
             </select>
-            <button onClick={() => setDraftCid(null)} className="ml-auto inline-flex items-center gap-1 text-xs text-muted hover:text-ball">
+            <button onClick={releaseDraft} className="ml-auto inline-flex items-center gap-1 text-xs text-muted hover:text-ball">
               <X className="h-3 w-3" /> release
             </button>
           </Card>
@@ -343,7 +380,7 @@ function Simulate({
           <Card className="flex flex-wrap items-center gap-2 border-ball/30 bg-ball/5 px-4 py-3 text-sm text-muted">
             That player isn't in the priced auction pool (too few balls, or a non-IPL nation), so he
             can't be drafted.
-            <button onClick={() => setDraftCid(null)} className="ml-auto inline-flex items-center gap-1 text-xs hover:text-ball">
+            <button onClick={releaseDraft} className="ml-auto inline-flex items-center gap-1 text-xs hover:text-ball">
               <X className="h-3 w-3" /> dismiss
             </button>
           </Card>
@@ -467,7 +504,7 @@ function Simulate({
         <>
       {/* per-team outcomes */}
       <Card className="overflow-hidden">
-        <CardHeader title="How each squad shapes up" subtitle={`${result.mode === "mega" ? "Mega" : "Mini"} auction · ${result.poolSize} players under the hammer · averaged over ${trials} runs`} />
+        <CardHeader title="How each squad shapes up" subtitle={`${result.mode === "mega" ? "Mega" : "Mini"} auction · ${result.auctioned} of ${result.poolSize} unretained players under the hammer (the most valuable) · averaged over ${trials} runs`} />
         <div className="overflow-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -548,7 +585,7 @@ function Simulate({
           />
           {q.trim().length < 2 ? (
             <p className="mt-2 text-xs text-muted">
-              Type 2+ letters — searches every retained, sold &amp; unsold player in this run.
+              Type 2+ letters — searches every retained player and every lot (sold or unsold) in this run.
             </p>
           ) : (
             (() => {

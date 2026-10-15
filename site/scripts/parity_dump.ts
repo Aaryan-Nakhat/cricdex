@@ -66,6 +66,7 @@ for (const tier of ["ipl", "smat", "bbl", "sa20", "cpl", "blast"] as PriceTier[]
 const out = {
   retentions,
   poolSize: res.poolSize,
+  auctioned: res.auctioned,
   teams: res.teams.map((t) => ({
     team: t.team,
     retained: t.retained,

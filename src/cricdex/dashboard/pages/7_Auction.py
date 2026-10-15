@@ -179,7 +179,7 @@ res = simulate_auction(
 
 st.subheader("How each squad shapes up")
 st.caption(
-    f"{'Mega' if mode == 'mega' else 'Mini'} auction · {res['pool_size']} players under the "
+    f"{'Mega' if mode == 'mega' else 'Mini'} auction · {res['auctioned']} of {res['pool_size']} unretained players under the "
     f"hammer · averaged over {int(trials)} runs"
 )
 teams_df = pd.DataFrame(

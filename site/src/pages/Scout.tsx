@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Network, Users, Sprout, Plane, Gem, Gavel } from "lucide-react";
 import { usePlayers } from "@/lib/usePlayers";
+import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
-import { getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
+import { getAuctionPool, getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
 import { estValue, type PriceTier, type Role } from "@/lib/auction";
 import { similarTo, isGem, gemThreshold, type SimilarRow } from "@/lib/scout";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, Collapsible } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, Collapsible, ErrorBox } from "@/components/ui";
 import { fmt } from "@/lib/utils";
 
 const POS = {
@@ -55,7 +56,7 @@ function ScoutMath() {
       <div className="space-y-3 text-sm leading-relaxed text-muted">
         <p>
           Pick an active IPL player. We find players of the <b>same archetype</b> (same role; for
-          bowlers, same seam/spin type) at three levels and rank them by how close their{" "}
+          bowlers, same seam/spin type) across six pools and rank them by how close their{" "}
           <b>skill standing</b> is to your pick.
         </p>
         <ul className="space-y-1.5">
@@ -91,6 +92,7 @@ function TierPanel({
   gemMedian,
   linkable,
   draftable,
+  inPool,
   navigate,
 }: {
   title: string;
@@ -102,6 +104,8 @@ function TierPanel({
   gemMedian: number | null;
   linkable: boolean;
   draftable: boolean;
+  /** cricsheet ids in the auction pool — only these can be drafted */
+  inPool: Set<string>;
   navigate: (path: string) => void;
 }) {
   return (
@@ -148,7 +152,7 @@ function TierPanel({
                   {p.last_match_date && <span className="stat-num">{p.last_match_date.slice(0, 4)}</span>}
                   <span className="stat-num">≈{fmt(price, 1)}cr</span>
                   {saving > 0 && <span className="stat-num text-willow">save {fmt(saving, 1)}</span>}
-                  {draftable && (
+                  {draftable && inPool.has(p.cricsheet_id) && (
                     <button
                       onClick={() => navigate(`/auction?draft=${p.cricsheet_id}`)}
                       title="Draft into the Auction room as a retention"
@@ -168,7 +172,15 @@ function TierPanel({
 }
 
 // "The next X" — uncapped SMAT prospects that punch above their sample.
-function GemsBoard({ gems, navigate }: { gems: ScoutPlayer[]; navigate: (p: string) => void }) {
+function GemsBoard({
+  gems,
+  navigate,
+  inPool,
+}: {
+  gems: ScoutPlayer[];
+  navigate: (p: string) => void;
+  inPool: Set<string>;
+}) {
   if (!gems.length) return null;
   return (
     <Card className="mb-5">
@@ -194,13 +206,17 @@ function GemsBoard({ gems, navigate }: { gems: ScoutPlayer[]; navigate: (p: stri
             <span className="stat-num ml-auto text-[11px] text-muted">
               ≈{fmt(estValue(p.value, p.role, "smat"), 1)}cr
             </span>
-            <button
-              onClick={() => navigate(`/auction?draft=${p.cricsheet_id}`)}
-              title="Draft into the Auction room as a retention"
-              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-glow hover:border-accent/50"
-            >
-              <Gavel className="h-3 w-3" /> Draft
-            </button>
+            {inPool.has(p.cricsheet_id) ? (
+              <button
+                onClick={() => navigate(`/auction?draft=${p.cricsheet_id}`)}
+                title="Draft into the Auction room as a retention"
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-glow hover:border-accent/50"
+              >
+                <Gavel className="h-3 w-3" /> Draft
+              </button>
+            ) : (
+              <span className="text-[11px] text-faint" title="Not in this year's auction pool">not in pool</span>
+            )}
           </div>
         ))}
       </div>
@@ -209,9 +225,17 @@ function GemsBoard({ gems, navigate }: { gems: ScoutPlayer[]; navigate: (p: stri
 }
 
 export function Scout() {
-  const navigate = useNavigate();
+  const rawNavigate = useNavigate();
+  const { collection, setCollection } = useStore();
+  // Scout works on IPL data; a profile link must open in IPL whatever league the header shows
+  const navigate = (path: string) => {
+    if (path.startsWith("/player") && collection !== "ipl") setCollection("ipl");
+    rawNavigate(path);
+  };
   const { options } = usePlayers("ipl"); // nice full-name search
   const idx = useAsync<ScoutIndex>(() => getScoutIndex("ipl"), []);
+  const pool = useAsync(() => getAuctionPool("ipl"), []);
+  const inPool = useMemo(() => new Set((pool.data ?? []).map((r) => String(r.cricsheet_id))), [pool.data]);
   const [cid, setCid] = useState<string | null>(null);
   const [roleSel, setRoleSel] = useState<Role>("batter");
   const [posSel, setPosSel] = useState("");
@@ -248,18 +272,28 @@ export function Scout() {
   // the pick's own est. IPL price — the baseline the savings compare against
   const selPrice = sel ? estValue(sel.value, sel.role, "ipl") : null;
   const posDisabled = roleSel === "bowler";
+  // a batting-slot filter means nothing for a bowler match — drop it rather than keep filtering invisibly
+  useEffect(() => {
+    if (posDisabled) setPosSel("");
+  }, [posDisabled]);
 
   return (
     <>
       <PageTitle
         title="Scout"
         icon={<Network className="h-6 w-6" />}
-        desc="Pick an active IPL player and find others of the same mould at three levels — IPL peers, uncapped Indian prospects (SMAT), and overseas options (BBL, SA20, CPL & T20 Blast) — with an estimated price, the saving vs your pick, and a one-click draft into the Auction room."
+        desc="Pick an active IPL player and find others of the same mould across six pools — IPL peers, uncapped Indian prospects (SMAT), and overseas options (BBL, SA20, CPL & T20 Blast) — with an estimated price, the saving vs your pick, and a one-click draft into the Auction room."
       />
 
       <ScoutMath />
 
-      <GemsBoard gems={gems} navigate={navigate} />
+      {collection !== "ipl" && (
+        <div className="mb-4 rounded-xl border border-gold/30 bg-gold/5 px-4 py-2.5 text-sm text-muted">
+          Scout always uses <b className="text-fg">IPL</b> data (it prices players for the IPL auction), whatever league the header shows.
+        </div>
+      )}
+
+      <GemsBoard gems={gems} navigate={navigate} inPool={inPool} />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Combobox options={pickOptions} value={cid} onChange={setCid} placeholder="Search an active IPL player…" className="max-w-md flex-1" />
@@ -316,8 +350,10 @@ export function Scout() {
         </div>
       )}
 
-      {idx.loading ? (
+      {idx.loading && !idx.data ? (
         <Spinner label="Loading scout index…" />
+      ) : idx.error ? (
+        <ErrorBox message={idx.error} />
       ) : !sel ? (
         <Empty>Pick an IPL player to scout look-alikes across IPL, SMAT &amp; overseas (BBL, SA20, CPL, T20 Blast).</Empty>
       ) : (
@@ -334,6 +370,7 @@ export function Scout() {
               gemMedian={t.gem ? gemMedian : null}
               linkable={t.linkable}
               draftable={t.draftable}
+              inPool={inPool}
               navigate={navigate}
             />
           ))}

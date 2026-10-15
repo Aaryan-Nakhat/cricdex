@@ -18,6 +18,8 @@ export function DataTable<T extends Record<string, unknown>>({
   initialSort,
   rankCol = true,
   onRowClick,
+  rowLabel,
+  higherIsBetter = true,
   maxHeight = "70vh",
 }: {
   rows: T[];
@@ -25,11 +27,15 @@ export function DataTable<T extends Record<string, unknown>>({
   initialSort?: { key: string; dir: "asc" | "desc" };
   rankCol?: boolean;
   onRowClick?: (row: T) => void;
+  /** Accessible name for a clickable row (e.g. "Open V Kohli's profile"). */
+  rowLabel?: (row: T) => string;
+  /** False for metrics where smaller is better: the best rows rank first and get the longest bars. */
+  higherIsBetter?: boolean;
   maxHeight?: string;
 }) {
   const primary = cols.find((c) => c.primary)?.key ?? cols[1]?.key ?? cols[0]?.key;
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>(
-    initialSort ?? { key: primary, dir: "desc" },
+    initialSort ?? { key: primary, dir: higherIsBetter ? "desc" : "asc" },
   );
 
   // magnitude range for the primary column → drives inline bars
@@ -44,15 +50,13 @@ export function DataTable<T extends Record<string, unknown>>({
     const c = cols.find((x) => x.key === sort.key);
     const numeric = c?.digits !== undefined || c?.primary;
     const copy = [...rows];
+    const missing = (v: unknown) => v === null || v === undefined || v === "" || (numeric && !Number.isFinite(Number(v)));
     copy.sort((a, b) => {
       const av = a[sort.key];
       const bv = b[sort.key];
-      let cmp: number;
-      if (numeric) {
-        cmp = (Number(av) || 0) - (Number(bv) || 0);
-      } else {
-        cmp = String(av ?? "").localeCompare(String(bv ?? ""));
-      }
+      // rows without a value always go last, whichever way the column is sorted
+      if (missing(av) || missing(bv)) return Number(missing(av)) - Number(missing(bv));
+      const cmp = numeric ? Number(av) - Number(bv) : String(av).localeCompare(String(bv));
       return sort.dir === "asc" ? cmp : -cmp;
     });
     return copy;
@@ -74,14 +78,9 @@ export function DataTable<T extends Record<string, unknown>>({
               {cols.map((c) => {
                 const sortable = c.sortable !== false;
                 const isSort = sort.key === c.key;
-                return (
-                  <th
-                    key={c.key}
-                    className={cn("th", c.align === "right" && "text-right", sortable && "cursor-pointer select-none")}
-                    onClick={sortable ? () => toggle(c.key) : undefined}
-                  >
-                    <span className={cn("inline-flex items-center gap-1", c.align === "right" && "flex-row-reverse")}>
-                      {c.label}
+                const inner = (
+                  <span className={cn("inline-flex items-center gap-1", c.align === "right" && "flex-row-reverse")}>
+                    {c.label}
                       {sortable &&
                         (isSort ? (
                           sort.dir === "desc" ? (
@@ -92,7 +91,27 @@ export function DataTable<T extends Record<string, unknown>>({
                         ) : (
                           <ChevronsUpDown className="h-3 w-3 text-muted/40" />
                         ))}
-                    </span>
+                  </span>
+                );
+                return (
+                  <th
+                    key={c.key}
+                    scope="col"
+                    aria-sort={isSort ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
+                    className={cn("th", c.align === "right" && "text-right")}
+                  >
+                    {sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => toggle(c.key)}
+                        className="select-none rounded uppercase tracking-wider hover:text-fg"
+                        title={`Sort by ${c.label}`}
+                      >
+                        {inner}
+                      </button>
+                    ) : (
+                      inner
+                    )}
                   </th>
                 );
               })}
@@ -107,6 +126,18 @@ export function DataTable<T extends Record<string, unknown>>({
                   onRowClick && "cursor-pointer",
                 )}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                aria-label={onRowClick && rowLabel ? rowLabel(row) : undefined}
+                onKeyDown={
+                  onRowClick
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onRowClick(row);
+                        }
+                      }
+                    : undefined
+                }
               >
                 {rankCol && (
                   <td className="td text-right stat-num text-muted">{i + 1}</td>
@@ -114,10 +145,11 @@ export function DataTable<T extends Record<string, unknown>>({
                 {cols.map((c) => {
                   const raw = row[c.key];
                   const isNum = c.digits !== undefined || c.primary;
-                  const frac =
-                    c.primary && Number.isFinite(range.max) && range.max !== range.min
+                  const lin =
+                    c.primary && Number.isFinite(range.max) && range.max !== range.min && Number.isFinite(Number(raw))
                       ? (Number(raw) - range.min) / (range.max - range.min)
                       : null;
+                  const frac = lin === null ? null : higherIsBetter ? lin : 1 - lin;
                   return (
                     <td
                       key={c.key}
@@ -132,11 +164,11 @@ export function DataTable<T extends Record<string, unknown>>({
                         c.render(row)
                       ) : isNum ? (
                         <div className={cn(c.align === "right" ? "text-right" : "text-left")}>
-                          <span>{fmt(Number(raw), c.digits ?? 2)}</span>
+                          <span>{fmt(raw as number | string | null, c.digits ?? 2)}</span>
                           {frac !== null && (
                             <div className="mt-1 h-1 w-full max-w-[120px] overflow-hidden rounded-full bg-border/50">
                               <div
-                                className="h-full rounded-full bg-gradient-to-r from-accent-dim to-accent-glow"
+                                className="h-full rounded-full bg-grad"
                                 style={{ width: `${Math.max(2, frac * 100)}%` }}
                               />
                             </div>

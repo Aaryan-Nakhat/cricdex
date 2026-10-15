@@ -273,7 +273,8 @@ export interface PlayerOutcome {
 export interface SimResult {
   mode: AuctionMode;
   bases: FranchiseBase[]; // retentions (constant across trials)
-  poolSize: number;
+  poolSize: number; // unretained players in the pool
+  auctioned: number; // how many of them go under the hammer (the most valuable, up to AUCTION_LOTS)
   teams: {
     team: string;
     personality: string;
@@ -421,13 +422,16 @@ function oneTrial(
   return states;
 }
 
+/** Lots per auction: the most valuable unretained players (a real auction lists far more, most go unsold). */
+export const AUCTION_LOTS = 200;
+
 export function simulateAuction(
   pool: PoolPlayer[],
   teamCfg: { team: string; personality: string }[],
   opts: SimOpts,
 ): SimResult {
   const { bases, auctionPool } = buildFranchises(pool, teamCfg, opts);
-  const usePool = auctionPool.slice(0, 200);
+  const usePool = auctionPool.slice(0, AUCTION_LOTS);
   const agg = bases.map((b) => ({
     team: b.team,
     personality: b.personality,
@@ -509,6 +513,7 @@ export function simulateAuction(
     mode: opts.mode,
     bases,
     poolSize: auctionPool.length,
+    auctioned: usePool.length,
     teams: agg.map((a) => ({
       team: a.team,
       personality: a.personality,

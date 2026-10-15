@@ -17,7 +17,8 @@ interface Store {
   error: string | null;
   refreshing: boolean;
   refresh: () => Promise<void>;
-  lastRefreshed: number;
+  /** Bumped on every Refresh; useAsync re-fetches on it, so open pages reload in place. */
+  version: number;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -32,10 +33,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastRefreshed, setLastRefreshed] = useState(0);
+  const [version, setVersion] = useState(0);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (initial: boolean) => {
+    if (initial) setLoading(true); // a refresh keeps the page mounted
     setError(null);
     try {
       const cols = await getCollections();
@@ -52,7 +53,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void load();
+    void load(true);
   }, [load]);
 
   const setCollection = useCallback((c: string) => {
@@ -67,8 +68,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setRefreshing(true);
     try {
       bumpCacheBust();
-      await load();
-      setLastRefreshed(Date.now());
+      await load(false);
+      setVersion((v) => v + 1);
     } finally {
       setRefreshing(false);
     }
@@ -87,7 +88,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         error,
         refreshing,
         refresh,
-        lastRefreshed,
+        version,
       }}
     >
       {children}

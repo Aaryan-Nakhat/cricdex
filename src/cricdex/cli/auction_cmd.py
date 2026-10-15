@@ -63,7 +63,7 @@ def room(
 
     _render.header(
         f"Auction room — {mode} Monte-Carlo",
-        subtitle=f"{res['pool_size']} under the hammer  ·  purse {purse:.0f} cr  ·  {trials} runs",
+        subtitle=f"{res['auctioned']} of {res['pool_size']} unretained under the hammer  ·  purse {purse:.0f} cr  ·  {trials} runs",
     )
     _render.intro_panel(_copy.AUCTION_SIMULATE_INTRO, title="Auction room")
     _render.pretty_table(

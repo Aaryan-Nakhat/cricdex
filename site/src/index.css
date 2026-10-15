@@ -1,55 +1,169 @@
+/* CricDex — design system. Sibling of EquityShastra's UI: glass panels, gradient accents, Inter + JetBrains Mono
+   bundled locally (public/fonts, SIL OFL), light / dark / auto themes. Theme: <html data-theme="dark|light">,
+   set before first paint from the saved choice or the system (index.html). Colours are RGB channels so Tailwind's
+   opacity modifiers work (tailwind.config.js). */
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-var.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-var.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root,
+  :root[data-theme="dark"] {
+    --bg: 6 10 15;
+    --surface: 13 19 28;
+    --card: 16 23 34;
+    --border: 33 44 60;
+    --fg: 236 242 247;
+    --muted: 148 160 180;
+    --faint: 95 108 130;
+    --accent: 52 211 153; /* pitch green */
+    --accent-dim: 16 185 129;
+    --accent-glow: 110 231 183;
+    --teal: 45 212 191;
+    --gold: 245 197 66;
+    --willow: 190 242 100;
+    --ball: 248 113 113;
+    --sky: 122 162 255;
+    --grad: linear-gradient(100deg, #6ee7b7, #2dd4bf 50%, #f5c542);
+    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 50px -24px rgba(0, 0, 0, 0.75);
+    --shadow-glow: 0 0 0 1px rgba(52, 211, 153, 0.35), 0 10px 40px -12px rgba(52, 211, 153, 0.35);
+    --orb: 0.55;
+    --gridline: rgba(148, 163, 184, 0.06);
+    --scroll: #233044;
     color-scheme: dark;
   }
+  :root[data-theme="light"] {
+    --bg: 243 246 247;
+    --surface: 234 239 241;
+    --card: 255 255 255;
+    --border: 216 224 229;
+    --fg: 14 24 32;
+    --muted: 84 98 115;
+    --faint: 137 150 166;
+    --accent: 5 150 105;
+    --accent-dim: 16 185 129;
+    --accent-glow: 4 120 87;
+    --teal: 13 148 136;
+    --gold: 180 120 6;
+    --willow: 77 124 15;
+    --ball: 220 38 38;
+    --sky: 79 107 237;
+    --grad: linear-gradient(100deg, #059669, #0d9488 50%, #b47806);
+    --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05), 0 12px 32px -18px rgba(15, 23, 42, 0.22);
+    --shadow-glow: 0 0 0 1px rgba(5, 150, 105, 0.35), 0 10px 30px -14px rgba(5, 150, 105, 0.3);
+    --orb: 0.22;
+    --gridline: rgba(15, 23, 42, 0.045);
+    --scroll: #c9d3da;
+    color-scheme: light;
+  }
+
   html,
   body,
   #root {
-    height: 100%;
+    min-height: 100%;
   }
   body {
-    @apply bg-bg text-fg font-sans antialiased;
-    background-image: radial-gradient(
-        1200px 600px at 80% -10%,
-        rgba(52, 211, 153, 0.06),
-        transparent 60%
-      ),
-      radial-gradient(900px 500px at -10% 0%, rgba(99, 102, 241, 0.05), transparent 55%);
-    background-attachment: fixed;
+    @apply bg-bg font-sans text-fg antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  /* soft colour orbs + a faint pitch grid behind everything */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: var(--orb);
+    background:
+      radial-gradient(900px 520px at 85% -8%, rgb(var(--accent) / 0.16), transparent 60%),
+      radial-gradient(760px 460px at -8% 4%, rgb(var(--teal) / 0.12), transparent 58%),
+      radial-gradient(620px 420px at 50% 110%, rgb(var(--gold) / 0.08), transparent 60%);
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      linear-gradient(var(--gridline) 1px, transparent 1px),
+      linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 75%);
   }
   ::selection {
     @apply bg-accent/30 text-fg;
   }
+  :focus-visible {
+    @apply rounded-md outline-none ring-2 ring-accent ring-offset-2 ring-offset-bg;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer components {
+  /* glass panel */
   .card {
-    @apply rounded-xl border border-border bg-card shadow-card;
+    @apply rounded-2xl border border-border bg-card/75 shadow-card backdrop-blur-xl;
+  }
+  .card-hover {
+    @apply transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-glow;
   }
   .pill {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-medium text-muted;
+    @apply inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/80 px-2.5 py-1 text-xs font-medium text-muted;
   }
   .stat-num {
     @apply font-mono tabular-nums;
   }
+  .grad-text {
+    @apply bg-grad bg-clip-text text-transparent;
+  }
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[0.18em] text-faint;
+  }
   .nav-link {
-    @apply flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-fg;
+    @apply flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-fg;
   }
   .nav-link-active {
-    @apply bg-accent/10 text-accent-glow ring-1 ring-inset ring-accent/20;
+    @apply bg-accent/10 text-accent-glow ring-1 ring-inset ring-accent/25;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-medium text-fg transition-all hover:border-accent/40 hover:text-accent-glow active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-surface/80 px-3.5 py-2 text-sm font-medium text-fg transition-all hover:border-accent/40 hover:text-accent-glow active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-accent {
     @apply border-accent/30 bg-accent/10 text-accent-glow hover:bg-accent/20;
   }
+  .seg {
+    @apply inline-flex flex-wrap gap-1 rounded-xl border border-border bg-surface/70 p-1;
+  }
+  .seg-btn {
+    @apply rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:text-fg;
+  }
+  .seg-btn-active {
+    @apply bg-card text-fg shadow-card ring-1 ring-inset ring-accent/30;
+  }
   .input {
-    @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted/60 focus:border-accent/50 focus:ring-1 focus:ring-accent/30;
+    @apply w-full rounded-xl border border-border bg-surface/80 px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-faint focus:border-accent/50 focus:ring-1 focus:ring-accent/30;
   }
   .th {
     @apply sticky top-0 z-10 whitespace-nowrap bg-card/95 px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted backdrop-blur;
@@ -59,16 +173,18 @@
   }
 }
 
-/* Slim, dark scrollbars to match the surface. */
+/* Slim scrollbars to match the surface. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll) transparent;
+}
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #233044;
+  background: var(--scroll);
   border-radius: 8px;
-  border: 2px solid #0a0e14;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: #2c3b52;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }

@@ -6,7 +6,7 @@ import { getMatchups, type Matchups as MatchupsData } from "@/lib/data";
 import { usePlayers } from "@/lib/usePlayers";
 import { Combobox } from "@/components/Combobox";
 import { DataTable, type Col } from "@/components/DataTable";
-import { PageTitle, Card, CardHeader, Spinner, Empty, StatTile, Badge } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Empty, StatTile, Badge, ErrorBox } from "@/components/ui";
 import { fmt } from "@/lib/utils";
 
 type Row = Record<string, unknown>;
@@ -123,9 +123,11 @@ export function Matchups() {
 
       {!cid ? (
         <Empty>Pick a player to see their matchups.</Empty>
-      ) : loading ? (
-        <Spinner />
-      ) : error || !data ? (
+      ) : loading && !data ? (
+        <Spinner label="Loading matchups…" />
+      ) : error && !error.startsWith("Not available") ? (
+        <ErrorBox message={error} />
+      ) : !data ? (
         <Empty>No matchup data for this player (needs enough balls faced/bowled).</Empty>
       ) : (
         <div className="space-y-5 animate-fade-up">

@@ -27,7 +27,7 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: "/", label: "Overview", icon: LayoutDashboard, group: "Start", blurb: "The dataset at a glance + what CricDex does." },
-  { to: "/leaderboards", label: "Leaderboards", icon: Trophy, group: "Analyse", blurb: "10 novel impact metrics, ranked." },
+  { to: "/leaderboards", label: "Leaderboards", icon: Trophy, group: "Analyse", blurb: "Twelve impact boards — ten context metrics plus keeping and fielding — ranked." },
   { to: "/player", label: "Player profile", icon: UserSearch, group: "Analyse", blurb: "Full dossier: skills, metrics, dismissals, twins." },
   { to: "/compare", label: "Compare", icon: GitCompareArrows, group: "Analyse", blurb: "Side-by-side across every number." },
   { to: "/head-to-head", label: "Head-to-head", icon: Swords, group: "Analyse", blurb: "P(A is better than B) from the Bayesian model." },

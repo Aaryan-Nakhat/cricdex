@@ -5,7 +5,7 @@ import { useAsync } from "@/lib/useAsync";
 import { getPhase } from "@/lib/data";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, countriesIn, EMPTY_FILTERS, type Filters } from "@/lib/filters";
+import { applyFilters, countriesIn, DEFAULT_FILTERS, type Filters } from "@/lib/filters";
 import { PageTitle, Spinner, ErrorBox, Empty } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +37,8 @@ export function Phase() {
   const { collection } = useStore();
   const { data, loading, error } = useAsync(() => getPhase(collection), [collection]);
   const [phase, setPhase] = useState<PhaseKey>("powerplay");
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  // same defaults as the other boards — keeps tiny samples from long-retired players off the top
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
 
   const board = data?.[phase];
   const rawBatters = (board?.batters ?? []) as unknown as Row[];
@@ -85,6 +86,7 @@ export function Phase() {
       <FilterBar
         filters={filters}
         onChange={setFilters}
+        defaults={DEFAULT_FILTERS}
         show={["minMatches", "activity", "role", "bowling", "position", "country"]}
         countryOpts={countryOpts}
       />

@@ -5,17 +5,26 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Compact number formatter — 1.2k, 3.4M, plain ints stay plain. */
-export function fmt(n: number | null | undefined, digits = 2): string {
+/** Exact number for a stats site: thousands separators (9,336), `digits` decimals for fractions. Numeric strings
+ * (some exported counts are strings) are accepted. */
+export function fmt(n: number | string | null | undefined, digits = 2): string {
+  const x = typeof n === "string" ? Number(n) : n;
+  if (x === null || x === undefined || Number.isNaN(x)) return "—";
+  if (Number.isInteger(x)) return x.toLocaleString("en-US");
+  return x.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+/** Compact form (9.3K, 1.2M) — only for tight spaces like chart axes, never for a value in a table. */
+export function fmtCompact(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
-  if (Number.isInteger(n) && Math.abs(n) < 1000) return String(n);
-  if (Math.abs(n) >= 1000) {
-    return new Intl.NumberFormat("en", {
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(n);
-  }
-  return n.toFixed(digits);
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+}
+
+/** "+1.20" / "−0.42" — a signed delta without "+-". */
+export function fmtSigned(n: number | null | undefined, digits = 2): string {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  const body = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return n > 0 ? `+${body}` : n < 0 ? `−${body}` : body;
 }
 
 /** Human collection label. */
@@ -25,7 +34,10 @@ export function collectionLabel(slug: string): string {
     bbl: "Big Bash (BBL)",
     t20s_male: "Men's T20Is",
     indian_domestic_male: "Syed Mushtaq Ali (SMAT)",
-    recently_played_30_male: "Last 30 days (men's T20)",
+    recently_played_30_male: "Recently played (men's T20)",
+    sa20: "SA20",
+    cpl: "Caribbean Premier League (CPL)",
+    blast: "T20 Blast",
   };
   return map[slug] ?? slug;
 }

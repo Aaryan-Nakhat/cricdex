@@ -1,0 +1,6 @@
+Bundled fonts (served locally, no third-party font requests):
+
+- Inter (variable) — https://rsms.me/inter/ — SIL Open Font License 1.1
+- JetBrains Mono (variable) — https://www.jetbrains.com/lp/mono/ — SIL Open Font License 1.1
+
+Full licence text: https://openfontlicense.org/open-font-license-official-text/

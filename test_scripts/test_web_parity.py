@@ -96,6 +96,7 @@ def test_web_parity():
         },
     )
     assert res["pool_size"] == js["poolSize"]
+    assert res["auctioned"] == js["auctioned"]
     py_teams = [
         {
             "team": t["team"],

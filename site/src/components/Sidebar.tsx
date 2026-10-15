@@ -31,12 +31,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       ))}
 
-      <div className="mt-auto rounded-lg border border-border bg-surface/60 p-3 text-xs text-muted">
+      <div className="mt-auto rounded-xl border border-border bg-surface/60 p-3 text-xs text-muted">
         <div className="font-semibold text-fg">Cricsheet ball-by-ball</div>
         <div className="mt-1">
           Data up to{" "}
           <span className="font-medium text-accent-glow">{prettyDate(meta?.data_as_of)}</span>.
-          Updated on demand.
+          Refreshed on demand.
         </div>
       </div>
     </nav>

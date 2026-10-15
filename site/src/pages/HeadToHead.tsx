@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Swords } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { usePlayers } from "@/lib/usePlayers";
@@ -6,7 +6,7 @@ import { useAsync } from "@/lib/useAsync";
 import { getRatings } from "@/lib/data";
 import { headToHead, rolesFor } from "@/lib/headtohead";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, Spinner, Empty, Badge, Collapsible } from "@/components/ui";
+import { ErrorBox, PageTitle, Card, Spinner, Empty, Badge, Collapsible } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 function H2HMath() {
@@ -52,6 +52,11 @@ export function HeadToHead() {
   const [a, setA] = useState<string | null>(null);
   const [b, setB] = useState<string | null>(null);
   const [role, setRole] = useState<"batter" | "bowler">("batter");
+  // players are per league: a switch clears the pair
+  useEffect(() => {
+    setA(null);
+    setB(null);
+  }, [collection]);
 
   const rows = ratings.data ?? [];
 
@@ -105,10 +110,14 @@ export function HeadToHead() {
         </div>
       )}
 
-      {ratings.loading ? (
+      {ratings.loading && !ratings.data ? (
         <Spinner label="Loading ratings…" />
+      ) : ratings.error ? (
+        <ErrorBox message={ratings.error} />
       ) : !a || !b ? (
         <Empty>Pick two players to compare their underlying skill.</Empty>
+      ) : a === b ? (
+        <Empty>That's the same player twice — pick someone else for B.</Empty>
       ) : !result ? (
         <Empty>
           These two don't share a comparable role{sharedRoles.length === 0 ? " in this collection" : ""}. Try
@@ -125,12 +134,12 @@ export function HeadToHead() {
             </div>
             <div className="relative h-10 w-full overflow-hidden rounded-xl border border-border bg-surface">
               <div
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent-dim to-accent-glow transition-all duration-500"
+                className="absolute inset-y-0 left-0 bg-grad transition-all duration-500"
                 style={{ width: `${pct}%` }}
               />
-              <div className="absolute inset-0 flex items-center justify-between px-4 text-sm font-bold">
-                <span className="text-bg">{pct}%</span>
-                <span className="text-fg">{100 - pct}%</span>
+              <div className="absolute inset-0 flex items-center justify-between px-3 text-sm font-bold">
+                <span className="rounded-md bg-card/85 px-1.5 text-fg">{pct}%</span>
+                <span className="rounded-md bg-card/85 px-1.5 text-fg">{100 - pct}%</span>
               </div>
               <div className="absolute left-1/2 top-0 h-full w-px bg-fg/20" />
             </div>
@@ -147,7 +156,7 @@ export function HeadToHead() {
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {[result.a, result.b].map((side, i) => (
               <Card key={i} className="px-5 py-4">
-                <div className="text-sm font-semibold" style={{ color: i === 0 ? "#6ee7b7" : "#e6edf3" }}>
+                <div className={cn("text-sm font-semibold", i === 0 ? "text-accent-glow" : "text-fg")}>
                   {side.name}
                 </div>
                 <div className="mt-3 space-y-2 text-sm">

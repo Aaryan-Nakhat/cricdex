@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { GitCompareArrows, Plus, X } from "lucide-react";
 import {
   Radar,
@@ -14,10 +14,9 @@ import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getProfile, type Profile } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, CardHeader, Spinner, Empty, InfoTip } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Empty, InfoTip, ErrorBox } from "@/components/ui";
+import { useTheme } from "@/lib/theme";
 import { cn, fmt } from "@/lib/utils";
-
-const SERIES_COLORS = ["#34d399", "#a3e635", "#60a5fa", "#f43f5e"];
 
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -58,13 +57,22 @@ export function Compare() {
   const { collection } = useStore();
   const { options } = usePlayers(collection);
   const [cids, setCids] = useState<(string | null)[]>([null, null]);
+  const { colors } = useTheme();
+  const SERIES_COLORS = [colors.accent, colors.gold, colors.sky, colors.ball];
 
+  // players are per league: a switch clears the picks instead of asking for files that don't exist
+  useEffect(() => setCids([null, null]), [collection]);
+
+  const picked = cids.filter(Boolean) as string[];
   const profiles = useAsync(async () => {
-    const ids = cids.filter(Boolean) as string[];
-    return Promise.all(ids.map((id) => getProfile(collection, id)));
-  }, [collection, cids.join(",")]);
+    // one missing profile shouldn't sink the others
+    const got = await Promise.allSettled(picked.map((id) => getProfile(collection, id)));
+    const ok = got.flatMap((g) => (g.status === "fulfilled" && g.value ? [g.value] : []));
+    const failed = got.filter((g) => g.status === "rejected").length;
+    return { ok, failed };
+  }, [collection, picked.join(",")]);
 
-  const loaded = (profiles.data ?? []).filter(Boolean) as Profile[];
+  const loaded = (profiles.data?.ok ?? []) as Profile[];
 
   // radar over the 4 bayes axes, min-max normalised across the loaded set
   const radarData = (() => {
@@ -85,11 +93,12 @@ export function Compare() {
     return axes.map((ax) => {
       const vals = loaded.map((p) => valOf(p, ax.key));
       const finite = vals.filter((v): v is number => v !== null);
-      const min = Math.min(...finite, 0), max = Math.max(...finite, 0.01);
+      // best of the selected players → rim (100), worst → centre (0); a tie puts everyone mid-way
+      const min = Math.min(...finite), max = Math.max(...finite);
       const row: Record<string, number | string> = { axis: ax.label };
       loaded.forEach((p, i) => {
         const v = valOf(p, ax.key);
-        row[`p${i}`] = v === null ? 0 : ((v - min) / (max - min || 1)) * 100;
+        row[`p${i}`] = v === null ? 0 : max > min ? ((v - min) / (max - min)) * 100 : 50;
       });
       return row;
     });
@@ -115,6 +124,7 @@ export function Compare() {
               <button
                 className="absolute -right-1 -top-1 rounded-full bg-card p-0.5 text-muted hover:text-ball"
                 onClick={() => setCids((c) => c.filter((_, j) => j !== i))}
+                aria-label={`Remove player ${i + 1}`}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -128,10 +138,18 @@ export function Compare() {
         )}
       </div>
 
-      {loaded.length < 2 ? (
+      {picked.length < 2 ? (
         <Empty>Pick at least two players to compare.</Empty>
-      ) : profiles.loading ? (
+      ) : profiles.loading && !profiles.data ? (
         <Spinner label="Loading players…" />
+      ) : profiles.error ? (
+        <ErrorBox message={profiles.error} />
+      ) : loaded.length < 2 ? (
+        <Empty>
+          {profiles.data?.failed
+            ? "One of these players has no profile in this league — pick someone else."
+            : "Pick at least two players to compare."}
+        </Empty>
       ) : (
         <div className="space-y-5 animate-fade-up">
           {/* radar */}
@@ -146,8 +164,9 @@ export function Compare() {
                     <b>relative, not absolute</b>: for each axis the best of the selected players is
                     pushed to the rim (100) and the worst to the centre (0), so the chart only
                     compares <i>these</i> players to each other. A bigger, more filled shape = better
-                    across more skills. Pure batters sit near the centre on the two bowling axes (and
-                    vice-versa) — that's expected, not a weakness. Hover a point for its scaled value.
+                    across more skills. A player with no rating on an axis (a batter who doesn't bowl)
+                    sits at the centre on it — that's expected, not a weakness. If everyone is level on
+                    an axis they all sit half-way.
                   </InfoTip>
                 </span>
               }
@@ -156,8 +175,8 @@ export function Compare() {
             <div className="h-80 p-4">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={radarData} outerRadius="72%">
-                  <PolarGrid stroke="#1e2836" />
-                  <PolarAngleAxis dataKey="axis" tick={{ fill: "#8a97a8", fontSize: 12 }} />
+                  <PolarGrid stroke={colors.grid} />
+                  <PolarAngleAxis dataKey="axis" tick={{ fill: colors.muted, fontSize: 12 }} />
                   <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
                   {loaded.map((p, i) => (
                     <Radar
@@ -170,7 +189,7 @@ export function Compare() {
                       strokeWidth={2}
                     />
                   ))}
-                  <Legend wrapperStyle={{ fontSize: 12, color: "#e6edf3" }} />
+                  <Legend wrapperStyle={{ fontSize: 12, color: colors.fg }} />
                 </RadarChart>
               </ResponsiveContainer>
             </div>

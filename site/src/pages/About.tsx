@@ -14,10 +14,11 @@ const SECTIONS: Section[] = [
     body: (
       <>
         Everything here is built from <strong>Cricsheet</strong> ball-by-ball data — every delivery of
-        every match in a collection. There is no scraping, no live feed, and no LLM guessing. A Python
-        pipeline computes the ratings and metrics offline; this site just displays the result. The “data
-        up to” date in the header is the most recent match actually in the dataset, and a nightly GitHub
-        Action re-cooks it.
+        every match in a collection. There is no scraping and no live feed, and every number is computed,
+        not generated — the one AI step only tags each player's role, bowling type and country (marked
+        “AI-classified” in the filters). A Python pipeline computes the ratings and metrics offline; this
+        site just displays the result. The “data up to” date in the header is the most recent match
+        actually in the dataset, refreshed on demand.
       </>
     ),
   },
@@ -39,7 +40,7 @@ const SECTIONS: Section[] = [
   },
   {
     icon: <Sigma className="h-5 w-5" />,
-    title: "Ten novel metrics",
+    title: "Ten novel metrics + fielding",
     body: (
       <>
         Each metric isolates one skill that a scorecard hides — strike rate <em>specifically</em> when the

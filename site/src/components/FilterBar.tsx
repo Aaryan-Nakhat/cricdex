@@ -16,13 +16,16 @@ function Select({
   value,
   onChange,
   options,
+  label,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
+  label?: string;
 }) {
   return (
     <select
+      aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="input w-auto cursor-pointer py-1.5 pr-8"
@@ -44,6 +47,7 @@ export function FilterBar({
   yearBounds,
   count,
   total,
+  defaults = EMPTY_FILTERS,
 }: {
   filters: Filters;
   onChange: (f: Filters) => void;
@@ -52,6 +56,8 @@ export function FilterBar({
   yearBounds?: { min: number; max: number };
   count?: number;
   total?: number;
+  /** What "reset" returns to — the page's own starting filters. */
+  defaults?: Filters;
 }) {
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
   const active =
@@ -85,7 +91,7 @@ export function FilterBar({
             max={100}
             value={filters.minMatches}
             onChange={(e) => set({ minMatches: Number(e.target.value) })}
-            className="h-1.5 w-32 cursor-pointer accent-[#34d399]"
+            className="h-1.5 w-32 cursor-pointer accent-[rgb(var(--accent))]"
           />
           <input
             type="number"
@@ -99,26 +105,28 @@ export function FilterBar({
       )}
       {show.includes("activity") && (
         <Select
+          label={labelFor("activity")}
           value={filters.activity}
           onChange={(v) => set({ activity: v as Filters["activity"] })}
           options={ACTIVITY_OPTS}
         />
       )}
       {show.includes("role") && (
-        <Select value={filters.role} onChange={(v) => set({ role: v })} options={ROLE_OPTS} />
+        <Select label={labelFor("role")} value={filters.role} onChange={(v) => set({ role: v })} options={ROLE_OPTS} />
       )}
       {show.includes("bowling") && (
-        <Select value={filters.bowling} onChange={(v) => set({ bowling: v })} options={BOWLING_OPTS} />
+        <Select label={labelFor("bowling")} value={filters.bowling} onChange={(v) => set({ bowling: v })} options={BOWLING_OPTS} />
       )}
       {show.includes("position") && (
         <Select
+          label={labelFor("position")}
           value={filters.position}
           onChange={(v) => set({ position: v })}
           options={POSITION_OPTS}
         />
       )}
       {show.includes("country") && countryOpts && (
-        <Select value={filters.country} onChange={(v) => set({ country: v })} options={countryOpts} />
+        <Select label={labelFor("country")} value={filters.country} onChange={(v) => set({ country: v })} options={countryOpts} />
       )}
 
       {show.includes("years") && yearBounds && (
@@ -169,7 +177,7 @@ export function FilterBar({
 
       {active && (
         <button
-          onClick={() => onChange({ ...EMPTY_FILTERS })}
+          onClick={() => onChange({ ...defaults })}
           className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-ball"
         >
           <RotateCcw className="h-3.5 w-3.5" /> reset

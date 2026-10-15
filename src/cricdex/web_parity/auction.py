@@ -293,9 +293,13 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
     return states
 
 
+# Lots per auction: the most valuable unretained players (a real auction lists far more, most go unsold).
+AUCTION_LOTS = 200
+
+
 def simulate_auction(pool: list[dict], team_cfg: list[dict], opts: dict) -> dict:
     bases, auction_pool = _build_franchises(pool, team_cfg, opts)
-    use_pool = auction_pool[:200]
+    use_pool = auction_pool[:AUCTION_LOTS]
     agg = [
         {
             "team": b["team"],
@@ -406,6 +410,7 @@ def simulate_auction(pool: list[dict], team_cfg: list[dict], opts: dict) -> dict
         "mode": opts["mode"],
         "bases": bases,
         "pool_size": len(auction_pool),
+        "auctioned": len(use_pool),
         "teams": teams,
         "marquee": marquee,
         "outcomes": outcomes,
