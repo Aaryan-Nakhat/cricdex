@@ -1,10 +1,10 @@
-"""Streamlit page: Scout — 3-tier cross-competition look-alikes.
+"""Streamlit page: Scout — cross-competition look-alikes over six pools.
 
 Identical to the web Scout room (and locked to it by
 `test_scripts/test_web_parity.py`): it reads the SAME exported JSON
 (`site/public/data/ipl/scout_index.json`) and uses the SAME logic
 (`cricdex.web_parity`). Pick an active IPL player → similar IPL peers,
-uncapped SMAT prospects, and overseas BBL options, ranked by within-tier
+uncapped SMAT prospects, and overseas BBL / SA20 / CPL / T20 Blast options, ranked by within-tier
 skill standing — with est. crore price, saving-vs-pick, an uncapped-gem
 flag, role/slot filters, and a draft-to-auction handoff.
 """
@@ -85,7 +85,7 @@ def _auction_pool_cids() -> set[str]:
 
 try:
     idx = _index()
-except FileNotFoundError as e:
+except (FileNotFoundError, ValueError) as e:  # missing or corrupt export
     st.error(f"{e}")
     st.stop()
 
@@ -131,7 +131,11 @@ if gems:
         )
 
 pick_cid = st.selectbox(
-    "Active IPL player", list(by_cid), index=0, format_func=lambda c: _labels[c]
+    "Active IPL player",
+    list(by_cid),
+    index=0,
+    format_func=lambda c: _labels[c],
+    key="scout-pick",
 )
 sel = by_cid[pick_cid]
 
@@ -168,7 +172,7 @@ def _tier_df(tier: str) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-# 5 tiers laid out in rows of up to 3 columns.
+# 6 pools laid out in rows of up to 3 columns.
 for start in range(0, len(TIER_ORDER), 3):
     chunk = TIER_ORDER[start : start + 3]
     cols = st.columns(len(chunk))
@@ -183,26 +187,38 @@ for start in range(0, len(TIER_ORDER), 3):
 
 # --- draft handoff: same effect as the web's ?draft= -----------------------
 st.divider()
+# Options are keyed by cricsheet_id (two prospects can share a name).
 prospects: dict[str, str] = {}
 for tier in DRAFTABLE_TIERS:
     for r in similar_to(sel, idx[tier], role, pos):
-        prospects[f"{r['name']} ({tier.upper()})"] = r["cricsheet_id"]
+        prospects.setdefault(r["cricsheet_id"], f"{r['name']} ({tier.upper()})")
+# The draft list accumulates across picks: this pick's multiselect only adds or
+# removes its own prospects; drafts made from earlier picks are kept.
+drafted_before: list[str] = list(st.session_state.get("drafted", []))
 chosen = st.multiselect(
     "Draft prospects into the Auction room (locked as retentions there)",
     list(prospects),
-    default=[k for k in prospects if prospects[k] in st.session_state.get("drafted", [])],
+    default=[c for c in prospects if c in drafted_before],
+    format_func=lambda c: prospects[c],
+    key=f"draftpick_{pick_cid}_{role}_{pos}",
     help="SMAT/BBL look-alikes you pick here are pre-loaded as retentions on the Auction page.",
 )
 # Only players in the priced auction pool can be drafted (the rest are too few
 # balls / a non-IPL nation) — mirrors the web's draft guard.
 pool_cids = _auction_pool_cids()
-eligible = [prospects[k] for k in chosen if prospects[k] in pool_cids]
-ineligible = [k for k in chosen if prospects[k] not in pool_cids]
-st.session_state["drafted"] = eligible
+eligible = [c for c in chosen if c in pool_cids]
+ineligible = [prospects[c] for c in chosen if c not in pool_cids]
+drafted = [c for c in drafted_before if c not in prospects] + eligible
+st.session_state["drafted"] = drafted
 if ineligible:
     st.warning(
         f"{', '.join(ineligible)} — not in the priced auction pool (too few balls, or a "
         "non-IPL nation), so can't be drafted."
     )
-if eligible:
-    st.success(f"{len(eligible)} prospect(s) queued — open the **Auction** page to place them.")
+if drafted:
+    st.success(f"{len(drafted)} prospect(s) queued — open the **Auction** page to place them.")
+    if st.button("Clear all drafts", key="draft_clear"):
+        st.session_state["drafted"] = []
+        for k in [k for k in st.session_state if str(k).startswith("draftpick_")]:
+            del st.session_state[k]
+        st.rerun()

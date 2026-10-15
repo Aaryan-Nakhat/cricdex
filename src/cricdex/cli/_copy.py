@@ -79,6 +79,8 @@ METRIC_HINTS: dict[str, str] = {
         "of an innings. Positive = slow starter whose early caution "
         "costs tempo; ~0 = aggressive from ball one."
     ),
+    "keeping": "Wicketkeeping dismissals: catches + stumpings + run-outs.",
+    "fielding": "Outfield dismissals: catches + run-outs.",
 }
 
 # --- Leaderboards page ---------------------------------------------------

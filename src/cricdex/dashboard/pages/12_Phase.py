@@ -8,8 +8,6 @@ the live site. Same player filter bar as Leaderboards (rows carry the taxonomy
 
 from __future__ import annotations
 
-import json
-
 import streamlit as st
 
 from cricdex.common.filters import (
@@ -22,7 +20,7 @@ from cricdex.common.filters import (
     apply_filters,
     countries_in,
 )
-from cricdex.dashboard._widgets import provenance_banner
+from cricdex.dashboard._widgets import provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Phase", page_icon="⏱️", layout="wide")
@@ -52,8 +50,7 @@ def list_collections() -> list[str]:
 
 @st.cache_data(ttl=300)
 def load_phase(collection: str) -> dict:
-    path = SITE_DATA / collection / "phase.json"
-    return json.loads(path.read_text()) if path.exists() else {}
+    return read_json(SITE_DATA / collection / "phase.json", {})
 
 
 def _select(label: str, opts: list[tuple[str, str]], key: str, help_: str | None = None) -> str:

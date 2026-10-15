@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import streamlit as st
@@ -72,12 +73,30 @@ def load_players(collection: str) -> list[dict]:
         return []
 
 
+def read_json(path: Path, default: Any = None) -> Any:
+    """Parse an exported JSON file. Missing → `default`; corrupt or unreadable →
+    an `st.error` naming the file, then `default`, so one bad export can't crash
+    the page."""
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as e:
+        st.error(
+            f"Could not read `{path.name}` ({e}). Re-run `uv run python scripts/export_site.py`."
+        )
+        return default
+
+
 def _player_label(p: dict) -> str:
     """'Full Name (Short)' — mirrors the web Combobox so typing either the full
     or the scorecard name filters the dropdown to the player."""
     full = p.get("full_name")
     short = p.get("name", "")
     return f"{full} ({short})" if full and full != short else short
+
+
+_NO_PLAYER = "— no player —"
 
 
 def player_select(
@@ -89,16 +108,29 @@ def player_select(
 ) -> dict | None:
     """Type-ahead player dropdown (matches React's Combobox): the option label
     carries both the full and scorecard name, so typing either narrows the list.
-    Returns the chosen player row (or None when there are no players)."""
+
+    `default_name=None` makes the pick optional: a "no player" entry comes
+    first and is selected by default (the web's `cid=null`). Returns the chosen
+    player row, or None when nothing is picked / there are no players."""
     players = sorted(load_players(collection), key=lambda p: p.get("name", ""))
     if not players:
         return None
     by_cid = {p["cricsheet_id"]: p for p in players}
     labels = {p["cricsheet_id"]: _player_label(p) for p in players}
-    cids = [p["cricsheet_id"] for p in players]
-    index = next((i for i, p in enumerate(players) if p.get("name") == default_name), 0)
-    cid = st.selectbox(label, cids, index=index, format_func=lambda c: labels[c], key=key)
-    return by_cid.get(cid)
+    cids: list[str | None] = [p["cricsheet_id"] for p in players]
+    if default_name is None:
+        cids.insert(0, None)
+        index = 0
+    else:
+        index = next((i for i, p in enumerate(players) if p.get("name") == default_name), 0)
+    cid = st.selectbox(
+        label,
+        cids,
+        index=index,
+        format_func=lambda c: _NO_PLAYER if c is None else labels[c],
+        key=key,
+    )
+    return by_cid.get(cid) if cid is not None else None
 
 
 def player_multiselect(
@@ -145,7 +177,9 @@ def provenance_banner(
         st.warning(f"Data missing at `{path}`. Run `cricdex data ingest …` first.")
         return
 
-    mtime = dt.datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M UTC")
+    mtime = dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.UTC).strftime(
+        "%Y-%m-%d %H:%M UTC"
+    )
     bits = [
         f"**Source:** [{source}]({url})" if url else f"**Source:** `{source}`",
         f"**Last refreshed:** {mtime}",

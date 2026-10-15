@@ -47,6 +47,9 @@ def _load(collection: str, slug: str, window: str) -> list[dict]:
         return load_leaderboard(collection, slug, window)
     except FileNotFoundError:
         return []
+    except ValueError as e:
+        st.error(f"Could not read the `{slug}` leaderboard ({e}). Re-run `scripts/export_site.py`.")
+        return []
 
 
 def _select(label: str, opts: list[tuple[str, str]], key: str, help_: str | None = None) -> str:

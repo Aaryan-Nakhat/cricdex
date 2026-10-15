@@ -1,4 +1,4 @@
-"""CricDex Leaderboards — the same 10 metrics as the web app.
+"""CricDex Leaderboards — the same 12 metrics as the web app.
 
 Reads the exported leaderboard JSON the React site uses
 (`site/public/data/<collection>/leaderboards/<slug>[.<window>].json`) so the
@@ -44,6 +44,9 @@ def load_metric(slug: str, collection: str, window: str) -> list[dict]:
         return load_leaderboard(collection, slug, window)
     except FileNotFoundError:
         return []
+    except ValueError as e:
+        st.error(f"Could not read the `{slug}` leaderboard ({e}). Re-run `scripts/export_site.py`.")
+        return []
 
 
 def _select(label: str, opts: list[tuple[str, str]], key: str, help_: str | None = None) -> str:
@@ -87,7 +90,7 @@ def render() -> None:
     st.set_page_config(page_title="CricDex Leaderboards", page_icon="🏏", layout="wide")
     st.title("🏏 CricDex — leaderboards")
     st.caption(
-        "The 10 novel impact metrics — identical to the web app (reads the same exported "
+        "The 12 impact metrics — identical to the web app (reads the same exported "
         "data). Each isolates a skill that batting average / economy can't see. Pick a metric "
         "tab; set the time window and filters in the sidebar."
     )

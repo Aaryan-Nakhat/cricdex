@@ -12,7 +12,7 @@ import json
 import plotly.graph_objects as go
 import streamlit as st
 
-from cricdex.dashboard._widgets import provenance_banner
+from cricdex.dashboard._widgets import provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Venues", page_icon="🏟️", layout="wide")
@@ -47,10 +47,7 @@ def list_collections() -> list[str]:
 
 @st.cache_data(ttl=300)
 def load_venues(collection: str) -> dict[str, dict]:
-    path = SITE_DATA / collection / "venues.json"
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text())
+    return read_json(SITE_DATA / collection / "venues.json", {})
 
 
 def _num(v: object) -> float | None:

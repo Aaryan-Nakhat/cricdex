@@ -12,7 +12,7 @@ import json
 import pandas as pd
 import streamlit as st
 
-from cricdex.dashboard._widgets import provenance_banner
+from cricdex.dashboard._widgets import provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Records", page_icon="📜", layout="wide")
@@ -77,10 +77,7 @@ def list_collections() -> list[str]:
 
 @st.cache_data(ttl=300)
 def load_records(collection: str) -> dict[str, list[dict]]:
-    path = SITE_DATA / collection / "records.json"
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text())
+    return read_json(SITE_DATA / collection / "records.json", {})
 
 
 collections = list_collections()

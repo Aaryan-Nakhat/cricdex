@@ -970,7 +970,10 @@ def _export_profiles_and_cohorts(
     from cricdex.scout import cohort
 
     # One read-only connection + one ball-volume pass, reused across players
-    # so the graph cohort (co_faced) costs ~one query per player.
+    # so the graph cohort (co_faced) costs ~one query per player. The profile
+    # builder shares that connection and reads the metric / ratings JSON and
+    # fits the style-twin indexes once per collection (`builder.Sources`).
+    sources = builder.Sources(collection)
     name_to_cid = {p["name"]: p["cricsheet_id"] for p in players if p.get("name")}
     try:
         con = duckdb.connect(str(cohort.DEFAULT_DB_PATH), read_only=True)
@@ -987,7 +990,7 @@ def _export_profiles_and_cohorts(
         try:
             # builder.build already merges Wikidata identity (dob / photo
             # / socials) from the JSON cache by cricsheet_id.
-            prof = builder.build(name, collection)
+            prof = builder.build(name, collection, con=con, sources=sources)
             tax = taxonomy.get(cid)
             if tax:
                 prof["taxonomy"] = tax
