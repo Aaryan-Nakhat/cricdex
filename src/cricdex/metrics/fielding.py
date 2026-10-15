@@ -28,10 +28,10 @@ import duckdb
 import polars as pl
 
 from cricdex.common.sql import table_suffix
-from cricdex.config import DATA_DIR
+from cricdex.config import CURATED_DIR, DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
-TAXONOMY_PATH = DATA_DIR / "curated" / "player_taxonomy.json"
+TAXONOMY_PATH = CURATED_DIR / "player_taxonomy.json"
 
 
 def _connect(db_path: Path | str) -> duckdb.DuckDBPyConnection:

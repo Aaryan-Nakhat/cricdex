@@ -4,19 +4,23 @@
 updated, so a returning user can tell at a glance what's fresh and
 what needs recomputing.
 
-`cricdex data ingest <slice>` triggers the relevant pipeline. Every
-ingest skips if its output already exists, unless `--force` is passed.
+`cricdex data ingest <slice>` triggers the relevant pipeline. The
+cricsheet and ratings slices skip a collection that's already there,
+unless `--force` is passed. The metrics slice also rebuilds that
+collection's site JSON, so every command reads the new numbers.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import subprocess
+import sys
 from pathlib import Path
 
 import typer
 
-from cricdex.cli._shared import EXIT_USER_ERROR, die, render_table
-from cricdex.config import DATA_DIR, ROOT
+from cricdex.cli._shared import EXIT_RUNTIME_ERROR, EXIT_USER_ERROR, die, render_table
+from cricdex.config import DATA_DIR, ROOT, SITE_DATA
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -40,7 +44,7 @@ def status_cmd() -> None:
         ("scout NumPyro ratings", DATA_DIR / "metrics" / "scout_ratings_ipl.json"),
         ("metrics outputs", DATA_DIR / "metrics"),
         ("people register", DATA_DIR / "register" / "people.csv"),
-        ("exported site JSON", ROOT / "site" / "public" / "data" / "ipl"),
+        ("exported site JSON", SITE_DATA / "ipl"),
     ]
     for label, path in targets:
         info = _file_info(path)
@@ -56,11 +60,40 @@ def status_cmd() -> None:
     render_table(rows, title="cricdex data status")
 
 
-def _skip_if_exists(path: Path, label: str, force: bool) -> bool:
-    if path.exists() and not force:
-        typer.echo(f"{label} already present at {path}  (pass --force to regenerate)")
-        return True
-    return False
+def _script(name: str, *args: str) -> subprocess.CompletedProcess:
+    """Run one of the repo's scripts/ from the repo root (works from any working directory)."""
+    return subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / name), *args],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _tail(proc: subprocess.CompletedProcess) -> str:
+    return (proc.stderr or proc.stdout or "").strip()[-800:]
+
+
+def _has_collection(collection: str) -> bool:
+    import duckdb
+
+    from cricdex.common.sql import table_suffix
+
+    db = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
+    if not db.exists():
+        return False
+    with duckdb.connect(str(db), read_only=True) as con:
+        tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+    return f"balls_{table_suffix(collection)}" in tables
+
+
+def run_export(collection: str) -> str:
+    """Rebuild one collection's site JSON (what the web, CLI, TUI and dashboard read). Raises on failure."""
+    proc = _script("export_site.py", "-c", collection)
+    if proc.returncode != 0:
+        raise RuntimeError(f"export_site.py failed (exit {proc.returncode}):\n{_tail(proc)}")
+    return f"site JSON rebuilt for {collection}"
 
 
 SLICES: tuple[str, ...] = (
@@ -76,17 +109,24 @@ def run_ingest(slice_: str, collection: str = "ipl", force: bool = False) -> str
 
     Pulled out of the typer command so the TUI + Streamlit can call
     the same code path. Returns a human-readable summary; raises
-    `ValueError` for unknown slices and lets pipeline exceptions
-    propagate so the caller can format them.
+    `ValueError` for unknown slices and `RuntimeError` when a step fails,
+    so the caller can stop instead of reporting success.
     """
     if slice_ == "cricsheet":
-        from cricdex.scout.ingest import cricsheet
-
         out = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
-        if out.exists() and not force:
-            return f"cricsheet duckdb already present at {out} (pass force=True to regenerate)"
-        cricsheet.build(collection=collection, force=force)
-        return f"wrote {out}"
+        # Skip only when *this* collection is already loaded (other collections share the same DuckDB file).
+        if _has_collection(collection) and not force:
+            return f"{collection} is already in {out} (pass --force to re-download)"
+        if collection == "indian_domestic_male":
+            args = ["indian-domestic", *(["--force"] if force else [])]
+        else:
+            args = ["ingest", "--collection", collection, *(["--force"] if force else [])]
+        proc = _script("ingest_cricsheet.py", *args)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"ingest_cricsheet.py failed (exit {proc.returncode}):\n{_tail(proc)}"
+            )
+        return f"loaded {collection} into {out}"
     if slice_ == "ratings":
         from cricdex.scout.ratings import bayesian
 
@@ -98,12 +138,12 @@ def run_ingest(slice_: str, collection: str = "ipl", force: bool = False) -> str
         df.write_json(str(out))
         return f"wrote {out} ({df.height} rows)"
     if slice_ == "metrics":
-        import subprocess
-        import sys
-
-        cmd = [sys.executable, "scripts/compute_metrics.py", "all", "-c", collection]
-        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
-        return f"compute_metrics.py exit={proc.returncode}\n{proc.stdout.strip()}"
+        proc = _script("compute_metrics.py", "all", "-c", collection)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"compute_metrics.py failed (exit {proc.returncode}):\n{_tail(proc)}"
+            )
+        return f"metrics computed for {collection}; " + run_export(collection)
     if slice_ == "wikidata":
         from cricdex.scout.ingest import wikidata
 
@@ -122,4 +162,6 @@ def ingest_cmd(
         msg = run_ingest(slice_, collection=collection, force=force)
     except ValueError as e:
         die(str(e), code=EXIT_USER_ERROR)
+    except RuntimeError as e:
+        die(str(e), code=EXIT_RUNTIME_ERROR)
     typer.echo(msg)

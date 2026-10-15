@@ -40,7 +40,7 @@ import duckdb
 import httpx
 from loguru import logger
 
-from cricdex.config import DATA_DIR, ROOT
+from cricdex.config import CURATED_DIR, DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 
@@ -48,7 +48,7 @@ WD_SEARCH_URL = "https://www.wikidata.org/w/api.php"
 WD_ENTITY_URL = "https://www.wikidata.org/wiki/Special:EntityData/{qid}.json"
 USER_AGENT = "cricdex/0.1 (https://github.com/Aaryan-Nakhat/cricdex)"
 
-ENRICHMENT_PATH = ROOT / "data" / "curated" / "wikidata_enrichment.json"
+ENRICHMENT_PATH = CURATED_DIR / "wikidata_enrichment.json"
 SLEEP_BETWEEN_REQUESTS_S = 0.6  # ~100 req/min; well under MediaWiki API soft cap.
 
 # Wikidata properties we care about, mapped to flat output keys.

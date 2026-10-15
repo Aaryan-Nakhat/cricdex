@@ -1,8 +1,8 @@
 """`cricdex init` — first-run wizard.
 
-Walks a fresh user through: (1) creating $CRICDEX_HOME, (2) optional
-LLM model + key entry, (3) an opt-in offer to ingest the IPL
-collection so they have something to query immediately.
+Walks a fresh user through: (1) creating $CRICDEX_HOME (config.toml), (2) optional
+LLM model + key entry, (3) the next commands to run. From a cloned repo the data stays in the
+repo's data/ folder either way (see cricdex.config.DATA_DIR).
 
 Idempotent — re-running just re-prompts for missing pieces.
 """
@@ -54,8 +54,6 @@ def run() -> None:
 
     c.print("\n[bold]Next steps:[/bold]")
     c.print("  [cyan]cricdex data status[/cyan]                     check what's on disk")
-    c.print(
-        "  [cyan]cricdex data ingest cricsheet -c ipl[/cyan]    fetch IPL ball-by-ball (~600 MB)"
-    )
+    c.print("  [cyan]cricdex data ingest cricsheet -c ipl[/cyan]    fetch IPL ball-by-ball")
     c.print("  [cyan]cricdex leaderboard ngi -c ipl[/cyan]           your first analytical query")
     c.print("  [cyan]cricdex tui[/cyan]                              full interactive UI")

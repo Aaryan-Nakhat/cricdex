@@ -40,7 +40,7 @@ import typer
 from loguru import logger
 
 from cricdex.common.sql import BOWLER_RUNS, table_suffix
-from cricdex.config import DATA_DIR
+from cricdex.config import CURATED_DIR, DATA_DIR
 
 app = typer.Typer(add_completion=False)
 
@@ -50,7 +50,7 @@ METRIC_DIR = DATA_DIR / "metrics"
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 # LLM-built taxonomy (role / bowling type / batting position / country),
 # keyed by cricsheet_id. See scripts/enrich_taxonomy.py.
-TAXONOMY_PATH = DATA_DIR / "curated" / "player_taxonomy.json"
+TAXONOMY_PATH = CURATED_DIR / "player_taxonomy.json"
 
 # Fields merged onto players / profiles / cohort members for filters + display.
 _TAX_KEEP = (
@@ -366,7 +366,7 @@ def _export_auction_pool(
         dob_by_cid = {
             cid: rec.get("dob")
             for cid, rec in json.loads(
-                (DATA_DIR / "curated" / "wikidata_enrichment.json").read_text()
+                (CURATED_DIR / "wikidata_enrichment.json").read_text()
             ).items()
         }
     except (FileNotFoundError, ValueError):
@@ -1174,7 +1174,7 @@ def _export_aging(con: duckdb.DuckDBPyConnection, collection: str, out_dir: Path
         dob_by_cid = {
             cid: rec.get("dob")
             for cid, rec in json.loads(
-                (DATA_DIR / "curated" / "wikidata_enrichment.json").read_text()
+                (CURATED_DIR / "wikidata_enrichment.json").read_text()
             ).items()
         }
     except (FileNotFoundError, ValueError):

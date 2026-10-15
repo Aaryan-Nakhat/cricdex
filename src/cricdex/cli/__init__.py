@@ -18,7 +18,7 @@ Subcommand groups, each mounted as its own typer app:
   cricdex scout look-alikes <name>          cross-competition look-alikes
   cricdex auction room                      real-rules IPL auction sim
   cricdex tui                               full Textual UI
-  cricdex dashboard                         optional Streamlit on :8501
+  cricdex dashboard                         optional Streamlit dashboard (`--extra ui`)
 
 `uvx --from cricdex cricdex --help` or `pip install cricdex` + run
 `cricdex --help` from anywhere.
@@ -78,7 +78,7 @@ def root(
         from cricdex.cli.tui import run_tui
     except ImportError as e:
         typer.echo(
-            f"TUI requires the `cli` extra (`uv sync --extra cli`). ({e})\n"
+            f"TUI dependencies are missing — reinstall with `uv sync`. ({e})\n"
             f"Run `cricdex --help` for the full command list."
         )
         raise typer.Exit(code=1) from e
@@ -150,7 +150,7 @@ def tui() -> None:
     try:
         from cricdex.cli.tui import run_tui
     except ImportError as e:
-        typer.echo(f"Textual TUI requires `cli` extras — `uv sync --extra cli`. ({e})")
+        typer.echo(f"Textual TUI dependencies are missing — reinstall with `uv sync`. ({e})")
         raise typer.Exit(code=1) from e
     run_tui()
 

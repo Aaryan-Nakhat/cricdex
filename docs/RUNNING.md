@@ -48,7 +48,7 @@ Cross-competition look-alike finder (IPL / SMAT / BBL / SA20 / CPL /
 Blast), shared with the web via `cricdex.web_parity`.
 
 ```bash
-cricdex scout look-alikes "V Kohli" -c ipl
+cricdex scout look-alikes "V Kohli"
 ```
 
 UI: dashboard page **Scout** (web-identical).
@@ -59,7 +59,7 @@ Real-rules IPL auction Monte-Carlo, shared with the web via
 `cricdex.web_parity`.
 
 ```bash
-cricdex auction room -c ipl
+cricdex auction room --mode mega
 ```
 
 UI: dashboard page **Auction** (web-identical). After a run, look up any
@@ -95,7 +95,7 @@ make docker-down    # stop everything
 ```bash
 git clone https://github.com/Aaryan-Nakhat/cricdex.git
 cd cricdex
-uv sync --group dev
+uv sync --group dev --extra ui
 cp .env.example .env
 # Set LLM_MODEL (+ the provider's key) for the taxonomy
 # enrichment — optional.

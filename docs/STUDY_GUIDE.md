@@ -103,7 +103,7 @@ database).
 **Data flow**:
 
 ```
-Cricsheet JSON ──> scripts/ingest_cricsheet.py ──> DuckDB (~600 MB)
+Cricsheet JSON ──> scripts/ingest_cricsheet.py ──> DuckDB (~100 MB, all collections)
                                                        │
         ┌─────────────────────────┬────────────────────┼──────────────────┐
         ▼                         ▼                    ▼                  ▼
@@ -141,7 +141,7 @@ outcome) plus an `innings` list where every ball is an object with
 `runs_total/batter/extras`, `wicket` info, and `phases` cues.
 
 `scout/ingest/cricsheet.py` downloads a *collection* (e.g.
-`ipl` = 1097 matches, ~600 MB) as a single zip, expands each match
+`ipl` = 1,243 matches, a few MB) as a single zip, expands each match
 JSON, flattens every ball into a polars row, writes one Parquet
 file per collection, then materialises into a DuckDB table named
 `balls_<collection>` so SQL queries run in single-digit seconds.

@@ -38,7 +38,7 @@ make docker-ingest-people
 make docker-scout-rate COLLECTION=ipl STEPS=12000
 
 # Look-alikes (web-identical) + browse
-cricdex scout look-alikes "V Kohli" -c ipl
+cricdex scout look-alikes "V Kohli"
 # - Streamlit dashboard: http://localhost:8511
 ```
 

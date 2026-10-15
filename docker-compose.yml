@@ -11,13 +11,15 @@ services:
     container_name: cricdex-app
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     ports:
       - "8080:8080"
     volumes:
       # Mount data dir so Parquet / DuckDB / curated JSON persist across
       # container restarts and stay editable from the host.
       - ./data:/app/data
+      - ./site/public/data:/app/site/public/data
       # Mount source for dev hot-reload. Comment out for a frozen image.
       - ./src:/app/src
       - ./scripts:/app/scripts
@@ -31,14 +33,16 @@ services:
     restart: unless-stopped
     profiles: ["dashboard"]
     env_file:
-      - .env
+      - path: .env
+        required: false
     ports:
       - "8511:8501"
     volumes:
       - ./data:/app/data
+      - ./site/public/data:/app/site/public/data
       - ./src:/app/src
     command: >
-      uv run streamlit run src/cricdex/dashboard/app.py
+      uv run --frozen streamlit run src/cricdex/dashboard/app.py
       --server.address 0.0.0.0
       --server.port 8501
       --server.headless true

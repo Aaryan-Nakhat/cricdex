@@ -8,13 +8,9 @@ flows DuckDB → exported JSON → all pages, just like the web's nightly Action
 
 from __future__ import annotations
 
-import subprocess
-import sys
-
 import streamlit as st
 
-from cricdex.cli.data_cmd import run_ingest
-from cricdex.config import ROOT
+from cricdex.cli.data_cmd import run_export, run_ingest
 
 st.set_page_config(page_title="CricDex Update", page_icon="🔄", layout="wide")
 st.title("🔄 CricDex — refresh data")
@@ -29,28 +25,28 @@ force = st.checkbox("Force regenerate (ignore cached)", value=True)
 st.divider()
 
 
-def _run_slice(slice_: str) -> None:
+def _run_slice(slice_: str) -> bool:
     with st.spinner(f"ingest {slice_} ({collection}) …"):
         try:
             msg = run_ingest(slice_, collection=collection, force=force)
-            st.success(f"**{slice_}** → {msg}")
         except Exception as e:  # noqa: BLE001
             st.error(f"**{slice_}** failed: {e}")
+            return False
+    st.success(f"**{slice_}** → {msg}")
+    st.cache_data.clear()
+    return True
 
 
-def _run_export() -> None:
+def _run_export() -> bool:
     with st.spinner(f"export_site.py -c {collection} …"):
-        proc = subprocess.run(
-            [sys.executable, "scripts/export_site.py", "-c", collection],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-    if proc.returncode == 0:
-        st.success("re-exported JSON ✅ — other pages now read the new data.")
-        st.cache_data.clear()
-    else:
-        st.error(f"export failed:\n\n```\n{proc.stderr[-800:]}\n```")
+        try:
+            run_export(collection)
+        except Exception as e:  # noqa: BLE001
+            st.error(f"export failed:\n\n```\n{e}\n```")
+            return False
+    st.success("re-exported JSON ✅ — other pages now read the new data.")
+    st.cache_data.clear()
+    return True
 
 
 st.markdown("**Individual steps** (run in order: cricsheet → ratings → metrics → export):")
@@ -68,7 +64,8 @@ if c[4].button("4· Re-export JSON", width="stretch"):
 
 st.divider()
 if st.button("⚡ Full refresh — ingest → ratings → metrics → export", type="primary"):
-    for s in ("cricsheet", "ratings", "metrics"):
-        _run_slice(s)
-    _run_export()
-    st.success("Full refresh complete. Switch to any page — it reads the fresh JSON.")
+    # metrics also rebuilds the site JSON; stop at the first failed step instead of claiming success
+    if all(_run_slice(s) for s in ("cricsheet", "ratings", "metrics")):
+        st.success("Full refresh complete. Switch to any page — it reads the fresh JSON.")
+    else:
+        st.warning("Full refresh stopped at the failed step above — fix it and run again.")

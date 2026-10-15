@@ -4,7 +4,7 @@
 (run as `uv run cricdex …`, or inside the activated venv).
 
 ```
-cricdex                          show help
+cricdex                          open the interactive TUI (`cricdex --help` for the commands)
 cricdex --version / -V           print version
 cricdex --help / -h              top-level help
 cricdex <subcommand> --help      per-subcommand help
@@ -58,24 +58,27 @@ cricdex data ingest <slice> [-c <collection>] [--force]
 ```
 
 Slices: `cricsheet`, `ratings`, `metrics`, `wikidata`.
-Every ingest skips its output if it already exists — pass `--force`
-to regenerate. `status` prints a table of every artifact + size +
-last-updated.
+`cricsheet` and `ratings` skip a collection that's already loaded —
+pass `--force` to re-download / refit. `metrics` always recomputes and
+then rebuilds that collection's site data (`site/public/data/<c>/`),
+which `leaderboard`, `matchups`, `phase`, `form`, `partnerships`,
+`aging`, `scout` and `auction` read. A failed step exits with code 4.
+`status` prints a table of every artifact + size + last-updated.
 
 ---
 
 ## leaderboard
 
 ```
-cricdex leaderboard <metric> [-c <collection>] [--top 25] [--json]
+cricdex leaderboard <metric> [-c <collection>] [--top 15] [--json]
 ```
 
 Metrics: `ngi`, `pressure_runs`, `intent_curve`, `dot_ball_recovery`,
 `counter_attack`, `boundary_dependency`, `pressure_conversion`,
 `wicket_quality`, `crease_longevity`, `slow_start_cost`, `keeping`
 (wicketkeeping dismissals), `fielding` (outfield dismissals). Reads
-`$CRICDEX_HOME/data/metrics/<metric>_<collection>.json` — emit it
-via `cricdex data ingest metrics` first.
+the exported `site/public/data/<collection>/leaderboards/<metric>.json`
+(shipped with the repo; `cricdex data ingest metrics` rebuilds it).
 
 ---
 
@@ -138,7 +141,7 @@ allrounder / wk_batter).
 ## scout
 
 ```
-cricdex scout look-alikes "V Kohli" [-c ipl] [--role batter] [--slot top]
+cricdex scout look-alikes "V Kohli" [--role batter] [--pos opener|no3|middle|finisher|lower|tailender] [-k 8]
 ```
 
 Cross-competition look-alike finder across six pools (IPL, SMAT,
@@ -152,12 +155,12 @@ one implementation with the web via `cricdex.web_parity`.
 ## auction
 
 ```
-cricdex auction room [-c ipl]
+cricdex auction room [--mode mega|mini] [--purse 120] [--squad-size 25] [--overseas-cap 8] [--trials 300] [--top-n 20]
 ```
 
 Real-rules IPL auction Monte-Carlo: cross-collection pool (IPL +
-BBL/SA20/CPL/Blast free agents + uncapped SMAT), editable Mega/Mini
-retentions from the real 2025 lists, overseas cap + retention slabs,
+BBL/SA20/CPL/Blast free agents + uncapped SMAT), Mega/Mini
+retentions from the real 2025 lists (editable in the TUI / web), overseas cap + retention slabs,
 second-price clearing, two-phase fill to 20–25-man squads (~300
 trials). Shares one implementation with the web via
 `cricdex.web_parity` (locked by `test_scripts/test_web_parity.py`).
@@ -171,7 +174,7 @@ See [`AUCTION_MATH.md`](AUCTION_MATH.md).
 cricdex dashboard
 ```
 
-Launches the Streamlit dashboard on `http://localhost:8501`.
+Launches the Streamlit dashboard on a free local port (8501 if available).
 Streamlit reads the same `$CRICDEX_HOME/data/` so it's always in
 sync with the CLI.
 
@@ -184,4 +187,4 @@ cricdex tui
 ```
 
 Full Textual TUI for interactive browsing. Requires the `cli`
-extra: `uv sync --extra cli`.
+packages, which are part of the base install (`uv sync`).

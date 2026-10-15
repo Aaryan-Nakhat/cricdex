@@ -18,7 +18,7 @@ Live demo: https://aaryan-nakhat.github.io/cricdex/
 git clone git@github.com:Aaryan-Nakhat/cricdex.git
 cd cricdex
 uv sync                       # base CLI
-uv sync --extra cli --extra ui   # + TUI + Streamlit dashboard
+uv sync --extra ui              # CLI + TUI are in the base install; + Streamlit dashboard
 uv run cricdex --help
 ```
 
@@ -26,13 +26,13 @@ uv run cricdex --help
 
 ```bash
 cricdex init                                   # wizard + optional LLM key
-cricdex data ingest cricsheet -c ipl           # ~600 MB ball-by-ball
+cricdex data ingest cricsheet -c ipl           # IPL ball-by-ball (a few MB)
 cricdex data ingest metrics -c ipl             # 10 leaderboards
 cricdex leaderboard ngi -c ipl --top 15        # your first query
 ```
 
 Optional next step — `cricdex dashboard` opens the Streamlit UI on
-`http://localhost:8501` reading the same `~/.cricdex/data/`.
+a free local port (8501 if available), reading the same exported data as the site.
 
 Full command reference: [`docs/CLI.md`](docs/CLI.md). Onboarding flow:
 [`docs/FIRST_RUN.md`](docs/FIRST_RUN.md). Architecture:

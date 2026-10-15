@@ -280,11 +280,11 @@ def load_wikidata(cricsheet_id: str | None) -> dict:
     """Load the per-player Wikidata record. None-safe; returns {} on miss."""
     import json as _json
 
-    from cricdex.config import ROOT
+    from cricdex.config import CURATED_DIR
 
     if not cricsheet_id:
         return {}
-    path = ROOT / "data" / "curated" / "wikidata_enrichment.json"
+    path = CURATED_DIR / "wikidata_enrichment.json"
     if not path.exists():
         return {}
     try:

@@ -21,10 +21,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import duckdb
-import httpx
 from loguru import logger
 
 from cricdex.config import DATA_DIR
+from cricdex.scout.ingest.cricsheet import _fetch
 
 CRICSHEET_REGISTER_BASE = "https://cricsheet.org/register"
 BROWSER_HEADERS = {
@@ -50,13 +50,7 @@ def download(out_dir: Path, force: bool = False) -> tuple[Path, Path]:
             continue
         url = f"{CRICSHEET_REGISTER_BASE}/{name}"
         logger.info(f"downloading {url}")
-        with httpx.stream(
-            "GET", url, timeout=60.0, follow_redirects=True, headers=BROWSER_HEADERS
-        ) as r:
-            r.raise_for_status()
-            with open(dest, "wb") as f:
-                for chunk in r.iter_bytes(chunk_size=1 << 16):
-                    f.write(chunk)
+        _fetch(url, dest, timeout=60.0, headers=BROWSER_HEADERS)
     return targets[0][1], targets[1][1]
 
 

@@ -91,6 +91,22 @@ COLLECTIONS: dict[str, str] = {
 }
 
 
+def _fetch(url: str, dest: Path, timeout: float = 300.0, headers: dict | None = None) -> None:
+    """Download to `<dest>.part`, then rename — an interrupted download never looks like a finished file."""
+    tmp = dest.with_name(dest.name + ".part")
+    try:
+        with httpx.stream("GET", url, timeout=timeout, follow_redirects=True, headers=headers) as r:
+            r.raise_for_status()
+            total = int(r.headers.get("content-length", 0))
+            with open(tmp, "wb") as f, tqdm(total=total, unit="B", unit_scale=True) as bar:
+                for chunk in r.iter_bytes(chunk_size=1 << 16):
+                    f.write(chunk)
+                    bar.update(len(chunk))
+        tmp.replace(dest)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def download(collection: str, dest: Path, force: bool = False) -> Path:
     if collection not in COLLECTIONS:
         raise ValueError(f"unknown collection '{collection}'. options: {sorted(COLLECTIONS)}")
@@ -104,13 +120,7 @@ def download(collection: str, dest: Path, force: bool = False) -> Path:
         return zip_path
 
     logger.info(f"downloading {url}")
-    with httpx.stream("GET", url, timeout=300.0, follow_redirects=True) as r:
-        r.raise_for_status()
-        total = int(r.headers.get("content-length", 0))
-        with open(zip_path, "wb") as f, tqdm(total=total, unit="B", unit_scale=True) as bar:
-            for chunk in r.iter_bytes(chunk_size=1 << 16):
-                f.write(chunk)
-                bar.update(len(chunk))
+    _fetch(url, zip_path)
     return zip_path
 
 
@@ -154,7 +164,7 @@ def _phase(over: int, total_overs: int | None, match_type: str | None = None) ->
 
 
 def parse_match(path: Path) -> tuple[dict, list[dict]]:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     info = data.get("info", {}) or {}
@@ -238,14 +248,25 @@ def parse_collection(extracted_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
     files = [fp for fp in sorted(extracted_dir.glob("*.json")) if fp.name.lower() != "readme.txt"]
     match_rows: list[dict] = []
     ball_rows: list[dict] = []
+    skipped: list[str] = []
     for fp in tqdm(files, desc="parsing matches"):
         try:
             m, b = parse_match(fp)
         except Exception as e:
             logger.warning(f"skip {fp.name}: {e}")
+            skipped.append(fp.name)
             continue
         match_rows.append(m)
         ball_rows.extend(b)
+    if skipped:
+        # Say how many matches were lost, so a bad parse can't silently shrink a collection.
+        logger.warning(
+            f"{len(skipped)} of {len(files)} match files could not be parsed: {', '.join(skipped[:20])}"
+        )
+        if len(skipped) > max(5, len(files) // 20):
+            raise RuntimeError(
+                f"{len(skipped)} of {len(files)} match files failed to parse — stopping"
+            )
     # infer_schema_length=None forces polars to scan every row when
     # guessing column dtypes. Necessary for heterogeneous collections like
     # the indian-domestic merge where early rows can have NULL city and
@@ -266,13 +287,7 @@ def _download_url(url: str, dest_dir: Path, force: bool = False) -> Path:
         logger.info(f"cached: {zip_path}")
         return zip_path
     logger.info(f"downloading {url}")
-    with httpx.stream("GET", url, timeout=300.0, follow_redirects=True) as r:
-        r.raise_for_status()
-        total = int(r.headers.get("content-length", 0))
-        with open(zip_path, "wb") as f, tqdm(total=total, unit="B", unit_scale=True) as bar:
-            for chunk in r.iter_bytes(chunk_size=1 << 16):
-                f.write(chunk)
-                bar.update(len(chunk))
+    _fetch(url, zip_path)
     return zip_path
 
 

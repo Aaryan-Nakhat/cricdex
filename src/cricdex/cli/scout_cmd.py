@@ -17,7 +17,7 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 
 @app.command(
     "look-alikes",
-    help="3-tier cross-competition look-alikes (IPL/SMAT/BBL) — identical to the web Scout.",
+    help="Cross-competition look-alikes across six pools (IPL/SMAT/BBL/SA20/CPL/Blast) — identical to the web Scout.",
 )
 def look_alikes(
     name: str = typer.Argument(..., help="active IPL player (fuzzy-matched)"),

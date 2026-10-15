@@ -12,10 +12,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cricdex.config import ROOT
+from cricdex.config import SITE_DATA
 
-# Where export_site.py writes (ROOT = repo root, see cricdex.config).
-SITE_DATA = ROOT / "site" / "public" / "data"
+# SITE_DATA (from cricdex.config) is where export_site.py writes.
 
 
 def _base(base: Path | str | None) -> Path:

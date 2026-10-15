@@ -14,7 +14,7 @@ dist
 build
 *.egg-info
 notebooks
-tests
+# tests are kept so `make docker-test` has something to run
 docs
 data
 .env

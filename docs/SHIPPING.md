@@ -26,12 +26,12 @@ periodic recompute.
 ## Running it yourself (local)
 
 The CLI / TUI / Streamlit / FastAPI surfaces run locally over your own
-`data/` (Cricsheet ball-by-ball, ~600 MB, gitignored).
+`data/` (Cricsheet ball-by-ball DuckDB ~100 MB, gitignored; the curated player files are committed).
 
 ```bash
 git clone git@github.com:Aaryan-Nakhat/cricdex.git
 cd cricdex
-uv sync --extra cli --extra ui
+uv sync --extra ui
 uv run cricdex --help              # CLI / TUI
 uv run streamlit run src/cricdex/dashboard/app.py   # dashboard
 ```

@@ -13,8 +13,6 @@ Quit: q / Ctrl-C / Esc.
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from typing import Any
 
 from rich.console import Console
@@ -574,25 +572,18 @@ class CricDexApp(App):
         the dropdown re-lists players for the currently-selected collection."""
         return lambda _state: _player_candidates(self._sel_value(coll_selector))
 
-    _TAB_ORDER = [
-        "tab-leaderboard",
-        "tab-records",
-        "tab-compare",
-        "tab-h2h",
-        "tab-venues",
-        "tab-profile",
-        "tab-auction-sim",
-        "tab-twins",
-        "tab-update",
-    ]
+    def _tab_order(self) -> list[str]:
+        """Tab ids in the order they're shown — read from the widget so a new tab can't be missed."""
+        return [pane.id for pane in self.query(TabPane) if pane.id]
 
     def _shift_tab(self, delta: int) -> None:
         tabs = self.query_one(TabbedContent)
+        order = self._tab_order()
         try:
-            idx = self._TAB_ORDER.index(tabs.active)
+            idx = order.index(tabs.active)
         except ValueError:
             idx = 0
-        tabs.active = self._TAB_ORDER[(idx + delta) % len(self._TAB_ORDER)]
+        tabs.active = order[(idx + delta) % len(order)]
 
     def action_next_tab(self) -> None:
         self._shift_tab(1)
@@ -1737,7 +1728,7 @@ class CricDexApp(App):
             )
         _fill_datatable(out, rows, max_cols=7)
 
-    # ===== Scout — 3-tier look-alikes (web-identical) =====================
+    # ===== Scout — six-pool look-alikes (web-identical) =====================
 
     def _twins_panel(self) -> ComposeResult:
         with Vertical():
@@ -2396,37 +2387,46 @@ class CricDexApp(App):
                 yield RichLog(id="upd-log", highlight=False, markup=True, wrap=True)
 
     def _on_update(self, button_id: str) -> None:
-        from cricdex.config import ROOT
-
-        log = self.query_one("#upd-log", RichLog)
+        # Read the controls on the UI thread, then run the (multi-minute) pipeline in a worker so the app stays
+        # responsive; the worker writes to the log through call_from_thread.
+        rich_log = self.query_one("#upd-log", RichLog)
         collection = str(self.query_one("#upd-collection", Select).value or "ipl")
         force = self.query_one("#upd-force", Select).value == "yes"
+        self._update_worker(button_id, collection, force, rich_log)
 
-        def _run_slice(slice_: str) -> None:
+    @work(thread=True, exclusive=True, group="update")
+    def _update_worker(
+        self, button_id: str, collection: str, force: bool, rich_log: RichLog
+    ) -> None:
+        class _Log:
+            def write(_, msg: str) -> None:  # noqa: N805 — tiny adapter, `self` is the app
+                self.call_from_thread(rich_log.write, msg)
+
+        log = _Log()
+
+        def _run_slice(slice_: str) -> bool:
             from cricdex.cli.data_cmd import run_ingest
 
             log.write(f"[cyan]ingest {slice_} ({collection}, force={force}) …[/cyan]")
             try:
                 msg = run_ingest(slice_, collection=collection, force=force)
-                log.write(f"[green]{slice_} ✓[/green] {msg}")
             except Exception as e:  # noqa: BLE001
                 log.write(f"[red]{slice_} failed:[/red] {e}")
+                return False
+            log.write(f"[green]{slice_} ✓[/green] {msg}")
+            return True
 
-        def _run_export() -> None:
+        def _run_export() -> bool:
+            from cricdex.cli.data_cmd import run_export
+
             log.write(f"[cyan]export_site.py -c {collection} …[/cyan]")
             try:
-                proc = subprocess.run(
-                    [sys.executable, "scripts/export_site.py", "-c", collection],
-                    cwd=ROOT,
-                    capture_output=True,
-                    text=True,
-                )
-                if proc.returncode == 0:
-                    log.write("[green]re-exported JSON ✓[/green] — tabs now read the new data.")
-                else:
-                    log.write(f"[red]export failed:[/red] {proc.stderr[-800:]}")
+                run_export(collection)
             except Exception as e:  # noqa: BLE001
                 log.write(f"[red]export failed:[/red] {e}")
+                return False
+            log.write("[green]re-exported JSON ✓[/green] — tabs now read the new data.")
+            return True
 
         slice_map = {
             "upd-cricsheet": "cricsheet",
@@ -2439,10 +2439,13 @@ class CricDexApp(App):
         elif button_id == "upd-export":
             _run_export()
         elif button_id == "upd-all":
-            for s in ("cricsheet", "ratings", "metrics"):
-                _run_slice(s)
-            _run_export()
-            log.write("[bold green]Full refresh complete.[/bold green] Every tab reads fresh JSON.")
+            # metrics also rebuilds the site JSON; stop at the first failed step
+            if all(_run_slice(s) for s in ("cricsheet", "ratings", "metrics")):
+                log.write(
+                    "[bold green]Full refresh complete.[/bold green] Every tab reads fresh JSON."
+                )
+            else:
+                log.write("[bold red]Full refresh stopped[/bold red] at the failed step above.")
 
     # ===== event dispatch ================================================
 

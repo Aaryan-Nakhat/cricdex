@@ -25,10 +25,9 @@ import typer
 from loguru import logger
 
 from cricdex.common import llm
-from cricdex.config import ROOT  # importing config loads .env
+from cricdex.config import CURATED_DIR, SITE_DATA  # importing config loads .env
 
-SITE_DATA = ROOT / "site" / "public" / "data"
-CACHE = ROOT / "data" / "curated" / "player_taxonomy.json"
+CACHE = CURATED_DIR / "player_taxonomy.json"
 
 SYS = (
     "You are an authoritative cricket reference. For each player below return "

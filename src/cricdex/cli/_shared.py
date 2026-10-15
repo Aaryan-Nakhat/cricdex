@@ -14,6 +14,7 @@ EXIT_OK = 0
 EXIT_USER_ERROR = 1
 EXIT_MISSING_DATA = 2
 EXIT_MISSING_CRED = 3
+EXIT_RUNTIME_ERROR = 4  # a pipeline step (ingest / metrics / export) failed
 
 
 def _is_tty() -> bool:

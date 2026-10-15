@@ -9,61 +9,46 @@ authors = [{ name = "Aaryan Nakhat" }]
 dependencies = [
     # Core data
     "duckdb>=1.1.0",
-    "pyarrow>=18.0.0",
+    "pyarrow>=18.0.0",  # DuckDB → polars hand-off
     "polars>=1.20.0",
     "pandas>=2.2.0",
     "numpy>=2.1.0",
     "pyyaml>=6.0",
-    # HTTP / scraping
+    # HTTP (Cricsheet / Wikidata downloads)
     "httpx>=0.28.0",
-    "beautifulsoup4>=4.12.0",
-    "lxml>=5.3.0",
-    "playwright>=1.49.0",
-    "tenacity>=9.0.0",
-    # PDF (rules module)
-    "pdfplumber>=0.11.0",
-    # NLP / ML
+    # ML
     "scikit-learn>=1.6.0",
     "xgboost>=2.1.0",
-    "sentence-transformers>=3.3.0",
     "rapidfuzz>=3.10.0",
-    "rank-bm25>=0.2.2",
-    # LLM / RAG
+    # LLM (optional taxonomy enrichment; any provider)
     "litellm>=1.50.0",
-    "qdrant-client>=1.12.0",
     # Modeling
     "numpyro>=0.16.0",
     "jax>=0.4.34",
-    "arviz>=0.20.0",
     # API
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
-    # Storage
-    "sqlalchemy>=2.0.0",
-    "psycopg[binary]>=3.2.0",
-    "redis>=5.2.0",
+    # CLI + TUI (`cricdex` opens the TUI; every command renders with rich)
+    "rich>=13.9.0",
+    "textual>=0.86.0",
+    "plotext>=5.3.0",
+    "textual-autocomplete>=4.0.0",
     # Utils
     "loguru>=0.7.0",
     "tqdm>=4.67.0",
     "python-dotenv>=1.0.0",
     "typer>=0.15.0",
-    "tabulate>=0.10.0",
-    "scrapling>=0.4.8",
-    "curl-cffi>=0.15.0",
-    "browserforge>=1.2.4",
-    "camoufox>=0.4.11",
-    "patchright>=1.59.1",
-    "msgspec>=0.21.1",
 ]
 
 [project.optional-dependencies]
-ui = ["streamlit>=1.41.0", "plotly>=5.24.0", "altair>=5.5.0"]
+ui = ["streamlit>=1.41.0", "plotly>=5.24.0"]
 # Extra SDKs some LiteLLM providers need for service-account / cloud auth — install only if the
 # model you configure in .env requires it (API-key providers need nothing beyond the base install).
 cloud = ["google-cloud-aiplatform>=1.70"]
-cli = ["rich>=13.9.0", "textual>=0.86.0", "plotext>=5.3.0", "textual-autocomplete>=4.0.0"]
+# The CLI / TUI are part of the base install now; kept so `--extra cli` in older instructions still works.
+cli = []
 
 [dependency-groups]
 dev = [

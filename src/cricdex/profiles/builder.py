@@ -19,14 +19,14 @@ import duckdb
 import polars as pl
 
 from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, table_suffix
-from cricdex.config import DATA_DIR
+from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.scout.search import style_twin as twin
 
 DUCKDB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 METRIC_DIR = DATA_DIR / "metrics"
 # Wikidata identity enrichment lives in this JSON cache keyed by
 # cricsheet_id — NOT a DuckDB table (no ingest step builds one).
-WIKIDATA_ENRICHMENT = DATA_DIR / "curated" / "wikidata_enrichment.json"
+WIKIDATA_ENRICHMENT = CURATED_DIR / "wikidata_enrichment.json"
 # Fields surfaced on profiles (drop the qid/status plumbing).
 _WIKI_KEEP = (
     "dob",
@@ -62,7 +62,7 @@ def _wikidata_cache() -> dict[str, dict]:
 
 # LLM-built taxonomy (role / bowling type / batting slot / country),
 # keyed by cricsheet_id. See scripts/enrich_taxonomy.py.
-TAXONOMY_CACHE_PATH = DATA_DIR / "curated" / "player_taxonomy.json"
+TAXONOMY_CACHE_PATH = CURATED_DIR / "player_taxonomy.json"
 _TAX_KEEP = (
     "primary_role",
     "bowling_category",

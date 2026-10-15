@@ -26,21 +26,28 @@ from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
+# True when running from a clone of the repo (as opposed to an installed package).
+IN_CHECKOUT = (ROOT / "pyproject.toml").exists()
 
-# CRICDEX_HOME defaults to `~/.cricdex/`. Inside it: config.toml, data/,
-# cache/, logs/. Devs running from a repo checkout can override with the
-# env var to point at the repo's `data/` dir for convenience.
+# CRICDEX_HOME defaults to `~/.cricdex/`: config.toml, and data/ for an installed package.
 CRICDEX_HOME = Path(os.environ.get("CRICDEX_HOME", str(Path.home() / ".cricdex")))
 
-# DATA_DIR: prefer ~/.cricdex/data when populated; fall back to repo
-# data/ for dev so existing scripts keep working without migration.
-_HOME_DATA = CRICDEX_HOME / "data"
-_REPO_DATA = ROOT / "data"
-DATA_DIR = _HOME_DATA if _HOME_DATA.exists() else _REPO_DATA
+# DATA_DIR (DuckDB, metric JSON, curated player facts): CRICDEX_DATA_DIR if set; else the repo's data/ when
+# running from a clone (it ships the curated files); else ~/.cricdex/data. It no longer depends on whether a
+# folder happens to exist, so `cricdex init` can't switch a checkout over to an empty directory.
+if os.environ.get("CRICDEX_DATA_DIR"):
+    DATA_DIR = Path(os.environ["CRICDEX_DATA_DIR"])
+elif IN_CHECKOUT:
+    DATA_DIR = ROOT / "data"
+else:
+    DATA_DIR = CRICDEX_HOME / "data"
+
+# Curated player facts (LLM taxonomy, Wikidata DOB / photo) — one place for writers and readers.
+CURATED_DIR = DATA_DIR / "curated"
+# The exported site JSON the web app, CLI, TUI and dashboard read.
+SITE_DATA = ROOT / "site" / "public" / "data"
 
 CONFIG_PATH = CRICDEX_HOME / "config.toml"
-CACHE_DIR = CRICDEX_HOME / "cache"
-LOG_DIR = CRICDEX_HOME / "logs"
 
 # .env in the repo root is loaded only when it exists — useful for dev,
 # ignored by an end-user `uvx cricdex` install.
