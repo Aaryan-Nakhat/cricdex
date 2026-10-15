@@ -93,7 +93,7 @@ at a time, stars first. Each team
 works out a **max bid**:
 
 ```
-max bid = value × aggression × need × overseas-bias × luck
+max bid = value × aggression × need × overseas-bias × luck × budget
 ```
 
 - **value** — the player's projected worth (Part 1).
@@ -104,10 +104,16 @@ max bid = value × aggression × need × overseas-bias × luck
 - **overseas-bias** — boosts the bid for imports if the team loves overseas
   talent; 1 for Indians.
 - **luck** — a small seeded random nudge; this is what makes each run differ.
+- **budget** — money left per open squad slot, compared with the league
+  average (square root, kept between 0.75 and 1.6). A team that retained
+  little and sits on a big purse bids harder; a stretched one bids softer.
+  Without it a rich team fills its squad with cheap players and finishes
+  with half its purse unspent.
 
 A team can't bid past its remaining money, the 25-man cap, or the overseas
 cap. **Highest max bid wins**, but — like a real auction — the winner pays
-just **above the second-highest bid**, not his own max.
+just **above the second-highest bid**, not his own max, and never more
+than **27 cr** (the real record, Pant in 2025).
 
 **Two passes so the pool is shared fairly.** Round 1 fills every team to a
 **20-man minimum**; round 2 tops up toward the **25 cap**. A final safety
@@ -118,6 +124,7 @@ pass guarantees no team is left below 20.
 ```
 MI  (MarqueeChaser, needs a batter): 10 × 1.35 × 1.5 × 1 = 20.3
 CSK (Balanced, batters already full):10 × 1.00 × 0.7 × 1 =  7.0
+(luck and budget left at 1 here)
 → MI wins, pays ≈ 7.1 cr (just over CSK) — NOT its full 20.3.
 ```
 

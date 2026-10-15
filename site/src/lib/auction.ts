@@ -272,6 +272,13 @@ function freshState(b: FranchiseBase): TeamState {
 
 const MIN_BASE = 0.3; // cheapest base price (cr) — reserve this per unfilled slot
 const MIN_SQUAD = 20; // every team fills to at least 20 (max = squadSize, ≤25)
+// No player clears above the real IPL record (Pant, 27 cr, 2025 mega auction).
+const PRICE_CAP = 27;
+// Budget pressure: a team with more purse per open slot than the league bids
+// harder (and a stretched one softer) — (ratio ** EXP), clamped.
+const PRESSURE_EXP = 0.5;
+const PRESSURE_MIN = 0.75;
+const PRESSURE_MAX = 1.6;
 
 function oneTrial(
   bases: FranchiseBase[],
@@ -301,9 +308,21 @@ function oneTrial(
   // One bidding round over the pool, with teams capped at `target` squad size.
   // Run it first to MIN_SQUAD (so every team gets its minimum before anyone
   // tops up) and again to the full squadSize cap.
+  const perSlotOf = (i: number) => {
+    const slotsLeft = opts.squadSize - filledOf(states[i]);
+    return slotsLeft > 0 ? remPurseOf(i) / slotsLeft : 0;
+  };
   const bidRound = (target: number) => {
     for (const player of order) {
       if (sold.has(player.cricsheet_id)) continue;
+      // league purse-per-open-slot, for budget pressure
+      const openSlots: number[] = [];
+      for (let i = 0; i < states.length; i++) {
+        if (filledOf(states[i]) < opts.squadSize) openSlots.push(perSlotOf(i));
+      }
+      let leaguePerSlot = 0;
+      for (const v of openSlots) leaguePerSlot += v;
+      leaguePerSlot = openSlots.length ? leaguePerSlot / openSlots.length : 0;
       let bestTeam = -1;
       let bestBid = 0;
       let secondBid = player.base_price;
@@ -319,7 +338,14 @@ function oneTrial(
         const need = st.counts[player.role] < arc.roleMins[player.role] ? 1.5 : 0.7;
         const overseasBias = player.is_overseas ? arc.overseasAppetite * 1.4 : 1;
         const jitter = 1 + (rand() - 0.5) * 2 * arc.risk;
-        let wtp = player.projected_value * arc.aggression * need * overseasBias * jitter;
+        let pressure = 1;
+        if (leaguePerSlot > 0) {
+          pressure = Math.min(
+            PRESSURE_MAX,
+            Math.max(PRESSURE_MIN, (perSlotOf(i) / leaguePerSlot) ** PRESSURE_EXP),
+          );
+        }
+        let wtp = player.projected_value * arc.aggression * need * overseasBias * jitter * pressure;
         wtp = Math.min(wtp, spendable);
         if (wtp < player.base_price) continue;
         if (wtp > bestBid) {
@@ -331,7 +357,8 @@ function oneTrial(
         }
       }
       if (bestTeam >= 0) {
-        buy(bestTeam, player, Math.max(player.base_price, Math.min(bestBid, secondBid * 1.02)));
+        const price = Math.min(PRICE_CAP, bestBid, secondBid * 1.02);
+        buy(bestTeam, player, Math.max(player.base_price, price));
         sold.add(player.cricsheet_id);
       }
     }

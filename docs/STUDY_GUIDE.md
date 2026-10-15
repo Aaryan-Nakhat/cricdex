@@ -817,9 +817,12 @@ pool and count toward the overseas cap (8).
 
 **Bidding** runs player-by-player over the top 200 unretained players
 by value (`AUCTION_LOTS`), stars first. Each team's max bid is
-`value × aggression × need × overseas-bias × luck`, bounded by
-remaining money / squad cap / overseas cap. The highest max bid wins
-but pays just **above the second-highest** (second-price clearing). A
+`value × aggression × need × overseas-bias × luck × budget`, bounded by
+remaining money / squad cap / overseas cap. `budget` is the team's purse
+per open slot vs the league average (square root, clamped 0.75–1.6), so
+a team sitting on a big purse bids harder instead of leaving it unspent.
+The highest max bid wins but pays just **above the second-highest**
+(second-price clearing), capped at 27 cr (the real record). A
 **two-phase fill** runs the auction so the pool is shared fairly: round
 1 fills every team to a 20-man minimum, round 2 tops up toward the 25
 cap, and a safety pass guarantees no team is left below 20.

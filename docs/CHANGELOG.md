@@ -114,6 +114,13 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 
 ### Fixed
 
+- **Auction room: a team with a big purse left half of it unspent, and stars
+  cleared far above any real price.** Teams now bid harder when they have more
+  money per open squad slot than the league (and softer when stretched), and no
+  player clears above 27 cr (the real record). Mega run: Punjab (one retention)
+  spends ~119 of 120 cr instead of ~62; every squad reaches 20; top prices
+  27 / 27 / 26 cr instead of 43 / 39 / 31. Same change in the browser and the
+  Python room (parity test passes).
 - **Intent-Curve time windows were empty** — its per-bucket threshold (200 balls)
   is unreachable over a 1-yr window. `compute_metrics all` now scales the bucket
   minimum for windowed collections (last1y → 25, last3y → 80); the all-time board

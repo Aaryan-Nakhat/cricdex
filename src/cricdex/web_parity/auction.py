@@ -158,6 +158,13 @@ def rng(seed: int) -> Callable[[], float]:
 
 MIN_BASE = 0.3
 MIN_SQUAD = 20
+# No player clears above the real IPL record (Pant, 27 cr, 2025 mega auction).
+PRICE_CAP = 27.0
+# Budget pressure: a team with more purse per open slot than the league bids
+# harder (and a stretched one softer) — (ratio ** EXP), clamped.
+PRESSURE_EXP = 0.5
+PRESSURE_MIN = 0.75
+PRESSURE_MAX = 1.6
 
 
 def _build_franchises(pool: list[dict], team_cfg: list[dict], opts: dict):
@@ -230,10 +237,21 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
     order = [x[0] for x in keyed]
     sold: set[str] = set()
 
+    def per_slot_of(i: int) -> float:
+        slots_left = opts["squad_size"] - filled_of(states[i])
+        return rem_purse_of(i) / slots_left if slots_left > 0 else 0.0
+
     def bid_round(target: int) -> None:
         for player in order:
             if player["cricsheet_id"] in sold:
                 continue
+            # league purse-per-open-slot, for budget pressure
+            open_slots = [
+                per_slot_of(i)
+                for i in range(len(states))
+                if filled_of(states[i]) < opts["squad_size"]
+            ]
+            league_per_slot = sum(open_slots) / len(open_slots) if open_slots else 0.0
             best_team = -1
             best_bid = 0.0
             second_bid = player["base_price"]
@@ -253,7 +271,23 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
                 )
                 overseas_bias = arc["overseas_appetite"] * 1.4 if player["is_overseas"] else 1
                 jitter = 1 + (rand() - 0.5) * 2 * arc["risk"]
-                wtp = player["projected_value"] * arc["aggression"] * need * overseas_bias * jitter
+                pressure = 1.0
+                if league_per_slot > 0:
+                    pressure = min(
+                        PRESSURE_MAX,
+                        max(
+                            PRESSURE_MIN,
+                            (per_slot_of(i) / league_per_slot) ** PRESSURE_EXP,
+                        ),
+                    )
+                wtp = (
+                    player["projected_value"]
+                    * arc["aggression"]
+                    * need
+                    * overseas_bias
+                    * jitter
+                    * pressure
+                )
                 wtp = min(wtp, spendable)
                 if wtp < player["base_price"]:
                     continue
@@ -264,7 +298,8 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
                 elif wtp > second_bid:
                     second_bid = wtp
             if best_team >= 0:
-                buy(best_team, player, max(player["base_price"], min(best_bid, second_bid * 1.02)))
+                price = min(PRICE_CAP, best_bid, second_bid * 1.02)
+                buy(best_team, player, max(player["base_price"], price))
                 sold.add(player["cricsheet_id"])
 
     bid_round(MIN_SQUAD)  # everyone reaches the minimum first
