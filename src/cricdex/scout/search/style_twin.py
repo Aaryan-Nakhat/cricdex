@@ -20,9 +20,12 @@ batter:
     bayes_skill                             (latent batter skill)
 bowler:
     sticky wicket_rate_pct                  (pressure-to-wicket rate)
+    pressure_balls                          (pressure-spell volume)
     bayes_skill                             (latent bowler skill)
 
-Missing axes → 0 (centered later via z-score).
+A missing (or non-finite) axis is filled with that axis's mean across
+players before scaling, so after z-scoring it sits at 0 — neutral, not an
+extreme low. An axis nobody has is dropped.
 
 Output: `style_twin(name, role, k=10)` returns top-k closest rows.
 """
@@ -74,8 +77,8 @@ def _people_index(db_path: Path | str) -> pl.DataFrame:
         con.close()
 
 
-def _bowler_intent_curve(intent: pl.DataFrame) -> pl.DataFrame:
-    """Spread the long-format intent_curve into one SR column per bucket."""
+def _batter_intent_curve(intent: pl.DataFrame) -> pl.DataFrame:
+    """Spread the long-format batter intent_curve into one SR column per bucket."""
     if intent.is_empty():
         return pl.DataFrame()
     return (
@@ -139,21 +142,30 @@ def build_batter_features(collection: str, db_path: Path | str) -> pl.DataFrame:
             how="left",
         )
     if not intent.is_empty():
-        wide = _bowler_intent_curve(intent)
+        wide = _batter_intent_curve(intent)
         if not wide.is_empty():
             df = df.join(wide, on="name", how="left")
     if not ratings.is_empty():
-        # ratings is keyed by cricsheet_id; bridge via people register
-        people = _people_index(db_path)
-        if not people.is_empty():
-            r_batter = (
-                ratings.filter(pl.col("role") == "batter")
-                .select("cricsheet_id", pl.col("skill").alias("bayes_skill"))
-                .join(people, on="cricsheet_id", how="left")
-                .select(pl.col("unique_name").alias("name"), "bayes_skill")
-            )
+        r_batter = _rated(ratings, "batter", db_path)
+        if r_batter is not None:
             df = df.join(r_batter, on="name", how="left")
     return df.with_columns(pl.lit("batter").alias("role"))
+
+
+def _rated(ratings: pl.DataFrame, role: str, db_path: Path | str) -> pl.DataFrame | None:
+    """(name, bayes_skill) for one role. The ratings JSON carries each player's scorecard name (the name the
+    metric tables use); older files without it are bridged through the People Register."""
+    r = ratings.filter(pl.col("role") == role)
+    if "unique_name" in r.columns:
+        return r.select(pl.col("unique_name").alias("name"), pl.col("skill").alias("bayes_skill"))
+    people = _people_index(db_path)
+    if people.is_empty():
+        return None
+    return (
+        r.select("cricsheet_id", pl.col("skill").alias("bayes_skill"))
+        .join(people, on="cricsheet_id", how="left")
+        .select(pl.col("unique_name").alias("name"), "bayes_skill")
+    )
 
 
 def build_bowler_features(collection: str, db_path: Path | str) -> pl.DataFrame:
@@ -171,14 +183,8 @@ def build_bowler_features(collection: str, db_path: Path | str) -> pl.DataFrame:
         else pl.DataFrame()
     )
     if not ratings.is_empty():
-        people = _people_index(db_path)
-        if not people.is_empty():
-            r_bowler = (
-                ratings.filter(pl.col("role") == "bowler")
-                .select("cricsheet_id", pl.col("skill").alias("bayes_skill"))
-                .join(people, on="cricsheet_id", how="left")
-                .select(pl.col("unique_name").alias("name"), "bayes_skill")
-            )
+        r_bowler = _rated(ratings, "bowler", db_path)
+        if r_bowler is not None:
             df = df.join(r_bowler, on="name", how="left") if not df.is_empty() else r_bowler
     return df.with_columns(pl.lit("bowler").alias("role"))
 
@@ -189,10 +195,14 @@ def build_bowler_features(collection: str, db_path: Path | str) -> pl.DataFrame:
 def _vectorise(df: pl.DataFrame) -> tuple[np.ndarray, list[str], list[str]]:
     if df.is_empty():
         return np.empty((0, 0)), [], []
-    df = df.fill_null(0.0)
     names = df["name"].to_list()
     feature_cols = [c for c in df.columns if c not in ("name", "role")]
-    X = df.select(feature_cols).to_numpy(allow_copy=True).astype(float)
+    X = df.select(pl.col(c).cast(pl.Float64, strict=False) for c in feature_cols).to_numpy()
+    X = np.where(np.isfinite(X), X, np.nan)  # nulls and x/0 alike are "missing"
+    keep = ~np.isnan(X).all(axis=0)
+    X, feature_cols = X[:, keep], [c for c, k in zip(feature_cols, keep, strict=True) if k]
+    # Mean-impute in raw units: a missing SR filled with 0 would be an extreme outlier.
+    X = np.where(np.isnan(X), np.nanmean(X, axis=0), X)
     return X, names, feature_cols
 
 

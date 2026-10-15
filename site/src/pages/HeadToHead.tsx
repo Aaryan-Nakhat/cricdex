@@ -4,7 +4,7 @@ import { useStore } from "@/lib/store";
 import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getRatings } from "@/lib/data";
-import { headToHead, rolesFor } from "@/lib/headtohead";
+import { headToHead, rolesFor, type H2HRole } from "@/lib/headtohead";
 import { Combobox } from "@/components/Combobox";
 import { ErrorBox, PageTitle, Card, Spinner, Empty, Badge, Collapsible } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -21,22 +21,24 @@ function H2HMath() {
         </p>
         <p>
           For a role we add the two relevant skill axes into one{" "}
-          <b>complete value</b> (batting = scoring + survival; bowling = economy + strike), with the
-          uncertainties combined.
+          <b>complete value</b> (batting = scoring + survival; bowling = economy + strike). The two
+          axes are measured differently (runs per ball vs chance of a wicket), so each is first put in
+          the same unit — how many typical player-to-player spreads above average — and then added,
+          with the uncertainties combined. An all-rounder comparison adds batting and bowling.
         </p>
         <p>
           <b>P(A better than B)</b> = how much of A's bell curve sits above B's. Big gap between two
           confident estimates → near 100%. Small gap, or fuzzy estimates → near 50% (too close to
           call).
         </p>
-        <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs text-fg">{`A: value +0.30, uncertainty 0.05
-B: value +0.10, uncertainty 0.05
-gap = 0.20, combined spread = √(0.05² + 0.05²) = 0.071
-P(A better) = how far 0.20 is above 0 in that spread
+        <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs text-fg">{`A: value +1.50, uncertainty 0.25
+B: value +0.50, uncertainty 0.25
+gap = 1.00, combined spread = √(0.25² + 0.25²) = 0.35
+P(A better) = how far 1.00 is above 0 in that spread
             ≈ 100%  (gap is ~2.8× the spread → A clearly ahead)
 
-If both uncertainties were 0.20 instead:
-combined spread = 0.28 → gap is only 0.7× spread → P ≈ 76%`}</pre>
+If both uncertainties were 1.00 instead:
+combined spread = 1.41 → gap is only 0.7× spread → P ≈ 76%`}</pre>
         <p className="text-xs">
           Technically: P = Φ(gap ÷ combined&nbsp;spread), the normal CDF — but the idea is just
           "overlap of two bell curves".
@@ -46,6 +48,12 @@ combined spread = 0.28 → gap is only 0.7× spread → P ≈ 76%`}</pre>
   );
 }
 
+const ROLE_LABEL: Record<H2HRole, string> = {
+  batter: "batter",
+  bowler: "bowler",
+  all_rounder: "all-rounder",
+};
+
 export function HeadToHead() {
   const { collection } = useStore();
   const { options, players, byId } = usePlayers(collection);
@@ -53,8 +61,8 @@ export function HeadToHead() {
   // the pair and role live in the URL (`?a=…&b=…&role=bowler`) so a link reproduces the matchup
   const [a, setA] = useUrlId("a", byId, players.length > 0);
   const [b, setB] = useUrlId("b", byId, players.length > 0);
-  const [role, setRole] = useUrlState<"batter" | "bowler">("role", "batter", {
-    valid: ["batter", "bowler"],
+  const [role, setRole] = useUrlState<H2HRole>("role", "batter", {
+    valid: ["batter", "bowler", "all_rounder"],
     replace: false,
   });
   // players are per league: a switch clears the pair
@@ -64,7 +72,7 @@ export function HeadToHead() {
 
   // which roles are valid for both picks
   const sharedRoles = useMemo(() => {
-    if (!a || !b) return [] as ("batter" | "bowler")[];
+    if (!a || !b) return [] as H2HRole[];
     const ra = rolesFor(rows, a), rb = rolesFor(rows, b);
     return ra.filter((r) => rb.includes(r));
   }, [a, b, rows]);
@@ -106,7 +114,7 @@ export function HeadToHead() {
                   : "border-border bg-surface text-muted hover:text-fg",
               )}
             >
-              compare as {r}
+              compare as {ROLE_LABEL[r]}
             </button>
           ))}
         </div>
@@ -149,7 +157,7 @@ export function HeadToHead() {
               The model gives{" "}
               <span className="font-semibold text-accent-glow">{result.a.name}</span> a{" "}
               <span className="stat-num font-bold text-fg">{pct}%</span> chance of being the better{" "}
-              {result.role} than{" "}
+              {ROLE_LABEL[result.role]} than{" "}
               <span className="font-semibold text-fg">{result.b.name}</span>.
             </p>
           </Card>
@@ -163,7 +171,7 @@ export function HeadToHead() {
                 </div>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted">Complete {result.role} value (mean)</span>
+                    <span className="text-muted">Complete {ROLE_LABEL[result.role]} value (mean)</span>
                     <span className="stat-num font-semibold text-fg">
                       {side.axis.mean >= 0 ? "+" : ""}
                       {side.axis.mean.toFixed(3)}
@@ -179,8 +187,7 @@ export function HeadToHead() {
           </div>
 
           <p className="text-xs leading-relaxed text-muted">
-            The “complete {result.role} value” sums the two relevant latent axes
-            {result.role === "batter" ? " (scoring + survival)" : " (economy + strike)"} — variances add
+            The “complete {ROLE_LABEL[result.role]} value” combines {result.component} — variances add
             because the axes are modelled separately. P(A&nbsp;better) is the normal CDF of the mean gap
             divided by the combined uncertainty: a big gap between confident estimates moves the bar to the
             edges; a small gap or fuzzy estimates keeps it near 50%.

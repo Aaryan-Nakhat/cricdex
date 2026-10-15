@@ -21,6 +21,8 @@ from cricdex.web_parity import (
     build_pool,
     default_retentions,
     est_value,
+    gem_threshold,
+    is_gem,
     load_auction_pool,
     load_retentions,
     load_scout_index,
@@ -155,3 +157,8 @@ def test_web_parity():
             for r in rows
         ]
         _approx_eq(py, js["scout"][tier], f"scout.{tier}")
+
+    # 4) uncapped-gem cutoff + flags (lib/scout.ts gemThreshold / isGem)
+    med = gem_threshold(scout["smat"])
+    assert med == js["gemMedian"]
+    assert [p["cricsheet_id"] for p in scout["smat"] if is_gem(p, med)] == js["gems"]

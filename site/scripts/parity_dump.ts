@@ -14,6 +14,7 @@ import {
   IPL_TEAMS_DEFAULT,
   type PriceTier,
 } from "../src/lib/auction.ts";
+import { similarTo, gemThreshold, isGem } from "../src/lib/scout.ts";
 import type { ScoutPlayer } from "../src/lib/data.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -45,23 +46,16 @@ const res = simulateAuction(pool, teams, {
 
 // Scout: deterministic pick = lexicographically-first IPL id.
 const sel = [...(scout.ipl as ScoutPlayer[])].sort((a, b) => a.cricsheet_id.localeCompare(b.cricsheet_id))[0];
-function similarTo(s: ScoutPlayer, arr: ScoutPlayer[], role: string, pos: string) {
-  return arr
-    .filter((p) => p.cricsheet_id !== s.cricsheet_id && p.role === role)
-    .filter((p) => role !== "bowler" || !s.bowling_category || p.bowling_category === s.bowling_category)
-    .filter((p) => !pos || p.batting_position === pos)
-    .map((p) => ({ p, sim: Math.max(0, 1 - Math.abs(p.z - s.z) / 2.5) }))
-    .sort((a, b) => b.sim - a.sim)
-    .slice(0, 8);
-}
 const scoutOut: Record<string, { id: string; sim: number; price: number }[]> = {};
 for (const tier of ["ipl", "smat", "bbl", "sa20", "cpl", "blast"] as PriceTier[]) {
-  scoutOut[tier] = similarTo(sel, scout[tier] as ScoutPlayer[], sel.role, "").map(({ p, sim }) => ({
+  scoutOut[tier] = similarTo(sel, scout[tier] as ScoutPlayer[], sel.role, "").map((p) => ({
     id: p.cricsheet_id,
-    sim,
+    sim: p.sim,
     price: estValue(p.value, p.role, tier),
   }));
 }
+const gemMedian = gemThreshold(scout.smat as ScoutPlayer[]);
+const gems = (scout.smat as ScoutPlayer[]).filter((p) => isGem(p, gemMedian)).map((p) => p.cricsheet_id);
 
 const out = {
   retentions,
@@ -95,5 +89,7 @@ const out = {
   })),
   scoutPick: sel.cricsheet_id,
   scout: scoutOut,
+  gemMedian,
+  gems,
 };
 process.stdout.write(JSON.stringify(out));

@@ -21,7 +21,7 @@ from pathlib import Path
 import duckdb
 
 from cricdex.common.metrics import METRICS
-from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, table_suffix
+from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, player_ids, table_suffix
 from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.metrics import dismissal_fingerprint as df
 from cricdex.scout.search import style_twin as twin
@@ -97,21 +97,29 @@ def _taxonomy_cache() -> dict[str, dict]:
     return out
 
 
-def _people_row(con: duckdb.DuckDBPyConnection, name: str) -> dict | None:
+def _people_row(con: duckdb.DuckDBPyConnection, name: str, collection: str) -> dict | None:
+    """The player's ids, found through the collection's match registry (scorecard name → Cricsheet id), then
+    the People Register for the cross-site keys. Falls back to the register's name when there's no registry."""
     tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
     if "people" not in tables:
         return None
+    ids = player_ids(con, collection)
+    cid = None
+    if ids:
+        hit = con.execute(f"SELECT identifier FROM {ids} WHERE name = ? LIMIT 1", [name]).fetchone()
+        cid = hit[0] if hit else None
     row = con.execute(
         """
         SELECT identifier AS cricsheet_id, unique_name,
                key_cricinfo, key_cricbuzz, key_cricheroes, key_bigbash
         FROM people
-        WHERE unique_name = ?
+        WHERE identifier = ? OR (? IS NULL AND unique_name = ?)
         """,
-        [name],
+        [cid, cid, name],
     ).fetchone()
     if not row:
-        return None
+        # an id the register doesn't have yet still identifies the player
+        return {"cricsheet_id": cid, "unique_name": name} if cid else None
     cols = [d[0] for d in con.description]
     return dict(zip(cols, row, strict=True))
 
@@ -291,7 +299,7 @@ def build(
     if own:
         con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
     try:
-        people = _people_row(con, name)
+        people = _people_row(con, name, collection)
         profile["ids"] = people or {}
         cid = people.get("cricsheet_id") if people else None
         profile["cricsheet_id"] = cid

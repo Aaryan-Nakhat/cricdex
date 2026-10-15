@@ -66,8 +66,10 @@ function ScoutMath() {
           <li>• <b className="text-fg">Overseas</b> — Big Bash (BBL), SA20, CPL &amp; T20 Blast players of the same mould.</li>
         </ul>
         <p>
-          "Skill standing" is the player's Bayesian value expressed as a z-score <i>within its own
-          competition</i> (mean 0, sd 1), so a star in SMAT and a star in the IPL line up even though
+          "Skill standing" is the player's Bayesian value <i>for his role</i> (batting for batters and
+          keepers, bowling for bowlers, both for all-rounders) expressed as a z-score among the listed
+          players of that role <i>in his own competition</i> (mean 0, sd 1), so a star in SMAT and a
+          star in the IPL line up even though
           the raw numbers aren't comparable across tiers. Similarity = how close those standings are.
         </p>
         <p>
