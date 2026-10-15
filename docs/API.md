@@ -9,7 +9,9 @@ FastAPI app at `cricdex.api.main:app`, served on port 8080 inside the
 - Read endpoints: `GET` + query-string params.
 - Write-shape or large-body endpoints: `POST` + JSON body.
 - All responses JSON. Errors are FastAPI's standard
-  `{"detail": "..."}` shape.
+  `{"detail": "..."}` shape: 400 for a malformed collection name, 404 for
+  an unknown player (the player routes and `/v1/compare`), 503 when the data
+  a route needs hasn't been built yet (the detail says which command to run).
 - No auth in v1 — bind behind a reverse proxy (Cloudflare Workers
   planned) before exposing publicly.
 - Every endpoint queries the local DuckDB (`data/cricsheet.duckdb`) and
@@ -43,7 +45,7 @@ FastAPI app at `cricdex.api.main:app`, served on port 8080 inside the
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/v1/players/{name}?collection=` | Full profile: IDs + Wikidata + career + every metric + Bayes + style twins. |
+| GET | `/v1/players/{name}?collection=` | Full profile: IDs + Wikidata + career + every metric + Bayes + style twins. `name` is the exact Cricsheet scorecard name (`V Kohli`); an unknown name is a 404 with the closest names. |
 | GET | `/v1/players/{name}/style-twins?role=&k=&collection=` | k-NN over the metric+rating vector (cosine style twins). |
 | POST | `/v1/compare` body `{players, collection}` | Side-by-side comparison rows (a bare JSON list). |
 
@@ -51,7 +53,7 @@ FastAPI app at `cricdex.api.main:app`, served on port 8080 inside the
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/v1/metrics/ngi?collection=&min_matches=&top_n=` | NGI leaderboard as `{collection, rows}` (defaults `ipl`, 20, 50), sorted by NGI per match. Reads `data/metrics/ngi_<collection>.json` if present, else fits the model live. |
+| GET | `/v1/metrics/ngi?collection=&min_matches=&top_n=` | NGI leaderboard as `{collection, rows}` (defaults `ipl`, 20, 50), sorted by NGI per match. Reads `data/metrics/ngi_<collection>.json`; when that file is missing it returns 503 with a hint to run `cricdex data ingest metrics -c <collection>` (the model fit is too heavy for a request). |
 
 ## Quick curl examples
 

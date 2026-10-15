@@ -17,7 +17,6 @@ Exit codes:
 | 0 | success |
 | 1 | user error (bad arguments / missing argument) |
 | 2 | missing data (run `cricdex data ingest …` first) |
-| 3 | missing credential (run `cricdex config set …`) |
 | 4 | a pipeline step (ingest / metrics / export) failed |
 
 ---
@@ -44,7 +43,9 @@ cricdex config unset KEY
 cricdex config edit
 ```
 
-Stored at `$CRICDEX_HOME/config.toml`, chmod 600. Allowed keys:
+Stored at `$CRICDEX_HOME/config.toml` (valid TOML, values escaped), chmod 600.
+A hand-edited file that isn't valid TOML gives a clear error naming the file
+instead of breaking every command. Allowed keys:
 `llm_model`, `llm_api_key`, `llm_api_base`.
 
 Env vars override the file (e.g., `LLM_MODEL=<provider>/<model>`).
@@ -137,7 +138,12 @@ cricdex aging [--role batting|bowling] [--metric sr|average|economy|strike_rate]
 - **aging** — performance-vs-age curve (per-age mean over player-seasons), with a
   sparkline + table. Ages from Wikidata dob (~⅓ of players; indicative).
 
-All read the same exported JSON the web app does. The filter flags share the
+All read the same exported JSON the web app does, player names included: a
+name is looked up in `site/public/data/<collection>/players.json` (exact
+scorecard or full name, then a unique prefix / part of the name; several
+matches are listed instead of guessed), so they work without the DuckDB.
+`profile` and `compare` build live from the DuckDB and say so when it's
+missing. The filter flags share the
 `cricdex.common.filters` port with Leaderboards (role values: batter / bowler /
 allrounder / wk_batter).
 

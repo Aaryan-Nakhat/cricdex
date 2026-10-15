@@ -11,18 +11,15 @@ import json
 import typer
 
 from cricdex.cli import _render
-from cricdex.cli._shared import EXIT_MISSING_DATA, console, die, resolve_or_die
+from cricdex.cli._shared import EXIT_MISSING_DATA, console, die, load_players, resolve_or_die
 from cricdex.web_parity.loader import SITE_DATA
 
 
 def _cid_for(collection: str, name: str) -> str | None:
-    path = SITE_DATA / collection / "players.json"
-    if not path.exists():
-        return None
-    for p in json.loads(path.read_text()):
-        if p.get("name") == name:
-            return p.get("cricsheet_id")
-    return None
+    return next(
+        (p.get("cricsheet_id") for p in load_players(collection) or [] if p.get("name") == name),
+        None,
+    )
 
 
 def matchups(

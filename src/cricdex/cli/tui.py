@@ -38,6 +38,7 @@ from textual.widgets import (
 from textual_autocomplete import AutoComplete, DropdownItem
 
 from cricdex.cli import _copy, _render
+from cricdex.cli._shared import load_players, match_player, player_label, sort_missing_last
 from cricdex.common import filters as cf
 from cricdex.common.metrics import METRIC_BY_SLUG, METRICS
 from cricdex.config import DATA_DIR
@@ -213,16 +214,19 @@ def _h2h_gauge(a: str, b: str, items: list[tuple[str, float, str]], width: int =
 THEMES = ["tokyo-night", "nord", "catppuccin-mocha", "dracula", "gruvbox", "monokai"]
 
 
+# "No selection" for a Select: Textual 8 uses Select.NULL (Select.BLANK is now just False,
+# which a Select refuses as a value — a crash at startup when venues.json is missing).
+_SELECT_NONE = getattr(Select, "NULL", Select.BLANK)
+
+
+def _unselected(v: Any) -> bool:
+    return v is Select.BLANK or v is _SELECT_NONE
+
+
 def _player_candidates(collection: str = "ipl") -> list[DropdownItem]:
     """Autocomplete candidates 'Full Name (Short)' from players.json — typing
     either the full or scorecard name fuzzy-filters the dropdown (web-parity)."""
-    path = SITE_DATA / collection / "players.json"
-    if not path.exists():
-        return []
-    try:
-        players = json.loads(path.read_text())
-    except (ValueError, OSError):
-        return []
+    players = load_players(collection) or []  # missing / corrupt file → no suggestions
     items = []
     for p in sorted(players, key=lambda x: x.get("name", "")):
         short = p.get("name", "")
@@ -241,13 +245,7 @@ def _auction_pool_candidates(collection: str = "ipl") -> list[DropdownItem]:
         pool = load_auction_pool(collection)
     except Exception:  # noqa: BLE001
         return []
-    full: dict[str, str] = {}
-    pj = SITE_DATA / collection / "players.json"
-    if pj.exists():
-        try:
-            full = {p["cricsheet_id"]: p.get("full_name") for p in json.loads(pj.read_text())}
-        except (ValueError, OSError):
-            full = {}
+    full = {p.get("cricsheet_id"): p.get("full_name") for p in load_players(collection) or []}
     items = []
     for p in sorted(pool, key=lambda x: x.get("name", "")):
         short = p.get("name", "")
@@ -271,7 +269,7 @@ def _venue_options(collection: str = "ipl") -> list[tuple[str, str]]:
     if not path.exists():
         return []
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         return []
     return [(v, v) for v in sorted(data)]
@@ -284,7 +282,7 @@ def _collection_options() -> list[tuple[str, str]]:
     cols: list[str] = []
     if f.exists():
         try:
-            cols = [c["collection"] for c in json.loads(f.read_text())]
+            cols = [c["collection"] for c in json.loads(f.read_text(encoding="utf-8"))]
         except (ValueError, OSError, KeyError, TypeError):
             cols = []
     if not cols and SITE_DATA.exists():
@@ -314,7 +312,7 @@ def _record_board_options(collection: str = "ipl") -> list[tuple[str, str]]:
     present: list[str] = []
     if path.exists():
         try:
-            present = list(json.loads(path.read_text()))
+            present = list(json.loads(path.read_text(encoding="utf-8")))
         except (ValueError, OSError):
             present = []
     slugs = [k for k in RECORD_LABELS if not present or k in present]
@@ -565,7 +563,7 @@ class CricDexApp(App):
             v = self.query_one(selector, Select).value
         except Exception:  # noqa: BLE001
             return default
-        return default if v is Select.BLANK or not v else str(v)
+        return default if _unselected(v) or not v else str(v)
 
     def _player_cands(self, coll_selector: str):
         """Autocomplete `candidates` callable that follows a tab's Coll Select —
@@ -731,11 +729,7 @@ class CricDexApp(App):
         primary_key = m.name_col if m else None
         higher = m.higher_is_better if m else True
         if sort_col:
-            rows = sorted(
-                rows,
-                key=lambda r: (r.get(sort_col) is None, r.get(sort_col) or 0),
-                reverse=higher,
-            )
+            rows = sort_missing_last(rows, sort_col, higher)
         rows = rows[:top_n]
         if rows and sort_col and primary_key:
             extras = [k for k in rows[0].keys() if k not in {primary_key, sort_col}][:4]
@@ -811,7 +805,7 @@ class CricDexApp(App):
                 [{"error": f"missing {path.name}", "fix": "run scripts/export_site.py"}],
             )
             return
-        data = json.loads(path.read_text())
+        data = _load_json(path)
         if not isinstance(data, dict):
             _fill_datatable(table, [{"error": "records.json is not a board map"}])
             return
@@ -881,12 +875,14 @@ class CricDexApp(App):
 
         loaded: list[tuple[str, dict]] = []
         for nm in (a, b):
-            cid = _resolve_cid(collection, nm)
-            prof = _load_profile(collection, cid) if cid else None
+            row, err = _resolve_player(collection, nm)
+            prof = _load_profile(collection, row["cricsheet_id"]) if row else None
             if prof is None:
-                _fill_datatable(table, [{"error": f"no exported profile for '{nm}'"}])
+                _fill_datatable(table, [{"error": err or f"no exported profile for '{nm}'"}])
+                _fill_datatable(h2h_table, [{"info": "—"}])
                 return
-            loaded.append((nm, prof))
+            loaded.append((row["name"], prof))
+        a, b = loaded[0][0], loaded[1][0]  # the resolved names, also for head_to_head
 
         rows: list[dict] = []
         for group, label, path, digits in COMPARE_ROWS:
@@ -1008,6 +1004,18 @@ class CricDexApp(App):
         collection = self.query_one("#h2h-collection", Select).value
         from cricdex.scout.ratings.head_to_head import head_to_head
 
+        # Resolve the typed names the same way Profile/Compare do; with no
+        # exported player list, pass them through and let head_to_head judge.
+        if load_players(collection) is not None:
+            resolved = []
+            for nm in (a, b):
+                row, err = _resolve_player(collection, nm)
+                if row is None:
+                    _fill_datatable(table, [{"error": err}])
+                    chart.update("")
+                    return
+                resolved.append(row["name"])
+            a, b = resolved
         res = head_to_head(a, b, collection=collection)
         if res.get("error"):
             _fill_datatable(table, [{"error": res["error"]}])
@@ -1037,7 +1045,7 @@ class CricDexApp(App):
     def _venues_panel(self) -> ComposeResult:
         ven_opts = _venue_options("ipl")
         ven_default = (
-            "Eden Gardens" if any(v == "Eden Gardens" for v, _ in ven_opts) else Select.BLANK
+            "Eden Gardens" if any(v == "Eden Gardens" for v, _ in ven_opts) else _SELECT_NONE
         )
         with Vertical():
             yield _tabhead("VENUES", "ground conditions — totals, phases, chase")
@@ -1070,7 +1078,7 @@ class CricDexApp(App):
         # 6_Venues.py's per-view derivations.
         table = self.query_one("#ven-table", DataTable)
         venue_val = self.query_one("#ven-name", Select).value
-        venue = "" if venue_val is Select.BLANK else str(venue_val)
+        venue = "" if _unselected(venue_val) else str(venue_val)
         collection = self.query_one("#ven-collection", Select).value
         view = self.query_one("#ven-view", Select).value
         path = SITE_DATA / collection / "venues.json"
@@ -1080,7 +1088,7 @@ class CricDexApp(App):
                 [{"error": f"missing {path.name}", "fix": "run scripts/export_site.py"}],
             )
             return
-        data = json.loads(path.read_text())
+        data = _load_json(path)
         selected = data.get(venue)
         if not selected:
             sample = ", ".join(sorted(data.keys())[:6])
@@ -1215,15 +1223,16 @@ class CricDexApp(App):
         log.clear()
         name = _name_from_label(self.query_one("#profile-name", Input).value)
         collection = self.query_one("#profile-collection", Select).value
-        cid = _resolve_cid(collection, name)
-        if cid is None:
-            log.write(f"[red]error:[/red] no exported player matching '{name}' in {collection}")
+        row, err = _resolve_player(collection, name)
+        if row is None:
+            log.write(Text(f"error: {err}", style="red"))
             return
+        cid = row["cricsheet_id"]
         path = SITE_DATA / collection / "profiles" / f"{cid}.json"
         if not path.exists():
             log.write(f"[red]error:[/red] no exported profile {path.name} (run export_site.py)")
             return
-        p = json.loads(path.read_text())
+        p = _load_json(path)
 
         wd = p.get("wikidata") or {}
         tax = p.get("taxonomy") or {}
@@ -1787,12 +1796,14 @@ class CricDexApp(App):
             _fill_datatable(table, [{"error": str(e)}])
             return
 
-        names = {p["name"]: p for p in idx["ipl"]}
-        sel = names.get(name) or next(
-            (p for n, p in names.items() if name.lower() in n.lower()), None
-        )
+        sel, candidates = match_player(name, idx["ipl"])
         if sel is None:
-            _fill_datatable(table, [{"error": f"no active IPL player matching '{name}'"}])
+            msg = (
+                _ambiguous_msg(name, candidates)
+                if candidates
+                else f"no active IPL player matching '{name}'"
+            )
+            _fill_datatable(table, [{"error": msg}])
             return
 
         role = role_sel or sel["role"]
@@ -1848,7 +1859,7 @@ class CricDexApp(App):
         # Draft the picked prospect into the Auction room as a retention
         # (mirrors the web Scout "Draft" button + Streamlit session-state handoff).
         cid = self.query_one("#twins-draft-pick", Select).value
-        if cid is Select.BLANK or not cid:
+        if _unselected(cid) or not cid:
             self.notify("scout a SMAT/BBL/… tier, then pick a prospect", severity="warning")
             return
         name = getattr(self, "_draft_names", {}).get(cid, cid)
@@ -1901,19 +1912,20 @@ class CricDexApp(App):
         meta = self.query_one("#mu-meta", Static)
         collection = self.query_one("#mu-collection", Select).value
         name = _name_from_label(self.query_one("#mu-name", Input).value)
-        cid = _resolve_cid(collection, name)
-        if cid is None:
-            _fill_datatable(bat, [{"error": f"no player matching '{name}' in {collection}"}])
+        row, err = _resolve_player(collection, name)
+        if row is None:
+            _fill_datatable(bat, [{"error": err}])
             _fill_datatable(bowl, [{"info": "—"}])
             meta.update("")
             return
+        cid, name = row["cricsheet_id"], row["name"]
         path = SITE_DATA / collection / "matchups" / f"{cid}.json"
         if not path.exists():
             _fill_datatable(bat, [{"info": "no matchup data for this player"}])
             _fill_datatable(bowl, [{"info": "—"}])
             meta.update("")
             return
-        data = json.loads(path.read_text())
+        data = _load_json(path)
         splits = data.get("splits") or {}
         seam, spin = splits.get("vs_seam"), splits.get("vs_spin")
         bits = [f"[bold]{name}[/bold]"]
@@ -2020,7 +2032,7 @@ class CricDexApp(App):
             _fill_datatable(bat, [{"error": "no phase.json (run export_site.py)"}])
             _fill_datatable(bowl, [{"info": "—"}])
             return
-        board = (json.loads(path.read_text()) or {}).get(phase) or {}
+        board = (_load_json(path) or {}).get(phase) or {}
         try:
             top_n = int(self.query_one("#ph-topn", Input).value or "25")
         except ValueError:
@@ -2224,8 +2236,12 @@ class CricDexApp(App):
             _fill_datatable(partner, [{"error": "no partnerships.json (run export_site.py)"}])
             _fill_datatable(best, [{"info": "—"}])
             return
-        pairs = [p for p in json.loads(path.read_text()).get("pairs", []) if p["runs"] >= min_runs]
-        cid = _resolve_cid(collection, name)
+        pairs = [p for p in _load_json(path).get("pairs", []) if p["runs"] >= min_runs]
+        cid, err = None, ""
+        if name:
+            row, err = _resolve_player(collection, name)
+            if row:
+                cid, name = row["cricsheet_id"], row["name"]
         mine = [p for p in pairs if cid and cid in (p.get("a_cid"), p.get("b_cid"))]
         mine.sort(key=lambda p: p["runs"], reverse=True)
         _fill_datatable(
@@ -2243,7 +2259,11 @@ class CricDexApp(App):
                 }
                 for p in mine
             ]
-            or [{"info": f"no partnerships ≥ {min_runs} runs for '{name}'"}],
+            or [
+                {"error": err}
+                if err
+                else {"info": f"no partnerships ≥ {min_runs} runs for '{name}'"}
+            ],
         )
         _fill_datatable(
             best,
@@ -2319,7 +2339,7 @@ class CricDexApp(App):
         if not path.exists():
             chart.update("no aging.json (run export_site.py)")
             return
-        data = json.loads(path.read_text())
+        data = _load_json(path)
         curve = data.get(role) or []
         if not curve:
             chart.update("no aging data for this collection")
@@ -2331,8 +2351,10 @@ class CricDexApp(App):
         oys: list[float] = []
         name = _name_from_label(self.query_one("#ag-name", Input).value)
         if metric == overlay_key and name:
-            cid = _resolve_cid(collection, name)
-            pl = (data.get("players") or {}).get(cid) if cid else None
+            row, err = _resolve_player(collection, name)
+            if row is None:
+                self.notify(err, severity="warning", timeout=5)
+            pl = (data.get("players") or {}).get(row["cricsheet_id"]) if row else None
             if pl:
                 for p in pl.get(role) or []:
                     if p.get(overlay_key) is not None:
@@ -2469,8 +2491,47 @@ class CricDexApp(App):
             pers_select.value = self._team_personalities.get(new_team, "Balanced")
         elif sid == "sim-ret-team":
             self._refresh_ret_map()
-        elif sid == "sim-squad-team" and event.value is not Select.BLANK:
+        elif sid == "sim-squad-team" and not _unselected(event.value):
             self._render_squad(event.value)
+
+    # Where each button's tab shows its output — a failure message goes there too.
+    _OUTPUTS = {
+        "metric-run": "#metric-table",
+        "records-run": "#records-table",
+        "cmp-run": "#cmp-table",
+        "h2h-run": "#h2h-table",
+        "ven-run": "#ven-table",
+        "profile-run": "#profile-log",
+        "sim-run": "#sim-table",
+        "sim-find-run": "#sim-find-table",
+        "sim-ret-add": "#sim-ret-map",
+        "sim-ret-drop": "#sim-ret-map",
+        "sim-ret-reset": "#sim-ret-map",
+        "twins-run": "#twins-table",
+        "twins-draft": "#twins-meta",
+        "mu-run": "#mu-bat-table",
+        "ph-run": "#ph-bat-table",
+        "form-run": "#form-up-table",
+        "pt-run": "#pt-partner-table",
+        "ag-run": "#ag-chart",
+    }
+
+    def _show_failure(self, button_id: str, msg: str) -> None:
+        self.notify(msg, severity="error", timeout=6)
+        target = self._OUTPUTS.get(button_id)
+        if not target:
+            return
+        try:
+            w = self.query_one(target)
+        except Exception:  # noqa: BLE001
+            return
+        if isinstance(w, DataTable):
+            _fill_datatable(w, [{"error": msg}])
+        elif isinstance(w, RichLog):
+            w.clear()
+            w.write(Text(f"error: {msg}", style="red"))
+        elif isinstance(w, Static):
+            w.update(Text(msg, style="red"))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         handlers = {
@@ -2496,7 +2557,12 @@ class CricDexApp(App):
             "ag-run": self._on_run_aging,
         }
         if event.button.id in handlers:
-            handlers[event.button.id]()
+            try:
+                handlers[event.button.id]()
+            except _DataError as e:
+                self._show_failure(event.button.id, str(e))
+            except Exception as e:  # noqa: BLE001 — a bad export must not take the app down
+                self._show_failure(event.button.id, f"{type(e).__name__}: {e}")
         elif event.button.id and event.button.id.startswith("upd-"):
             self._on_update(event.button.id)
 
@@ -2550,21 +2616,42 @@ def _strike_rate(profile: dict) -> float | None:
     return (r / b * 100) if (r is not None and b) else None
 
 
-def _resolve_cid(collection: str, name: str) -> str | None:
-    """Resolve a display name -> cricsheet_id via the exported players.json.
-    Exact match first, then case-insensitive substring (mirror the TUI's twins
-    lookup)."""
-    path = SITE_DATA / collection / "players.json"
-    if not name or not path.exists():
-        return None
-    players = json.loads(path.read_text())
-    by_name = {
-        p["name"]: p["cricsheet_id"] for p in players if p.get("name") and p.get("cricsheet_id")
-    }
-    if name in by_name:
-        return by_name[name]
-    needle = name.lower()
-    return next((cid for n, cid in by_name.items() if needle in n.lower()), None)
+class _DataError(Exception):
+    """An exported JSON file is missing or unreadable — shown in the tab, not a crash."""
+
+
+def _load_json(path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise _DataError(f"missing {path.name} — run scripts/export_site.py") from None
+    except (OSError, ValueError) as e:
+        raise _DataError(
+            f"can't read {path.name} ({type(e).__name__}) — re-run scripts/export_site.py"
+        ) from None
+
+
+def _ambiguous_msg(name: str, candidates: list[dict]) -> str:
+    shown = ", ".join(player_label(p) for p in candidates[:8])
+    more = f" … +{len(candidates) - 8} more" if len(candidates) > 8 else ""
+    return f"'{name}' matches {len(candidates)} players: {shown}{more} — type more of the name"
+
+
+def _resolve_player(collection: str, name: str) -> tuple[dict | None, str]:
+    """Typed name → its players.json row, or (None, why). Exact (case-insensitive)
+    name or full name first, then a unique prefix/substring; several fits are
+    listed back instead of guessing (see `_shared.match_player`)."""
+    if not name:
+        return None, "type a player name"
+    players = load_players(collection)
+    if players is None:
+        return None, f"no readable players.json for {collection} — run scripts/export_site.py"
+    row, candidates = match_player(name, players)
+    if row:
+        return row, ""
+    if candidates:
+        return None, _ambiguous_msg(name, candidates)
+    return None, f"no exported player matching '{name}' in {collection}"
 
 
 def _load_profile(collection: str, cid: str | None) -> dict | None:
@@ -2573,7 +2660,7 @@ def _load_profile(collection: str, cid: str | None) -> dict | None:
     path = SITE_DATA / collection / "profiles" / f"{cid}.json"
     if not path.exists():
         return None
-    return json.loads(path.read_text())
+    return _load_json(path)
 
 
 def _summarise_metric(payload) -> str:

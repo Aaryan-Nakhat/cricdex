@@ -9,10 +9,24 @@ import typer
 
 from cricdex.cli import _copy, _render
 from cricdex.cli._shared import (
+    EXIT_MISSING_DATA,
     console,
     die,
     resolve_or_die,
 )
+
+
+def _need_duckdb(what: str, collection: str) -> None:
+    """profile / compare build live from the DuckDB, unlike the JSON-backed commands."""
+    from cricdex.profiles.identity import DEFAULT_DB_PATH
+
+    if not DEFAULT_DB_PATH.exists():
+        die(
+            f"{what} reads the live DuckDB, and there is none at {DEFAULT_DB_PATH}",
+            code=EXIT_MISSING_DATA,
+            hint=f"run `cricdex data ingest cricsheet -c {collection}` (or use the TUI Profile tab, "
+            "which reads the exported JSON)",
+        )
 
 
 def profile(
@@ -21,6 +35,7 @@ def profile(
 ) -> None:
     from cricdex.profiles import builder
 
+    _need_duckdb("profile", collection)
     name = resolve_or_die(name, collection=collection)
     with _render.spinner(f"building profile for {name}"):
         p = builder.build(name, collection)
@@ -209,6 +224,7 @@ def compare(
 ) -> None:
     from cricdex.comparator import compare as cmp
 
+    _need_duckdb("compare", collection)
     a = resolve_or_die(a, collection=collection)
     b = resolve_or_die(b, collection=collection)
     _render.header(f"{a}  vs  {b}", subtitle=f"collection: {collection}")
