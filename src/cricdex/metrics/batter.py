@@ -219,7 +219,7 @@ def dot_ball_recovery(
             ROW_NUMBER() OVER (PARTITION BY match_id, innings_idx, batter
                                ORDER BY over, ball_in_over) AS ball_seq
         FROM balls_{safe}
-        WHERE batter IS NOT NULL
+        WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     ),
     dots AS (
         SELECT match_id, innings_idx, batter, ball_seq AS dot_seq
@@ -441,7 +441,7 @@ def slow_start_cost(
                 ORDER BY over, ball_in_over
             ) AS balls_faced_to_date
         FROM balls_{safe}
-        WHERE batter IS NOT NULL
+        WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     ),
     career AS (
         SELECT
@@ -512,7 +512,7 @@ def boundary_dependency(
             SUM(CASE WHEN runs_batter IN (4, 6) THEN runs_batter ELSE 0 END)
             / NULLIF(SUM(runs_batter), 0), 2) AS DOUBLE) AS bdr_pct
     FROM balls_{safe}
-    WHERE batter IS NOT NULL
+    WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY batter
     HAVING total_runs >= {min_runs}
     ORDER BY bdr_pct DESC

@@ -1,117 +1,184 @@
 # CricDex
 
-Open cricket intelligence platform — novel sabermetrics (NGI / WPA,
-Crease Longevity, Slow-Start Cost, Wicket Quality, Pressure Runs, …),
-dismissal-aware Bayesian opponent-adjusted ratings, cross-competition
-scout look-alikes, real-rules IPL auction Monte-Carlo, and a side-by-side
-comparator.
+### The numbers behind cricket, honestly modelled.
 
-**One source of truth.** The React static web app is canonical; the CLI,
-Textual TUI, and Streamlit dashboard mirror the same analytical pages and
-run the same logic via `cricdex.web_parity` (a Python port of the web's
-TypeScript auction + scout, locked by `test_scripts/test_web_parity.py`).
-Live demo: https://aaryan-nakhat.github.io/cricdex/
+Run the IPL mega auction yourself. See who really won a match, ball by ball. Rate every player against
+the attacks they actually faced, with the error bars left in. Then check, out of sample, whether any of
+it predicts anything.
 
-## Install (clone + uv)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![Data](https://img.shields.io/badge/data-Cricsheet%20ball--by--ball-2E7D32)
+![Models](https://img.shields.io/badge/models-NumPyro%20·%20XGBoost-6E56CF)
+![Store](https://img.shields.io/badge/store-DuckDB-FFF000?logo=duckdb&logoColor=black)
+![Surfaces](https://img.shields.io/badge/use%20it-web%20·%20CLI%20·%20TUI%20·%20Streamlit%20·%20API-0088CC)
+![License](https://img.shields.io/badge/license-MIT-informational)
+[![CI](https://github.com/Aaryan-Nakhat/cricdex/actions/workflows/ci.yml/badge.svg)](https://github.com/Aaryan-Nakhat/cricdex/actions/workflows/ci.yml)
 
-```bash
-git clone git@github.com:Aaryan-Nakhat/cricdex.git
-cd cricdex
-uv sync                       # CLI + TUI
-uv sync --extra ui            # + Streamlit dashboard
-uv run cricdex --help
-```
+<p align="center"><a href="https://github.com/Aaryan-Nakhat/cricdex/raw/main/docs/media/hero.mp4"><img src="docs/media/hero.gif" alt="A 45-second tour of CricDex: the IPL mega auction run 300 times; a real chase scored ball by ball for win probability; Bayesian ratings with their uncertainty; cross-league look-alikes with estimated prices; the honest backtest" width="100%"></a></p>
 
-## First run (4 commands)
+<p align="center"><b><a href="https://aaryan-nakhat.github.io/cricdex/">Open the live site</a></b> · no install, runs in your browser</p>
 
-```bash
-cricdex init                                   # wizard + optional LLM key
-cricdex data ingest cricsheet -c ipl           # IPL ball-by-ball (a few MB)
-cricdex data ingest metrics -c ipl             # 12 leaderboards + rebuilds the site data
-cricdex leaderboard ngi -c ipl --top 15        # your first query
-```
+**[Auction room](#-run-the-ipl-mega-auction-yourself)** · **[Net Game Impact](#-who-really-won-it)** ·
+**[Bayesian ratings](#-skill-judged-by-who-it-came-against)** · **[Scout](#-same-mould-other-leagues)** ·
+**[Ten metrics](#-ten-numbers-a-scorecard-hides)** · **[The backtest](#-does-any-of-it-predict-anything)** ·
+**[How it works](#-how-it-works)** · **[Quickstart](#-quickstart)** · **[Docs](#-docs)**
 
-Bare `cricdex` opens the Textual TUI. Optional next step — `cricdex dashboard`
-(run from the repo root) opens the Streamlit UI on a free local port (it prints the URL;
-`--port` pins one), reading the same exported data as the site.
+**8,300+ T20 matches. 1.9 million balls. Seven competitions. Every number computed from Cricsheet's
+ball-by-ball data, and every model explained in plain English.**
 
-Full command reference: [`docs/CLI.md`](docs/CLI.md). Onboarding flow:
-[`docs/FIRST_RUN.md`](docs/FIRST_RUN.md). Architecture:
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Pending work
-(phase-grouped): [`docs/TODO.md`](docs/TODO.md). Known gaps + year-2
-backlog: [`docs/DEFERRED.md`](docs/DEFERRED.md).
+---
 
-## Modules
+## 🔨 Run the IPL mega auction yourself
 
-All shipped unless marked otherwise. See `docs/ROADMAP.md` for ✅ /
-⏸ / ⏳ status of every subsidiary feature.
+<p align="center"><img src="docs/media/auction.png" alt="The mega auction: purse used per team, the top buys with their most likely team, and how a team bids" width="100%"></p>
 
-| Module | What |
-|---|---|
-| `scout` | Cross-competition look-alike finder across six pools (IPL, SMAT uncapped Indian, BBL, SA20, CPL, T20 Blast) — one implementation shared across web + CLI + TUI + Streamlit via `cricdex.web_parity` (locked by `test_web_parity.py`). Ranked by within-tier Bayesian skill-standing z-score, with per-row est. crore price + saving-vs-pick (budget swap), uncapped-gem flag, role/slot filters, and one-click draft into the auction. Backed by dismissal-aware Bayesian opponent-adjusted ratings (NumPyro/JAX, ADVI + NUTS — scoring + survival for batters, economy + strike for bowlers). |
-| `metrics` | 10 novel context-adjusted ratings: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary Dependency, Pressure Conversion, Wicket Quality, Crease Longevity, Slow-Start Cost. + per-player/matchup dismissal fingerprint. |
-| `auction` | Real-rules IPL auction Monte-Carlo — cross-collection pool (IPL + BBL/SA20/CPL/Blast free agents + uncapped SMAT) **weighted by IPL-relevance** (per-league last-played + age, so league-only veterans don't top the IPL pool), editable Mega/Mini retentions from the real 2025 lists, overseas cap + retention slabs, second-price clearing, two-phase fill to 20–25-man squads (~300 trials, per-player post-sim search). One implementation shared across web + CLI + TUI + Streamlit via `cricdex.web_parity`, bit-exact seeded RNG, locked by `test_web_parity.py`. |
-| `matchups` / `phase` / `form` / `partnerships` / `aging` | Batter-vs-bowler head-to-heads + pace/spin splits; powerplay / middle / death specialist boards; recent-form-vs-career deltas (direction-corrected); batter-pair stands; performance-vs-age curves — all four surfaces, reading the same exported JSON. |
-| `fielding` | Wicketkeeping + Fielding dismissal boards (catches / stumpings / run-out involvements from the ball-by-ball fielder field), split by role — two new entries on the leaderboard switcher across all four surfaces. |
-| `records` | 9 record SQL queries + On-This-Day digest. |
-| `venues` | Per-venue innings totals + chase/set winrate + phase rates + dismissal mix. |
-| `profiles` | Per-player profile assembler aggregating every source CricDex has. |
-| `comparator` | Plotly-radar + transposed table side-by-side + probabilistic skill head-to-head. |
-| `api` | FastAPI public REST surface + OpenAPI at `/docs`. See [`docs/API.md`](docs/API.md). |
-| `dashboard` | Streamlit app mirroring the web pages: Leaderboards, Player Profile (Wikidata photo + DOB + dismissal fingerprint + style twins), Compare, Head-to-head, Matchups, Phase, Form, Partnerships, Aging, Scout, Auction, Records, Venues, Update Data. |
+Ten franchises keep their real 2025 retentions, then bid for every active T20 player, each in its own
+style: the marquee chaser overpays for stars, the value hunter walks away from bidding wars, the
+overseas-heavy side fills its eight slots. One auction is played 300 times with the order shuffled, so
+you see **who lands each star, how often, and for how much**, and how every squad ends up.
 
-Cricsheet-only: all data derives from Cricsheet ball-by-ball + the
-People Register + (one-time) Wikidata enrichment. Live-feed, scrape,
-and non-Cricsheet sources are intentionally out of scope.
+- **Real rules:** 120 cr purse, retention slabs, 8 overseas max, 20 to 25-man squads.
+- **Bidding that behaves like the real room:** a team with more money left per open slot bids harder,
+  the winner pays just above the second-best bid, and no player goes above 27 cr, the real record.
+- **Yours to change:** release or add any retention, swap a team's personality, change the purse.
+- **The pool is the whole T20 world:** IPL players plus free agents from the BBL, SA20, CPL, T20 Blast
+  and the SMAT, weighted by how relevant they are to the IPL right now.
 
-### Do the ratings predict anything?
+Prices are estimated from the skill model, calibrated to recent auctions. They model how the room
+behaves, not the exact crore of a real sale. → [How the auction works](docs/AUCTION_MATH.md)
 
-Backtested out of sample — each season the model is fitted on earlier
-matches only, then its player ranking is compared with the season
-(Spearman rank correlation):
+## 📈 Who really won it?
 
-| | Model | Baseline |
+<p align="center"><img src="docs/media/ngi.png" alt="Net Game Impact on a real chase: the win-probability line, and who gets the credit" width="100%"></p>
+
+**Net Game Impact (NGI)** credits every ball by how much it moved the win. A calibrated win-probability
+model reads the match before each delivery (score, wickets and balls left, target, required rate, run
+rate against the ground's average). The change after the ball is that ball's value: plus to the batter,
+minus to the bowler. So a 30* that wins a tight chase counts for more than a hundred in a lost cause.
+
+The model is trained on one set of matches and checked on others it never saw. Fielders aren't credited
+yet. → [NGI in detail](docs/METHODOLOGY.md#2-net-game-impact-ngi)
+
+## 🎯 Skill, judged by who it came against
+
+<p align="center"><img src="docs/media/ratings.png" alt="Bayesian batting skill for two players with very different sample sizes, head-to-head odds, and the top active IPL batters and bowlers with their ranges" width="100%"></p>
+
+Raw averages flatter a batter who feasted on weak attacks. The Bayesian model fits every player at once,
+so runs against a great attack count for more. Batters get a **scoring** and a **survival** rating,
+bowlers an **economy** and a **strike** rating, and every rating comes with **how sure it is**. A player
+with 400 balls gets a wide range; one with 7,000 gets a narrow one. Head-to-heads ("how likely is A
+better than B?") use both ranges, so a thin record can't win the argument on its own.
+
+→ [The rating model](docs/METHODOLOGY.md#4-bayesian-skill-ratings) · [Model notes](src/cricdex/scout/ratings/README.md)
+
+## 🔭 Same mould, other leagues
+
+<p align="center"><img src="docs/media/scout.png" alt="Scout: an IPL bowler and look-alikes from six pools, with match score, estimated price and saving" width="100%"></p>
+
+Pick an IPL player. **Scout** finds players of the same role and type across six pools (IPL, SMAT,
+BBL, SA20, CPL, T20 Blast), ranks them by how they stand **within their own league**, and prices each
+one with the auction's own curve, so you see the budget swap and the saving. Uncapped prospects punching
+above their sample get a gem flag, and one click drafts a prospect into the auction room.
+→ [Scout](docs/SCOUT.md)
+
+## 📊 Ten numbers a scorecard hides
+
+<p align="center"><img src="docs/media/metrics.png" alt="The ten context metrics, the fielding boards and the other pages" width="100%"></p>
+
+A 25-ball 40 in a slack chase and a 25-ball 40 chasing 12 an over look the same on a scorecard. These
+put the context back: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary
+Dependency, Pressure Conversion, Wicket Quality, Crease Longevity and Slow-Start Cost, plus wicketkeeping
+and fielding boards. Every board exists for every league and three time windows (all-time, last three
+years, last year), and each metric is explained on the site. Also on every surface: matchups, phase
+specialists, form, partnerships, aging curves, records and venues. → [Metric formulas](docs/METRICS.md)
+
+## 🧪 Does any of it predict anything?
+
+<p align="center"><img src="docs/media/backtest.png" alt="The backtest: model against plain baselines, and how sure each gap is over 2,000 resamples" width="100%"></p>
+
+We checked, out of sample. For each season the model is fitted only on matches **before** it, then its
+ranking of players is compared with how the season went (Spearman rank correlation: 1 = same order,
+0 = no link):
+
+| | CricDex | Plain baseline |
 |---|---|---|
-| Established IPL batters, next season (2021–26), overall | 0.14 | 0.15 (career average) |
-| Established IPL bowlers, next season (2021–26), overall | 0.09 | 0.07 (career average) |
-| IPL newcomer batters, from other leagues (2014–26, n=96), overall | **0.18** | 0.12 (raw other-league numbers) |
-| IPL newcomer bowlers, from other leagues (2014–26, n=110), overall | 0.20 | **0.25** (raw other-league numbers) |
+| Established IPL batters, next season (2021–26) | 0.14 | 0.15 (career average) |
+| Established IPL bowlers, next season (2021–26) | 0.09 | 0.07 (career average) |
+| IPL newcomer batters, rated from other leagues (2014–26, 96 players) | **0.18** | 0.12 (raw numbers there) |
+| IPL newcomer bowlers, rated from other leagues (2014–26, 110 players) | 0.20 | **0.25** (raw numbers there) |
 
-So: for players the IPL already knows, the ratings match career
-averages (one T20 season is mostly noise; weighting recent seasons
-didn't help). Their edge is judging **newcomer batters** from weaker or
-different leagues; for newcomer bowlers there is none. Bootstrapping the
-~100 newcomers (2,000 resamples): the batter staying-in edge (0.34 vs
-0.22) holds in 97% of resamples; the batter overall edge in 79%, so a
-lean, not proof. Re-run with
+**The honest read:** for players the IPL already knows, the ratings predict next season about as well as
+career averages. A single T20 season is mostly noise, and weighting recent seasons didn't help. Where
+they earn their keep is **judging newcomer batters from other leagues**: across 2,000 resamples of the
+players, the model judged how long a newcomer batter lasts better in 97% of them. The overall batter edge
+held in 79%, a lean rather than proof, and for bowlers there is no edge. Re-run it yourself with
 `scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`.
+→ [The backtest in detail](docs/METHODOLOGY.md#8-does-it-predict-the-backtest)
 
-Deferred to year 2: OpenBoundary (Hawk-Eye OSS), ChuckCheck (elbow flex
-biomechanics), ScoutVLM (video → ball-by-ball), Highlight CV,
-CricHeroes grassroots tier.
+## 🧠 How it works
+
+<p align="center"><img src="docs/media/architecture.png" alt="Cricsheet and the People Register into DuckDB, the models, exported JSON, and the five surfaces sharing one logic" width="100%"></p>
+
+- **Open data only.** Cricsheet ball-by-ball plus its People Register (one id per player across every
+  league), and a one-time Wikidata pass for dates of birth and photos. No scraping, no live feed.
+- **Computed, not generated.** The one AI step tags each player's role, bowling type and country (an LLM
+  via LiteLLM, any provider you set in `.env`), and it's marked "AI-classified" wherever it shows.
+  Every stat and rating is computed.
+- **One logic, five surfaces.** A Python pipeline builds the ratings and metrics into JSON. The static
+  website reads it and runs the auction and Scout in your browser. The CLI, terminal UI, Streamlit
+  dashboard and API run the same logic through `cricdex.web_parity`, a Python port with a bit-exact
+  seeded random generator. Parity tests in CI keep the two identical, trial for trial.
+- **Honest by default.** Super overs are left out, renamed grounds are merged into one venue, every
+  rating carries its uncertainty, and the limits are written down. → [Methodology](docs/METHODOLOGY.md)
+
+## 🚀 Quickstart
+
+The quickest way is the [live site](https://aaryan-nakhat.github.io/cricdex/). To run it on your own
+machine (Python 3.12 and [uv](https://docs.astral.sh/uv/)):
+
+```bash
+git clone https://github.com/Aaryan-Nakhat/cricdex.git
+cd cricdex
+uv sync                                        # CLI + terminal UI  (uv sync --extra ui adds Streamlit)
+
+uv run cricdex init                            # set-up wizard (an LLM key is optional)
+uv run cricdex data ingest cricsheet -c ipl    # IPL ball-by-ball, a few MB
+uv run cricdex data ingest metrics -c ipl      # leaderboards + rebuilds the site data
+uv run cricdex leaderboard ngi -c ipl --top 15 # your first query
+```
+
+Bare `cricdex` opens the terminal UI, `cricdex dashboard` the Streamlit app, and `cricdex auction room`
+runs the auction in your terminal. Docker: [`docs/DOCKER.md`](docs/DOCKER.md). Every command:
+[`docs/CLI.md`](docs/CLI.md). Step by step: [`docs/FIRST_RUN.md`](docs/FIRST_RUN.md).
+
+## 📚 Docs
+
+| Read | For |
+|---|---|
+| [Methodology](docs/METHODOLOGY.md) | every model in plain English, with worked examples, the backtest and the limits |
+| [Metrics](docs/METRICS.md) · [Auction math](docs/AUCTION_MATH.md) · [Scout](docs/SCOUT.md) · [Identity](docs/IDENTITY.md) | the exact rules behind each feature |
+| [First run](docs/FIRST_RUN.md) · [Running](docs/RUNNING.md) · [CLI](docs/CLI.md) · [API](docs/API.md) · [Docker](docs/DOCKER.md) | using it |
+| [Architecture](docs/ARCHITECTURE.md) · [Study guide](docs/STUDY_GUIDE.md) | how the code fits together, in depth |
+| [Roadmap](docs/ROADMAP.md) · [Changelog](docs/CHANGELOG.md) · [Decisions](docs/DECISIONS.md) | where it's going and why it is the way it is |
+
+All docs: [`docs/README.md`](docs/README.md).
 
 ## Stack
 
-- Python 3.12, `uv` package manager
-- DuckDB (analytics) · NumPyro / JAX (Bayesian ratings) · exported JSON snapshots (file-driven; no vector DB, no graph DB)
-- FastAPI + Uvicorn (REST) · React + Vite static site (GitHub Pages)
-- Docker + Docker Compose (local stack) · GitHub Actions (manual data refresh → Pages redeploy)
-
-## Repository layout
+Python 3.12 and uv · DuckDB · NumPyro / JAX (Bayesian ratings) · XGBoost (win probability) · FastAPI ·
+Typer + Textual (CLI, terminal UI) · Streamlit · React + Vite + Tailwind (static site on GitHub Pages) ·
+Docker · GitHub Actions (tests, parity tests, on-demand data refresh and redeploy).
 
 ```
-src/cricdex/        Python package; one subfolder per module
-scripts/            Typer CLIs for each pipeline
-data/               raw + processed datasets (gitignored except curated/ player facts)
-site/               React + Vite static web app; site/public/data is the committed JSON snapshot
-tests/              pytest
-test_scripts/       web ↔ Python parity tests (need Node + the exported JSON)
-docs/               architecture, CLI, metrics, scout, auction math, running, Docker, roadmap, …
-Dockerfile          multi-stage app image
-docker-compose.yml  local stack — cricdex (API) + dashboard (profile)
-Makefile            top-level workflow targets
+src/cricdex/     the Python package, one folder per module
+scripts/         pipeline, export, backtest and README-render scripts (see scripts/README.md)
+site/            the React website; site/public/data is the committed data snapshot
+tests/           pytest
+test_scripts/    web ↔ Python parity tests
+docs/            methodology, reference and project docs; docs/media holds the README visuals
 ```
 
-## License
+## Credits and license
 
-MIT.
+Ball-by-ball data and the People Register come from [Cricsheet](https://cricsheet.org/), with thanks;
+dates of birth and photos from [Wikidata](https://www.wikidata.org/). CricDex is MIT licensed.

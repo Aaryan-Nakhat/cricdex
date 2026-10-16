@@ -1,21 +1,23 @@
 # Decisions
 
-Locked design choices and their reasoning. Append new entries with date.
+The design log: dated choices and the reasoning behind them, oldest first. Append new entries with a
+date. This is a historical record, so some entries describe plans that were later reversed; for what
+CricDex is today, read [`ARCHITECTURE.md`](ARCHITECTURE.md), [`METHODOLOGY.md`](METHODOLOGY.md) and
+[`ROADMAP.md`](ROADMAP.md).
 
-> **Note (scope reversal):** CricDex is now **Cricsheet-only** and
-> **file-driven** (DuckDB + exported JSON; no vector DB, no graph DB).
-> Earlier entries below that discuss non-Cricsheet sources (Reddit/Cricbuzz/
-> ESPNcricinfo scrape, BCCI Ranji/Hazare) and LLM-convenience features
-> (`commentary_translate`, `live`, match reports, newsletter, DRS) record
-> decisions that were **later reversed** — those were removed from the
-> codebase. The same applies to several subsystems described below as if
-> live: the **Rules Q&A** RAG (Qdrant / Jina rerank / rulebook PDFs), the
-> **Neo4j scout graph** (graph twins / find-replacement / co-faced +
-> teammate cohorts), and the **MILP auction solver + war-room advisor +
-> GRPO RL** — all deleted. Scout is now cross-competition look-alikes and
-> Auction is the real-rules Monte-Carlo room, both shared with the web via
-> `cricdex.web_parity`. These entries are kept here as historical record.
-> Current scope: [`VNEXT.md`](VNEXT.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md).
+> **Reversed since these entries were written.** CricDex is now **Cricsheet-only** and **file-driven**
+> (DuckDB + exported JSON; no Postgres, vector or graph database). Removed from the codebase, not
+> deferred:
+> - non-Cricsheet sources (Reddit / Cricbuzz / ESPNcricinfo scraping, BCCI Ranji / Hazare) and the
+>   LLM-written features built on them (`commentary_translate`, `live`, match reports, newsletter, DRS);
+> - the **Rules Q&A** RAG stack (Qdrant, reranker, rulebook PDFs), so the rules-corpus entries below
+>   are moot;
+> - the **Neo4j scout graph** (its co-faced cohort survives as plain DuckDB SQL);
+> - the **MILP auction solver, war-room advisor and RL prototype**.
+>
+> Scout is now cross-competition look-alikes and the Auction is the real-rules Monte-Carlo room, both
+> shared with the web via `cricdex.web_parity`. The only LLM use left is the AI-classified player
+> taxonomy.
 
 ## 2026-05-11 — Name: CricDex
 

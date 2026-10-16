@@ -15,3 +15,5 @@ This package only holds:
 The earlier MILP squad solver, Monte-Carlo price-band simulator, Gym/GRPO RL
 self-play, and graph-based war-room advisor have been removed (see
 `docs/CHANGELOG.md`); the live auction is the web-parity Monte-Carlo.
+How it works, in plain English: [`docs/METHODOLOGY.md` §6–7](../../../docs/METHODOLOGY.md#7-the-auction-room);
+step by step: [`docs/AUCTION_MATH.md`](../../../docs/AUCTION_MATH.md).

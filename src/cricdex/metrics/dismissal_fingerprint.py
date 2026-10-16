@@ -104,7 +104,7 @@ def bowler_modes(
             f"""
             SELECT wicket_kind AS kind, COUNT(*) AS count
             FROM balls_{safe}
-            WHERE bowler = ? AND player_out IS NOT NULL
+            WHERE bowler = ? AND player_out IS NOT NULL AND {MAIN_INNINGS}
               AND wicket_kind IN ({kinds_sql})
             GROUP BY 1 ORDER BY 2 DESC, 1
             """,
@@ -130,7 +130,7 @@ def matchup_log(
             f"""
             SELECT wicket_kind AS kind, COUNT(*) AS count
             FROM balls_{safe}
-            WHERE batter = ? AND bowler = ? AND player_out = ?
+            WHERE batter = ? AND bowler = ? AND player_out = ? AND {MAIN_INNINGS}
               AND wicket_kind IN ({kinds_sql})
             GROUP BY 1 ORDER BY 2 DESC, 1
             """,
@@ -139,7 +139,7 @@ def matchup_log(
         balls = con.execute(
             f"""
             SELECT COUNT(*) FROM balls_{safe}
-            WHERE batter = ? AND bowler = ?
+            WHERE batter = ? AND bowler = ? AND {MAIN_INNINGS}
               AND COALESCE(extras_type,'') NOT IN ('wides')
             """,
             [batter, bowler],

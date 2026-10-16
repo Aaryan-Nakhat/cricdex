@@ -63,7 +63,7 @@ uv run cricdex dashboard     # free local port, prints the URL; --port pins one
 The app reads the exported snapshot, so a refresh has to re-export it:
 
 ```bash
-make refresh COLLECTION=ipl   # download → metrics → ratings → export
+make refresh COLLECTION=ipl   # download → ratings → metrics → export
 # or use the Update Data page; then rerun the page — Streamlit re-reads on rerun
 ```
 

@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Ten metrics</title><link rel="stylesheet" href="theme.css">
+<style>
+  .m { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px 20px 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+  .m svg { display: block; margin-bottom: 14px; width: 100%; height: 64px; }
+  .m { min-width: 0; }
+  .m h4 { font: 800 19px/1.2 Inter; letter-spacing: -.01em; }
+  .m p { font: 500 14.5px/1.45 Inter; color: var(--muted); margin-top: 6px; flex: 1; }
+  .m .dir { margin-top: 12px; }
+  .who { font: 700 12px/1 Inter; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+</style></head><body>
+<div id="stage">
+  <div class="orb" style="width:620px;height:620px;left:-220px;top:-260px;background:#34d399"></div>
+  <div class="orb" style="width:540px;height:540px;right:-200px;top:300px;background:#2dd4bf"></div>
+  <div class="gridbg"></div>
+  <div class="kicker">📊 Context metrics</div>
+  <h1>Ten numbers <span class="grad">a scorecard hides.</span></h1>
+  <p class="lede">A 25-ball 40 in a slack chase and a 25-ball 40 chasing 12 an over look the same on a scorecard. These put the context back, all computed straight from ball-by-ball data.</p>
+
+  <div class="grid5" style="margin-top:30px">
+    <div class="m"><div class="who">Batting + bowling</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><path d="M4 50 H60 L70 44 H118 L128 22 H170 L178 30 H232" stroke="#059669" stroke-width="4" stroke-linejoin="round"/><circle cx="128" cy="22" r="6" fill="#059669"/><text x="136" y="16" fill="#059669" font-family="Inter" font-size="13" font-weight="800">+ΔWP</text></svg>
+      <h4>Net Game Impact</h4><p>How much a player moves their team's chance of winning, per match.</p><span class="dir tag tg">HIGHER IS BETTER</span></div>
+    <div class="m"><div class="who">Batting</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><rect x="4" y="44" width="22" height="16" rx="4" fill="#d8e0e5"/><rect x="34" y="38" width="22" height="22" rx="4" fill="#d8e0e5"/><rect x="64" y="30" width="22" height="30" rx="4" fill="#fbd5d5"/><rect x="94" y="20" width="22" height="40" rx="4" fill="#f8a5a5"/><rect x="124" y="10" width="22" height="50" rx="4" fill="#dc2626"/><text x="156" y="38" fill="#dc2626" font-family="Inter" font-size="13" font-weight="800">req. rate</text><text x="156" y="54" fill="#8996a6" font-family="Inter" font-size="12" font-weight="600">climbing</text></svg>
+      <h4>Pressure Runs</h4><p>Strike rate when the required rate is climbing in a chase.</p><span class="dir tag tg">HIGHER IS BETTER</span></div>
+    <div class="m"><div class="who">Batting</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><path d="M6 52 C40 50 60 40 90 36 S150 18 230 10" stroke="#0d9488" stroke-width="4"/><path d="M6 30 C60 32 120 28 230 26" stroke="#b8c3cc" stroke-width="3" stroke-dasharray="6 6"/><text x="6" y="62" fill="#8996a6" font-family="Inter" font-size="11.5" font-weight="700">ball 1</text><text x="230" y="62" text-anchor="end" fill="#8996a6" font-family="Inter" font-size="11.5" font-weight="700">51+</text></svg>
+      <h4>Intent Curve</h4><p>Strike rate from ball one: who comes out firing, with the innings' full shape.</p><span class="dir tag tg">HIGHER IS BETTER</span></div>
+    <div class="m"><div class="who">Batting</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><circle cx="16" cy="40" r="11" fill="#fff" stroke="#8996a6" stroke-width="3"/><circle cx="16" cy="40" r="3" fill="#8996a6"/><path d="M36 40 H48" stroke="#8996a6" stroke-width="3"/><g fill="#0d9488"><rect x="56" y="36" width="20" height="24" rx="4"/><rect x="84" y="26" width="20" height="34" rx="4"/><rect x="112" y="44" width="20" height="16" rx="4"/><rect x="140" y="16" width="20" height="44" rx="4"/><rect x="168" y="36" width="20" height="24" rx="4"/><rect x="196" y="28" width="20" height="32" rx="4"/></g></svg>
+      <h4>Dot-Ball Recovery</h4><p>Runs scored in the six balls after eating a dot.</p><span class="dir tag tg">HIGHER IS BETTER</span></div>
+    <div class="m"><div class="who">Batting</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><g stroke="#dc2626" stroke-width="4" stroke-linecap="round"><path d="M14 22 V58"/><path d="M24 22 V58"/><path d="M34 22 V58"/><path d="M10 18 H38"/></g><path d="M52 50 L80 46 L104 32 L128 30 L152 14 L180 18 L230 6" stroke="#059669" stroke-width="4" stroke-linejoin="round"/><text x="60" y="62" fill="#8996a6" font-family="Inter" font-size="11.5" font-weight="700">next 12 balls</text></svg>
+      <h4>Counter-Attack</h4><p>Strike rate right after a partner is dismissed.</p><span class="dir tag tg">HIGHER IS BETTER</span></div>
+
+    <div class="m"><div class="who">Batting · style</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><circle cx="32" cy="32" r="24" stroke="#e6ecef" stroke-width="12"/><circle cx="32" cy="32" r="24" stroke="#b47806" stroke-width="12" stroke-dasharray="90 151" transform="rotate(-90 32 32)"/><text x="72" y="28" fill="#b47806" font-family="Inter" font-size="14" font-weight="800">4s + 6s</text><text x="72" y="48" fill="#8996a6" font-family="Inter" font-size="13" font-weight="700">vs running</text></svg>
+      <h4>Boundary Dependency</h4><p>Share of runs that come from fours and sixes.</p><span class="dir tag ta">LOWER IS BETTER</span></div>
+    <div class="m"><div class="who">Bowling</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><g fill="#fff" stroke="#8996a6" stroke-width="3"><circle cx="18" cy="32" r="13"/><circle cx="54" cy="32" r="13"/><circle cx="90" cy="32" r="13"/><circle cx="126" cy="32" r="13"/></g><g fill="#8996a6"><circle cx="18" cy="32" r="3"/><circle cx="54" cy="32" r="3"/><circle cx="90" cy="32" r="3"/><circle cx="126" cy="32" r="3"/></g><circle cx="170" cy="32" r="18" fill="#dc2626"/><text x="170" y="38" text-anchor="middle" fill="#fff" font-family="Inter" font-size="17" font-weight="800">W</text></svg>
+      <h4>Pressure Conversion</h4><p>How often a bowler turns a run of dots into a wicket.</p><span class="dir tag tg">HIGHER IS BETTER</span></div>
+    <div class="m"><div class="who">Bowling</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><g font-family="Inter" font-size="13" font-weight="800" text-anchor="middle"><rect x="4" y="8" width="44" height="52" rx="8" fill="#059669"/><text x="26" y="40" fill="#fff">W</text><rect x="56" y="22" width="44" height="38" rx="8" fill="#5fd0b9"/><text x="78" y="46" fill="#fff">W</text><rect x="108" y="40" width="44" height="20" rx="6" fill="#d8e0e5"/><text x="130" y="55" fill="#546273">w</text><rect x="160" y="46" width="44" height="14" rx="5" fill="#e6ecef"/></g></svg>
+      <h4>Wicket Quality</h4><p>Wickets weighted by the calibre of the batter dismissed.</p><span class="dir tag tg">HIGHER IS BETTER</span></div>
+    <div class="m"><div class="who">Batting</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><rect x="4" y="16" width="168" height="14" rx="7" fill="#4f6bed"/><rect x="4" y="40" width="112" height="14" rx="7" fill="#d8e0e5"/><path d="M116 8 V62" stroke="#8996a6" stroke-width="2" stroke-dasharray="4 4"/><text x="180" y="28" fill="#4f6bed" font-family="Inter" font-size="13" font-weight="800">1.5×</text><text x="124" y="52" fill="#8996a6" font-family="Inter" font-size="11.5" font-weight="700">cohort</text></svg>
+      <h4>Crease Longevity</h4><p>Balls survived per dismissal, against the cohort average.</p><span class="dir tag tg">HIGHER IS BETTER</span></div>
+    <div class="m"><div class="who">Batting</div>
+      <svg width="236" height="64" viewBox="0 0 236 64" fill="none"><rect x="4" y="12" width="150" height="16" rx="8" fill="#0d9488"/><rect x="4" y="38" width="112" height="16" rx="8" fill="#b8c3cc"/><path d="M120 46 H152" stroke="#dc2626" stroke-width="3" stroke-dasharray="4 3"/><text x="162" y="25" fill="#0d9488" font-family="Inter" font-size="12" font-weight="800">career</text><text x="162" y="51" fill="#8996a6" font-family="Inter" font-size="12" font-weight="800">setting</text></svg>
+      <h4>Slow-Start Cost</h4><p>Strike-rate drop while setting a total, against career strike rate.</p><span class="dir tag ta">LOWER IS BETTER</span></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:18px;margin-top:18px">
+    <div class="m" style="flex-direction:row;gap:18px;align-items:center"><div style="font-size:34px">🧤</div><div><h4>Wicketkeeping</h4><p style="margin-top:4px">Catches, stumpings and run-outs behind the stumps.</p></div></div>
+    <div class="m" style="flex-direction:row;gap:18px;align-items:center"><div style="font-size:34px">🏃</div><div><h4>Fielding</h4><p style="margin-top:4px">Outfield catches and run-out involvements.</p></div></div>
+    <div class="m"><div class="who">Also on every surface</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+        <span class="chip">Matchups</span><span class="chip">Phase specialists</span><span class="chip">Form</span><span class="chip">Partnerships</span><span class="chip">Aging</span><span class="chip">Venues</span><span class="chip">Records</span>
+      </div></div>
+  </div>
+  <div class="foot"><span>Every board for every league, all-time, last 3 years and last year · each metric explained in plain English on the site</span><span>Super overs left out everywhere</span></div>
+</div></body></html>

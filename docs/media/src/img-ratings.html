@@ -1,0 +1,91 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Skill ratings</title><link rel="stylesheet" href="theme.css">
+<style>
+  .fr { display: grid; grid-template-columns: 190px 1fr 92px; align-items: center; gap: 14px; height: 38px; font: 600 16px/1 Inter; }
+  .track { position: relative; height: 38px; }
+  .track .ci { position: absolute; top: 15px; height: 8px; border-radius: 4px; }
+  .track .pt { position: absolute; top: 11px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(15,23,42,.3); }
+  .track .tick { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--line); }
+  .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14.5px; }
+  .axis { display: grid; grid-template-columns: 190px 1fr 92px; gap: 14px; font: 600 13px Inter; color: var(--faint); margin-top: 6px; }
+  .axis div { position: relative; height: 16px; } .axis div span { position: absolute; transform: translateX(-50%); }
+  .h2h { display: grid; grid-template-columns: 1fr 62px; gap: 8px 14px; align-items: center; font: 600 16px/1.3 Inter; }
+</style></head><body>
+<div id="stage">
+  <div class="orb" style="width:620px;height:620px;left:-220px;top:-260px;background:#34d399"></div>
+  <div class="orb" style="width:540px;height:540px;right:-200px;top:280px;background:#7c9cf5;opacity:.25"></div>
+  <div class="gridbg"></div>
+  <div class="kicker">🎯 Bayesian skill ratings</div>
+  <h1>Skill, judged by who it came against. <span class="grad">With the error bars left in.</span></h1>
+  <p class="lede">Every player is fitted at once, so runs against a great attack count for more than runs against a weak one. Batters get scoring and survival, bowlers get economy and strike, and every rating says how sure it is.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 460px;gap:22px;margin-top:30px">
+    <div class="card" style="position:relative;height:430px">
+      <h3>Batting skill · IPL · the same model, two very different sample sizes</h3>
+      <svg width="860" height="330" viewBox="-20 -10 860 330" style="position:absolute;left:26px;top:70px;overflow:visible" fill="none" font-family="Inter">
+        <line x1="0" y1="270" x2="800" y2="270" stroke="#d8e0e5" stroke-width="2"/>
+        <g fill="#8996a6" font-size="14" font-weight="600" text-anchor="middle">
+          <text x="36.4" y="294">+1</text><text x="218.2" y="294">+2</text><text x="400" y="294">+3</text><text x="581.8" y="294">+4</text><text x="763.6" y="294">+5</text></g>
+        <text x="400" y="320" text-anchor="middle" fill="#8996a6" font-size="13.5" font-weight="600">skill, in typical player-to-player spreads above average →</text>
+        <defs>
+          <linearGradient id="kf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#4f6bed" stop-opacity=".30"/><stop offset="1" stop-color="#4f6bed" stop-opacity=".02"/></linearGradient>
+          <linearGradient id="sf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f5c542" stop-opacity=".45"/><stop offset="1" stop-color="#f5c542" stop-opacity=".04"/></linearGradient>
+        </defs>
+        <path d="M0 269.9 L50 269.5 L100 268.2 L150 264.8 L180 260.8 L210 254.9 L240 246.7 L270 236.1 L300 223.5 L330 210.1 L360 197.4 L390 187.2 L420 181.2 L440 180.0 L460 181.3 L490 187.4 L520 197.7 L550 210.5 L580 223.9 L610 236.4 L640 246.9 L670 255.1 L700 261.0 L750 266.6 L800 268.9 L800 270 L0 270 Z" fill="url(#sf)"/>
+        <path d="M0 269.9 L50 269.5 L100 268.2 L150 264.8 L180 260.8 L210 254.9 L240 246.7 L270 236.1 L300 223.5 L330 210.1 L360 197.4 L390 187.2 L420 181.2 L440 180.0 L460 181.3 L490 187.4 L520 197.7 L550 210.5 L580 223.9 L610 236.4 L640 246.9 L670 255.1 L700 261.0 L750 266.6 L800 268.9" stroke="#b47806" stroke-width="4"/>
+        <path transform="translate(-1.7 0)" d="M160 270 L175 269.8 L190 269.4 L200 268.8 L210 267.4 L220 265.0 L230 260.8 L240 253.9 L250 243.2 L260 227.6 L270 206.5 L280 179.7 L290 148.0 L300 113.7 L310 79.9 L320 50.7 L330 29.8 L340 20.4 L345 20.5 L350 23.8 L360 39.5 L370 65.3 L380 97.4 L390 132.0 L400 165.2 L410 194.5 L420 218.4 L430 236.5 L440 249.4 L450 257.9 L460 263.3 L470 266.5 L480 268.2 L495 269.4 L520 270 Z" fill="url(#kf)"/>
+        <path transform="translate(-1.7 0)" d="M160 270 L175 269.8 L190 269.4 L200 268.8 L210 267.4 L220 265.0 L230 260.8 L240 253.9 L250 243.2 L260 227.6 L270 206.5 L280 179.7 L290 148.0 L300 113.7 L310 79.9 L320 50.7 L330 29.8 L340 20.4 L345 20.5 L350 23.8 L360 39.5 L370 65.3 L380 97.4 L390 132.0 L400 165.2 L410 194.5 L420 218.4 L430 236.5 L440 249.4 L450 257.9 L460 263.3 L470 266.5 L480 268.2 L495 269.4 L520 270" stroke="#4f6bed" stroke-width="4"/>
+        <line x1="340.7" y1="20" x2="340.7" y2="270" stroke="#4f6bed" stroke-dasharray="4 5" stroke-width="2"/>
+        <line x1="439.2" y1="180" x2="439.2" y2="270" stroke="#b47806" stroke-dasharray="4 5" stroke-width="2"/>
+      </svg>
+      <div style="position:absolute;left:62px;top:92px;text-align:right;width:260px">
+        <div style="font:800 22px/1.2 Inter;color:var(--sky)">Virat Kohli</div>
+        <div class="muted" style="font:600 15px/1.35 Inter;margin-top:4px">6,926 balls · narrow: we're sure</div></div>
+      <div style="position:absolute;left:560px;top:206px">
+        <div style="font:800 22px/1.2 Inter;color:var(--gold)">Vaibhav Suryavanshi</div>
+        <div class="muted" style="font:600 15px/1.35 Inter;margin-top:4px">449 balls · wide: still learning</div></div>
+    </div>
+    <div class="card" style="height:430px;position:relative">
+      <h3>Head to head · chance A is better than B</h3>
+      <div style="font:700 18px/1.35 Inter;margin-top:18px">Vaibhav Suryavanshi over Virat Kohli</div>
+      <div style="display:flex;align-items:baseline;gap:14px;margin-top:8px">
+        <div class="big" style="font-size:72px;color:var(--gold)">78%</div>
+        <div class="muted" style="font:600 16px/1.4 Inter">“clearly better”,<br>on a fifteenth of the balls</div>
+      </div>
+      <div style="height:1px;background:var(--line);margin:20px 0 18px"></div>
+      <div class="h2h">
+        <span>Sai Sudharsan vs Kohli</span><span style="text-align:right;color:var(--teal)">85%</span>
+        <div class="bar" style="grid-column:1/3"><i style="width:85%;background:var(--teal)"></i></div>
+        <span style="margin-top:8px">Shubman Gill vs Kohli</span><span style="text-align:right;color:var(--sky);margin-top:8px">70%</span>
+        <div class="bar" style="grid-column:1/3"><i style="width:70%;background:var(--sky)"></i></div>
+      </div>
+      <p class="t" style="position:absolute;left:26px;right:26px;bottom:22px">Both players' uncertainty goes into the odds, so a thin record can't win the argument on its own.</p>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:22px">
+    <div class="card"><h3>Top active IPL batters · rating with its 90% range</h3><div id="bat" style="margin-top:12px"></div></div>
+    <div class="card"><h3>Top active IPL bowlers · rating with its 90% range</h3><div id="bowl" style="margin-top:12px"></div></div>
+  </div>
+  <div class="foot"><span>NumPyro model · active players, 600+ balls · range = ±1.645 sd of the posterior</span><span>Wider bar = fewer balls or a less settled record</span></div>
+</div>
+<script>
+  const LO = 0, HI = 5;
+  const pct = (v) => `${(100 * (v - LO)) / (HI - LO)}%`;
+  function forest(el, rows, color) {
+    let h = "";
+    for (const [name, m, sd] of rows) {
+      const a = Math.max(LO, m - 1.645 * sd), b = Math.min(HI, m + 1.645 * sd);
+      h += `<div class="fr"><span>${name}</span><div class="track">` +
+        [1, 2, 3, 4].map((t) => `<i class="tick" style="left:${pct(t)}"></i>`).join("") +
+        `<i class="ci" style="left:${pct(a)};width:calc(${pct(b)} - ${pct(a)});background:${color};opacity:.28"></i>` +
+        `<i class="pt" style="left:${pct(m)};background:${color}"></i></div><span class="val">${m.toFixed(2)} ± ${sd.toFixed(2)}</span></div>`;
+    }
+    h += `<div class="axis"><span></span><div>${[0, 1, 2, 3, 4, 5].map((t) => `<span style="left:${pct(t)}">${t ? "+" + t : "avg"}</span>`).join("")}</div><span></span></div>`;
+    document.getElementById(el).innerHTML = h;
+  }
+  forest("bat", [["Sai Sudharsan", 3.17, 0.43], ["KL Rahul", 3.07, 0.31], ["Shubman Gill", 2.88, 0.32], ["Heinrich Klaasen", 2.78, 0.48],
+    ["Jos Buttler", 2.74, 0.35], ["Virat Kohli", 2.67, 0.24], ["MS Dhoni", 2.58, 0.31], ["Tristan Stubbs", 2.49, 0.59]], "#4f6bed");
+  forest("bowl", [["Jasprit Bumrah", 2.78, 0.68], ["Sunil Narine", 2.39, 0.66], ["Rashid Khan", 2.38, 0.71], ["Yuzvendra Chahal", 2.24, 0.70],
+    ["Varun Chakravarthy", 2.21, 0.92], ["Jofra Archer", 2.17, 0.92], ["Kagiso Rabada", 2.06, 0.82], ["Matheesha Pathirana", 2.00, 1.04]], "#059669");
+</script>
+</body></html>

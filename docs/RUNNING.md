@@ -35,7 +35,7 @@ make docker-metrics-all COLLECTION=ipl       # quick metrics pass → data/metri
 make docker-export COLLECTION=ipl            # re-cook site/public/data so the dashboard sees it
 ```
 
-For a full refresh of one collection (download → all metrics → ratings →
+For a full refresh of one collection (download → ratings → all metrics →
 site data) use `make refresh COLLECTION=ipl` from a local uv setup (B below).
 
 ### Browse the leaderboards
@@ -109,13 +109,13 @@ cp .env.example .env
 ### Run pipelines
 
 ```bash
-make refresh COLLECTION=ipl   # download → metrics → ratings → site data, one collection
+make refresh COLLECTION=ipl   # download → ratings → metrics → site data, one collection
 
 # or step by step:
 uv run python scripts/ingest_cricsheet.py ingest --collection ipl --force
 uv run python scripts/ingest_cricsheet.py indian-domestic        # the indian_domestic_male collection
+uv run python scripts/scout_rate.py --collection ipl         # ratings first: Wicket Quality reads them
 uv run python scripts/compute_metrics.py all --collection ipl
-uv run python scripts/scout_rate.py --collection ipl
 uv run python scripts/export_site.py -c ipl
 ```
 

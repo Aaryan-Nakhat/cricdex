@@ -1,4 +1,8 @@
-# CricMetrics — methodology
+# CricMetrics — formulas
+
+The plain-English version of every metric, with worked examples, is in
+[METHODOLOGY.md §3](METHODOLOGY.md#3-the-nine-context-metrics--fielding); this page is the
+reference: exact computation, filters and output columns.
 
 Standard cricket scorecards (average, strike rate, economy) are
 context-blind: a 25-ball 40 in a slack chase scores the same as a
@@ -31,7 +35,8 @@ historically demands at the same phase.
    `required_rpb > 1.5 × median_required_rpb(format, venue, phase)`.
 4. Aggregate per batter: `pressure_balls`, `pressure_runs`,
    `pressure_sr_per_100_balls`, `pct_balls_under_pressure`. Wides aren't
-   balls faced; no-balls are.
+   balls faced; no-balls are. Filter: `min_balls_faced` (default 20 chase
+   balls).
 
 **Why 1.5× venue median (not absolute threshold):** different venues
 demand wildly different chase rates (Bangalore vs Lord's). The venue's
@@ -142,8 +147,9 @@ after building a streak of 4+ consecutive dots in the same over.
    no-ball).
 2. When `streak_len ≥ threshold` (default 4), look at the next
    delivery in the same over.
-3. Wicket rate = wickets on that "post-pressure" ball ÷ total
-   post-pressure balls.
+3. Wicket rate = bowler-credited wickets on that "post-pressure" ball
+   ÷ total post-pressure balls. Run-outs don't count: they aren't the
+   bowler's squeeze paying off.
 
 **Why "same over":** the streak resets across overs because the field +
 batter context is different. Within an over the bowler is genuinely
@@ -171,7 +177,8 @@ emptied; pass a number to fix it (30 was the old IPL floor).
   dashboard tab "NGI (Net Game Impact)".
 - **Wicket Quality** ✅ — the mean Bayes batting skill of the batters a
   bowler dismissed (run outs, retirements and obstructing the field
-  excluded); higher = harder wickets.
+  excluded); higher = harder wickets. It uses the batter's scoring
+  `skill`, not the complete `value`. Filter: `min_wickets` (default 15).
   Lives in `cricdex.metrics.bowler_wicket_quality`. Needs the
   scout NumPyro ratings (`scout_ratings_<collection>.json`) — see
   `docs/SCOUT.md`.
@@ -179,11 +186,12 @@ emptied; pass a number to fix it (30 was the old IPL floor).
   faced per dismissal (run outs at the non-striker's end included,
   retired hurt not) divided by the cohort average. >1 = bats longer
   than the typical qualifying batter; <1 = shorter, higher-tempo
-  innings. Lives in `cricdex.metrics.batter`.
+  innings. The cohort is batters with 5+ dismissals; the board needs
+  `min_dismissals` (default 10). Lives in `cricdex.metrics.batter`.
 - **Slow-Start Cost** ✅ — career strike rate minus strike rate over the
   first 20 balls of an innings. Positive = slow starts cost tempo;
-  ~0 or negative = aggressive from ball one. Lives in
-  `cricdex.metrics.batter`.
+  ~0 or negative = aggressive from ball one. Filters: 200 career balls,
+  50 balls inside the first 20. Lives in `cricdex.metrics.batter`.
 - **Wicketkeeping** ✅ — dismissals a keeper is credited with: catches +
   stumpings + run-out involvements, from the ball-by-ball `fielders` field.
   A fielder is a keeper if the taxonomy says so or they have any stumping.
@@ -198,10 +206,10 @@ emptied; pass a number to fix it (30 was the old IPL floor).
 - **Replacement Delta** — NGI − NGI of a replacement-level domestic
   player. Cricket WAR. Sits on NGI (✅) plus a domestic-tier baseline;
   deferred until a sub-IPL tier exists to define replacement
-  (`docs/DEFERRED.md` §grassroots).
+  ([`ROADMAP.md`](ROADMAP.md#next)).
 - **Disguise Coefficient** (bowler) — outcome variance for same
   line / length. Needs CV-derived release-point data (OpenBoundary,
-  `docs/DEFERRED.md` §cv).
+  [`ROADMAP.md`](ROADMAP.md#later)).
 
 ---
 
@@ -217,7 +225,9 @@ exports for you) after recomputing.
 
 ## Common rules (all metrics, records and boards)
 
-- Super overs are left out everywhere: they decide a tie and aren't part of anyone's batting or bowling record.
+- Super overs decide a tie and aren't part of anyone's batting or bowling record, so they're left out
+  everywhere: NGI, records, venue profiles, phase boards, profiles, every metric here, the fielding boards,
+  matchups, partnerships, aging, cohorts and the rating model (175 of ~296,000 IPL deliveries).
 - Runs charged to a bowler (economy, runs conceded, best figures, aging) are runs off the bat plus wides and
   no-balls; byes and leg-byes aren't the bowler's.
 - Retired hurt / retired not out isn't a dismissal.

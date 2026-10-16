@@ -1,0 +1,62 @@
+/* CricDex README visuals: one design system for the hero video (hero.html) and the stills (img-*.html).
+   The site's light palette (site/src/index.css): pitch green -> teal -> gold accents on a clean light ground,
+   Inter + JetBrains Mono (the same font files the site bundles). */
+@font-face { font-family: "Inter"; src: url("../../../site/public/fonts/inter-var.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+@font-face { font-family: "JetBrains Mono"; src: url("../../../site/public/fonts/jetbrains-mono-var.woff2") format("woff2"); font-weight: 100 800; font-display: block; }
+
+:root {
+  --bg: #f3f6f7; --surface: #eaeff1; --card: #ffffff; --line: #d8e0e5; --line2: #e6ecef;
+  --fg: #0e1820; --muted: #546273; --faint: #8996a6;
+  --green: #059669; --green-hi: #34d399; --green-lo: #e3f6ee;
+  --teal: #0d9488; --teal-hi: #2dd4bf; --teal-lo: #e0f4f2;
+  --gold: #b47806; --gold-hi: #f5c542; --gold-lo: #fbf1d9;
+  --red: #dc2626; --red-lo: #fde8e8; --sky: #4f6bed; --sky-lo: #e7ebfd; --willow: #4d7c0f; --violet: #7c3aed; --violet-lo: #efe8fd;
+  --grad: linear-gradient(100deg, #059669, #0d9488 50%, #b47806);
+  --shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 14px 36px -18px rgba(15, 23, 42, .24);
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1600px; background: var(--bg); }
+body { font-family: Inter, system-ui, sans-serif; color: var(--fg); -webkit-font-smoothing: antialiased; }
+#stage { position: relative; width: 1600px; overflow: hidden; padding: 64px 80px 60px; isolation: isolate; background: var(--bg); }
+
+/* background: soft orbs + a faint pitch grid, fading out from the centre */
+.orb { position: absolute; border-radius: 50%; filter: blur(110px); opacity: .32; z-index: -1; }
+.gridbg { position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(rgba(15,23,42,.05) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(15,23,42,.05) 1px, transparent 1px); background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at 50% 40%, #000 15%, transparent 75%); }
+
+.kicker { font: 700 16px/1 Inter; letter-spacing: .16em; text-transform: uppercase; color: var(--green); display: flex; align-items: center; gap: 10px; }
+h1 { font: 800 50px/1.08 Inter; letter-spacing: -.03em; margin-top: 14px; }
+.lede { font: 500 21px/1.5 Inter; color: var(--muted); margin-top: 14px; max-width: 1180px; }
+.grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.row { display: flex; gap: 22px; } .col { display: flex; flex-direction: column; gap: 22px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; } .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; } .grid5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 24px 26px; box-shadow: var(--shadow); }
+.card h3 { font: 700 13.5px/1 Inter; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+.card h4 { font: 800 22px/1.25 Inter; letter-spacing: -.01em; margin-top: 10px; }
+.t { font: 500 16px/1.5 Inter; color: var(--muted); margin-top: 8px; }
+.big { font: 800 40px/1 Inter; letter-spacing: -.02em; }
+.mono { font-family: "JetBrains Mono", monospace; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--card); font: 600 15px/1 Inter; color: var(--fg); white-space: nowrap; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+.tag { display: inline-block; font: 700 12.5px/1 "JetBrains Mono"; padding: 6px 9px; border-radius: 8px; white-space: nowrap; }
+.tg { background: var(--green-lo); color: var(--green); } .ta { background: var(--gold-lo); color: var(--gold); }
+.tr { background: var(--red-lo); color: var(--red); } .tb { background: var(--sky-lo); color: var(--sky); }
+.tt { background: var(--teal-lo); color: var(--teal); } .tv { background: var(--violet-lo); color: var(--violet); }
+.ok { color: var(--green); } .warn { color: var(--gold); } .bad { color: var(--red); } .muted { color: var(--muted); } .faint { color: var(--faint); }
+.bar { height: 10px; border-radius: 6px; background: var(--surface); overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 6px; }
+.line { display: flex; justify-content: space-between; align-items: baseline; font: 600 17px/1.3 Inter; }
+.foot { margin-top: 26px; font: 500 14px/1 Inter; color: var(--faint); display: flex; justify-content: space-between; }
+
+/* the CricDex mark: a ball with its seam (the site's favicon) */
+.logo { display: inline-flex; align-items: center; justify-content: center; border-radius: 14px; background: #0a0e14; }
+.brand-word { font-weight: 800; letter-spacing: -.03em; }
+
+/* IPL franchise dots (colours only, for telling teams apart) */
+.team { display: inline-flex; align-items: center; justify-content: center; font: 800 12px/1 Inter; letter-spacing: .02em; color: #fff;
+  border-radius: 8px; height: 26px; min-width: 50px; padding: 0 8px; }
+.CSK { background: #e8b100; color: #1d2a6b; } .MI { background: #1b56b8; } .RCB { background: #c8102e; } .KKR { background: #4b2a83; }
+.DC { background: #1d4ed8; } .PBKS { background: #dd1f2d; } .SRH { background: #f26522; } .GT { background: #1b2133; }
+.RR { background: #e4007c; } .LSG { background: #0b8fbf; }

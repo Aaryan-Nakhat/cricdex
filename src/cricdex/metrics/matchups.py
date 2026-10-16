@@ -17,7 +17,7 @@ from pathlib import Path
 
 import duckdb
 
-from cricdex.common.sql import table_suffix
+from cricdex.common.sql import MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -48,7 +48,7 @@ def pairwise(
                      THEN 1 ELSE 0 END) AS dots,
             SUM(CASE WHEN player_out = batter AND ({outs}) THEN 1 ELSE 0 END) AS outs
         FROM balls_{safe}
-        WHERE batter IS NOT NULL AND bowler IS NOT NULL
+        WHERE batter IS NOT NULL AND bowler IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY batter, bowler
     )
     SELECT batter, bowler, balls, runs, outs,
@@ -93,7 +93,7 @@ def pace_spin_splits(
                    SUM(CASE WHEN b.player_out = b.batter AND ({outs}) THEN 1 ELSE 0 END) AS outs
             FROM balls_{safe} b
             JOIN bcat bc ON b.bowler = bc.bowler
-            WHERE b.batter IS NOT NULL
+            WHERE b.batter IS NOT NULL AND {MAIN_INNINGS}
             GROUP BY b.batter, bc.cat
             """
         ).fetchall()

@@ -37,7 +37,8 @@ def _seed_db(path):
         """
         CREATE TABLE balls_t (
             ball_id VARCHAR, match_id VARCHAR, batter VARCHAR, bowler VARCHAR,
-            wicket_kind VARCHAR, player_out VARCHAR
+            wicket_kind VARCHAR, player_out VARCHAR,
+            innings_idx INT DEFAULT 0, match_type VARCHAR DEFAULT 'T20'
         )
         """
     )
@@ -51,6 +52,10 @@ def _seed_db(path):
     con.executemany(
         "INSERT INTO balls_t (ball_id, match_id, batter, bowler, wicket_kind, player_out) VALUES (?,?,?,?,?,?)",
         rows,
+    )
+    # a super over (innings 3 of a T20): Generic bowls Kohli, which isn't part of anyone's record
+    con.execute(
+        "INSERT INTO balls_t VALUES ('6', 'M2', 'V Kohli', 'Generic', 'bowled', 'V Kohli', 2, 'T20')"
     )
     con.close()
 
@@ -77,7 +82,8 @@ def test_wicket_quality_uses_opponent_skill(tmp_path, monkeypatch):
     rows = {r["bowler"]: r for r in df.to_dicts()}
     # Bumrah: skills (1.0 + 0.5 + -0.5) / 3 = 0.333…
     assert abs(rows["Bumrah"]["wicket_quality"] - (1.0 + 0.5 - 0.5) / 3) < 1e-6
-    # Generic only dismissed the tail-ender twice.
+    # Generic only dismissed the tail-ender twice (the super-over wicket of Kohli doesn't count).
     assert abs(rows["Generic"]["wicket_quality"] - (-0.5)) < 1e-6
+    assert rows["Generic"]["wickets"] == 2
     assert rows["Bumrah"]["wickets"] == 3
     assert rows["Bumrah"]["opponents_seen"] == 3

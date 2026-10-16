@@ -19,12 +19,12 @@ backlog, and BCCI-domestic scrapes are out of scope (Cricsheet-only).
 | Tier | Source | Status |
 |---|---|---|
 | Pro (intl + IPL + major T20) | Cricsheet ball-by-ball | ✅ ingested |
-| Identity bridge | Cricsheet People Register (17,981 players, 99.8% Cricinfo coverage) | ✅ — see [IDENTITY.md](IDENTITY.md) |
+| Identity bridge | Cricsheet People Register (18,651 players, 99.8% Cricinfo coverage) | ✅ — see [IDENTITY.md](IDENTITY.md) |
 | Bayesian opponent-adjusted ratings | NumPyro / JAX (ADVI default, NUTS available) | ✅ — first cut |
 | Player profile (DOB, photo, socials) | Wikidata one-time enrichment | ✅ — 342 players cached, 331 with a DOB |
 | Role / bowling type (seam-spin) / batting slot / country | LLM taxonomy (an LLM via LiteLLM, `LLM_MODEL`; shown as "AI-classified") | ✅ — 2,525 players |
 | Semi-pro (SMAT) | Cricsheet `indian_domestic_male` | ✅ ingested (Ranji / Hazare removed — out of scope) |
-| Grassroots (CricHeroes) | CricHeroes scrape / partner API | year-2 ([`DEFERRED.md`](DEFERRED.md) §grassroots) |
+| Grassroots (CricHeroes) | CricHeroes scrape / partner API | year-2 ([`ROADMAP.md`](ROADMAP.md#later)) |
 | Style-twin (k-NN over rating vector) | feature-space nearest neighbours | ✅ — on every profile |
 | Scout look-alikes (all surfaces) | **One implementation** (`cricdex.web_parity` ⇄ `site/src/pages/Scout.tsx`, locked by `test_web_parity.py` in CI) shipped identically on the React site, Streamlit, CLI (`cricdex scout look-alikes`) and the TUI **Scout** tab: pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL / SA20 / CPL / T20 Blast (within-tier skill-standing z-score), with per-row est. crore price + saving-vs-pick (budget swap), an uncapped-**gem** flag, role/batting-slot filters, and one-click **draft** into the Auction room | ✅ |
 
@@ -64,8 +64,10 @@ higher = better. A player's **complete value** adds their two relevant
 axes after putting each in the same unit (its population spread — the
 axes are a runs rate and a wicket log-odds), so a fast slogger who gets
 out often is no longer over-rated on scoring alone. Every matchup is
-fitted, even a 1-ball one; the prior does the shrinking. See `docs/STUDY_GUIDE.md` §5.7 for the
-full model.
+fitted, even a 1-ball one; the prior does the shrinking. The plain-English
+walkthrough (with a worked example) is [METHODOLOGY.md §4](METHODOLOGY.md#4-bayesian-skill-ratings);
+the look-alike formula is [§5](METHODOLOGY.md#5-scout-look-alikes); the full
+model is in [`STUDY_GUIDE.md`](STUDY_GUIDE.md) §5.
 
 The same model design extends downward later: when we add CricHeroes
 amateur balls, batters who happen to have faced one or two known
@@ -80,9 +82,9 @@ Opposition-Adjusted Rating (OAR) that powers the grassroots scout.
 - Photo-CLIP embedding for hard identity disambiguation.
 - A `/scout` filter UI with 25+ filter dimensions (today: role /
   batting-slot filters).
-- Press-tour outreach to KKR / GT / RR analytics teams.
 
 ## Where to read next
 
+- [METHODOLOGY.md](METHODOLOGY.md) — every model in plain English.
 - [ratings/README.md](../src/cricdex/scout/ratings/README.md) — model spec.
 - [IDENTITY.md](IDENTITY.md) — cross-ID bridge.

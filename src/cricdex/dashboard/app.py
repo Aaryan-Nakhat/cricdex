@@ -101,10 +101,10 @@ surfaces them per-player with the same definitions.
   strike; higher = relies on the rope.
 - **Intent Curve** — strike rate from ball one: ranks batters by **early SR**
   (balls 1–10) with the full innings curve as an inline sparkline.
-- **Pressure Conversion (bowler)** — wicket rate on pressure balls (after a
-  run of dots). Higher = finishes the squeeze.
+- **Pressure Conversion (bowler)** — how often the next ball after a 4+ dot
+  streak (same bowler, same over) is a wicket. Higher = finishes the squeeze.
 - **Crease Longevity (batter)** — balls survived per dismissal vs the cohort.
-- **Slow-Start Cost (batter)** — career SR minus setting (1st-innings) SR.
+- **Slow-Start Cost (batter)** — career SR minus SR over the first 20 balls of an innings.
 - **Wicket Quality (bowler)** — wickets weighted by the Bayes batting skill
   of the batter dismissed.
 - **Wicketkeeping** — keeper dismissals: catches + stumpings + run-outs.

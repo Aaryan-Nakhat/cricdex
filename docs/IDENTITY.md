@@ -21,7 +21,7 @@ Cricsheet publishes a curated cross-ID register at
 
 **Why we use this:** writing our own name-disambiguator over millions
 of deliveries is a project in itself. Cricsheet has already done it,
-with 99.8% Cricinfo coverage (17,937 / 17,981 players). Leaning on
+with 99.8% Cricinfo coverage (18,606 / 18,651 players in the current register). Leaning on
 their register costs us one HTTPS GET and gives us a free ID bridge.
 
 ## Implementation
@@ -45,10 +45,11 @@ people_names(identifier, name)
 Join examples:
 
 ```sql
--- Cricsheet ball-by-ball → ESPNcricinfo profile ID
-SELECT b.batter, p.identifier AS cricsheet_id, p.key_cricinfo
+-- Cricsheet ball-by-ball → Cricsheet id (via the match registry) → ESPNcricinfo profile ID
+SELECT DISTINCT b.batter, r.identifier AS cricsheet_id, p.key_cricinfo
 FROM balls_ipl b
-JOIN people p ON p.unique_name = b.batter;
+JOIN players_ipl r ON r.match_id = b.match_id AND r.name = b.batter
+JOIN people p ON p.identifier = r.identifier;
 
 -- Resolve "V Kohli" / "Virat Kohli" / "V. Kohli" → same identifier
 SELECT identifier, name FROM people_names WHERE name ILIKE 'v%kohli%';
@@ -58,10 +59,10 @@ SELECT identifier, name FROM people_names WHERE name ILIKE 'v%kohli%';
 
 | Source | Players bridged | % |
 |---|---|---|
-| ESPNcricinfo | 17,937 | 99.8 |
+| ESPNcricinfo | 18,606 | 99.8 |
 | BBL | 296 | 1.6 |
 | CricHeroes | 111 | 0.6 |
-| Cricbuzz | 22 | 0.1 |
+| Cricbuzz | 50 | 0.3 |
 
 The Cricbuzz / CricHeroes register layers are thin, but CricDex is
 **Cricsheet-only** — it relies on the register's existing bridges and
@@ -80,20 +81,30 @@ Two on-disk caches extend the register by `cricsheet_id`, both committed:
    "AI-classified".
 
 Out of scope (year-2 at the earliest): a grassroots **CricHeroes** tier —
-see [`DEFERRED.md`](DEFERRED.md) §grassroots. Cricbuzz and BCCI-domestic
+see [`ROADMAP.md`](ROADMAP.md#later). Cricbuzz and BCCI-domestic
 scrapes were dropped.
 
-## Why not push `cricsheet_id` into ball-by-ball directly
+## Names in the ball data → ids: each match's own registry
 
-Cricsheet's match JSON has `info.registry.people` — a per-match map
-of name → identifier. We do not yet propagate this into the ball
-table; today we join by `unique_name`. That's accurate but slower than
-an integer FK join.
+Cricsheet's match JSON carries `info.registry.people`, a per-match map of
+scorecard name → identifier. The ingester keeps it as a
+`players_<collection>` table (`match_id, name, identifier`), and every
+metric, rating and export resolves names through
+`cricdex.common.sql.player_ids`:
 
-**Planned upgrade:** during cricsheet ingest, lift
-`info.registry.people` into the ball rows so every ball has
-`batter_id`, `bowler_id`, `non_striker_id` columns. Not yet scheduled
-(not on the roadmap).
+1. **The match registry first.** It's authoritative: the ball data can
+   spell a player differently from the People Register's `unique_name`
+   ("Navdeep Saini" vs "NA Saini"), or name someone the Register doesn't
+   have yet. A name carried under two ids in one collection takes the id
+   it has in most matches.
+2. **The People Register's `unique_name` as fallback** for any name the
+   registries don't cover.
+
+The ball rows themselves still carry names (`batter`, `bowler`,
+`non_striker`); the id is joined on through that relation, and the rating
+model labels a name that resolves nowhere as `unresolved:<name>` rather
+than guessing. The reverse direction (id → the name a player goes by in a
+collection) is `scorecard_names`.
 
 ## Identity edge cases
 
@@ -101,7 +112,7 @@ an integer FK join.
   happen when ESPNcricinfo splits or merges profiles. The register
   ships all variants — when bridging, accept any of them as
   matching.
-- **Players with no Cricinfo ID** (~44 rows) are typically very young
+- **Players with no Cricinfo ID** (~45 rows) are typically very young
   age-group players, women's club cricketers, or recent debutants —
   Cricinfo just hasn't created profile pages yet. Re-ingest the
   register periodically (`--force`) to pick up new profiles.

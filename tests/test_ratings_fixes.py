@@ -27,13 +27,18 @@ def _balls_db(path: Path) -> None:
         "CREATE TABLE people (identifier VARCHAR, unique_name VARCHAR);"
         "INSERT INTO people VALUES ('a','A'),('x','X'),('y','Y'),('z','Z');"
         "CREATE TABLE balls_t (batter VARCHAR, bowler VARCHAR, runs_batter INT,"
-        " extras_type VARCHAR, wicket_kind VARCHAR, player_out VARCHAR, match_date DATE)"
+        " extras_type VARCHAR, wicket_kind VARCHAR, player_out VARCHAR, match_date DATE,"
+        " innings_idx INT DEFAULT 0, match_type VARCHAR DEFAULT 'T20')"
     )
     rows = [("A", "X", 1, None, None, None)] * 10
     rows += [("A", "Y", 4, None, None, None), ("A", "Y", 0, None, "bowled", "A")]
     rows += [("Z", "Y", 0, "wides", "stumped", "Z")]  # out on a wide: 0 legal balls
     for r in rows:
-        con.execute("INSERT INTO balls_t VALUES (?, ?, ?, ?, ?, ?, DATE '2024-01-01')", list(r))
+        con.execute(
+            "INSERT INTO balls_t (batter, bowler, runs_batter, extras_type, wicket_kind, player_out,"
+            " match_date) VALUES (?, ?, ?, ?, ?, ?, DATE '2024-01-01')",
+            list(r),
+        )
     con.close()
 
 

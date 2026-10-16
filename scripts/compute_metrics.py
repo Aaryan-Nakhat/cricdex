@@ -155,6 +155,17 @@ def slow_start_cost_cmd(
     _emit(df, "slow_start_cost", collection, out_json)
 
 
+def _warn_if_no_ratings(collection: str) -> None:
+    """Wicket Quality weights each wicket by the batter's fitted scout rating. Without the ratings
+    file its board comes out empty, so say so (fit them first: `scripts/scout_rate.py`)."""
+    path = DATA_DIR / "metrics" / f"scout_ratings_{collection}.json"
+    if not path.exists():
+        logger.warning(
+            f"{path} not found — the Wicket Quality board will be empty. "
+            f"Run `scripts/scout_rate.py --collection {collection}` before compute_metrics."
+        )
+
+
 @app.command("wicket-quality")
 def wicket_quality_cmd(
     collection: str = typer.Option("ipl", "--collection", "-c"),
@@ -162,6 +173,7 @@ def wicket_quality_cmd(
     top_n: int = typer.Option(50, "--top-n"),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
+    _warn_if_no_ratings(collection)
     df = bowler_wicket_quality.wicket_quality(
         collection=collection,
         min_wickets=min_wickets,
@@ -291,6 +303,7 @@ def all_cmd(
         collection,
         None,
     )
+    _warn_if_no_ratings(collection)
     _emit(
         bowler_wicket_quality.wicket_quality(collection=collection, top_n=top_n),
         "wicket_quality",

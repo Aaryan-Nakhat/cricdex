@@ -17,6 +17,20 @@ parity test. As part of that consolidation, three legacy subsystems were
 at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 **MILP auction solver + war-room advisor + GRPO RL**.
 
+### Docs
+
+- **`docs/METHODOLOGY.md`** — one plain-English explanation of every model (data and identity, NGI, the
+  nine metrics, Bayesian ratings, Scout, skill → crore pricing, the auction, the backtest) with worked
+  examples and an honest limits section. New `docs/README.md` index, plus READMEs for
+  `src/cricdex/web_parity/` and `scripts/`.
+- **One roadmap** — `docs/TODO.md`, `docs/VNEXT.md`, `docs/DEFERRED.md` and `docs/SHIPPING.md` merged into
+  `docs/ROADMAP.md` (shipped / next / later / out of scope); hosting notes moved into `ARCHITECTURE.md`.
+- **Drift fixed** — `STUDY_GUIDE.md` (auction pricing and tier penalties in today's value units,
+  budget-aware bidding, `value` as a population-sd sum, non-centred priors, ADVI vs NUTS check),
+  `AUCTION_MATH.md` (IPL-relevance discount, real retention prices), `IDENTITY.md` (names now resolve
+  through each match's registry; current register counts), `METRICS.md` (where super overs are still
+  counted), broken relative links in module READMEs.
+
 ### Added
 
 - **Aging curves** — a new page (web / Streamlit / TUI / CLI) plotting batting &
@@ -122,6 +136,25 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
   it didn't help in the backtest).
 
 ### Fixed
+
+- **Scout prices and the auction's free agents used stale other-league ratings.** The local rebuild
+  exported IPL (whose Scout index and auction pool read every league's ratings) before the other
+  leagues were refit, so BBL / SA20 / CPL / Blast / SMAT players carried outdated, much smaller values:
+  e.g. Nortje (SA20) priced at 1.1 cr instead of 9.2 cr, and 272 of 600 pool players at the 0.3 cr floor
+  (median 0.37 cr) instead of 43 (median 0.97 cr). The rebuild now refits every league before any export
+  (the GitHub refresh already did).
+- **Pressure Conversion counts only wickets the bowler is credited with** — a run-out on the next ball
+  isn't the bowler's squeeze paying off.
+- **Super overs left out everywhere, Wicket Quality fitted in order, Slow-Start Cost explained right.**
+  Boundary Dependency, Dot-Ball Recovery, Slow-Start Cost, Pressure Conversion, Wicket Quality, the
+  fielding boards, matchups, partnerships, aging, player ball/match counts, cohorts and the rating model
+  now use only the two main innings of a limited-overs match, like every other stat (guarded by
+  `tests/test_super_overs.py`). The refresh workflow and `make refresh` fit the ratings before computing
+  the metrics, so Wicket Quality is no longer empty on a fresh run (`compute_metrics` warns when the
+  ratings file is missing). Slow-Start Cost's text now says what it measures: career strike rate minus
+  strike rate over the first 20 balls of each innings (it never compared batting first with chasing);
+  Pressure Conversion's text spells out its 4-dot streak rule. A new test keeps the web and Python
+  metric text identical.
 
 - **Auction room: a team with a big purse left half of it unspent, and stars
   cleared far above any real price.** Teams now bid harder when they have more
@@ -385,7 +418,7 @@ over the same `~/.cricdex/data/`.
 - Dead config slots: the per-provider LLM API keys, `qdrant_api_key`,
   `reddit_*`, `telegram_bot_token`, `resend_*`, `langfuse_*`, `hf_token`.
 
-### Known caveats (see [`docs/VNEXT.md`](VNEXT.md))
+### Known caveats (see [`docs/ROADMAP.md`](ROADMAP.md))
 
 - Datacenter-IP-blocked feeds: Wikidata, Reddit, Cricbuzz live,
   Cricinfo profiles, BCCI Domestic (Ranji + Hazare), WPL/SA20

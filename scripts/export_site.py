@@ -39,7 +39,7 @@ import duckdb
 import typer
 from loguru import logger
 
-from cricdex.common.sql import BOWLER_RUNS, player_ids, table_suffix
+from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, player_ids, table_suffix
 from cricdex.config import CURATED_DIR, DATA_DIR
 
 app = typer.Typer(add_completion=False)
@@ -665,21 +665,23 @@ def _players(
             SELECT p.identifier AS cid, MODE(b.batter) AS name,
                    COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides')) AS bf
             FROM balls_{safe} b JOIN {ids} p ON p.name = b.batter
+            WHERE {MAIN_INNINGS}
             GROUP BY 1
         ),
         bowls AS (
             SELECT p.identifier AS cid, MODE(b.bowler) AS name,
                    COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides')) AS bb
             FROM balls_{safe} b JOIN {ids} p ON p.name = b.bowler
+            WHERE {MAIN_INNINGS}
             GROUP BY 1
         ),
         -- matches a player appeared in, whether batting or bowling
         appeared AS (
             SELECT p.identifier AS cid, b.match_id FROM balls_{safe} b
-                JOIN {ids} p ON p.name = b.batter
+                JOIN {ids} p ON p.name = b.batter WHERE {MAIN_INNINGS}
             UNION
             SELECT p.identifier AS cid, b.match_id FROM balls_{safe} b
-                JOIN {ids} p ON p.name = b.bowler
+                JOIN {ids} p ON p.name = b.bowler WHERE {MAIN_INNINGS}
         ),
         mt AS (
             SELECT cid, COUNT(DISTINCT match_id) AS matches FROM appeared GROUP BY 1
@@ -740,9 +742,9 @@ def _match_counts(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, 
     rows = con.execute(
         f"""
         WITH appeared AS (
-            SELECT batter AS name, match_id FROM balls_{safe}
+            SELECT batter AS name, match_id FROM balls_{safe} WHERE {MAIN_INNINGS}
             UNION
-            SELECT bowler AS name, match_id FROM balls_{safe}
+            SELECT bowler AS name, match_id FROM balls_{safe} WHERE {MAIN_INNINGS}
         )
         SELECT name, COUNT(DISTINCT match_id) AS m FROM appeared
         WHERE name IS NOT NULL GROUP BY 1
@@ -1161,7 +1163,7 @@ def _export_partnerships(
                    SUM(runs_total) AS runs,
                    SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides' THEN 1 ELSE 0 END) AS balls
             FROM balls_{safe}
-            WHERE non_striker IS NOT NULL AND batter IS NOT NULL
+            WHERE non_striker IS NOT NULL AND batter IS NOT NULL AND {MAIN_INNINGS}
             GROUP BY 1, 2, 3, 4
         )
         SELECT a, b,
@@ -1250,7 +1252,7 @@ def _export_aging(con: duckdb.DuckDBPyConnection, collection: str, out_dir: Path
                SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides' THEN 1 ELSE 0 END) AS balls,
                SUM(CASE WHEN player_out = batter THEN 1 ELSE 0 END) AS outs
         FROM balls_{safe}
-        WHERE batter IS NOT NULL
+        WHERE batter IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY 1, 2
         HAVING balls >= 60
         """
@@ -1265,7 +1267,7 @@ def _export_aging(con: duckdb.DuckDBPyConnection, collection: str, out_dir: Path
                SUM(CASE WHEN player_out IS NOT NULL AND wicket_kind IN ('{kinds}')
                         THEN 1 ELSE 0 END) AS wkts
         FROM balls_{safe}
-        WHERE bowler IS NOT NULL
+        WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY 1, 2
         HAVING balls >= 60
         """

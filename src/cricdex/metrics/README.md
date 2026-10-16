@@ -6,7 +6,17 @@ metrics + wicketkeeping + fielding); each has a CLI subcommand in
 `scripts/compute_metrics.py` (`compute_metrics.py all -c <collection>`
 runs them all) and writes `data/metrics/<slug>_<collection>.json`, which
 `scripts/export_site.py` cooks into the site snapshot every surface reads.
-Formulas: [`docs/METRICS.md`](../../../docs/METRICS.md).
+Formulas: [`docs/METRICS.md`](../../../docs/METRICS.md). Plain-English
+explanations with worked examples: [`docs/METHODOLOGY.md` §2–3](../../../docs/METHODOLOGY.md#2-net-game-impact-ngi).
+
+Run one collection: `uv run python scripts/compute_metrics.py all -c ipl`
+(or `cricdex data ingest metrics -c ipl`, which also re-exports the site
+data). Wicket Quality reads `data/metrics/scout_ratings_<collection>.json`,
+so fit the ratings first (`scripts/scout_rate.py`).
+
+Other modules here: `matchups.py` (batter-vs-bowler + pace/spin splits),
+`phase.py` (powerplay / middle / death boards), `dismissal_fingerprint.py`
+(how a batter gets out, on the profile).
 
 ## Batting
 

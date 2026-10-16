@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CricDex hero video</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  html, body { height: 900px; overflow: hidden; }
+  #stage { height: 900px; padding: 0; }
+  #bg { position: absolute; inset: -80px; z-index: 0; }
+  #bg .orb { filter: blur(100px); opacity: .30; z-index: 0; }
+  .scene { position: absolute; inset: 0; padding: 70px 96px; z-index: 1; }
+  .kicker { font-size: 17px; }
+  h1 { font: 800 76px/1.04 Inter; letter-spacing: -.035em; margin: 0; }
+  h2 { font: 800 52px/1.08 Inter; letter-spacing: -.03em; margin-top: 14px; }
+  .sub { font: 500 23px/1.45 Inter; color: var(--muted); margin-top: 14px; max-width: 1100px; }
+  .card { position: absolute; }
+  .card h3 { font-size: 14px; }
+  .caret::after { content: ""; display: inline-block; width: 3px; height: 1em; background: var(--green); margin-left: 4px; vertical-align: -0.15em; }
+  .bar > i { width: 0; }
+  #progress { position: absolute; left: 0; bottom: 0; height: 5px; background: var(--grad); z-index: 3; }
+  .brand { position: absolute; left: 96px; bottom: 34px; display: flex; align-items: center; gap: 10px; font: 600 16px/1 Inter; color: var(--faint); z-index: 2; }
+  .row-team { display: grid; grid-template-columns: 58px 1fr 104px; align-items: center; gap: 12px; height: 41px; }
+  .lockrow-meta { font: 600 15px/1 Inter; color: var(--muted); }
+  .num { font: 800 16px/1 Inter; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .num .faint { font-size: 13px; margin-right: 4px; }
+  .big { font-variant-numeric: tabular-nums; }
+  .pin { position: absolute; transform-origin: center; }
+  .pin .lbl { position: absolute; white-space: nowrap; font: 700 15px/1.25 Inter; padding: 7px 10px; border-radius: 10px; background: #fff;
+    border: 1px solid var(--line); box-shadow: 0 6px 18px -8px rgba(15,23,42,.3); }
+  .ballchip { width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 800 21px/1 Inter;
+    border: 2px solid var(--line); background: #fff; }
+  .lk { display: flex; align-items: center; gap: 18px; padding: 16px 20px; border-radius: 16px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow); }
+  .lk .nm { font: 800 23px/1.15 Inter; letter-spacing: -.01em; }
+  .lk .meta { font: 500 15px/1.3 Inter; color: var(--muted); margin-top: 4px; }
+  .lg { font: 800 13px/1 "JetBrains Mono"; padding: 8px 10px; border-radius: 9px; width: 66px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg">
+    <div class="orb" style="width:720px;height:720px;left:-160px;top:-220px;background:#34d399"></div>
+    <div class="orb" style="width:640px;height:640px;right:-160px;top:160px;background:#2dd4bf"></div>
+    <div class="orb" style="width:560px;height:560px;left:560px;bottom:-360px;background:#f5c542;opacity:.35"></div>
+    <div class="gridbg"></div>
+    <svg width="1760" height="1060" style="position:absolute;left:0;top:0" fill="none">
+      <ellipse cx="1330" cy="560" rx="560" ry="520" stroke="rgba(5,150,105,.10)" stroke-width="3" stroke-dasharray="14 14"/>
+      <ellipse cx="1330" cy="560" rx="860" ry="800" stroke="rgba(5,150,105,.07)" stroke-width="3"/>
+    </svg>
+  </div>
+
+  <!-- ───────────────── a · title ───────────────── -->
+  <section class="scene" data-t="0,4.6" style="display:flex;flex-direction:column;justify-content:center">
+    <svg width="104" height="104" viewBox="0 0 32 32" data-in="0.1,0.6,pop" style="margin-bottom:30px">
+      <rect width="32" height="32" rx="7" fill="#0a0e14"/>
+      <circle cx="16" cy="16" r="9" fill="none" stroke="#34d399" stroke-width="2.2" data-in="0.35,0.8,draw"/>
+      <path d="M16 7 L16 25" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" data-in="0.7,0.5,draw"/>
+      <circle cx="16" cy="16" r="2.4" fill="#f43f5e" data-in="1.0,0.4,pop"/>
+    </svg>
+    <div class="kicker" data-in="0.3,0.6,up">Open source · built on Cricsheet ball-by-ball data</div>
+    <h1 style="margin-top:18px;font-size:112px" data-in="0.5,0.8,up"><span>Cric</span><span class="grad">Dex</span></h1>
+    <div style="font:700 38px/1.25 Inter;letter-spacing:-.02em;margin-top:22px;max-width:900px" data-in="1.1,0.7,up">The numbers behind cricket, honestly modelled.</div>
+    <div style="display:flex;gap:40px;margin-top:40px">
+      <div data-in="1.7,0.5,up"><div class="big ok" data-in="1.7,1.2,count" data-to="8300" data-suf="+"></div><div class="muted" style="font:600 17px Inter;margin-top:8px">T20 matches</div></div>
+      <div data-in="1.85,0.5,up"><div class="big" style="color:var(--teal)" data-in="1.85,1.2,count" data-to="1.9" data-dec="1" data-suf=" M"></div><div class="muted" style="font:600 17px Inter;margin-top:8px">balls, every one modelled</div></div>
+      <div data-in="2.0,0.5,up"><div class="big warn" data-in="2.0,1.0,count" data-to="7"></div><div class="muted" style="font:600 17px Inter;margin-top:8px">leagues &amp; formats</div></div>
+    </div>
+    <div class="card" style="left:1070px;top:200px;width:430px;padding:22px 24px" data-in="1.0,0.7,left">
+      <span class="tag ta">AUCTION</span>
+      <div style="font:700 21px/1.35 Inter;margin-top:12px">A real-rules IPL mega auction, run 300 times</div></div>
+    <div class="card" style="left:1030px;top:376px;width:450px;padding:22px 24px" data-in="1.35,0.7,left">
+      <span class="tag tg">NET GAME IMPACT</span>
+      <div style="font:700 21px/1.35 Inter;margin-top:12px">Every ball credited by how much it moved the win</div></div>
+    <div class="card" style="left:1090px;top:552px;width:410px;padding:22px 24px" data-in="1.7,0.7,left">
+      <span class="tag tt">SKILL ± UNCERTAINTY</span>
+      <div style="font:700 21px/1.35 Inter;margin-top:12px">Opponent-adjusted ratings that say how sure they are</div></div>
+  </section>
+
+  <!-- ───────────────── b · the mega auction ───────────────── -->
+  <section class="scene" data-t="4.6,14.6">
+    <div class="kicker" data-in="0,0.5,up">IPL mega auction · simulated 300 times · real 2025 retentions</div>
+    <h2 data-in="0.1,0.6,up">Ten franchises. 120 crore each. Go.</h2>
+
+    <div class="card" style="left:96px;top:236px;width:428px;height:574px;padding:22px 24px" data-in="0.4,0.6,up">
+      <h3>1 · Retentions lock</h3>
+      <div style="margin-top:14px">
+        <div class="row-team" data-in="0.70,0.4,left"><span class="team CSK">CSK</span><div class="bar"><i data-in="0.8,0.7,grow" data-to="43.3" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">4 kept</span> 52.0</span></div>
+        <div class="row-team" data-in="0.80,0.4,left"><span class="team MI">MI</span><div class="bar"><i data-in="0.9,0.7,grow" data-to="62.5" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">5 kept</span> 75.0</span></div>
+        <div class="row-team" data-in="0.90,0.4,left"><span class="team RCB">RCB</span><div class="bar"><i data-in="1.0,0.7,grow" data-to="30.8" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">3 kept</span> 37.0</span></div>
+        <div class="row-team" data-in="1.00,0.4,left"><span class="team KKR">KKR</span><div class="bar"><i data-in="1.1,0.7,grow" data-to="44.2" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">5 kept</span> 53.0</span></div>
+        <div class="row-team" data-in="1.10,0.4,left"><span class="team DC">DC</span><div class="bar"><i data-in="1.2,0.7,grow" data-to="36.5" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">4 kept</span> 43.8</span></div>
+        <div class="row-team" data-in="1.20,0.4,left"><span class="team PBKS">PBKS</span><div class="bar"><i data-in="1.3,0.7,grow" data-to="4.6" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">1 kept</span> 5.5</span></div>
+        <div class="row-team" data-in="1.30,0.4,left"><span class="team SRH">SRH</span><div class="bar"><i data-in="1.4,0.7,grow" data-to="62.5" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">5 kept</span> 75.0</span></div>
+        <div class="row-team" data-in="1.40,0.4,left"><span class="team GT">GT</span><div class="bar"><i data-in="1.5,0.7,grow" data-to="42.5" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">5 kept</span> 51.0</span></div>
+        <div class="row-team" data-in="1.50,0.4,left"><span class="team RR">RR</span><div class="bar"><i data-in="1.6,0.7,grow" data-to="65.8" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">6 kept</span> 79.0</span></div>
+        <div class="row-team" data-in="1.60,0.4,left"><span class="team LSG">LSG</span><div class="bar"><i data-in="1.7,0.7,grow" data-to="33.3" style="background:var(--green)"></i></div><span class="num"><span class="faint" style="font-weight:700">4 kept</span> 40.0</span></div>
+      </div>
+      <div class="muted" style="font:500 15px/1.45 Inter;margin-top:18px" data-in="2.0,0.5,fade">Players kept and crore spent, from the real 2025 lists and the IPL retention slabs</div>
+    </div>
+
+    <div class="card" style="left:548px;top:236px;width:476px;height:574px;padding:22px 26px" data-in="2.2,0.6,up">
+      <h3>2 · On the block</h3>
+      <div style="font:800 36px/1.1 Inter;letter-spacing:-.02em;margin-top:20px">Vaibhav Suryavanshi</div>
+      <div class="muted" style="font:600 17px Inter;margin-top:8px">Batter · India · top of the pool</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-top:22px">
+        <div class="big" style="font-size:60px" data-in="2.7,2.0,count" data-to="27.0" data-dec="1"></div><div style="font:700 24px Inter" class="muted" data-in="2.7,0.3,fade">cr</div>
+        <span class="tag tr" style="margin-left:auto;align-self:center" data-in="4.7,0.5,pop">27 CR CAP</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <span class="team RCB" style="height:34px;min-width:66px;font-size:14px" data-in="2.9,0.35,pop">RCB ✋</span>
+        <span class="team LSG" style="height:34px;min-width:66px;font-size:14px" data-in="3.3,0.35,pop">LSG ✋</span>
+        <span class="team KKR" style="height:34px;min-width:66px;font-size:14px" data-in="3.7,0.35,pop">KKR ✋</span>
+      </div>
+      <div style="margin-top:22px;padding:16px 18px;border-radius:16px;background:var(--green-lo);border:1px solid rgba(5,150,105,.3)" data-in="4.9,0.5,pop">
+        <div style="font:800 20px Inter;color:var(--green)">Who lands him, across 300 runs</div>
+        <div style="display:grid;grid-template-columns:52px 1fr 52px;gap:10px;align-items:center;margin-top:12px;font:700 16px Inter">
+          <span class="team RCB">RCB</span><div class="bar" style="background:#fff"><i data-in="5.2,0.8,grow" data-to="74" style="background:var(--green)"></i></div><span class="mono" style="text-align:right">74%</span>
+          <span class="team LSG">LSG</span><div class="bar" style="background:#fff"><i data-in="5.3,0.8,grow" data-to="18" style="background:var(--teal)"></i></div><span class="mono" style="text-align:right">18%</span>
+          <span class="team KKR">KKR</span><div class="bar" style="background:#fff"><i data-in="5.4,0.8,grow" data-to="5" style="background:var(--gold)"></i></div><span class="mono" style="text-align:right">5%</span>
+        </div>
+      </div>
+      <div class="muted" style="font:600 15px/1.45 Inter;margin-top:16px" data-in="6.0,0.5,up">Next: KL Rahul 27.0 cr · Jos Buttler 26.4 cr</div>
+      <div class="chip" style="position:absolute;left:26px;bottom:24px" data-in="6.3,0.4,up">Winner pays just above the second-best bid</div>
+    </div>
+
+    <div class="card" style="left:1048px;top:236px;width:456px;height:574px;padding:22px 24px" data-in="6.2,0.6,up">
+      <h3>3 · Purse used, of 120 cr</h3>
+      <div style="margin-top:14px">
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team CSK">CSK</span><div class="bar" style="display:flex;height:14px"><i data-in="6.5,0.5,grow" data-to="43.3" style="background:var(--green)"></i><i data-in="6.9,0.9,grow" data-to="56.1" style="background:#5fd0b9"></i></div><span class="num">119.4</span></div>
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team MI">MI</span><div class="bar" style="display:flex;height:14px"><i data-in="6.55,0.5,grow" data-to="62.5" style="background:var(--green)"></i><i data-in="6.95,0.9,grow" data-to="37.2" style="background:#5fd0b9"></i></div><span class="num">119.6</span></div>
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team RCB">RCB</span><div class="bar" style="display:flex;height:14px"><i data-in="6.6,0.5,grow" data-to="30.8" style="background:var(--green)"></i><i data-in="7.0,0.9,grow" data-to="68.9" style="background:#5fd0b9"></i></div><span class="num">119.7</span></div>
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team KKR">KKR</span><div class="bar" style="display:flex;height:14px"><i data-in="6.65,0.5,grow" data-to="44.2" style="background:var(--green)"></i><i data-in="7.05,0.9,grow" data-to="55.6" style="background:#5fd0b9"></i></div><span class="num">119.7</span></div>
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team DC">DC</span><div class="bar" style="display:flex;height:14px"><i data-in="6.7,0.5,grow" data-to="36.5" style="background:var(--green)"></i><i data-in="7.1,0.9,grow" data-to="62.8" style="background:#5fd0b9"></i></div><span class="num">119.1</span></div>
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team PBKS">PBKS</span><div class="bar" style="display:flex;height:14px;box-shadow:0 0 0 2px rgba(180,120,6,.55)"><i data-in="6.75,0.5,grow" data-to="4.6" style="background:var(--green)"></i><i data-in="7.15,0.9,grow" data-to="94.8" style="background:#f5c542"></i></div><span class="num">119.3</span></div>
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team SRH">SRH</span><div class="bar" style="display:flex;height:14px"><i data-in="6.8,0.5,grow" data-to="62.5" style="background:var(--green)"></i><i data-in="7.2,0.9,grow" data-to="36.9" style="background:#5fd0b9"></i></div><span class="num">119.3</span></div>
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team GT">GT</span><div class="bar" style="display:flex;height:14px"><i data-in="6.85,0.5,grow" data-to="42.5" style="background:var(--green)"></i><i data-in="7.25,0.9,grow" data-to="56.5" style="background:#5fd0b9"></i></div><span class="num">118.8</span></div>
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team RR">RR</span><div class="bar" style="display:flex;height:14px"><i data-in="6.9,0.5,grow" data-to="65.8" style="background:var(--green)"></i><i data-in="7.3,0.9,grow" data-to="33.2" style="background:#5fd0b9"></i></div><span class="num">118.8</span></div>
+        <div class="row-team" style="grid-template-columns:58px 1fr 62px"><span class="team LSG">LSG</span><div class="bar" style="display:flex;height:14px"><i data-in="6.95,0.5,grow" data-to="33.3" style="background:var(--green)"></i><i data-in="7.35,0.9,grow" data-to="66.1" style="background:#5fd0b9"></i></div><span class="num">119.3</span></div>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:14px;font:600 14px Inter" class="muted" data-in="7.6,0.5,fade">
+        <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--green);vertical-align:-1px"></i> retained</span>
+        <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#5fd0b9;vertical-align:-1px"></i> bought at auction</span>
+      </div>
+      <div style="font:700 16px/1.4 Inter;margin-top:10px;color:var(--gold)" data-in="8.0,0.5,up">Punjab kept one player, so it bids hardest</div>
+    </div>
+  </section>
+
+  <!-- ───────────────── c · NGI ───────────────── -->
+  <section class="scene" data-t="14.6,22.8">
+    <div class="kicker" data-in="0,0.5,up">Net Game Impact · win chance added, ball by ball</div>
+    <h2 data-in="0.1,0.6,up">Who really won it?</h2>
+    <div class="sub" style="margin-top:8px;font-size:21px" data-in="0.3,0.6,up">Mumbai chasing 219 vs Chennai · Delhi, 1 May 2021 · Mumbai's chance of winning, from the model</div>
+
+    <div class="card" style="left:96px;top:270px;width:960px;height:540px;padding:26px 30px" data-in="0.5,0.6,up">
+      <svg width="900" height="380" viewBox="-40 -30 900 380" style="position:absolute;left:30px;top:26px;overflow:visible" fill="none" font-family="Inter">
+        <line x1="0" y1="0" x2="860" y2="0" stroke="#e6ecef"/><line x1="0" y1="150" x2="860" y2="150" stroke="#e6ecef"/><line x1="0" y1="300" x2="860" y2="300" stroke="#d8e0e5"/>
+        <text x="-12" y="5" text-anchor="end" fill="#8996a6" font-size="14" font-weight="600">100%</text>
+        <text x="-12" y="155" text-anchor="end" fill="#8996a6" font-size="14" font-weight="600">50%</text>
+        <text x="-12" y="305" text-anchor="end" fill="#8996a6" font-size="14" font-weight="600">0%</text>
+        <rect x="430" y="-14" width="430" height="314" fill="rgba(245,197,66,.10)"/>
+        <line x1="430" y1="-14" x2="430" y2="300" stroke="rgba(180,120,6,.45)" stroke-dasharray="5 5"/>
+        <text x="0" y="326" fill="#8996a6" font-size="14" font-weight="600">over 1</text>
+        <text x="424" y="326" text-anchor="end" fill="#8996a6" font-size="14" font-weight="600">over 18</text>
+        <text x="440" y="-20" fill="#b47806" font-size="14" font-weight="700">LAST 2 OVERS, ZOOMED IN</text>
+        <text x="860" y="326" text-anchor="end" fill="#8996a6" font-size="14" font-weight="600">ball 120</text>
+        <defs><linearGradient id="wpfill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#34d399" stop-opacity=".28"/><stop offset="1" stop-color="#34d399" stop-opacity="0"/></linearGradient></defs>
+        <path d="M0 300 L0.0 218.0 L4.0 216.8 L8.0 218.0 L11.9 218.0 L15.9 218.0 L19.9 218.0 L23.9 218.0 L27.9 218.0 L31.9 218.0 L35.8 218.0 L39.8 218.0 L43.8 218.0 L47.8 218.0 L51.8 218.0 L55.7 218.0 L59.7 218.0 L63.7 218.0 L67.7 218.0 L71.7 218.0 L75.6 218.0 L79.6 218.0 L83.6 218.0 L87.6 218.0 L91.6 216.8 L95.6 218.0 L99.5 216.8 L103.5 216.8 L107.5 218.0 L111.5 218.0 L115.5 218.0 L119.4 226.5 L123.4 211.8 L127.4 211.8 L131.4 211.8 L135.4 218.0 L139.4 211.8 L143.3 208.7 L147.3 211.8 L151.3 211.8 L155.3 207.2 L159.3 207.2 L163.2 207.2 L167.2 207.2 L171.2 216.8 L175.2 218.0 L179.2 218.0 L183.1 226.5 L187.1 257.9 L191.1 257.9 L195.1 257.9 L199.1 257.9 L203.1 257.9 L207.0 268.7 L211.0 268.7 L215.0 266.9 L219.0 267.4 L223.0 257.9 L226.9 257.9 L230.9 268.7 L234.9 268.7 L238.9 268.7 L242.9 268.7 L246.9 268.7 L250.8 257.9 L254.8 251.0 L258.8 257.9 L262.8 266.9 L266.8 266.9 L270.7 266.9 L274.7 251.0 L278.7 251.0 L282.7 230.8 L286.7 230.8 L290.6 251.0 L294.6 251.0 L298.6 251.0 L302.6 257.9 L306.6 257.9 L310.6 230.8 L314.5 230.8 L318.5 230.8 L322.5 251.0 L326.5 226.5 L330.5 218.0 L334.4 218.0 L338.4 218.0 L342.4 218.0 L346.4 218.0 L350.4 218.0 L354.4 218.0 L358.3 218.0 L362.3 218.0 L366.3 218.0 L370.3 216.8 L374.3 216.8 L378.2 207.2 L382.2 207.2 L386.2 207.2 L390.2 207.2 L394.2 216.8 L398.1 216.8 L402.1 207.2 L406.1 207.2 L410.1 207.2 L414.1 207.2 L418.1 207.2 L422.0 207.2 L426.0 207.2 L430.0 207.2 L465.8 211.8 L501.7 169.7 L537.5 169.7 L573.3 218.0 L609.2 218.0 L645.0 226.5 L680.8 268.7 L716.7 257.9 L752.5 218.0 L788.3 266.9 L824.2 218.0 L860.0 0.0 L860 300 Z" fill="url(#wpfill)" data-in="3.6,0.8,fade"/>
+        <path d="M0.0 218.0 L4.0 216.8 L8.0 218.0 L11.9 218.0 L15.9 218.0 L19.9 218.0 L23.9 218.0 L27.9 218.0 L31.9 218.0 L35.8 218.0 L39.8 218.0 L43.8 218.0 L47.8 218.0 L51.8 218.0 L55.7 218.0 L59.7 218.0 L63.7 218.0 L67.7 218.0 L71.7 218.0 L75.6 218.0 L79.6 218.0 L83.6 218.0 L87.6 218.0 L91.6 216.8 L95.6 218.0 L99.5 216.8 L103.5 216.8 L107.5 218.0 L111.5 218.0 L115.5 218.0 L119.4 226.5 L123.4 211.8 L127.4 211.8 L131.4 211.8 L135.4 218.0 L139.4 211.8 L143.3 208.7 L147.3 211.8 L151.3 211.8 L155.3 207.2 L159.3 207.2 L163.2 207.2 L167.2 207.2 L171.2 216.8 L175.2 218.0 L179.2 218.0 L183.1 226.5 L187.1 257.9 L191.1 257.9 L195.1 257.9 L199.1 257.9 L203.1 257.9 L207.0 268.7 L211.0 268.7 L215.0 266.9 L219.0 267.4 L223.0 257.9 L226.9 257.9 L230.9 268.7 L234.9 268.7 L238.9 268.7 L242.9 268.7 L246.9 268.7 L250.8 257.9 L254.8 251.0 L258.8 257.9 L262.8 266.9 L266.8 266.9 L270.7 266.9 L274.7 251.0 L278.7 251.0 L282.7 230.8 L286.7 230.8 L290.6 251.0 L294.6 251.0 L298.6 251.0 L302.6 257.9 L306.6 257.9 L310.6 230.8 L314.5 230.8 L318.5 230.8 L322.5 251.0 L326.5 226.5 L330.5 218.0 L334.4 218.0 L338.4 218.0 L342.4 218.0 L346.4 218.0 L350.4 218.0 L354.4 218.0 L358.3 218.0 L362.3 218.0 L366.3 218.0 L370.3 216.8 L374.3 216.8 L378.2 207.2 L382.2 207.2 L386.2 207.2 L390.2 207.2 L394.2 216.8 L398.1 216.8 L402.1 207.2 L406.1 207.2 L410.1 207.2 L414.1 207.2 L418.1 207.2 L422.0 207.2 L426.0 207.2 L430.0 207.2 L465.8 211.8 L501.7 169.7 L537.5 169.7 L573.3 218.0 L609.2 218.0 L645.0 226.5 L680.8 268.7 L716.7 257.9 L752.5 218.0 L788.3 266.9 L824.2 218.0 L860.0 0.0" stroke="#059669" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" data-in="0.9,3.0,draw"/>
+        <g data-in="2.6,0.4,pop"><circle cx="501.7" cy="169.7" r="7" fill="#059669" stroke="#fff" stroke-width="3"/></g>
+        <g data-in="2.9,0.4,pop"><circle cx="573.3" cy="218.0" r="7" fill="#dc2626" stroke="#fff" stroke-width="3"/></g>
+        <g data-in="3.2,0.4,pop"><circle cx="680.8" cy="268.7" r="7" fill="#dc2626" stroke="#fff" stroke-width="3"/></g>
+        <g data-in="3.5,0.4,pop"><circle cx="824.2" cy="218.0" r="7" fill="#059669" stroke="#fff" stroke-width="3"/></g>
+        <g data-in="3.85,0.5,pop"><circle cx="860" cy="0" r="10" fill="#059669" stroke="#fff" stroke-width="3"/></g>
+      </svg>
+      <!-- pins (stage coords = card + 30 + 40 offset) -->
+      <div class="pin" style="left:440px;top:168px" data-in="2.6,0.4,up"><div class="lbl" style="left:0;top:0;color:var(--green)">Pandya six · 43%</div></div>
+      <div class="pin" style="left:560px;top:296px" data-in="2.9,0.4,up"><div class="lbl" style="left:0;top:0;color:var(--red)">Pandya out · 27%</div></div>
+      <div class="pin" style="left:640px;top:362px" data-in="3.2,0.4,up"><div class="lbl" style="left:0;top:0;color:var(--red)">two dot balls · 10%</div></div>
+      <div class="pin" style="left:700px;top:196px" data-in="3.5,0.4,up"><div class="lbl" style="left:0;top:0;color:var(--green)">Pollard six · 27%</div></div>
+      <div class="pin" style="left:640px;top:70px" data-in="3.85,0.4,up"><div class="lbl" style="left:0;top:0;background:var(--green);color:#fff;border-color:var(--green)">2 off the last ball · WON</div></div>
+      <div style="position:absolute;left:30px;bottom:24px;right:30px;display:flex;align-items:center;gap:12px">
+        <div style="font:700 16px/1.3 Inter;margin-right:6px" data-in="4.2,0.4,fade">Ngidi's last over<br><span class="muted" style="font-weight:600">16 needed</span></div>
+        <div class="ballchip" data-in="4.3,0.3,pop">•</div><div class="ballchip" style="border-color:var(--green);color:var(--green)" data-in="4.45,0.3,pop">4</div>
+        <div class="ballchip" style="border-color:var(--green);color:var(--green)" data-in="4.6,0.3,pop">4</div><div class="ballchip" data-in="4.75,0.3,pop">•</div>
+        <div class="ballchip" style="background:var(--green);border-color:var(--green);color:#fff" data-in="4.9,0.3,pop">6</div><div class="ballchip" style="background:var(--green);border-color:var(--green);color:#fff" data-in="5.05,0.3,pop">2</div>
+        <div class="muted" style="font:600 15px/1.4 Inter;margin-left:auto;text-align:right" data-in="5.2,0.4,fade">Real match, real model output</div>
+      </div>
+    </div>
+
+    <div class="card" style="left:1080px;top:270px;width:424px;height:540px;padding:26px 26px" data-in="4.0,0.6,up">
+      <h3>Match NGI · who gets the credit</h3>
+      <div style="display:grid;gap:28px;margin-top:26px">
+        <div data-in="4.4,0.4,left"><div class="line"><span>Kieron Pollard</span><span class="ok mono">+0.89</span></div><div class="muted" style="font:500 14px Inter;margin-top:3px">87* off 34 · won it</div>
+          <div class="bar" style="margin-top:8px"><i data-in="4.5,0.8,grow" data-to="89" style="background:var(--green)"></i></div></div>
+        <div data-in="4.6,0.4,left"><div class="line"><span>Ambati Rayudu</span><span class="ok mono">+0.24</span></div><div class="muted" style="font:500 14px Inter;margin-top:3px">72* off 27 · in a losing cause</div>
+          <div class="bar" style="margin-top:8px"><i data-in="4.7,0.8,grow" data-to="24" style="background:var(--teal)"></i></div></div>
+        <div data-in="4.8,0.4,left"><div class="line"><span>Sam Curran</span><span class="ok mono">+0.06</span></div><div class="muted" style="font:500 14px Inter;margin-top:3px">3 wickets</div>
+          <div class="bar" style="margin-top:8px"><i data-in="4.9,0.8,grow" data-to="6" style="background:var(--teal)"></i></div></div>
+        <div data-in="5.0,0.4,left"><div class="line"><span>Lungi Ngidi</span><span class="bad mono">−0.89</span></div><div class="muted" style="font:500 14px Inter;margin-top:3px">bowled the last over</div>
+          <div class="bar" style="margin-top:8px"><i data-in="5.1,0.8,grow" data-to="89" style="background:var(--red)"></i></div></div>
+      </div>
+      <div class="muted" style="position:absolute;left:26px;right:26px;bottom:24px;font:600 15px/1.45 Inter" data-in="5.6,0.5,fade">+ to the batter, − to the bowler, every ball. A 30* that wins a chase beats a hundred that loses.</div>
+    </div>
+  </section>
+
+  <!-- ───────────────── d · Bayesian ratings ───────────────── -->
+  <section class="scene" data-t="22.8,29.6">
+    <div class="kicker" data-in="0,0.5,up">Bayesian skill ratings · opponent-adjusted</div>
+    <h2 data-in="0.1,0.6,up">Skill, with the error bars left in.</h2>
+    <div class="card" style="left:96px;top:236px;width:900px;height:574px;padding:26px 30px" data-in="0.4,0.6,up">
+      <h3>Batting skill · IPL</h3>
+      <svg width="840" height="440" viewBox="-20 -10 840 440" style="position:absolute;left:30px;top:70px;overflow:visible" fill="none" font-family="Inter">
+        <line x1="0" y1="270" x2="800" y2="270" stroke="#d8e0e5" stroke-width="2"/>
+        <g fill="#8996a6" font-size="14" font-weight="600" text-anchor="middle">
+          <text x="36.4" y="296">+1</text><text x="218.2" y="296">+2</text><text x="400" y="296">+3</text><text x="581.8" y="296">+4</text><text x="763.6" y="296">+5</text></g>
+        <text x="400" y="326" text-anchor="middle" fill="#8996a6" font-size="14" font-weight="600">skill, in typical player-to-player spreads above average →</text>
+        <defs>
+          <linearGradient id="kf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#4f6bed" stop-opacity=".30"/><stop offset="1" stop-color="#4f6bed" stop-opacity=".02"/></linearGradient>
+          <linearGradient id="sf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f5c542" stop-opacity=".45"/><stop offset="1" stop-color="#f5c542" stop-opacity=".04"/></linearGradient>
+        </defs>
+        <path d="M0 269.9 L50 269.5 L100 268.2 L150 264.8 L180 260.8 L210 254.9 L240 246.7 L270 236.1 L300 223.5 L330 210.1 L360 197.4 L390 187.2 L420 181.2 L440 180.0 L460 181.3 L490 187.4 L520 197.7 L550 210.5 L580 223.9 L610 236.4 L640 246.9 L670 255.1 L700 261.0 L750 266.6 L800 268.9 L800 270 L0 270 Z" fill="url(#sf)" data-in="1.4,0.8,fade"/>
+        <path d="M0 269.9 L50 269.5 L100 268.2 L150 264.8 L180 260.8 L210 254.9 L240 246.7 L270 236.1 L300 223.5 L330 210.1 L360 197.4 L390 187.2 L420 181.2 L440 180.0 L460 181.3 L490 187.4 L520 197.7 L550 210.5 L580 223.9 L610 236.4 L640 246.9 L670 255.1 L700 261.0 L750 266.6 L800 268.9" stroke="#b47806" stroke-width="4" data-in="1.2,1.2,draw"/>
+        <path transform="translate(-1.7 0)" d="M160 270 L175 269.8 L190 269.4 L200 268.8 L210 267.4 L220 265.0 L230 260.8 L240 253.9 L250 243.2 L260 227.6 L270 206.5 L280 179.7 L290 148.0 L300 113.7 L310 79.9 L320 50.7 L330 29.8 L340 20.4 L345 20.5 L350 23.8 L360 39.5 L370 65.3 L380 97.4 L390 132.0 L400 165.2 L410 194.5 L420 218.4 L430 236.5 L440 249.4 L450 257.9 L460 263.3 L470 266.5 L480 268.2 L495 269.4 L520 270 Z" fill="url(#kf)" data-in="0.9,0.8,fade"/>
+        <path transform="translate(-1.7 0)" d="M160 270 L175 269.8 L190 269.4 L200 268.8 L210 267.4 L220 265.0 L230 260.8 L240 253.9 L250 243.2 L260 227.6 L270 206.5 L280 179.7 L290 148.0 L300 113.7 L310 79.9 L320 50.7 L330 29.8 L340 20.4 L345 20.5 L350 23.8 L360 39.5 L370 65.3 L380 97.4 L390 132.0 L400 165.2 L410 194.5 L420 218.4 L430 236.5 L440 249.4 L450 257.9 L460 263.3 L470 266.5 L480 268.2 L495 269.4 L520 270" stroke="#4f6bed" stroke-width="4" data-in="0.7,1.1,draw"/>
+        <line x1="340.7" y1="20" x2="340.7" y2="270" stroke="#4f6bed" stroke-dasharray="4 5" stroke-width="2" data-in="1.6,0.4,fade"/>
+        <line x1="439.2" y1="180" x2="439.2" y2="270" stroke="#b47806" stroke-dasharray="4 5" stroke-width="2" data-in="1.8,0.4,fade"/>
+        <g data-in="2.2,0.5,fade" font-size="14" font-weight="700">
+          <text x="0" y="368" fill="#8996a6" letter-spacing="1.5">90% RANGE</text>
+          <line x1="268.7" y1="364" x2="412.5" y2="364" stroke="#4f6bed" stroke-width="8" stroke-linecap="round"/>
+          <text x="424" y="369" fill="#4f6bed">Kohli</text>
+          <line x1="239.6" y1="394" x2="638.7" y2="394" stroke="#b47806" stroke-width="8" stroke-linecap="round"/>
+          <text x="649" y="399" fill="#b47806">Suryavanshi</text>
+        </g>
+      </svg>
+      <div style="position:absolute;left:70px;top:92px;text-align:right;width:270px" data-in="1.5,0.5,right">
+        <div style="font:800 22px/1.2 Inter;color:var(--sky)">Virat Kohli</div>
+        <div class="muted" style="font:600 15px/1.35 Inter;margin-top:4px">6,926 balls · narrow: we're sure</div></div>
+      <div style="position:absolute;left:560px;top:212px" data-in="2.0,0.5,left">
+        <div style="font:800 22px/1.2 Inter;color:var(--gold)">Vaibhav Suryavanshi</div>
+        <div class="muted" style="font:600 15px/1.35 Inter;margin-top:4px">449 balls · wide: still learning</div></div>
+      <div class="muted" style="position:absolute;left:30px;right:30px;bottom:26px;font:600 16px/1.45 Inter" data-in="2.4,0.5,fade">Every player is fitted at once, so runs against a great attack count for more than runs against a weak one.</div>
+    </div>
+    <div class="card" style="left:1020px;top:236px;width:484px;height:574px;padding:26px 28px" data-in="2.4,0.6,up">
+      <h3>Head to head</h3>
+      <div style="font:700 20px/1.35 Inter;margin-top:20px">Chance Suryavanshi is the better batter than Kohli</div>
+      <div class="big" style="font-size:84px;margin-top:14px;color:var(--gold)" data-in="2.9,1.2,count" data-to="78" data-suf="%"></div>
+      <div style="font:700 17px/1.4 Inter;margin-top:6px" data-in="4.0,0.4,up">“Clearly better”, but on a fifteenth of the balls</div>
+      <div style="height:1px;background:var(--line);margin:24px 0 20px"></div>
+      <div class="line" data-in="4.4,0.4,up"><span>Sai Sudharsan vs Kohli</span><span style="color:var(--teal)">85%</span></div>
+      <div class="bar" style="margin-top:10px"><i data-in="4.5,0.8,grow" data-to="85" style="background:var(--teal)"></i></div>
+      <div class="line" style="margin-top:18px" data-in="4.6,0.4,up"><span>Shubman Gill vs Kohli</span><span style="color:var(--sky)">70%</span></div>
+      <div class="bar" style="margin-top:10px"><i data-in="4.7,0.8,grow" data-to="70" style="background:var(--sky)"></i></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;position:absolute;left:28px;right:28px;bottom:26px">
+        <span class="tag tg" data-in="4.9,0.35,pop">BATTERS: SCORING + SURVIVAL</span>
+        <span class="tag tb" data-in="5.05,0.35,pop">BOWLERS: ECONOMY + STRIKE</span>
+        <span class="tag ta" data-in="5.2,0.35,pop">DISMISSAL-AWARE</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────── e · Scout ───────────────── -->
+  <section class="scene" data-t="29.6,36">
+    <div class="kicker" data-in="0,0.5,up">Scout · look-alikes across six leagues</div>
+    <h2 data-in="0.1,0.6,up">Same mould. Crores cheaper.</h2>
+    <div class="card" style="left:96px;top:250px;width:420px;height:394px;padding:26px 28px" data-in="0.4,0.6,right">
+      <h3>Your pick · IPL</h3>
+      <div style="font:800 40px/1.08 Inter;letter-spacing:-.02em;margin-top:22px">Jasprit<br>Bumrah</div>
+      <div style="display:flex;gap:8px;margin-top:16px"><span class="tag tb">SEAM BOWLER</span><span class="tag tg">INDIA</span></div>
+      <div class="muted" style="font:600 16px Inter;margin-top:26px">Estimated auction price</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:8px"><div class="big" style="font-size:66px" data-in="0.8,1.0,count" data-to="15.5" data-dec="1"></div><div class="muted" style="font:700 26px Inter">cr</div></div>
+      <div class="muted" style="font:500 15px/1.45 Inter;margin-top:12px">Skill standing: 2.35 spreads above the IPL average</div>
+    </div>
+    <svg width="60" height="40" style="position:absolute;left:526px;top:490px" data-in="1.1,0.4,fade"><path d="M4 20 H50 M38 8 L52 20 L38 32" stroke="#8996a6" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div style="position:absolute;left:596px;top:250px;width:908px;display:grid;gap:14px">
+      <div class="lk" data-in="1.3,0.45,left"><span class="lg" style="background:#fde8e8;color:#b91c1c">SA20</span>
+        <div style="flex:1"><div class="nm">Anrich Nortje</div><div class="meta">seam · South Africa · 93% match</div></div>
+        <div style="text-align:right"><div style="font:800 25px Inter;font-variant-numeric:tabular-nums">9.2 cr</div><div class="ok" style="font:700 15px Inter;margin-top:4px">save 6.3 cr</div></div></div>
+      <div class="lk" data-in="1.6,0.45,left"><span class="lg" style="background:#fff4d6;color:#a16207">BBL</span>
+        <div style="flex:1"><div class="nm">Jason Behrendorff</div><div class="meta">seam · Australia · 81% match</div></div>
+        <div style="text-align:right"><div style="font:800 25px Inter;font-variant-numeric:tabular-nums">4.9 cr</div><div class="ok" style="font:700 15px Inter;margin-top:4px">save 10.6 cr</div></div></div>
+      <div class="lk" data-in="1.9,0.45,left"><span class="lg" style="background:var(--green-lo);color:var(--green)">SMAT</span>
+        <div style="flex:1"><div class="nm">Yash Thakur</div><div class="meta">seam · India domestic · 93% match</div></div>
+        <div style="text-align:right"><div style="font:800 25px Inter;font-variant-numeric:tabular-nums">5.3 cr</div><div class="ok" style="font:700 15px Inter;margin-top:4px">save 10.2 cr</div></div></div>
+      <div class="lk" data-in="2.2,0.45,left"><span class="lg" style="background:var(--green-lo);color:var(--green)">SMAT</span>
+        <div style="flex:1"><div class="nm">Jaydev Unadkat</div><div class="meta">seam · India domestic · 83% match</div></div>
+        <div style="text-align:right"><div style="font:800 25px Inter;font-variant-numeric:tabular-nums">4.1 cr</div><div class="ok" style="font:700 15px Inter;margin-top:4px">save 11.4 cr</div></div></div>
+    </div>
+    <div style="position:absolute;left:96px;top:690px;display:flex;gap:10px">
+      <span class="chip" data-in="2.8,0.4,up">Ranked by skill standing within each league</span>
+      <span class="chip" data-in="2.95,0.4,up">Prices discounted per league</span>
+      <span class="chip" style="color:var(--green)" data-in="3.1,0.4,up">One click → draft into the auction</span>
+    </div>
+  </section>
+
+  <!-- ───────────────── f · the honest backtest ───────────────── -->
+  <section class="scene" data-t="36,42.4">
+    <div class="kicker" data-in="0,0.5,up">The honest backtest · out of sample</div>
+    <h2 data-in="0.1,0.6,up">Do the ratings predict anything?</h2>
+    <div class="card" style="left:96px;top:236px;width:690px;height:520px;padding:28px 30px" data-in="0.4,0.6,up">
+      <h3>Established IPL players · next season</h3>
+      <div style="font:800 30px/1.2 Inter;letter-spacing:-.015em;margin-top:16px">No better than career averages.</div>
+      <div style="margin-top:34px;display:grid;gap:26px">
+        <div><div class="line"><span>Batters</span><span class="mono" style="font-size:16px"><span class="ok">model 0.14</span> · <span class="muted">career avg 0.15</span></span></div>
+          <div class="bar" style="margin-top:10px;height:14px"><i data-in="0.9,0.8,grow" data-to="35" style="background:var(--green)"></i></div>
+          <div class="bar" style="margin-top:6px;height:14px"><i data-in="1.0,0.8,grow" data-to="37.5" style="background:#b8c3cc"></i></div></div>
+        <div><div class="line"><span>Bowlers</span><span class="mono" style="font-size:16px"><span class="ok">model 0.09</span> · <span class="muted">career avg 0.07</span></span></div>
+          <div class="bar" style="margin-top:10px;height:14px"><i data-in="1.1,0.8,grow" data-to="22.5" style="background:var(--green)"></i></div>
+          <div class="bar" style="margin-top:6px;height:14px"><i data-in="1.2,0.8,grow" data-to="17.5" style="background:#b8c3cc"></i></div></div>
+      </div>
+      <div style="position:absolute;left:30px;right:30px;bottom:24px;padding:14px 18px;border-radius:14px;background:var(--surface);font:700 17px/1.45 Inter;color:var(--muted)" data-in="1.8,0.5,fade">One T20 season is mostly noise, for any method. Weighting recent seasons more didn't help.</div>
+    </div>
+    <div class="card" style="left:814px;top:236px;width:690px;height:520px;padding:28px 30px;border-color:rgba(5,150,105,.45)" data-in="1.6,0.6,up">
+      <h3>IPL newcomers · judged from other leagues</h3>
+      <div style="font:800 30px/1.2 Inter;letter-spacing:-.015em;margin-top:16px">Newcomer batters: <span class="ok">better.</span></div>
+      <div style="margin-top:26px;display:grid;gap:20px">
+        <div><div class="line"><span>How long they last</span><span class="mono" style="font-size:16px"><span class="ok">model 0.34</span> · <span class="muted">raw 0.22</span></span></div>
+          <div class="bar" style="margin-top:10px;height:14px"><i data-in="2.1,0.8,grow" data-to="85" style="background:var(--green)"></i></div>
+          <div class="bar" style="margin-top:6px;height:14px"><i data-in="2.2,0.8,grow" data-to="55" style="background:#b8c3cc"></i></div></div>
+        <div><div class="line"><span>Overall</span><span class="mono" style="font-size:16px"><span class="ok">model 0.18</span> · <span class="muted">raw 0.12</span></span></div>
+          <div class="bar" style="margin-top:10px;height:14px"><i data-in="2.3,0.8,grow" data-to="45" style="background:var(--green)"></i></div>
+          <div class="bar" style="margin-top:6px;height:14px"><i data-in="2.4,0.8,grow" data-to="30" style="background:#b8c3cc"></i></div></div>
+        <div style="opacity:.6"><div class="line"><span>Newcomer bowlers: no edge</span><span class="mono" style="font-size:16px">model 0.20 · raw 0.25</span></div>
+          <div class="bar" style="margin-top:10px;height:14px"><i data-in="2.5,0.8,grow" data-to="50" style="background:var(--green)"></i></div>
+          <div class="bar" style="margin-top:6px;height:14px"><i data-in="2.6,0.8,grow" data-to="62.5" style="background:#b8c3cc"></i></div></div>
+      </div>
+      <div style="position:absolute;left:30px;right:30px;bottom:24px;padding:14px 18px;border-radius:14px;background:var(--green-lo);font:800 19px/1.35 Inter;color:var(--green)" data-in="3.0,0.5,pop">✓ How long they last: model better in 97% of 2,000 resamples</div>
+    </div>
+    <div style="position:absolute;left:96px;top:778px;display:flex;gap:10px">
+      <span class="chip" data-in="3.65,0.4,up">Rank agreement: 1 = same order, 0 = no link</span>
+      <span class="chip" data-in="3.8,0.4,up">Both backtests are scripts in the repo</span>
+    </div>
+  </section>
+
+  <!-- ───────────────── g · close ───────────────── -->
+  <section class="scene" data-t="42.4,47" style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
+    <svg width="84" height="84" viewBox="0 0 32 32" data-in="0,0.5,pop">
+      <rect width="32" height="32" rx="7" fill="#0a0e14"/><circle cx="16" cy="16" r="9" fill="none" stroke="#34d399" stroke-width="2.2"/>
+      <path d="M16 7 L16 25" stroke="#34d399" stroke-width="2.2" stroke-linecap="round"/><circle cx="16" cy="16" r="2.4" fill="#f43f5e"/></svg>
+    <h1 style="margin-top:22px;font-size:100px" data-in="0.15,0.7,up">Cric<span class="grad">Dex</span></h1>
+    <div style="font:700 32px/1.3 Inter;letter-spacing:-.015em;margin-top:16px" data-in="0.5,0.6,up">The numbers behind cricket, honestly modelled.</div>
+    <div class="card" style="position:relative;margin-top:36px;padding:20px 36px" data-in="0.9,0.6,up">
+      <span class="mono" style="font-size:30px;font-weight:700;color:var(--green)" data-in="1.2,1.0,type" data-text="aaryan-nakhat.github.io/cricdex"></span></div>
+    <div style="display:flex;gap:12px;margin-top:30px">
+      <span class="chip" data-in="2.2,0.4,up">🌐 Website</span><span class="chip" data-in="2.3,0.4,up">⌨️ CLI</span>
+      <span class="chip" data-in="2.4,0.4,up">🖥️ Terminal UI</span><span class="chip" data-in="2.5,0.4,up">📊 Streamlit</span>
+      <span class="chip" data-in="2.6,0.4,up">🔌 REST API</span>
+    </div>
+    <div class="muted" style="font:600 19px Inter;margin-top:24px" data-in="2.9,0.5,fade">Open source · MIT · one shared logic, locked by parity tests</div>
+  </section>
+
+  <div class="brand"><svg width="18" height="18" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0a0e14"/><circle cx="16" cy="16" r="9" fill="none" stroke="#34d399" stroke-width="3"/><circle cx="16" cy="16" r="2.6" fill="#f43f5e"/></svg>CricDex · open source</div>
+  <div id="progress"></div>
+</div>
+<script src="motion.js"></script>
+</body>
+</html>

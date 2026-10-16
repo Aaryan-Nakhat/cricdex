@@ -56,10 +56,14 @@ surfaces just *read* it. The dashed line is the git boundary.
 
 1. **Ingest** — Cricsheet ball-by-ball (per collection) + the Cricsheet
    People Register for identities. One-time Wikidata enrichment (dob /
-   photo / socials) and a LLM-built player taxonomy (role / seam-spin /
-   batting slot / country) are cached on disk.
-2. **Identity** — canonical `cricsheet_id` carrying cross-source IDs from
-   the People Register; see [`IDENTITY.md`](IDENTITY.md).
+   photo / socials) and an LLM-built player taxonomy (role / seam-spin /
+   batting slot / country, shown as "AI-classified") are cached on disk.
+2. **Identity** — one canonical `cricsheet_id` per player: scorecard names
+   resolve through each match's own registry (`players_<col>`), then the
+   People Register, which also carries the cross-source IDs; see
+   [`IDENTITY.md`](IDENTITY.md). Venue spellings are merged to one
+   `"<ground>, <city>"` per ground after every ingest
+   (`common/venue_names.py`, old names kept in `venue_aliases`).
 3. **Storage** — file-driven: no vector DB, no graph DB.
    - DuckDB — analytics (ball-by-ball, metrics, records, venues).
    - On-disk JSON caches — metrics, Bayes ratings, Wikidata, taxonomy.
@@ -103,6 +107,20 @@ module's output into `site/public/data/`.
 
 ## Deployment
 
-Local dev + the heavy pipeline run via Docker (`make docker-up`); see
-[`DOCKER.md`](DOCKER.md). The static site deploys to GitHub Pages via
-`deploy.yml`. Hosting notes are in [`SHIPPING.md`](SHIPPING.md).
+CricDex ships as a **free static website** plus a **run-it-yourself toolkit**; there is no hosted server
+and no paid infrastructure.
+
+- **The website** (https://aaryan-nakhat.github.io/cricdex/) is the public face. `scripts/export_site.py`
+  cooks everything into `site/public/data/`; `deploy.yml` builds `site/` and publishes it to GitHub Pages
+  on every push that touches `site/**`.
+- **Refreshing the data** is the manual `refresh-data.yml` workflow (described above): it re-ingests,
+  recomputes, re-cooks, commits the snapshot and then calls `deploy.yml` to redeploy. GitHub Actions does
+  the compute; GitHub Pages hosts the result.
+- **CI**: `ci.yml` runs lint, the test suite (including the web ↔ Python parity tests, which need Node)
+  and a TypeScript type-check of `site/`; `docker.yml` checks that the image still builds (nothing is
+  pushed).
+- **Locally**, the CLI / TUI / Streamlit / FastAPI surfaces run over your own `data/` with `uv`
+  ([`RUNNING.md`](RUNNING.md)) or Docker (`make docker-up`, [`DOCKER.md`](DOCKER.md)).
+
+There is no PyPI package or published image (see [`ROADMAP.md`](ROADMAP.md#out-of-scope)). How every
+model works is in [`METHODOLOGY.md`](METHODOLOGY.md).

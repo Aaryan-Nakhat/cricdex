@@ -196,14 +196,15 @@ METRICS: list[MetricDef] = [
         name="Pressure Conversion",
         one_liner="How often a bowler turns pressure balls into wickets.",
         what=(
-            "After a bowler builds pressure (a run of dots / tight overs), how often do they "
-            "actually convert it into a wicket? Separates the bowlers who finish the squeeze from "
-            "those who let batters off the hook."
+            "After a bowler builds pressure with a run of dot balls, how often does the very next "
+            "ball take a wicket? Separates the bowlers who finish the squeeze from those who let "
+            "batters off the hook."
         ),
         how=(
-            "Identify 'pressure balls' — deliveries that follow a run of dots / tight scoring. "
-            "Conversion % = wickets taken on those pressure balls ÷ pressure balls × 100. Measures "
-            "finishing the squeeze, not just bowling dots."
+            "A pressure ball is a dot that makes it 4 or more dots in a row from the same bowler "
+            "within one over (any run, bye, wide or no-ball breaks the run). Conversion % = "
+            "pressure balls where the next ball of that over is a wicket the bowler is credited with (run-outs don't count) ÷ "
+            "pressure balls × 100. The last ball of an over has no next ball, so it isn't counted."
         ),
         name_col="bowler",
         higher_is_better=True,
@@ -264,16 +265,17 @@ METRICS: list[MetricDef] = [
     MetricDef(
         slug="slow_start_cost",
         name="Slow-Start Cost",
-        one_liner="Strike-rate drop while setting a total vs chasing.",
+        one_liner="Strike-rate drop over the first 20 balls of an innings.",
         what=(
-            "Quantifies how much a batter slows down when batting first (setting) compared to their "
-            "career strike rate — the hidden cost of cautious starts when there's no target to "
-            "chase."
+            "Quantifies how much a batter slows down while getting set (the first 20 balls of each "
+            "innings) compared with their career strike rate. The hidden cost of a cautious start, "
+            "whether batting first or chasing."
         ),
         how=(
-            "Setting SR = strike rate on 1st-innings (no target) balls. Slow-start cost = career SR "
-            "− setting SR. Positive = they bat slower when setting a total; lower (or negative) is "
-            "better."
+            "Setting SR = strike rate over the first 20 balls a batter faces in each innings "
+            "(wides aren't balls faced). Slow-start cost = career SR − setting SR. Positive = they "
+            "start slower than they bat overall; lower (or negative) is better. Needs 200+ career "
+            "balls and 50+ setting balls."
         ),
         name_col="batter",
         higher_is_better=False,

@@ -108,9 +108,10 @@ docker-dashboard-down:
 dashboard:
 	uv run streamlit run src/cricdex/dashboard/app.py
 
-# Refresh one collection end to end on this machine: download → metrics → ratings → site data.
+# Refresh one collection end to end on this machine: download → ratings → metrics → site data.
+# Ratings come before metrics: Wicket Quality reads the fitted scout ratings.
 refresh:
 	uv run python scripts/ingest_cricsheet.py ingest --collection "$${COLLECTION:-ipl}" --force
-	uv run python scripts/compute_metrics.py all --collection "$${COLLECTION:-ipl}"
 	uv run python scripts/scout_rate.py --collection "$${COLLECTION:-ipl}" --advi-steps 12000
+	uv run python scripts/compute_metrics.py all --collection "$${COLLECTION:-ipl}"
 	uv run python scripts/export_site.py -c "$${COLLECTION:-ipl}"

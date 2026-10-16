@@ -135,7 +135,7 @@ def phase_run_rates(
             2) AS DOUBLE) AS boundary_pct
     FROM balls_{safe} b
     JOIN matches_{safe} m USING (match_id)
-    WHERE b.venue = ?
+    WHERE b.venue = ? AND (b.innings_idx <= 1 OR b.match_type IN ('Test', 'MDM'))
     GROUP BY b.phase, b.match_type
     ORDER BY b.match_type, b.phase
     """

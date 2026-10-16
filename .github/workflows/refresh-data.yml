@@ -67,8 +67,9 @@ jobs:
             else
               uv run python scripts/ingest_cricsheet.py ingest --collection "$C" --force
             fi
-            uv run python scripts/compute_metrics.py all --collection "$C"
+            # Ratings first: the Wicket Quality metric reads the fitted scout ratings.
             uv run python scripts/scout_rate.py --collection "$C" --advi-steps 12000
+            uv run python scripts/compute_metrics.py all --collection "$C"
             echo "::endgroup::"
           done
 

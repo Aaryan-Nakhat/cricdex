@@ -27,7 +27,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-from cricdex.common.sql import table_suffix
+from cricdex.common.sql import MAIN_INNINGS, table_suffix
 from cricdex.config import CURATED_DIR, DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -57,7 +57,7 @@ def _tally(collection: str, db_path: Path | str) -> pl.DataFrame:
     WITH dis AS (
         SELECT unnest(fielders) AS fielder, wicket_kind
         FROM balls_{safe}
-        WHERE wicket_kind IN ('caught', 'stumped', 'run out') AND len(fielders) > 0
+        WHERE wicket_kind IN ('caught', 'stumped', 'run out') AND len(fielders) > 0 AND {MAIN_INNINGS}
     )
     SELECT
         fielder,

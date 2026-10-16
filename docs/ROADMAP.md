@@ -1,56 +1,124 @@
 # Roadmap
 
-## Phase 1 (Foundations + CricMetrics) — ✅ shipped
+What CricDex does today, what comes next, what's further out, and what it deliberately won't do. How each
+shipped model works is in [METHODOLOGY.md](METHODOLOGY.md); the reasoning behind past choices is in
+[DECISIONS.md](DECISIONS.md); dated changes are in [CHANGELOG.md](CHANGELOG.md).
 
-- Cricsheet ETL → DuckDB. Phase tagging respects match_type.
-- Cricsheet People Register identity bridge (17,981 players, 99.8 % Cricinfo coverage).
-- Wikidata enrichment shipped — dob / photo / socials via the Wikidata entity API (342 cached players, 331 with a DOB; cached JSON, merged into profiles).
-- LLM player taxonomy — role / seam-spin / batting slot / country for 2,525 players (an LLM via LiteLLM, configured with `LLM_MODEL`; shown as "AI-classified").
-- Novel metrics v1 (10): NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary Dependency, Pressure Conversion, Wicket Quality, Crease Longevity, Slow-Start Cost.
-- Wicketkeeping + Fielding leaderboards ✅ — 12 leaderboards in all, across 8 collections × 3 windows (all-time / last 3y / last 1y).
-- Public leaderboard surface (web + Streamlit dashboard + CLI/TUI, all from the exported JSON).
+CricDex is **Cricsheet-only**: every number comes from Cricsheet's ball-by-ball data, plus the Cricsheet
+People Register for identity, a one-time Wikidata pull for dates of birth and photos, and one AI-classified
+taxonomy (role, bowling type, batting slot, country).
 
-## Phase 2 (Scout v1) — ✅ shipped (with documented coverage notes)
+---
 
-- BCCI Domestic: Syed Mushtaq Ali Trophy ✅ via the Cricsheet state-team aggregator (689 matches, 157,514 deliveries). Ranji Trophy + Vijay Hazare — out of scope (Cricsheet-only; a BCCI / Cricinfo scrape was removed, see [`VNEXT.md`](VNEXT.md)).
-- CricHeroes grassroots scraper — year-2 backlog ([`VNEXT.md`](VNEXT.md) §A).
-- Photo CLIP embeds — year-2 backlog, only needed once a CricHeroes tier lands (VNEXT §A).
-- Bayesian opponent-adjusted ratings ✅ (NumPyro / JAX, ADVI default + NUTS available, 1,055 IPL player-roles fit; 10-50× faster than the prior PyMC implementation).
-- Style-twin k-NN search ✅ (cosine over a 13-axis batter vector — 12 metric axes + Bayes skill — and a 2-axis bowler vector; surfaced on every Player Profile).
-- `/scout` filter UI ✅ via the Player Profile + Compare pages on the dashboard.
+## Shipped
 
-## Phase 3 (Auction + Scout) — ✅ shipped
+**Data and identity**
+- Cricsheet ingest → DuckDB for eight men's collections (IPL, BBL, SA20, CPL, T20 Blast, SMAT, men's T20Is,
+  recently played), with all-time, last-3-years and last-year windows.
+- One Cricsheet id per player from each match's registry, with the People Register (18,651 players, 99.8%
+  linked to ESPNcricinfo) as fallback and ~7,500 name variants for search.
+- Merged venue names: one `"<ground>, <city>"` per ground, renamed grounds under their current name, old
+  spellings kept as aliases.
+- Indian domestic T20 (Syed Mushtaq Ali Trophy) via Cricsheet's state-team archives: 689 matches.
+- Wikidata enrichment: date of birth, photo and socials for 331 of 342 cached players.
+- AI-classified taxonomy for 2,525 players (an LLM via LiteLLM, any provider set in `.env`).
 
-- **Auction room ✅** (single source across web + CLI + TUI + Streamlit via `cricdex.web_parity`, locked by `test_web_parity.py` in CI, CLI `cricdex auction room`): real-rules IPL auction Monte-Carlo — cross-collection pool (IPL + BBL/SA20/CPL/Blast free agents + uncapped SMAT), crore prices recalibrated to recent auctions with recency decay, editable Mega/Mini retentions (real 2025 lists), overseas cap + retention slabs + second-price clearing, two-phase fill to 20–25-man squads (~300 trials, per-player post-sim search). See [`docs/AUCTION_MATH.md`](AUCTION_MATH.md). Full PettingZoo multi-agent self-play with personality-extracted franchise YAML remains the year-2 auction-v2 milestone.
-- **Scout ✅** (single source across web + CLI + TUI + Streamlit via `cricdex.web_parity`, CLI `cricdex scout look-alikes`): cross-competition look-alike finder — pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL / SA20 / CPL / T20 Blast, ranked by within-tier Bayesian skill-standing z-score. Plus per-row est. crore price + saving-vs-pick (budget swap), an uncapped-gem flag (high standing on low exposure), role/batting-slot filters, and one-click draft into the Auction room.
+**Models and metrics**
+- **Net Game Impact (NGI)**: a calibrated XGBoost win-probability model, ΔWP per ball credited to batter
+  and bowler.
+- Nine context metrics: Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary
+  Dependency, Pressure Conversion, Wicket Quality, Crease Longevity, Slow-Start Cost.
+- Wicketkeeping and Fielding boards: twelve leaderboards in all, each in three time windows.
+- Dismissal-aware Bayesian ratings (NumPyro / JAX): scoring, survival, economy and strike skills with
+  uncertainty, ADVI by default and NUTS available; checked against NUTS on the IPL.
+- Ratings backtests: established IPL players and IPL newcomers rated from other leagues
+  (`scripts/backtest_ratings.py`, `scripts/backtest_newcomers.py`).
+- Head-to-head probabilities from the rating uncertainty.
+- Style twins (cosine k-NN: 13 axes for batters, 3 for bowlers) and co-faced cohorts on every profile.
 
-## Phase 3b (Analysis pages) — ✅ shipped
+**Rooms and pages**
+- **Scout**: cross-league look-alikes across IPL, SMAT, BBL, SA20, CPL and T20 Blast, with estimated price,
+  saving versus the pick, a gem flag, role and batting-slot filters, and one-click draft into the auction.
+- **Auction room**: real-rules IPL auction Monte-Carlo with a cross-league pool, IPL-relevance weighting,
+  editable Mega / Mini retentions, team personalities, budget-aware bidding, second-price clearing with a
+  27 cr cap, two-phase fill and a post-auction player search.
+- Matchups, Phase, Form, Partnerships, Aging, Venues, Records (with On This Day), Player Profile and
+  Compare pages.
 
-- **Matchups** (batter vs bowler + pace/spin splits), **Phase** (powerplay / middle / death specialists), **Form** (recent window vs career), **Partnerships** (batter-pair stands), **Aging** (performance vs age curves) ✅ — on web, CLI, TUI and Streamlit, all reading the exported JSON.
-- **IPL-relevance weighting** for the auction pool ✅ — league-only veterans are down-weighted by time since their last IPL match and age.
-- **`cricdex.web_parity`** ✅ — bit-exact Python port of the web's Scout / Auction / H2H / filter logic, parity-tested against the TypeScript in CI.
+**Surfaces**
+- Static website on GitHub Pages (React + Vite), the canonical surface:
+  https://aaryan-nakhat.github.io/cricdex/
+- `cricdex` CLI and Textual TUI, Streamlit dashboard and FastAPI REST API, all reading the same data.
+- `cricdex.web_parity`: the Python twin of the web's Scout, Auction and Head-to-Head logic, held
+  identical by parity tests in CI.
+- Docker image and Compose stack; a manual `refresh-data` workflow that re-ingests, refits, re-cooks and
+  redeploys the site.
 
-## Phase 4 (Venues) — ✅ shipped
+---
 
-- `venues` pitch + conditions archive ✅ (5 SQL views; dashboard page).
+## Next
 
-## Phase 5 (Profiles + Comparator) — ✅ shipped
+Work that needs no new data source.
 
-- `profiles` per-player profile builder ✅ — aggregates People Register IDs + Wikidata + career totals + every novel metric + Bayes skill + style twins.
-- `comparator` visual side-by-side ✅ (Plotly radar + transposed table).
+- **Fielder and non-striker credit in NGI**: share a catch's or run-out's swing with the fielder, and book
+  a non-striker run-out to the batter who was out.
+- **Venue, phase and era effects in the ratings**: one skill set per career today.
+- **Women's collections**: the ingester already knows the WPL, WBBL and women's T20I archives; nothing
+  downstream has been built or checked on them yet.
+- **Replacement Delta**: NGI against a replacement-level player ("cricket WAR"). Needs a sub-IPL baseline
+  to define replacement level; SMAT is the obvious candidate.
 
-## Phase 6 (API + Records) — ✅ shipped
+## Later
 
-- `records` searchable records + On-This-Day ✅ (9 record queries).
-- `api` public REST surface ✅ — FastAPI across records / venues / players / compare. OpenAPI at `/docs`.
+Bigger pieces, most needing new data, a GPU or hosting.
 
-## Deferred (year 2+)
+**Grassroots**
+- CricHeroes grassroots tier, if a partner API or a Cricsheet-compatible export becomes available; the
+  rating model's opponent bridging is what would carry it (a grassroots batter who faced a few known
+  semi-pro bowlers gets a sharper rating through them).
+- Photo-based identity disambiguation for namesakes across tiers (only needed once a grassroots tier exists).
 
-- OpenBoundary — ball tracking from broadcast video (CV stack).
-- ChuckCheck — bowler elbow flex via monocular 3D pose.
-- Voice analyst — coach earpiece (LiveKit / STT-LLM-TTS).
-- ScoutVLM — VLM-driven ball-by-ball extraction from YouTube grassroots video.
-- Highlight CV — auto key-moment clip extraction.
-- Tournament management B2B (partner with CricHeroes instead of competing).
-- Multi-agent RL auction-v2 — PettingZoo + per-franchise personality YAML (extracted from 10 yr bid history via an LLM) on top of today's fixed-archetype Monte-Carlo room.
-- CricHeroes grassroots scraper ([`VNEXT.md`](VNEXT.md) §A). BCCI / Cricinfo scrapes are out of scope (Cricsheet-only).
+**Auction v2**
+- Multi-agent self-play (every franchise its own learned bidding policy) instead of today's fixed
+  personalities.
+- Team personalities learned from real auction bid history instead of hand-assigned.
+
+**Video and voice (year 2)**
+- Ball tracking and pitch maps from broadcast video; a bowler-action (elbow flex) estimate from pose;
+  automatic highlight clips; ball-by-ball extraction from grassroots video; a voice analyst.
+- Disguise Coefficient for bowlers (outcome variance for the same line and length), which needs ball
+  tracking.
+
+**API and hosting**
+- Auth and rate limiting in front of the REST API (required before any public API deploy), then hosting
+  the API and the Streamlit dashboard. The website itself is already public.
+- A GraphQL layer over the REST functions, if anyone needs it.
+
+---
+
+## Ongoing upkeep
+
+- **Cricsheet refresh** when new matches land: the manual `refresh-data` workflow for the live site, or
+  `make refresh COLLECTION=<c>` locally (download → ratings → metrics → site data).
+- **People Register refresh** (Cricsheet updates it roughly monthly):
+  `uv run python scripts/ingest_people.py --force` (also the first step of `refresh-data`).
+- **Taxonomy for new players**: runs inside `refresh-data` when an LLM is configured.
+- **Model checks after changes**: re-run the NUTS comparison and the backtests after any change to the
+  rating model.
+
+---
+
+## Out of scope
+
+Decided against, not pending.
+
+- **Non-Cricsheet sources**: Reddit sentiment, Cricbuzz live scores, ESPNcricinfo or BCCI scraping (so no
+  Ranji Trophy or Vijay Hazare, which Cricsheet doesn't cover ball by ball), extra rulebook PDFs.
+- **LLM-written content**: commentary translation, match reports, newsletters, a rules Q&A bot. The LLM
+  only tags player facts.
+- **Earlier subsystems removed in the consolidation**: the Neo4j scout graph, the MILP auction solver,
+  war-room advisor and RL auction prototype, and the rules RAG stack (see the changelog).
+- **Fantasy-team optimiser** and **tournament-management software** (CricHeroes already does the latter
+  well).
+- **Package distribution**: no PyPI package and no published Docker image. The website is the public
+  artifact; running it yourself is clone + `uv` or `make docker-up` (see [RUNNING.md](RUNNING.md)).

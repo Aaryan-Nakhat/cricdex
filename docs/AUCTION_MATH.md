@@ -6,7 +6,8 @@
 > `cricdex.web_parity`), from the **same** exported JSON and with a
 > bit-exact seeded RNG, so a run reproduces everywhere trial-for-trial
 > (locked by `test_scripts/test_web_parity.py`). It is driven from the CLI
-> by `cricdex auction room`.
+> by `cricdex auction room`. The skill ratings it starts from, and every
+> other model, are explained in [`METHODOLOGY.md`](METHODOLOGY.md).
 
 The room answers one question a real franchise faces:
 
@@ -29,12 +30,17 @@ negative (see `scout/ratings/README.md`).
 1. **Amplify exponentially.** `1.1 × e^(0.95 × skill)`, times a small role
    weight (all-rounders / keepers are rarer → weighted up). The `0.95`
    stretches the curve so the spread matches recent real money — the top
-   names land in the 20s (27 cr, the 2025 ceiling, is the cap), the pool
-   median ~0.9 cr — and the result is clamped to `[0.3, 27]`.
-2. **Decay for staleness.** A player who's barely featured lately is worth
-   less *now*. We subtract a recency penalty from the value, scaled by
-   months since his last match (a few months' grace, then it ramps, capped
-   at about −2.2). This is what stops retired/dormant names topping the buys.
+   names land in the 20s (27 cr, the 2025 ceiling, is the cap), the typical
+   pool player around 1 cr — and the result is clamped to `[0.3, 27]`.
+2. **Discount for IPL relevance.** A player who hasn't featured in the IPL
+   lately is worth less to an IPL auction *now*. Each player gets an
+   IPL-relevance weight between 0 and 1: about 1 for a current IPL regular
+   (last IPL game within ~18 months; age barely matters while he's playing),
+   fading with years since his last IPL game and with age past 32; 0.7 for an
+   uncapped Indian who has never played the IPL; lower for an older overseas
+   leaguer. Up to 2.7 is taken off the value at weight 0 (about −2.2 in
+   practice, since the weight never drops below 0.2). This is what stops
+   retired or league-only veterans topping the buys.
 3. **Out come two numbers:**
    - **projected value** — what he's worth, in crore.
    - **base price** — his opening tag, snapped to real IPL bands:
@@ -78,11 +84,11 @@ With guardrails so it stays realistic:
 **First, retentions** — editable per team in the UI:
 
 - **Mega auction** — each franchise keeps the **real 2025 retention list**
-  (~5 players), whose cost is drawn from the **120 cr** purse via the IPL
-  slabs (18 / 14 / 11 / 18 / 14 cr capped, 4 cr uncapped).
-- **Mini auction** — teams keep **most** of their squad (already paid-for in
-  prior years), so retentions are free and they bid only a small leftover
-  purse (~30 cr) to top up.
+  (~5 players), paid out of the **120 cr** purse at the real retention price
+  where known, else the IPL slabs (18 / 14 / 11 / 18 / 14 cr, then 4 cr).
+- **Mini auction** — teams keep **most** of their squad (by default their 18
+  most valuable players, already paid for in prior years), so retentions are
+  free and they bid only a small leftover purse (30 cr by default) to top up.
 
 Retained players leave the pool and count toward the **overseas cap (8)**.
 Everyone else goes under the hammer.
@@ -110,10 +116,10 @@ max bid = value × aggression × need × overseas-bias × luck × budget
   Without it a rich team fills its squad with cheap players and finishes
   with half its purse unspent.
 
-A team can't bid past its remaining money, the 25-man cap, or the overseas
-cap. **Highest max bid wins**, but — like a real auction — the winner pays
-just **above the second-highest bid**, not his own max, and never more
-than **27 cr** (the real record, Pant in 2025).
+A team can't bid past its remaining money (keeping 0.3 cr for every other
+slot it still has to fill), the 25-man cap, or the overseas cap. **Highest max bid wins**, but — like a real auction — the winner pays
+just **above the second-highest bid** (2% over it), not his own max, and
+never more than **27 cr** (the real record, Pant in 2025).
 
 **Two passes so the pool is shared fairly.** Round 1 fills every team to a
 **20-man minimum**; round 2 tops up toward the **25 cap**. A final safety

@@ -11,7 +11,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-from cricdex.common.sql import table_suffix
+from cricdex.common.sql import BOWLER_WICKET, MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -29,7 +29,7 @@ def pressure_conversion(
     top_n: int | None = 200,
     auto_threshold: bool = True,
 ) -> pl.DataFrame:
-    """Wicket rate on the next ball after `consecutive_dot_threshold` or more
+    """Bowler-credited wicket rate on the next ball after `consecutive_dot_threshold` or more
     consecutive dot balls bowled by the same bowler in the same over.
 
     Captures the bowler's ability to convert sustained dot-ball pressure
@@ -52,11 +52,11 @@ def pressure_conversion(
         SELECT
             match_id, innings_idx, bowler, over,
             (runs_total = 0 AND COALESCE(extras_type, '') NOT IN ('wides', 'noballs')) AS is_dot,
-            (wicket_kind IS NOT NULL) AS is_wicket,
+            {BOWLER_WICKET} AS is_wicket,  -- a run out isn't the bowler's squeeze paying off
             ROW_NUMBER() OVER (PARTITION BY match_id, innings_idx, bowler, over
                                ORDER BY ball_in_over) AS ball_in_over_seq
         FROM balls_{safe}
-        WHERE bowler IS NOT NULL
+        WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
     ),
     dot_streaks AS (
         SELECT

@@ -133,7 +133,8 @@ def _load_edges(
                 FROM balls_{safe} b{year_join}
                 LEFT JOIN {ids} rb ON rb.name = b.batter
                 LEFT JOIN {ids} rk ON rk.name = b.bowler
-                WHERE b.batter IS NOT NULL AND b.bowler IS NOT NULL {window}
+                WHERE b.batter IS NOT NULL AND b.bowler IS NOT NULL
+                  AND (b.innings_idx <= 1 OR b.match_type IN ('Test', 'MDM')) {window}
             )
             SELECT batter_id, bowler_id{year_key},
                    SUM(legal_ball) AS balls,

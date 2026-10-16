@@ -78,6 +78,7 @@ def wicket_quality(
                   'obstructing the field'
               )
               AND b.bowler IS NOT NULL
+              AND (b.innings_idx <= 1 OR b.match_type IN ('Test', 'MDM'))
             """
         ).pl()
     if rows.is_empty():

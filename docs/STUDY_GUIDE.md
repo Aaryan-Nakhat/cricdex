@@ -7,7 +7,9 @@ present the work to others.
 
 Sections are roughly ordered shallow → deep. If you want to skim,
 the **Overview** and **Architecture** sections give the high-level
-picture; the algorithm chapters (5–9) are the meat.
+picture; the algorithm chapters (5–9) are the meat. For the same models
+explained without the maths, with worked examples and the backtest
+results, read [`METHODOLOGY.md`](METHODOLOGY.md) first.
 
 ---
 
@@ -24,7 +26,7 @@ picture; the algorithm chapters (5–9) are the meat.
 9. Wikidata bridge — P2697 statsguru ID + Entity API workaround
 10. Surfaces — web (canonical) + CLI / TUI / Streamlit / API at parity
 11. Deployment + CI/CD
-12. vNext / TODOs — what didn't make v1 and why
+12. Roadmap — what's next (pointer to ROADMAP.md)
 
 ---
 
@@ -77,9 +79,9 @@ Top-level layout:
 ```
 src/cricdex/
 ├── api/                   FastAPI REST surface + /docs
-├── auction/               real-rules Monte-Carlo pool builder
+├── auction/               IPL team list + bidding-personality defaults (the sim is in web_parity/)
 ├── cli/                   typer console script (one file per command group)
-├── common/                shared: db, llm.py (LiteLLM client), filters, metric catalog, sql, spark
+├── common/                shared: db, llm.py (LiteLLM client), filters, metric catalog, sql, spark, venue_names
 ├── comparator/            Side-by-side metric table + skill head-to-head
 ├── config.py              Pydantic settings + DATA_DIR resolution
 ├── dashboard/             Streamlit pages (mirror the web + TUI)
@@ -88,8 +90,9 @@ src/cricdex/
 ├── records/               9 record SQL queries + on-this-day digest
 ├── scout/
 │   ├── ingest/            Cricsheet → DuckDB; people_register.py; Wikidata enrichment
-│   ├── ratings/           NumPyro hierarchical Bayes (dismissal-aware)
-│   └── search/            Cosine style-twin
+│   ├── ratings/           NumPyro hierarchical Bayes (dismissal-aware) + head-to-head
+│   ├── search/            Cosine style-twin
+│   └── cohort.py          co-faced cohort (plain DuckDB SQL)
 ├── web_parity/            Python port of the web's TS auction + scout
 └── venues/                Per-venue conditions (innings totals, phase rates)
 ```
@@ -145,9 +148,15 @@ outcome) plus an `innings` list where every ball is an object with
 
 `scout/ingest/cricsheet.py` downloads a *collection* (e.g.
 `ipl` = 1,243 matches, a few MB) as a single zip, expands each match
-JSON, flattens every ball into a polars row, writes one Parquet
-file per collection, then materialises into a DuckDB table named
-`balls_<collection>` so SQL queries run in single-digit seconds.
+JSON, flattens every ball into a polars row, writes Parquet, then
+materialises four DuckDB tables per collection so SQL queries run in
+single-digit seconds: `matches_<col>`, `balls_<col>` (one row per
+delivery, keeping its first wicket), `wickets_<col>` (every wicket, since
+a delivery can have two) and `players_<col>` (each match's own
+name → Cricsheet-id registry). After every ingest,
+`common/venue_names.py` rewrites venues to one `"<ground>, <city>"` per
+ground (renamed grounds under their current name, old spellings kept in
+`venue_aliases`).
 
 DuckDB is the only OLAP engine we use. It's a column-store with
 zero-config that beats Postgres + Pandas for analytic workloads on
@@ -162,9 +171,10 @@ Cricsheet ships a `people.csv` that resolves names across sources —
 to Wikidata**), `key_cricbuzz`, `key_cricheroes`, `key_bigbash`.
 This is the rosetta stone for cross-source joins.
 
-Two manual overrides ship because Cricsheet uses initials-style
-names that collide: `Rashid Khan` → Afghanistan (not Nepal),
-`Mohsin Khan` → Pakistan (not India).
+Names in the ball data resolve to ids through each match's own
+registry first (`players_<col>`, which knows that "Navdeep Saini" and
+"NA Saini" are one player), then the People Register's `unique_name`
+(`common/sql.py::player_ids`). See [`IDENTITY.md`](IDENTITY.md).
 
 ### 3.3 Wikidata enrichment
 
@@ -204,9 +214,9 @@ the same phase.
 required_rpb = (1st_innings_total + 1 − runs_before_ball) / balls_remaining
 ```
 
-For each `(venue, phase)` compute `median(required_rpb)` across
-every chase ball. Then flag a ball as "under pressure" if
-`required_rpb > 1.5 × median_required_rpb(venue, phase)`.
+For each `(format, venue, phase)` compute `median(required_rpb)`
+across every chase ball. Then flag a ball as "under pressure" if
+`required_rpb > 1.5 × median_required_rpb(format, venue, phase)`.
 
 **Why 1.5× venue median?** Different grounds demand wildly different
 chase rates (Bangalore vs Lord's). The venue median normalises that
@@ -214,8 +224,8 @@ out — "pressure" means hard *for that ground*. The 1.5× threshold is
 a deliberately loose cut: tighter (e.g. 2×) and you get only the
 slog-overs death scenarios; looser and the metric loses signal.
 
-**Filters.** `min_balls_faced=20`; T20 / ODI only; innings 2 only;
-`runs_needed > 0` (no ball already-won situations).
+**Filters.** `min_balls_faced=20` (chase balls); T20 / ODI only;
+innings 2 only; `runs_needed > 0` (no ball already-won situations).
 
 **Output columns:** `pressure_balls`, `pressure_runs`,
 `pressure_sr_per_100_balls`, `pct_balls_under_pressure`.
@@ -262,9 +272,10 @@ dot tends to spread.
 falls. Who absorbs collapse pressure vs who freezes.
 
 **Math.** For each wicket, mark the next 12 balls in the same
-innings. Attribute runs to the batter *facing* — **excluding** the
-dismissed striker (so we measure the survivor, not the new arrival
-who's still gauging conditions). Aggregate:
+innings. Keep only balls faced by the batter who was **already at the
+crease** when the wicket fell: not the dismissed batter, and not the new
+arrival who's still gauging conditions. A ball inside two wickets'
+windows counts once. Aggregate:
 
 ```
 counter_attack_sr = 100 × Σ runs / Σ legal_balls
@@ -349,7 +360,8 @@ filter to zero rows; manual override defaults to 30.
 than a No.11's.
 
 **Math.** Load Bayes skill scores (see §5). For every legitimate
-dismissal, look up the dismissed batter's Bayes skill. Aggregate:
+dismissal, look up the dismissed batter's Bayes **scoring** skill
+(`skill`, not the complete `value`). Aggregate:
 
 ```
 wicket_quality_bowler = mean(dismissed_batter_bayes_skill)
@@ -375,9 +387,10 @@ chapter.
 ## 5. Bayesian scout ratings — `scout/ratings/bayesian.py`
 
 This is the heart of the player-quality estimate. Pure statistics:
-no neural network, no gradient descent. You give the model 1M+ rows
-of `(batter, bowler, balls, runs)` and it returns a posterior
-distribution over each player's *skill* parameter.
+no neural network. You give the model every `(batter, bowler)` matchup
+in a league (about 31,000 for the IPL, built from ~296,000 deliveries)
+with its balls, runs and dismissals, and it returns a posterior
+distribution over each player's *skill* parameters.
 
 ### 5.1 What is Bayesian inference, exactly?
 
@@ -402,12 +415,18 @@ who hit 35 off 10 once doesn't deserve a 5σ rating.
 ```
 runs_ij ~ NegativeBinomial(mu_ij, alpha)
 mu_ij   = exp(intercept + b_skill[i] − k_skill[j]) × balls_ij
-b_skill[i] ~ Normal(0, sigma_b)
+b_skill[i] ~ Normal(0, sigma_b)      (written non-centred: sigma_b · z, z ~ Normal(0, 1))
 k_skill[j] ~ Normal(0, sigma_k)
 sigma_b, sigma_k ~ HalfNormal(1)
 intercept ~ Normal(0, 3)
 alpha ~ HalfNormal(5)
 ```
+
+The skills are written **non-centred** (`b_skill = sigma_b · z`). It's the
+same prior, but it keeps the many thin-sample players from trapping the
+sampler in a "funnel" with `sigma_b`; the old centred form mis-fitted the
+strike axis (sds ~25% too wide). Every matchup is fitted, even a 1-ball
+one; the prior does the shrinking.
 
 The data is one row per `(batter i, bowler j)` edge with `balls_ij`
 balls and `runs_ij` runs. The mean run rate on that edge is
@@ -444,8 +463,9 @@ for facing a hard attack the way raw average would.
 `numpyro` is a probabilistic programming language that sits on top of
 JAX (autodiff + XLA-compiled numerical computing). It was
 chosen over the older PyMC for a 10-50× speed-up on this exact
-class of hierarchical GLM. The fit on the IPL collection (~6k
-batters × bowlers, 1M+ edges) runs in tens of seconds on CPU with ADVI.
+class of hierarchical GLM. The dismissal-aware fit on the IPL
+collection (~31k batter–bowler edges) takes about 1.5–3 minutes on CPU
+with ADVI; all eight refresh collections take about 22 minutes.
 
 ### 5.4 ADVI vs NUTS
 
@@ -454,10 +474,14 @@ posterior, but they get there differently:
 
 **ADVI (Automatic Differentiation Variational Inference).** Fits a
 *surrogate* normal distribution to the posterior by minimising
-KL-divergence via gradient descent. Fast (tens of seconds for IPL). The
-output `skill_sd` is *under-estimated* compared to truth because
-the variational family is constrained to mean-field normal (no
-correlations between parameters). The default for every refresh.
+KL-divergence via gradient descent. Fast (1.5–3 minutes for IPL). The
+variational family is mean-field normal (no correlations between
+parameters), which in general under-states uncertainty, so it was
+checked against NUTS on the IPL (2026-10): ADVI's per-player sds were
+95–99% of NUTS's on every axis, `value_sd` about 99%, and head-to-head
+P(A>B) differed by a median 1–2 points (95th percentile ~6). A
+low-rank guide (rank 20) gave the same sds, slower. ADVI is the default
+for every refresh.
 
 ```python
 guide = AutoNormal(model)
@@ -469,8 +493,11 @@ for _ in range(12000):
 
 **NUTS (No-U-Turn Sampler).** Runs Hamiltonian Monte Carlo with
 adaptive trajectory length — the gold standard for posterior
-sampling. Output is calibrated (the SDs match truth). Slower (minutes
-on IPL with 2 chains × 1000 draws + 500 warmup).
+sampling. Much slower: about 15 minutes for the IPL at 500 warmup +
+500 draws per chain (worst r-hat 1.03, min ESS 101, 0 divergences), so
+all eight collections would take 2–3 hours, past the 120-minute refresh
+budget. The defaults are 2 chains × 1000 draws + 500 warmup, and the run
+logs r-hat, ESS and divergences.
 
 ```python
 kernel = NUTS(model, target_accept_prob=0.9)
@@ -485,19 +512,26 @@ when calibrated uncertainty widths matter.
 ### 5.5 Key snippet — the model definition
 
 ```python
-def _model(bi, ki, balls, runs, n_batters, n_bowlers):
+def _skill(site, plate, n, sigma):
+    # non-centred: site = sigma * raw, raw ~ N(0, 1)
+    with numpyro.plate(plate, n):
+        raw = numpyro.sample(f"{site}_raw", dist.Normal(0.0, 1.0))
+    return numpyro.deterministic(site, sigma * raw)
+
+def _model(bi, ki, balls, runs, n_batters, n_bowlers, weight=None):
     sigma_b = numpyro.sample("sigma_b", dist.HalfNormal(1.0))
     sigma_k = numpyro.sample("sigma_k", dist.HalfNormal(1.0))
-    with numpyro.plate("batters", n_batters):
-        b_skill = numpyro.sample("b_skill", dist.Normal(0.0, sigma_b))
-    with numpyro.plate("bowlers", n_bowlers):
-        k_skill = numpyro.sample("k_skill", dist.Normal(0.0, sigma_k))
+    b_skill = _skill("b_skill", "batters", n_batters, sigma_b)
+    k_skill = _skill("k_skill", "bowlers", n_bowlers, sigma_k)
     intercept = numpyro.sample("intercept", dist.Normal(0.0, 3.0))
     alpha     = numpyro.sample("alpha",     dist.HalfNormal(5.0))
-    log_mu = intercept + b_skill[bi] - k_skill[ki]
-    mu = jnp.exp(log_mu) * balls
+    mu = jnp.exp(intercept + b_skill[bi] - k_skill[ki]) * balls
     numpyro.sample("y", dist.NegativeBinomial2(mean=mu, concentration=alpha), obs=runs)
 ```
+
+(Simplified from `_model` / `_runs_likelihood`: the real code also masks
+edges with no legal ball and accepts an optional per-edge `weight` for
+recency experiments.)
 
 The `plate` context tells NumPyro the parameters are vectorised
 (one per batter/bowler) — under the hood it generates the JAX
@@ -507,18 +541,19 @@ shape semantics correctly.
 
 With the dismissal-aware joint model (§5.7) each batter row also
 carries `survival_skill`, each bowler row `strike_skill`, plus a
-composite `value` (the two axes summed):
+composite `value` (the two axes, each in population-sd units, summed;
+§5.7) and its `value_sd`. Current IPL fit, rounded:
 
 ```json
 [
   {"cricsheet_id": "ba607b88", "unique_name": "V Kohli", "role": "batter",
-   "skill": 0.051, "skill_sd": 0.023,
-   "survival_skill": 0.212, "survival_skill_sd": 0.060,
-   "value": 0.263, "balls": 6499},
+   "skill": 0.160, "skill_sd": 0.023,
+   "survival_skill": 0.575, "survival_skill_sd": 0.063,
+   "value": 2.683, "value_sd": 0.240, "balls": 6930, "runs": 9346},
   {"cricsheet_id": "ba607b88", "unique_name": "V Kohli", "role": "bowler",
-   "skill": -0.037, "skill_sd": 0.062,
-   "strike_skill": -0.190, "strike_skill_sd": 0.174,
-   "value": -0.227, "balls": 172},
+   "skill": -0.047, "skill_sd": 0.057,
+   "strike_skill": -0.067, "strike_skill_sd": 0.082,
+   "value": -1.350, "value_sd": 1.150, "balls": 257, "runs": 354},
   ...
 ]
 ```
@@ -546,9 +581,12 @@ Negative-Binomial we add a per-ball **dismissal Binomial** on the same
 runs_ij ~ NegBin(exp(r_int + bat_score[i] − bowl_econ[j]) × balls, alpha)
 
 # dismissal sub-model (new)
-outs_ij ~ Binomial(balls_ij,
+outs_ij ~ Binomial(trials_ij,
                    sigmoid(w_int + bowl_strike[j] − bat_survive[i]))
 ```
+
+`trials_ij` is the legal balls plus the rare bowler-credited dismissal off
+a wide (a stumping), so a wicket can never outnumber its balls.
 
 Now each player carries up to **four** latent skills (all higher =
 better):
@@ -570,26 +608,33 @@ over the edge's balls it's Binomial. The logit (`sigmoid`) keeps the
 probability in [0, 1]. Baseline dismissal rate in T20 ≈ 1/25, so the
 intercept prior is `Normal(−3, 2)` (log-odds of ~1/25).
 
-**What it fixes — validated on IPL:**
+**What it fixes — current IPL fit (batting rows):**
 
 | Player | score | survive | complete value |
 |---|---|---|---|
-| AB de Villiers | +0.18 | +0.17 | **+3.56** (top) |
-| V Kohli | +0.05 | +0.21 | +2.93 (anchor) |
-| KA Pollard | +0.12 | **−0.14** | **−0.57** (slogger!) |
+| AB de Villiers | +0.29 | +0.47 | **+2.95** (elite on both) |
+| V Kohli | +0.16 | +0.58 | +2.68 (anchor) |
+| AD Russell | +0.38 | +0.02 | +1.86 (fast, average survival) |
+| SP Narine | +0.30 | **−0.41** | **+0.08** (slogger) |
 
-Pollard's high scoring rate no longer wins — his poor survival drags
-his **complete value** negative, while De Villiers (elite on both)
-tops the table. Same split for bowlers distinguishes wicket-takers
-(Chahal: weak economy, top strike) from control bowlers (Ashwin:
-elite economy, near-zero strike) — the old single-skill model
-couldn't tell them apart.
+Narine scores faster than Kohli, but his poor survival pulls his
+**complete batting value** down to about average, while De Villiers
+(strong on both) tops the table. The same split for bowlers separates
+wicket-takers (Chahal: ordinary economy, high strike) from control
+bowlers (Ashwin: strong economy, below-average strike), which the old
+single-skill model couldn't tell apart.
 
-**Complete value** = raw sum of the two axes (both log-scale, both
-higher = better, empirically comparable magnitude). This is what the
-head-to-head (§ surfaces) and the leaderboard's `value` column rank
-on. Output JSON gains `survival_skill` / `strike_skill` (+ SDs) and
-`value` per row; legacy readers that only want `skill` keep working.
+**Complete value.** The two axes are in different units: scoring /
+economy is a log runs-per-ball effect, survival / strike a log-odds
+dismissal effect. So each is divided by its fitted population sd
+(`sigma_b` / `sigma_surv` for batters, `sigma_k` / `sigma_strike` for
+bowlers) and then added, per posterior draw:
+`value = skill/σ_rate + second/σ_odds`. 1.0 = one typical
+player-to-player spread better; 0 = the average player. Doing it per draw
+keeps `value_sd` honest. On the current IPL fit σ_rate ≈ 0.21 and
+σ_odds ≈ 0.30 for batters, so Kohli's value is 0.16/0.21 + 0.575/0.30 ≈
+0.76 + 1.92 ≈ 2.68. This is what the Head-to-Head page (`ratings/head_to_head.py`), the scout
+z-scores (§7) and the auction prices (§8) are built on.
 
 ---
 
@@ -732,8 +777,13 @@ different attacks. So each player is reduced to a **within-tier
 skill-standing z-score** off the dismissal-aware Bayes skill (§5): how
 many standard deviations above his own competition's mean does he
 stand? A SMAT prospect and an IPL star can then be lined up despite
-incomparable raw stats. Candidates must also share the picked player's
-**archetype** (role + seam/spin from the LLM taxonomy).
+incomparable raw stats. Concretely: each player's standing is his Bayes
+`value` on the role he's matched in (batters and keepers on batting value,
+bowlers on bowling value, all-rounders on both added), z-scored among the
+players of that role shown in that tier (recently active, ≥150 balls).
+Candidates must share the picked player's role (from the AI-classified
+taxonomy) and, for bowlers, seam or spin; an optional batting-slot filter
+narrows further. Similarity is `max(0, 1 − |z_cand − z_pick| / 2.5)`.
 
 ### 7.2 The three tiers + pricing
 
@@ -745,8 +795,9 @@ For an active IPL pick, Scout surfaces three tiers in order: similar
   curve (a shared `estValue`, tier-discounted so SMAT/BBL is comparable
   to IPL),
 - the **saving** vs the picked player (budget swap),
-- an uncapped-**gem** flag for SMAT prospects with high standing on
-  below-median exposure (the moneyball signal),
+- an uncapped-**gem** flag: z ≥ 0.6 on at most the median SMAT
+  exposure (balls), i.e. high standing on a small sample (the moneyball
+  signal),
 - **role / batting-slot** filters to narrow or re-target a tier,
 - a one-click **Draft** that drops the prospect into the Auction room
   as a retention (`/auction?draft=<id>`).
@@ -759,9 +810,13 @@ web, Streamlit, and the TUI **Scout** tab.
 
 Separately from the cross-competition look-alikes, every Player Profile
 shows **cosine style-twins** — feature-space nearest neighbours over
-the metric + rating vector (`scout/search/`). These are purely
-descriptive ("who has a similar shot/skill profile") and have never
-relied on a graph.
+the metric + rating vector (`scout/search/`): 13 axes for batters (12
+metric axes + Bayes scoring skill), 3 for bowlers (pressure conversion,
+pressure volume, Bayes economy skill). These are purely descriptive
+("who has a similar shot/skill profile"). The profile also shows a
+**co-faced cohort** (`scout/cohort.py`): batters who faced the most of
+the same bowlers, or bowlers who bowled to the most of the same batters,
+computed in plain DuckDB SQL (it replaced the old graph traversal).
 
 ---
 
@@ -783,16 +838,21 @@ The pool has skill but no cost, so step zero invents a fair price from
 skill, calibrated to recent real auctions:
 
 ```
-value = clamp(1.6 · e^(5.8 · skill) · roleMult, 0.3, 27)
+projected = clamp(1.1 · e^(0.95 · value) · roleMult, 0.3, 27)
 ```
 
-The `5.8` stretches the curve so the spread matches recent money (top
-names ~27 cr, the 2025 ceiling; median ~3–4 cr); `roleMult` weights up
-scarcer all-rounders / keepers. A **recency decay** then subtracts a
-penalty scaled by months since the player's last match (capped at
-−0.30) so dormant/retired names don't top the buys. The opening **base
-price** snaps to the real IPL bands (0.3 / 0.5 / 0.75 / 1.0 / 1.5 / 2.0
-cr).
+`value` is the Bayes complete value in population-sd units (§5.7). The
+`0.95` stretches the curve so the spread matches recent money (top
+names in the 20s of crore, 27 cr — the 2025 ceiling — as the cap; the
+typical pool player well under 1 cr); `roleMult` weights up scarcer
+all-rounders (×1.15) and keepers (×1.05). Before pricing, the export
+applies an **IPL-relevance** discount: up to 2.7 value units come off a
+player who hasn't featured in the IPL lately (weight ≈ 1 for a current
+IPL regular, fading with years since his last IPL game and age past 32;
+0.7 for a never-IPL uncapped Indian), so league-only veterans don't top
+the buys. The opening **base price** snaps to the real IPL bands (0.3 /
+0.5 / 0.75 / 1.0 / 1.5 / 2.0 cr) by projected price (<2, <4, <7, <11,
+<16, else).
 
 ### 8.2 The cross-collection pool
 
@@ -803,34 +863,43 @@ The pool is the active T20 world, not just past IPL squads:
   uncapped Indians via SMAT.
 
 Guardrails: active only (last ~3 yrs), ≥150 balls of evidence,
-associate/non-IPL-nation noise excluded, and a **tier penalty** applied
-to cross-tier skill before pricing (BBL −0.07, SA20 −0.07, CPL −0.10,
-T20 Blast −0.10, SMAT −0.20; IPL 0).
+associate/non-IPL-nation free agents excluded, the top 600 by value,
+and a **tier penalty** applied to cross-tier value before pricing (in
+value units: BBL −0.45, SA20 −0.45, CPL −0.64, T20 Blast −0.64, SMAT
+−1.28; IPL 0). A player in several leagues keeps his best penalised
+value.
 
 ### 8.3 Retentions, then bidding
 
 **Retentions** are editable per team. Mega = the real 2025 retention
-lists (~5 players), slab-priced (18 / 14 / 11 / 18 / 14 cr capped, 4 cr
-uncapped) from the 120 cr purse; Mini = teams keep most of their squad
-free and bid only a small leftover purse. Retained players leave the
+lists (~5 players), charged to the 120 cr purse at the real retention
+price where known, else the slabs (18 / 14 / 11 / 18 / 14 cr, then 4 cr);
+Mini = each team keeps its 18 most valuable players free and bids only a
+small leftover purse (30 cr by default). Retained players leave the
 pool and count toward the overseas cap (8).
 
 **Bidding** runs player-by-player over the top 200 unretained players
-by value (`AUCTION_LOTS`), stars first. Each team's max bid is
-`value × aggression × need × overseas-bias × luck × budget`, bounded by
-remaining money / squad cap / overseas cap. `budget` is the team's purse
+by value (`AUCTION_LOTS`), stars first (order nudged ±5% at random per
+trial). Each team's max bid is
+`value × aggression × need × overseas-bias × luck × budget`: `need` is
+1.5 below the personality's role minimum else 0.7, `overseas-bias` is
+overseas appetite × 1.4 for an overseas player, `luck` is ± the
+personality's risk. It's bounded by spendable money (remaining purse
+minus 0.3 cr for every other open slot), squad cap and overseas cap, and
+must reach the base price. `budget` is the team's purse
 per open slot vs the league average (square root, clamped 0.75–1.6), so
 a team sitting on a big purse bids harder instead of leaving it unspent.
 The highest max bid wins but pays just **above the second-highest**
-(second-price clearing), capped at 27 cr (the real record). A
+(`min(own max, 1.02 × second, 27)`, never below base: second-price
+clearing, capped at 27 cr, the real record). A
 **two-phase fill** runs the auction so the pool is shared fairly: round
 1 fills every team to a 20-man minimum, round 2 tops up toward the 25
 cap, and a safety pass guarantees no team is left below 20.
 
 ### 8.4 ~300 trials + post-sim search
 
-One mock auction is run ~300 times with the bid order reshuffled each
-time, then averaged: each team's typical spend / squad size / value /
+One mock auction is run ~300 times (trial `t` seeded `1000 + 7919·t`)
+with the bid order reshuffled each time, then averaged: each team's typical spend / squad size / value /
 overseas count, and for each star the **% of trials each team won him**
 ("Bumrah → MI 62%, CSK 21%"). The sim emits a per-player `outcomes`
 summary across all trials, which powers a **post-sim search** (web,
@@ -945,7 +1014,7 @@ helpers (`player_select`, `player_multiselect`, `collection_picker`,
 
 REST endpoints (records / venues / players / compare / NGI) over the
 local DuckDB + OpenAPI at `/docs`. Public surface for programmatic access. Currently no auth
-(vNext §E.2 — Cloudflare Worker + API keys table).
+(auth + rate limiting are on the [roadmap](ROADMAP.md#later) before any public deploy).
 
 ---
 
@@ -960,6 +1029,8 @@ Workflows in `.github/workflows/`:
   TypeScript type-check of `site/`, on every push / PR to main.
 - `deploy.yml` — builds the static `site/` and publishes it to
   GitHub Pages on pushes touching `site/**`.
+- `docker.yml` — builds the Docker image (nothing is pushed) when
+  anything that goes into it changes, to prove it still builds.
 - `refresh-data.yml` — manual ("Run workflow"): re-download all 8
   collections, recompute metrics + ratings, re-cook the snapshot, run
   the LLM taxonomy only if the `LLM_MODEL` secret is set, commit, then
@@ -981,59 +1052,15 @@ DuckDB, metrics and Bayes JSONs can always be rebuilt from Cricsheet
 
 ---
 
-## 12. vNext / TODO
+## 12. Roadmap
 
-Items intentionally left out of v0.1.0. Grouped by what unblocks
-them; see `docs/VNEXT.md` for the full table and
-`docs/DEFERRED.md` for the per-item fix paths.
-
-**Scope note:** CricDex is deliberately **Cricsheet-only**. Live
-feeds, scrapes, and other non-Cricsheet sources (Reddit sentiment,
-Cricbuzz live, ESPNcricinfo scrape, BCCI Ranji/Hazare, WPL/SA20 PC
-PDFs) and the LLM-convenience features they fed (commentary translate,
-match reports, newsletter digest) were **removed**, not deferred —
-they're out of scope.
-
-### Group A — grassroots + identity (year 2)
-
-- **CricHeroes grassroots tier** — amateur ball-by-ball, if a
-  partner API or Cricsheet-compatible export becomes available.
-- **Photo-CLIP identity disambiguation** (depends on CricHeroes).
-- **Replacement Delta** metric — `NGI − NGI(replacement-level
-  domestic player)`. Cricket WAR. Needs a domestic-tier baseline.
-
-### Group B — auction-v2 (GPU compute)
-
-- **Multi-agent PettingZoo self-play** — every franchise slot trains
-  its own policy concurrently (the shipped room uses fixed bidding
-  archetypes, not learned policies).
-- **Bid-history-mined personality YAMLs** — replace the hand-
-  authored archetypes with personalities extracted from real IPL
-  auction bid logs.
-
-### Group C — year-2 advanced (CV)
-
-- **OpenBoundary Hawk-Eye OSS** — ball tracking + pitch map + speed
-  from broadcast video.
-- **ChuckCheck** — elbow flex from monocular pose (15° legality test).
-- **ScoutVLM** — broadcast → ball-by-ball via a Vision Language Model.
-- **Highlight CV** — auto-clip key moments from broadcast.
-
-### Group D — API + infra
-
-- **GraphQL** layer (Strawberry on top of existing FastAPI).
-- **Auth + rate-limit** — Cloudflare Worker + API keys table.
-  Mandatory before any public deploy.
-- **Public API / dashboard hosting** — the web app is already live on
-  GitHub Pages; the FastAPI app and Streamlit dashboard are local-only.
-
-### Group F — maintenance cadence
-
-Rolling work the v1 release surfaces but doesn't automate:
-- People Register monthly refresh.
-- Cricsheet ETL on new-match drops.
-- Metrics + records JSON refresh after Cricsheet updates.
-- WP / Bayes refits when underlying data shifts materially.
+What's shipped, next, later and out of scope lives in one place:
+[`ROADMAP.md`](ROADMAP.md). In short: CricDex is deliberately
+**Cricsheet-only** (scrapes, live feeds and the LLM-written features
+built on them were removed, not deferred); near-term work is fielder
+credit in NGI, venue / phase effects in the ratings and women's
+collections; grassroots data,
+auction self-play and the video / voice modules are year-2.
 
 ---
 
@@ -1085,6 +1112,9 @@ Bayes fit. No magic, no proprietary feeds, no opaque "impact score".
 
 ---
 
-End of guide. Open `docs/METRICS.md`, `docs/SCOUT.md`,
-`docs/DECISIONS.md`, and `docs/ARCHITECTURE.md` for narrower
-deep-dives on specific subsystems.
+End of guide. Open [`METHODOLOGY.md`](METHODOLOGY.md) for the
+plain-English version with the backtest results, and
+[`METRICS.md`](METRICS.md), [`SCOUT.md`](SCOUT.md),
+[`AUCTION_MATH.md`](AUCTION_MATH.md), [`DECISIONS.md`](DECISIONS.md) and
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for narrower deep-dives on specific
+subsystems.

@@ -24,7 +24,7 @@ from pathlib import Path
 
 import duckdb
 
-from cricdex.common.sql import table_suffix
+from cricdex.common.sql import MAIN_INNINGS, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -40,9 +40,9 @@ def ball_volumes(
         f"""
         SELECT player, SUM(faced) AS bf, SUM(bowled) AS bb FROM (
             SELECT batter AS player, 1 AS faced, 0 AS bowled FROM balls_{safe}
-            WHERE batter IS NOT NULL AND extras_type IS DISTINCT FROM 'wides'
+            WHERE batter IS NOT NULL AND extras_type IS DISTINCT FROM 'wides' AND {MAIN_INNINGS}
             UNION ALL
-            SELECT bowler AS player, 0, 1 FROM balls_{safe} WHERE bowler IS NOT NULL
+            SELECT bowler AS player, 0, 1 FROM balls_{safe} WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
         ) GROUP BY player
         """
     ).fetchall()
@@ -81,9 +81,9 @@ def co_faced(
                 FROM balls_{safe}
                 WHERE batter IN (
                         SELECT DISTINCT batter FROM balls_{safe}
-                        WHERE bowler = ? AND batter IS NOT NULL
+                        WHERE bowler = ? AND batter IS NOT NULL AND {MAIN_INNINGS}
                       )
-                  AND bowler IS NOT NULL AND bowler <> ?
+                  AND bowler IS NOT NULL AND bowler <> ? AND {MAIN_INNINGS}
                 GROUP BY bowler ORDER BY shared DESC LIMIT 300
                 """,
                 [name, name],
@@ -97,9 +97,9 @@ def co_faced(
                 FROM balls_{safe}
                 WHERE bowler IN (
                         SELECT DISTINCT bowler FROM balls_{safe}
-                        WHERE batter = ? AND bowler IS NOT NULL
+                        WHERE batter = ? AND bowler IS NOT NULL AND {MAIN_INNINGS}
                       )
-                  AND batter IS NOT NULL AND batter <> ?
+                  AND batter IS NOT NULL AND batter <> ? AND {MAIN_INNINGS}
                 GROUP BY batter ORDER BY shared DESC LIMIT 300
                 """,
                 [name, name],

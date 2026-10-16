@@ -1,6 +1,9 @@
 # scout/ratings
 
-Bayesian opponent-adjusted skill ratings.
+Bayesian opponent-adjusted skill ratings. The plain-English walkthrough, with a
+worked example and the backtest results, is
+[METHODOLOGY.md §4](../../../../docs/METHODOLOGY.md#4-bayesian-skill-ratings) and
+[§8](../../../../docs/METHODOLOGY.md#8-does-it-predict-the-backtest).
 
 ## Model
 
@@ -125,4 +128,4 @@ overall −0.05 [−0.23, +0.13], 28%. Only the survival edge is solid.
 - Add venue + phase fixed effects.
 - Use the resulting opponent strengths as the bridge that lifts
   grassroots (CricHeroes) ratings — this is the Opposition-Adjusted
-  Rating (OAR) referenced in `docs/METRICS.md`.
+  Rating (OAR) described in [`docs/SCOUT.md`](../../../../docs/SCOUT.md).

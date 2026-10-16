@@ -69,7 +69,7 @@ def fastest_fifty(
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             ) AS running_balls
         FROM balls_{safe}
-        WHERE batter IS NOT NULL
+        WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     ),
     fifty AS (
         SELECT batter, match_id, match_date, venue,
@@ -106,7 +106,7 @@ def fastest_hundred(
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             ) AS running_balls
         FROM balls_{safe}
-        WHERE batter IS NOT NULL
+        WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     )
     SELECT batter, match_id, match_date, venue,
            MIN(running_balls) AS balls_to_hundred

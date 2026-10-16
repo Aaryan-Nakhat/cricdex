@@ -19,4 +19,6 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=2000]
+        # the README's hero video (GIF + MP4) is the one intended large asset
+        exclude: ^docs/media/hero\.(gif|mp4)$
       - id: detect-private-key
