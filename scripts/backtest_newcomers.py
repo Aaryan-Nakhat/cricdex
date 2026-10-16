@@ -96,6 +96,7 @@ def run(
     max_ipl_prior: int = typer.Option(60, "--max-ipl-prior", help="'new' = fewer prior IPL balls"),
     advi_steps: int = typer.Option(12000, "--advi-steps"),
     seed: int = typer.Option(42, "--seed"),
+    boot: int = typer.Option(2000, "--boot", help="bootstrap resamples for the model-vs-raw gap"),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
     first, last = (int(x) for x in seasons.split("-"))
@@ -146,19 +147,42 @@ def run(
         p = pooled[role]
         n = len(p["rows"])
         res: dict = {"n": n}
+        rng = np.random.default_rng(seed)
+        boots = [rng.integers(0, n, n) for _ in range(boot)] if n >= 10 else []
         for a in AXES:
             act = np.asarray(p[f"act_{a}"])
+            mod, raw = np.asarray(p[f"model_{a}"]), np.asarray(p[f"raw_{a}"])
             res[a] = {
-                "model": _spearman(np.asarray(p[f"model_{a}"]), act) if n >= 10 else None,
-                "raw": _spearman(np.asarray(p[f"raw_{a}"]), act) if n >= 10 else None,
+                "model": _spearman(mod, act) if n >= 10 else None,
+                "raw": _spearman(raw, act) if n >= 10 else None,
             }
+            if boots:
+                # resample players with replacement: how sure is the model - raw gap?
+                diffs = np.array(
+                    [_spearman(mod[i], act[i]) - _spearman(raw[i], act[i]) for i in boots]
+                )
+                lo, hi = np.percentile(diffs, [2.5, 97.5])
+                res[a]["gap_ci95"] = [float(lo), float(hi)]
+                res[a]["p_model_better"] = float((diffs > 0).mean())
+        res["players"] = [
+            {**row, **{k: float(v[i]) for k, v in p.items() if k != "rows"}}
+            for i, row in enumerate(p["rows"])
+        ]
         result[role] = res
-        cells = "  ".join(
-            f"{LABEL[a]} {res[a]['model']:+.2f} | {res[a]['raw']:+.2f}"
-            for a in AXES
-            if res[a]["model"] is not None
-        )
-        typer.echo(f"{role}s  n={n:>3}  {cells}")
+        typer.echo(f"\n{role}s  n={n}")
+        for a in AXES:
+            if res[a]["model"] is None:
+                continue
+            ci = res[a].get("gap_ci95")
+            extra = (
+                f"  gap {res[a]['model'] - res[a]['raw']:+.2f}, 95% range [{ci[0]:+.2f}, {ci[1]:+.2f}],"
+                f" model better in {res[a]['p_model_better']:.0%} of resamples"
+                if ci
+                else ""
+            )
+            typer.echo(
+                f"  {LABEL[a]:>15}: model {res[a]['model']:+.2f} | raw {res[a]['raw']:+.2f}{extra}"
+            )
     out_path = out_json or (DATA_DIR / "metrics" / "newcomer_backtest_ipl.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2))

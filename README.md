@@ -80,8 +80,10 @@ matches only, then its player ranking is compared with the season
 So: for players the IPL already knows, the ratings match career
 averages (one T20 season is mostly noise; weighting recent seasons
 didn't help). Their edge is judging **newcomer batters** from weaker or
-different leagues; for newcomer bowlers there is none. ~100 players per
-group, so treat the gaps as suggestive. Re-run with
+different leagues; for newcomer bowlers there is none. Bootstrapping the
+~100 newcomers (2,000 resamples): the batter staying-in edge (0.34 vs
+0.22) holds in 97% of resamples; the batter overall edge in 79%, so a
+lean, not proof. Re-run with
 `scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`.
 
 Deferred to year 2: OpenBoundary (Hawk-Eye OSS), ChuckCheck (elbow flex

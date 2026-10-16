@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Sigma, Network, Gavel, Database, Target } from "lucide-react";
+import { BookOpen, Brain, Sigma, Network, Gavel, Database, Target, Activity } from "lucide-react";
 import { PageTitle, Card } from "@/components/ui";
 
 interface Section {
@@ -18,7 +18,24 @@ const SECTIONS: Section[] = [
         not generated — the one AI step only tags each player's role, bowling type and country (marked
         “AI-classified” in the filters). A Python pipeline computes the ratings and metrics offline; this
         site just displays the result. The “data up to” date in the header is the most recent match
-        actually in the dataset, refreshed on demand.
+        actually in the dataset, refreshed on demand. Grounds that were renamed or spelled differently
+        over the years (Feroz Shah Kotla → Arun Jaitley Stadium, Sardar Patel → Narendra Modi Stadium)
+        are merged into one venue under its current name; the old names still work in search.
+      </>
+    ),
+  },
+  {
+    icon: <Activity className="h-5 w-5" />,
+    title: "Net Game Impact (NGI)",
+    body: (
+      <>
+        The flagship number: how much a player moves their team's <strong>chance of winning</strong>.
+        A win-probability model (gradient-boosted trees, calibrated) reads the match state before every
+        ball — score, wickets and balls left, target and required rate, run rate against the ground's
+        average — and the change in win chance after the ball is that ball's value: plus to the batter,
+        minus to the bowler. Summed per match, a 30* that wins a tight chase counts for more than a
+        hundred in a lost cause. The model is trained on one set of matches and checked on others it
+        never saw, and the all-time board needs at least 25 matches. Fielders aren't credited yet.
       </>
     ),
   },
@@ -40,7 +57,7 @@ const SECTIONS: Section[] = [
   },
   {
     icon: <Sigma className="h-5 w-5" />,
-    title: "Ten novel metrics + fielding",
+    title: "Nine more metrics + fielding",
     body: (
       <>
         Each metric isolates one skill that a scorecard hides — strike rate <em>specifically</em> when the
@@ -84,7 +101,10 @@ const SECTIONS: Section[] = [
         franchise first <strong>retains</strong> its core (Mega = the real 2025 lists, ~5; Mini = keep
         most of the squad — both editable), then the ten teams bid for the rest by their own
         personality (marquee-chaser, value-hunter, overseas-heavy…), hundreds of times, filling 20–25-man
-        squads under the purse + overseas cap. You see who likely lands each remaining star. Runs
+        squads under the purse + overseas cap. A team with more money left per open slot than the rest
+        bids harder (so a side that retained little actually spends its purse), and the winner pays just
+        above the second-highest bid, never more than <strong>27 cr</strong> — the real record. You see
+        who likely lands each remaining star. Runs
         entirely in your browser — and identically on the CLI, TUI and Streamlit from the same inputs
         (one shared implementation with a seeded RNG, locked by a parity test).
       </>
@@ -104,8 +124,10 @@ const SECTIONS: Section[] = [
         <strong>IPL newcomers</strong> (2014–26, rated only from the BBL, SA20, CPL, Blast and SMAT):
         here the opponent- and league-adjusted ratings ranked <em>batters</em> better than their raw
         numbers from those leagues on every measure (overall 0.18 vs 0.12, staying in 0.34 vs 0.22); for{" "}
-        <em>bowlers</em> there was no clear edge (overall 0.20 vs 0.25). With ~100 players per group these
-        gaps are suggestive, not proven. Both backtests are scripts in the repo, so you can re-run them.
+        <em>bowlers</em> there was no clear edge (overall 0.20 vs 0.25). How sure is that? Re-drawing the
+        ~100 newcomers 2,000 times, the model judged how long a newcomer batter lasts better in 97% of
+        redraws — the one solid result; its batter overall edge held in 79%, a lean rather than proof.
+        Both backtests are scripts in the repo, so you can re-run them.
       </>
     ),
   },

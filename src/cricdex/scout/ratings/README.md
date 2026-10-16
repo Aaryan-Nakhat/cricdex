@@ -106,7 +106,10 @@ ratings match raw career averages season-ahead (overall ~0.15 batters,
 of 1 / 2 / 4 years didn't help, so recency weighting stays off. For IPL
 newcomers rated from other leagues, batters: model 0.18 vs raw 0.12
 overall (0.20 vs 0.14 scoring, 0.34 vs 0.22 survival, n=96); bowlers:
-model 0.20 vs raw 0.25 overall (n=110). Suggestive, not significant.
+model 0.20 vs raw 0.25 overall (n=110). Bootstrap (2,000 resamples of
+players, `--boot`): batter survival gap +0.12, 95% range [−0.00, +0.26],
+model better in 97%; batter overall +0.06 [−0.07, +0.21], 79%; bowler
+overall −0.05 [−0.23, +0.13], 28%. Only the survival edge is solid.
 
 ## Caveats
 
