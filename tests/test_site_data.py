@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from cricdex import leagues
 from cricdex.config import SITE_DATA
 
 COLLECTIONS = [
@@ -43,17 +44,28 @@ def _load(*parts):
     return json.loads(SITE_DATA.joinpath(*parts).read_text(encoding="utf-8"))
 
 
-def test_all_eight_leagues_are_exported():
-    assert set(COLLECTIONS) == {
-        "ipl",
-        "bbl",
-        "t20s_male",
-        "indian_domestic_male",
-        "recently_played_30_male",
-        "sa20",
-        "cpl",
-        "blast",
-    }
+def _registry_snapshot() -> dict:
+    """The exported leagues.json — absent in a snapshot cooked before the league registry existed,
+    so the registry checks wait for the first full re-export instead of failing on old data."""
+    f = SITE_DATA / "leagues.json"
+    if not f.exists():
+        pytest.skip("site data predates leagues.json — re-run scripts/export_site.py")
+    return json.loads(f.read_text(encoding="utf-8"))
+
+
+def test_every_registry_league_is_exported():
+    _registry_snapshot()
+    assert COLLECTIONS == leagues.exported_keys()  # the same set, in registry order
+
+
+def test_site_leagues_json_matches_the_registry():
+    assert _registry_snapshot() == json.loads(json.dumps(leagues.site_payload()))
+
+
+def test_scout_index_has_every_registry_pool():
+    _registry_snapshot()
+    idx = _load(leagues.auction_target().key, "scout_index.json")
+    assert list(idx) == [lg.tier for lg in leagues.scout_pools()]
 
 
 @pytest.mark.parametrize("col", COLLECTIONS)

@@ -13,7 +13,7 @@ uv sync --extra ui      # CLI + TUI are in the base install; `ui` adds the Strea
 uv run cricdex --help
 ```
 
-The repo already ships the exported data for all 8 collections (`site/public/data/`), so
+The repo already ships the exported data for every exported league (`site/public/data/`; the list is `config/leagues.toml`), so
 `leaderboard`, `matchups`, `phase`, `form`, `partnerships`, `aging`, `scout`, `auction`, the TUI's
 read-only tabs and the dashboard work straight after the clone. The CLI `profile`, `compare`,
 `records` and `venues` commands and the REST API query the local DuckDB (`data/`), and the

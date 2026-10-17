@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import math
 
+from cricdex import leagues
+
 Role = str  # "batter" | "bowler" | "all_rounder" | "keeper"
-PriceTier = str  # "ipl" | "smat" | "bbl"
+PriceTier = str  # a tier key from config/leagues.toml: "ipl" | "smat" | "bbl" | …
 
 # All-rounders / keepers carry a small scarcity premium.
 ROLE_MULT: dict[str, float] = {
@@ -31,16 +33,10 @@ PRICE_TIERS = [0.3, 0.5, 0.75, 1.0, 1.5, 2.0]
 
 # Cross-tier value discount — runs in a weaker comp aren't worth IPL crore.
 # Mirrors the export-time penalty so Scout's est. prices agree with the pool.
-# In value units (population sds): the old log-scale penalties × 6.4, the
-# measured sd ratio of the new IPL values to the old ones.
-TIER_PENALTY: dict[str, float] = {
-    "ipl": 0.0,
-    "smat": 1.28,
-    "bbl": 0.45,
-    "sa20": 0.45,
-    "cpl": 0.64,
-    "blast": 0.64,
-}
+# In value units (population sds). The values live in the league registry
+# (`[tiers.*]` in config/leagues.toml); the web reads the same numbers from the
+# exported `leagues.json`, so Python and TS can't disagree.
+TIER_PENALTY: dict[str, float] = leagues.tier_discounts()
 
 
 def price_tier(pv: float) -> float:

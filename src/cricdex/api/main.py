@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from cricdex import __version__
+from cricdex import __version__, leagues
 from cricdex.comparator import compare as comparator
 from cricdex.config import DATA_DIR
 from cricdex.profiles import builder as profiles
@@ -39,6 +39,26 @@ app = FastAPI(
 def _bad_input(_request: Request, exc: ValueError) -> JSONResponse:
     """An unknown / malformed collection name (rejected by `common.sql.table_suffix`) is the caller's mistake."""
     return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.middleware("http")
+async def _known_collection(request: Request, call_next):
+    """A `?collection=` the league registry doesn't know is a 400 naming the valid keys — checked
+    before any handler runs, so no endpoint can query a table the registry doesn't list. A time
+    window of a known league (`ipl_last1y`) is accepted."""
+    collection = request.query_params.get("collection")
+    if collection is not None:
+        try:
+            leagues.validate_collection(collection)
+        except ValueError as e:
+            return JSONResponse(status_code=400, content={"detail": str(e)})
+    return await call_next(request)
+
+
+@app.get("/v1/leagues")
+def list_leagues() -> dict[str, Any]:
+    """The league registry (config/leagues.toml): keys, names, tiers, discounts and pools."""
+    return leagues.site_payload()
 
 
 @app.get("/health")
@@ -167,6 +187,7 @@ class CompareReq(BaseModel):
 def compare_players(req: CompareReq) -> list[dict]:
     if len(req.players) < 2:
         raise HTTPException(status_code=422, detail="need ≥2 players to compare")
+    leagues.validate_collection(req.collection)  # unknown → 400 (ValueError handler)
     _require_players(req.players, req.collection)
     return comparator.compare(req.players, collection=req.collection).to_dicts()
 

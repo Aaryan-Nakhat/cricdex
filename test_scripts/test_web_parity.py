@@ -10,12 +10,15 @@ not fail) if Node or the exported JSON is unavailable.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
 
+from cricdex import leagues
 from cricdex.web_parity import (
     IPL_TEAMS_DEFAULT,
     build_pool,
@@ -40,12 +43,17 @@ def _node_dump() -> dict:
         pytest.skip("node not on PATH")
     if not (SITE / "public" / "data" / "ipl" / "auction_pool.json").exists():
         pytest.skip("exported JSON missing — run scripts/export_site.py")
-    r = subprocess.run(
-        ["node", "--no-warnings", "--experimental-strip-types", "scripts/parity_dump.ts"],
-        cwd=SITE,
-        capture_output=True,
-        text=True,
-    )
+    # Both sides price from the same registry: hand the TS the Python payload of config/leagues.toml.
+    with tempfile.TemporaryDirectory() as tmp:
+        reg = Path(tmp) / "leagues.json"
+        reg.write_text(json.dumps(leagues.site_payload()), encoding="utf-8")
+        r = subprocess.run(
+            ["node", "--no-warnings", "--experimental-strip-types", "scripts/parity_dump.ts"],
+            cwd=SITE,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "CRICDEX_LEAGUES_JSON": str(reg)},
+        )
     if r.returncode != 0:
         pytest.skip(f"node strip-types unavailable / TS failed:\n{r.stderr[-500:]}")
     return json.loads(r.stdout)
@@ -146,7 +154,11 @@ def test_web_parity():
     scout = load_scout_index("ipl")
     sel = sorted(scout["ipl"], key=lambda p: p["cricsheet_id"])[0]
     assert sel["cricsheet_id"] == js["scoutPick"]
-    for tier in ("ipl", "smat", "bbl", "sa20", "cpl", "blast"):
+    # every Scout pool in the registry that the export has, in registry order
+    tiers = [lg.tier for lg in leagues.scout_pools() if lg.tier in scout]
+    assert tiers == js["scoutTiers"]
+    assert len(tiers) >= 2, "the export has fewer than two Scout pools"
+    for tier in tiers:
         rows = similar_to(sel, scout[tier], sel["role"], "")
         py = [
             {
@@ -159,6 +171,8 @@ def test_web_parity():
         _approx_eq(py, js["scout"][tier], f"scout.{tier}")
 
     # 4) uncapped-gem cutoff + flags (lib/scout.ts gemThreshold / isGem)
-    med = gem_threshold(scout["smat"])
+    gem_lg = leagues.gem_pool()
+    gem_pool = scout.get(gem_lg.tier, []) if gem_lg else []
+    med = gem_threshold(gem_pool)
     assert med == js["gemMedian"]
-    assert [p["cricsheet_id"] for p in scout["smat"] if is_gem(p, med)] == js["gems"]
+    assert [p["cricsheet_id"] for p in gem_pool if is_gem(p, med)] == js["gems"]

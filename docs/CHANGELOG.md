@@ -17,6 +17,67 @@ parity test. As part of that consolidation, three legacy subsystems were
 at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 **MILP auction solver + war-room advisor + GRPO RL**.
 
+### League registry and complete Cricsheet ingest
+
+- **One league registry** — `config/leagues.toml` (read with the standard-library `tomllib` by the new
+  `cricdex.leagues`, validated on load; `python -m cricdex.leagues check | list | json`) is the only list of
+  competitions: key, name, Cricsheet zip(s), gender, kind, region, strength tier and discount (with a
+  `calibrated` flag), export, Scout pool (draftable, gem pool), auction pool, and the auction target's
+  nationality allow/deny lists (Pakistan excluded as data). It replaces six disagreeing hard-coded lists:
+  the ingester's collection map and 38 state-team zips, the exporter's default and auction-pool lists and
+  tier tables, the newcomer backtest's leagues, `TIER_PENALTY` in Python and TypeScript, the web's labels,
+  Scout tiers and `ScoutIndex` type, the parity harness, the TUI / CLI / Streamlit Scout tiers and
+  collection pickers, the refresh workflow's default list and SMAT special case, `data_cmd.py`, the
+  Makefile and the Update Data page (now a select). Adding a league is one entry: `docs/LEAGUES.md`.
+- **Eight more men's leagues exported** — PSL, ILT20, The Hundred, MLC, BPL, LPL, Super Smash and CSA T20
+  Challenge join the original eight (sixteen exported in all). New leagues borrow a strength discount by
+  analogy (PSL / ILT20 / Hundred 0.45 like BBL / SA20; MLC / BPL / LPL / Super Smash / CSA T20 0.64 like
+  CPL / Blast), marked `calibrated = false`. Women's leagues, Tests and ODIs are in the registry with
+  `export = false`.
+- **`leagues.json`** — the exporter writes the registry to `site/public/data/leagues.json`; the web app
+  reads labels, Scout panels, price discounts and pool membership from it (`site/src/lib/leagues.ts`), and
+  `web_parity/pricing.py` reads the same registry, so the parity test now iterates the registry's tiers.
+  `collections.json` follows registry order. `GET /v1/leagues` serves it from the API.
+- **API**: an unknown `?collection=` is a 400 listing the valid keys (time windows of known leagues pass).
+- **`make refresh-all`** — every exported league: ingest all → people register → ratings for all →
+  metrics for all → one export. `scripts/ingest_cricsheet.py all | list`.
+- **Time windows** (`_last1y`, `_last3y`) defined once, in `common/sql.py`.
+
+#### Fixed
+
+- **Dead Cricsheet download names** — ILT20, The Hundred (men, women) and WBBL were never ingested
+  (`ilt20_male`, `hundred_male`, `hundred_female`, `wbbl_female` 404); now `ilt_male`, `hnd_male`,
+  `hnd_female`, `wbb_female`. MLC was listed but never pulled; now exported. An opt-in network test
+  (`CRICDEX_NET_TESTS=1`) HEADs every registry zip.
+- **SMAT from Cricsheet's one `sma_json.zip`** (695 matches) instead of 38 state-team zips (689 — the
+  six missing matches were between Himachal, Jammu & Kashmir and Punjab, sides no state-team zip covered).
+  The collection key stays `indian_domestic_male`; `ingest_cricsheet.py indian-domestic` is a deprecated
+  alias.
+- **Rain-reduced chases** — the chase in NGI's win-probability state and in Pressure Runs now uses the
+  target Cricsheet records (`innings_<col>.target_runs`, `target_overs` × balls per over), so DLS chases
+  are scored against the revised target and shortened overs. A database ingested before the
+  `innings_<col>` table existed falls back to first-innings total + 1. METHODOLOGY no longer says
+  Cricsheet doesn't flag D/L.
+- **NGI's state table has a fixed row order**, so the fitted win-probability model is reproducible run to
+  run (its calibration error had wobbled across the test threshold).
+
+#### Changed
+
+- **Complete Cricsheet parser** (`SCHEMA_VERSION = 2`, stored per match and in a new `ingest_meta` table;
+  every optional key may be missing). `matches_<col>` gains gender, team type, season, event match number /
+  stage / group, balls per over, outcome method (e.g. "D/L"), eliminator, bowl-out, by-innings, player of
+  the match, officials, supersubs, missing-data notes, data version, revision. New `innings_<col>`
+  (target runs / overs / balls, declared, forfeited, super over, penalty runs pre / post, absent hurt,
+  miscounted overs, powerplays). `balls_<col>` gains one column per extras type, non-boundary, the number
+  of wickets on the ball and the DRS review (by, umpire, batter, decision, type, umpire's call);
+  `extras_type` stays the first extras key. `wickets_<col>` gains the wicket's position on the ball and
+  substitute flags aligned with the fielders. New `replacements_<col>` (Impact Player, concussion and
+  injury replacements) and `match_players_<col>` (each team's listed players with Cricsheet ids). Existing
+  columns keep their names and meaning.
+- **Draftable Scout pools** only list players the auction target's nationality rule admits.
+- `scripts/backtest_newcomers.py` rates newcomers from every non-IPL auction-pool league by default;
+  `--leagues bbl,sa20,cpl,blast,indian_domestic_male` repeats the published run.
+
 ### Docs
 
 - **`docs/METHODOLOGY.md`** — one plain-English explanation of every model (data and identity, NGI, the

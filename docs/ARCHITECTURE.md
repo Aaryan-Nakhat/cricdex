@@ -16,6 +16,9 @@ surfaces just *read* it. The dashed line is the git boundary.
   ball-by-ball   ─────► cricsheet.duckdb      ─┬───► scout_ratings_<col>.json   ──┐     export_site.py    ─────► <col>/
   (per league)          • balls_<col>          │     (NumPyro/JAX Bayes: 4         │    flattens DuckDB +       • meta.json
  Cricsheet People       • matches_<col>        │      latent skills/player)        ├──► metrics + ratings +     • players.json
+  config/leagues.toml   • innings_<col>        │                                   │
+  (which leagues, zips, • wickets_ · players_  │                                   │
+   tiers, pools)        • replacements_ · match_players_ · ingest_meta             │
   Register              • balls_<col>_last1y   │     <metric>_<col>[_win].json  ───┤    curated, builds         • ratings.json
   (ids + 7.5k           •        _last3y       │     (12 boards ×8 col ×3 win,     │   windowed boards +        • leaderboards/<slug>[.win].json
    name variations)     • people / people_names│      compute_metrics.py)          │   cohorts (SQL)            • profiles/<cid>.json
@@ -23,7 +26,7 @@ surfaces just *read* it. The dashed line is the git boundary.
                                                │     • player_taxonomy.json (LLM)                             • records.json · venues.json
                                                └───► • wikidata_enrichment.json                                  • auction_pool · retentions
                                                      • bowling_styles.json                                       • scout_index.json · matchups/<cid>.json · phase.json · activity_index.json · partnerships.json · aging.json
-                                                                                                          (+ root collections.json)
+                                                                                                          (+ root collections.json, leagues.json)
         each step = `cricdex data ingest <cricsheet|ratings|metrics|wikidata>`              ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ git: this snapshot (+ data/curated player facts) is committed
                                                                                                                           │
                                                               ┌───────────────────────────────────────────────────────────┤  read-only views read the SAME JSON (see Fresh checkout)
@@ -52,10 +55,35 @@ surfaces just *read* it. The dashed line is the git boundary.
   The curated player facts (`data/curated/player_taxonomy.json`,
   `wikidata_enrichment.json`) are committed.
 
+## The league registry
+
+Every competition CricDex knows is one entry in
+[`config/leagues.toml`](../config/leagues.toml), read through
+`cricdex.leagues` (standard-library `tomllib`, validated on load): its key
+(the `<col>` of every table and folder), display name, Cricsheet zip(s),
+gender, kind, region, strength tier and discount (and whether that discount
+is fitted or borrowed), whether it is exported, whether it is a Scout pool
+(draftable, gem pool) or feeds the auction pool, and the auction target's
+nationality allow/deny lists. Ingest, the exporter, pricing
+(`web_parity/pricing.py`), the API's collection check (an unknown
+collection is a 400 listing the valid keys), the CLI/TUI/Streamlit pickers,
+the Makefile and the refresh workflow all read it; the exporter writes it to
+`site/public/data/leagues.json` and the web app reads labels, Scout pools,
+discounts and pool membership from there (`site/src/lib/leagues.ts`). The
+time-window suffixes (`_last1y`, `_last3y`) are defined once, in
+`common/sql.py`. Adding a league: [LEAGUES.md](LEAGUES.md).
+
 ## Layers
 
 1. **Ingest** — Cricsheet ball-by-ball (per collection) + the Cricsheet
-   People Register for identities. One-time Wikidata enrichment (dob /
+   People Register for identities. The parser
+   (`scout/ingest/cricsheet.py`, `SCHEMA_VERSION` stored per match and in
+   `ingest_meta`) reads every field of the Cricsheet JSON format into
+   `matches_`, `innings_` (targets, powerplays, penalty runs …), `balls_`
+   (every extras type, DRS review, non-boundary), `wickets_` (every wicket,
+   substitute fielders), `replacements_` (Impact Player and others),
+   `match_players_` (playing XIs) and `players_` (match registries); a
+   missing key is NULL, never an error. One-time Wikidata enrichment (dob /
    photo / socials) and an LLM-built player taxonomy (role / seam-spin /
    batting slot / country, shown as "AI-classified") are cached on disk.
 2. **Identity** — one canonical `cricsheet_id` per player: scorecard names
@@ -89,13 +117,15 @@ surfaces just *read* it. The dashed line is the git boundary.
 
 - Cricsheet ingest + metrics + Bayes ratings + scout/auction snapshot +
   static-site re-cook → on demand via GitHub Actions (`refresh-data.yml`,
-  manual "Run workflow"): re-downloads all 8 collections with `--force`,
+  manual "Run workflow"): re-downloads every exported league in the registry
+  (`python -m cricdex.leagues list --exported`) with `--force`,
   recomputes, re-cooks, runs the LLM taxonomy for new players only if the
   `LLM_MODEL` secret is set, commits the snapshot, then calls `deploy.yml`
   (`workflow_call`) to redeploy Pages. This is the only "refresh to the
   latest match date" path for the live site (browsers can't run JAX /
   XGBoost); locally, `make refresh COLLECTION=<c>` does the same for one
-  collection. Manual (not cron) so the ~70 MB snapshot isn't re-committed
+  collection and `make refresh-all` for every exported league (one export at
+  the end, after every league is refit). Manual (not cron) so the ~70 MB snapshot isn't re-committed
   on a schedule.
 - People Register / Wikidata / taxonomy → one-time, refreshed on demand.
 

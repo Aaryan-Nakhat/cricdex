@@ -69,7 +69,7 @@ the Scout + Auction run the *same* logic as the site via `cricdex.web_parity`
 | **Venues** | Per-venue totals, chase vs set, phase run-rates | exported `venues.json` |
 | **Auction** | Real-rules IPL auction Monte-Carlo (retain → bid), web-identical | exported pool via `cricdex.web_parity` |
 | **Player Profile** | Everything CricDex knows about one player | exported profiles + cohorts |
-| **Scout** | Cross-competition look-alikes (IPL / SMAT / BBL / SA20 / CPL / Blast) + est. price, savings, gem flag, draft | exported scout index via `cricdex.web_parity` |
+| **Scout** | Cross-competition look-alikes (IPL, SMAT and every overseas league in the registry) + est. price, savings, gem flag, draft | exported scout index via `cricdex.web_parity` |
 | **Update Data** | Refresh a collection → re-export the JSON every page reads | local pipeline → exported JSON |
 | **Matchups** | One player vs every bowler / batter faced, plus pace vs spin | exported `matchups/` |
 | **Phase** | Best strike rates and tightest economies in the powerplay / middle / death | exported `phase.json` |
@@ -132,10 +132,10 @@ cricdex tui                                       # full Textual UI
 
 ### Available collections
 
-`-c <collection>` accepts: `ipl`, `bbl`, `t20s_male`,
-`indian_domestic_male` (SMAT), `recently_played_30_male`, `sa20`, `cpl`,
-`blast`. Ratings / metrics are fit per-collection so cross-collection
-comparisons stay honest.
+`-c <collection>` accepts any league key in `config/leagues.toml` (the league
+registry; `python -m cricdex.leagues list --exported` prints the exported ones,
+e.g. `ipl`, `indian_domestic_male` for SMAT, `bbl`, `psl`). Ratings / metrics are
+fit per-collection so cross-collection comparisons stay honest.
 
 Full reference: `docs/CLI.md` in the repo. Onboarding: `docs/FIRST_RUN.md`.
 Architecture: `docs/ARCHITECTURE.md`.

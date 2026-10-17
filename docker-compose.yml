@@ -23,6 +23,8 @@ services:
       # Mount source for dev hot-reload. Comment out for a frozen image.
       - ./src:/app/src
       - ./scripts:/app/scripts
+      # the league registry: add a league on the host, the container sees it
+      - ./config:/app/config
 
   dashboard:
     build:
@@ -41,6 +43,7 @@ services:
       - ./data:/app/data
       - ./site/public/data:/app/site/public/data
       - ./src:/app/src
+      - ./config:/app/config
     command: >
       uv run --frozen streamlit run src/cricdex/dashboard/app.py
       --server.address 0.0.0.0

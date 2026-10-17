@@ -4,7 +4,8 @@ import { Network, Users, Sprout, Plane, Gem, Gavel } from "lucide-react";
 import { usePlayers } from "@/lib/usePlayers";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
-import { getAuctionPool, getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
+import { getAuctionPool, getLeagues, getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
+import { scoutPools, type LeagueRegistry, type ScoutGroup } from "@/lib/leagues";
 import { estValue, type PriceTier, type Role } from "@/lib/auction";
 import { similarTo, isGem, gemThreshold, type SimilarRow } from "@/lib/scout";
 import { Combobox } from "@/components/Combobox";
@@ -28,42 +29,62 @@ const ROLE_OPTS: { value: Role; label: string }[] = [
   { value: "bowler", label: "Bowler" },
 ];
 
-// The look-alike tiers, rendered one panel each. IPL peers are profile-linkable;
-// the rest are free agents you can draft. SMAT carries the uncapped-gem flag.
-const TIERS: {
-  key: keyof ScoutIndex;
+// The look-alike pools come from the league registry (leagues.json, from config/leagues.toml), one
+// panel each, keyed by tier as scout_index.json is. The `peers` pool (IPL) is profile-linkable;
+// draftable pools are free agents you can draft; the gem pool carries the uncapped-gem flag.
+interface TierDef {
+  key: string;
   title: string;
   subtitle: string;
   icon: React.ReactNode;
   linkable: boolean;
   draftable: boolean;
   gem: boolean;
-}[] = [
-  { key: "ipl", title: "IPL peers", subtitle: "Most-similar active IPL players", icon: <Users className="h-4 w-4 text-accent" />, linkable: true, draftable: false, gem: false },
-  { key: "smat", title: "Uncapped · SMAT", subtitle: "Domestic Indian prospects of the same mould", icon: <Sprout className="h-4 w-4 text-willow" />, linkable: false, draftable: true, gem: true },
-  { key: "bbl", title: "Overseas · BBL", subtitle: "Big Bash (Australia) of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
-  { key: "sa20", title: "Overseas · SA20", subtitle: "SA20 (South Africa) of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
-  { key: "cpl", title: "Overseas · CPL", subtitle: "Caribbean Premier League of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
-  { key: "blast", title: "Overseas · T20 Blast", subtitle: "English county T20 of the same mould", icon: <Plane className="h-4 w-4 text-accent" />, linkable: false, draftable: true, gem: false },
-];
+}
+
+const GROUP_ICON: Record<ScoutGroup, React.ReactNode> = {
+  peers: <Users className="h-4 w-4 text-accent" />,
+  uncapped: <Sprout className="h-4 w-4 text-willow" />,
+  overseas: <Plane className="h-4 w-4 text-accent" />,
+};
+
+function tierDefs(reg: LeagueRegistry | null): TierDef[] {
+  return scoutPools(reg).map((l) => ({
+    key: l.tier as string,
+    title: l.scout_title ?? l.short,
+    subtitle: l.scout_subtitle ?? l.name,
+    icon: GROUP_ICON[l.scout_group ?? "overseas"],
+    linkable: l.scout_group === "peers",
+    draftable: l.draftable,
+    gem: l.gem_pool,
+  }));
+}
+
+/** "BBL, SA20, CPL & T20 Blast" — the overseas pools' short names. */
+function overseasNames(reg: LeagueRegistry | null): string {
+  const names = scoutPools(reg)
+    .filter((l) => l.scout_group === "overseas")
+    .map((l) => l.short);
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}` : (names[0] ?? "");
+}
 
 // similarTo / isGem / gemThreshold are the parity-locked engine from
 // `@/lib/scout` (mirrored bit-for-bit by the Python port) — single source of
 // truth across every surface.
 
-function ScoutMath() {
+function ScoutMath({ reg }: { reg: LeagueRegistry | null }) {
   return (
     <Collapsible title="How the scout works (plain English)" icon={<Network className="h-4 w-4" />}>
       <div className="space-y-3 text-sm leading-relaxed text-muted">
         <p>
           Pick an active IPL player. We find players of the <b>same archetype</b> (same role; for
-          bowlers, same seam/spin type) across six pools and rank them by how close their{" "}
+          bowlers, same seam/spin type) across {scoutPools(reg).length || "every"} pools and rank them by how close their{" "}
           <b>skill standing</b> is to your pick.
         </p>
         <ul className="space-y-1.5">
           <li>• <b className="text-fg">IPL peers</b> — who else in the IPL is most like them.</li>
           <li>• <b className="text-fg">Uncapped (SMAT)</b> — domestic Indian prospects of the same mould — the "next one".</li>
-          <li>• <b className="text-fg">Overseas</b> — Big Bash (BBL), SA20, CPL &amp; T20 Blast players of the same mould.</li>
+          <li>• <b className="text-fg">Overseas</b> — {overseasNames(reg) || "overseas league"} players of the same mould.</li>
         </ul>
         <p>
           "Skill standing" is the player's Bayesian value <i>for his role</i> (batting for batters and
@@ -74,7 +95,7 @@ function ScoutMath() {
         </p>
         <p>
           Each row shows an <b>estimated crore price</b> (the same skill→price curve the Auction room
-          uses, discounted for the weaker tier). For SMAT/BBL look-alikes we also show the{" "}
+          uses, discounted for the weaker tier). For every non-IPL look-alike we also show the{" "}
           <b>saving</b> versus your (expensive) IPL pick — the budget-swap case. A{" "}
           <Gem className="inline h-3 w-3 text-willow" /> <b className="text-willow">gem</b> flags an
           uncapped prospect with unusually high standing for how little he's played — a moneyball
@@ -177,10 +198,12 @@ function TierPanel({
 // "The next X" — uncapped SMAT prospects that punch above their sample.
 function GemsBoard({
   gems,
+  gemTier,
   navigate,
   inPool,
 }: {
   gems: ScoutPlayer[];
+  gemTier: PriceTier;
   navigate: (p: string) => void;
   inPool: Set<string>;
 }) {
@@ -207,7 +230,7 @@ function GemsBoard({
             <Badge tone="willow">standing {fmt(p.z, 2)}</Badge>
             <span className="text-[11px] text-muted">{p.balls} balls</span>
             <span className="stat-num ml-auto text-[11px] text-muted">
-              ≈{fmt(estValue(p.value, p.role, "smat"), 1)}cr
+              ≈{fmt(estValue(p.value, p.role, gemTier), 1)}cr
             </span>
             {inPool.has(p.cricsheet_id) ? (
               <button
@@ -237,6 +260,10 @@ export function Scout() {
   };
   const { options } = usePlayers("ipl"); // nice full-name search
   const idx = useAsync<ScoutIndex>(() => getScoutIndex("ipl"), []);
+  // the registry: which pools to show (and their price discounts — estValue needs it loaded)
+  const reg = useAsync<LeagueRegistry>(() => getLeagues(), []);
+  const tiers = useMemo(() => tierDefs(reg.data).filter((t) => idx.data && t.key in idx.data), [reg.data, idx.data]);
+  const gemTier = reg.data?.gem_tier ?? null;
   const pool = useAsync(() => getAuctionPool("ipl"), []);
   const inPool = useMemo(() => new Set((pool.data ?? []).map((r) => String(r.cricsheet_id))), [pool.data]);
   const iplById = useMemo(() => {
@@ -261,21 +288,22 @@ export function Scout() {
   const setRoleSel = (r: Role) => update({ role: sel && r === sel.role ? null : r });
   const urlPos = params.get("pos") ?? "";
 
-  // median SMAT exposure → the gem cutoff (high standing, below-median balls)
-  const gemMedian = useMemo(() => gemThreshold(idx.data?.smat ?? []), [idx.data]);
+  // median exposure in the gem pool (SMAT) → the gem cutoff (high standing, below-median balls)
+  const gemPool = useMemo(() => (gemTier ? (idx.data?.[gemTier] ?? []) : []), [idx.data, gemTier]);
+  const gemMedian = useMemo(() => gemThreshold(gemPool), [gemPool]);
 
   // headline "next X" board — the standout uncapped gems, pick-independent
   const gems = useMemo(
     () =>
-      (idx.data?.smat ?? [])
+      gemPool
         .filter((p) => isGem(p, gemMedian))
         .sort((a, b) => b.z - a.z)
         .slice(0, 12),
-    [idx.data, gemMedian],
+    [gemPool, gemMedian],
   );
 
   // the pick's own est. IPL price — the baseline the savings compare against
-  const selPrice = sel ? estValue(sel.value, sel.role, "ipl") : null;
+  const selPrice = sel && reg.data ? estValue(sel.value, sel.role, "ipl") : null;
   const posDisabled = roleSel === "bowler";
   // a batting-slot filter means nothing for a bowler match — drop it rather than keep filtering invisibly
   const posSel = !posDisabled && hasKey(POS, urlPos) ? urlPos : "";
@@ -292,10 +320,10 @@ export function Scout() {
       <PageTitle
         title="Scout"
         icon={<Network className="h-6 w-6" />}
-        desc="Pick an active IPL player and find others of the same mould across six pools — IPL peers, uncapped Indian prospects (SMAT), and overseas options (BBL, SA20, CPL & T20 Blast) — with an estimated price, the saving vs your pick, and a one-click draft into the Auction room."
+        desc={`Pick an active IPL player and find others of the same mould across every pool — IPL peers, uncapped Indian prospects (SMAT), and overseas options (${overseasNames(reg.data) || "overseas leagues"}) — with an estimated price, the saving vs your pick, and a one-click draft into the Auction room.`}
       />
 
-      <ScoutMath />
+      <ScoutMath reg={reg.data} />
 
       {collection !== "ipl" && (
         <div className="mb-4 rounded-xl border border-gold/30 bg-gold/5 px-4 py-2.5 text-sm text-muted">
@@ -303,7 +331,7 @@ export function Scout() {
         </div>
       )}
 
-      <GemsBoard gems={gems} navigate={navigate} inPool={inPool} />
+      {gemTier && reg.data && <GemsBoard gems={gems} gemTier={gemTier} navigate={navigate} inPool={inPool} />}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Combobox options={pickOptions} value={cid} onChange={setCid} placeholder="Search an active IPL player…" className="max-w-md flex-1" />
@@ -360,15 +388,15 @@ export function Scout() {
         </div>
       )}
 
-      {idx.loading && !idx.data ? (
+      {(idx.loading && !idx.data) || (reg.loading && !reg.data) ? (
         <Spinner label="Loading scout index…" />
-      ) : idx.error ? (
-        <ErrorBox message={idx.error} />
+      ) : idx.error || reg.error ? (
+        <ErrorBox message={(idx.error || reg.error) as string} />
       ) : !sel ? (
-        <Empty>Pick an IPL player to scout look-alikes across IPL, SMAT &amp; overseas (BBL, SA20, CPL, T20 Blast).</Empty>
+        <Empty>Pick an IPL player to scout look-alikes across IPL, SMAT &amp; overseas ({overseasNames(reg.data)}).</Empty>
       ) : (
         <div className="grid grid-cols-1 gap-5 animate-fade-up lg:grid-cols-3">
-          {TIERS.map((t) => (
+          {tiers.map((t) => (
             <TierPanel
               key={t.key}
               title={t.title}

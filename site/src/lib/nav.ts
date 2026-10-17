@@ -36,7 +36,7 @@ export const NAV: NavItem[] = [
   { to: "/form", label: "Form board", icon: TrendingUp, group: "Analyse", blurb: "Last-12-months form vs career baseline — who's hot, who's cold." },
   { to: "/partnerships", label: "Partnerships", icon: Handshake, group: "Analyse", blurb: "Batter-pair stands — most productive partners + all-time best partnerships." },
   { to: "/aging", label: "Aging curves", icon: Activity, group: "Analyse", blurb: "How batting & bowling performance changes with age — with a per-player overlay." },
-  { to: "/scout", label: "Scout", icon: Network, group: "Scout", blurb: "Look-alikes across IPL, SMAT & overseas (BBL/SA20/CPL/Blast) — price, savings & draft." },
+  { to: "/scout", label: "Scout", icon: Network, group: "Scout", blurb: "Look-alikes across IPL, SMAT & every overseas league — price, savings & draft." },
   { to: "/auction", label: "Auction room", icon: Gavel, group: "Scout", blurb: "Simulate a real IPL auction — retain, then bid for the rest." },
   { to: "/records", label: "Records", icon: Medal, group: "Explore", blurb: "All-time record books." },
   { to: "/venues", label: "Venues", icon: MapPin, group: "Explore", blurb: "Ground conditions: totals, phases, chasing." },

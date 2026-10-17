@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from cricdex import leagues
 from cricdex.cli.data_cmd import run_export, run_ingest
 
 st.set_page_config(page_title="CricDex Update", page_icon="🔄", layout="wide")
@@ -20,7 +21,16 @@ st.caption(
     "exported JSON; all other pages read that JSON, so they reflect the refresh."
 )
 
-collection = st.text_input("Collection", "ipl", help="e.g. ipl, bbl, sa20, cpl, blast, t20s_male …")
+_keys = leagues.keys()  # every league in config/leagues.toml; exported ones first (registry order)
+collection = st.selectbox(
+    "Collection",
+    _keys,
+    index=_keys.index("ipl") if "ipl" in _keys else 0,
+    format_func=lambda k: (
+        f"{leagues.label(k)} ({k})" + ("" if leagues.get(k).export else " · not exported")
+    ),
+    help="Every league in config/leagues.toml — add one there to see it here.",
+)
 force = st.checkbox("Force regenerate (ignore cached)", value=True)
 st.divider()
 

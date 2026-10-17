@@ -37,6 +37,7 @@ from textual.widgets import (
 )
 from textual_autocomplete import AutoComplete, DropdownItem
 
+from cricdex import leagues
 from cricdex.cli import _copy, _render
 from cricdex.cli._shared import load_players, match_player, player_label, sort_missing_last
 from cricdex.common import filters as cf
@@ -104,14 +105,11 @@ COMPARE_ROWS: list[tuple[str, str, tuple[str, ...], int]] = [
     ("Metrics", "Dot recovery", ("metrics", "dot_ball_recovery", "runs_per_6_after_dot"), 2),
 ]
 
-SCOUT_TIER_OPTIONS = [
-    ("IPL peers", "ipl"),
-    ("Uncapped · SMAT", "smat"),
-    ("Overseas · BBL", "bbl"),
-    ("Overseas · SA20", "sa20"),
-    ("Overseas · CPL", "cpl"),
-    ("Overseas · T20 Blast", "blast"),
-]
+# Every Scout pool in the league registry (config/leagues.toml), keyed by its tier.
+SCOUT_TIER_OPTIONS = [(lg.scout_title or lg.short, lg.tier) for lg in leagues.scout_pools()]
+_GEM_LEAGUE = leagues.gem_pool()
+GEM_TIER = _GEM_LEAGUE.tier if _GEM_LEAGUE else None
+_DRAFTABLE_TIERS = {lg.tier for lg in leagues.scout_pools() if lg.draftable}
 SCOUT_ROLE_OPTIONS = [
     ("(pick's role)", ""),
     ("Batter", "batter"),
@@ -276,8 +274,9 @@ def _venue_options(collection: str = "ipl") -> list[tuple[str, str]]:
 
 
 def _collection_options() -> list[tuple[str, str]]:
-    """(value, label) collection pairs for the `Coll` Selects — from
-    collections.json, falling back to a dir scan then ['ipl']."""
+    """(label, value) collection pairs for the `Coll` Selects — the exported leagues from
+    collections.json (registry order), falling back to a dir scan, then the registry's
+    exported leagues. Labels are the registry names."""
     f = SITE_DATA / "collections.json"
     cols: list[str] = []
     if f.exists():
@@ -286,8 +285,8 @@ def _collection_options() -> list[tuple[str, str]]:
         except (ValueError, OSError, KeyError, TypeError):
             cols = []
     if not cols and SITE_DATA.exists():
-        cols = sorted(d.name for d in SITE_DATA.iterdir() if d.is_dir())
-    return [(c, c) for c in (cols or ["ipl"])]
+        cols = [k for k in leagues.exported_keys() if (SITE_DATA / k).is_dir()]
+    return [(leagues.label(c), c) for c in (cols or leagues.exported_keys()[:1])]
 
 
 # Record-board slug → label (same 9 boards as dashboard/pages/3_Records.py).
@@ -1737,7 +1736,7 @@ class CricDexApp(App):
             )
         _fill_datatable(out, rows, max_cols=7)
 
-    # ===== Scout — six-pool look-alikes (web-identical) =====================
+    # ===== Scout — look-alikes across every registry pool (web-identical) ====
 
     def _twins_panel(self) -> ComposeResult:
         with Vertical():
@@ -1747,7 +1746,10 @@ class CricDexApp(App):
                 yield Input(value="JJ Bumrah", id="twins-name")
                 yield Label("Tier:")
                 yield Select(
-                    options=SCOUT_TIER_OPTIONS, value="smat", id="twins-tier", allow_blank=False
+                    options=SCOUT_TIER_OPTIONS,
+                    value=GEM_TIER or SCOUT_TIER_OPTIONS[0][1],
+                    id="twins-tier",
+                    allow_blank=False,
                 )
                 yield Label("Role:")
                 yield Select(
@@ -1761,9 +1763,9 @@ class CricDexApp(App):
             with VerticalScroll():
                 with Panel(title="Look-alikes"):
                     yield DataTable(id="twins-table", zebra_stripes=True)
-                with Panel(title="💎 The next big things — top uncapped SMAT gems"):
+                with Panel(title="💎 The next big things — top uncapped gems"):
                     yield DataTable(id="twins-gems", zebra_stripes=True)
-            # Draft a look-alike (SMAT/BBL/SA20/CPL/Blast) into the Auction room
+            # Draft a look-alike from any draftable pool into the Auction room
             # as a retention — populated after a scout on a draftable tier.
             with ControlBar(title="Draft to Auction"):
                 yield Label("Prospect:")
@@ -1808,10 +1810,11 @@ class CricDexApp(App):
 
         role = role_sel or sel["role"]
         sel_price = est_value(sel["value"], sel["role"], "ipl")
-        gem_med = gem_threshold(idx["smat"])
+        gem_pool = idx.get(GEM_TIER, []) if GEM_TIER else []
+        gem_med = gem_threshold(gem_pool)
         rows = []
         draftables: list[tuple[str, str]] = []  # (label, cid) for the draft picker
-        for r in similar_to(sel, idx[tier], role, "")[:top_k]:
+        for r in similar_to(sel, idx.get(tier, []), role, "")[:top_k]:
             price = est_value(r["value"], r["role"], tier)
             saving = sel_price - price if price < sel_price else 0.0
             rows.append(
@@ -1822,20 +1825,22 @@ class CricDexApp(App):
                     "est_cr": round(price, 1),
                     "save_cr": round(saving, 1) if saving > 0 else None,
                     "sim%": round(r["sim"] * 100),
-                    "gem": "💎" if (tier == "smat" and is_gem(r, gem_med)) else "",
+                    "gem": "💎" if (tier == GEM_TIER and is_gem(r, gem_med)) else "",
                 }
             )
             if r.get("cricsheet_id"):
-                draftables.append((f"{r['name']} ({tier.upper()})", r["cricsheet_id"]))
+                draftables.append(
+                    (f"{r['name']} ({leagues.by_tier(tier).short})", r["cricsheet_id"])
+                )
         tier_label = {b: a for a, b in SCOUT_TIER_OPTIONS}[tier]
         meta.update(
             f"[bold]{sel['name']}[/bold] · {role} · standing {sel['z']:.2f} · "
             f"≈ {sel_price:.1f} cr   →   {tier_label}"
         )
         _fill_datatable(table, rows or [{"info": "no close match of this archetype"}])
-        # Pick-independent "next big things" — top uncapped SMAT gems.
+        # Pick-independent "next big things" — top uncapped gems.
         gems = sorted(
-            (p for p in idx["smat"] if is_gem(p, gem_med)), key=lambda p: p["z"], reverse=True
+            (p for p in gem_pool if is_gem(p, gem_med)), key=lambda p: p["z"], reverse=True
         )[:12]
         _fill_datatable(
             self.query_one("#twins-gems", DataTable),
@@ -1845,7 +1850,7 @@ class CricDexApp(App):
                     "country": g.get("country") or "—",
                     "standing": round(g["z"], 2),
                     "balls": g.get("balls", 0),
-                    "est_cr": round(est_value(g["value"], g["role"], "smat"), 1),
+                    "est_cr": round(est_value(g["value"], g["role"], GEM_TIER), 1),
                 }
                 for g in gems
             ]
@@ -1853,14 +1858,19 @@ class CricDexApp(App):
         )
         # Draftable only for the non-IPL tiers (IPL peers can't be "drafted").
         self._draft_names = {cid: lbl for lbl, cid in draftables}
-        self.query_one("#twins-draft-pick", Select).set_options(draftables if tier != "ipl" else [])
+        self.query_one("#twins-draft-pick", Select).set_options(
+            draftables if tier in _DRAFTABLE_TIERS else []
+        )
 
     def _on_draft_twin(self) -> None:
         # Draft the picked prospect into the Auction room as a retention
         # (mirrors the web Scout "Draft" button + Streamlit session-state handoff).
         cid = self.query_one("#twins-draft-pick", Select).value
         if _unselected(cid) or not cid:
-            self.notify("scout a SMAT/BBL/… tier, then pick a prospect", severity="warning")
+            self.notify(
+                "scout a draftable tier (SMAT or an overseas league), then pick a prospect",
+                severity="warning",
+            )
             return
         name = getattr(self, "_draft_names", {}).get(cid, cid)
         # Only players in the priced auction pool can be drafted (the rest are

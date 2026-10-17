@@ -112,10 +112,11 @@ def test_state_uses_only_pre_delivery_information():
     # The chase always has a target; the first innings never does.
     assert (chase["target"] > 0).all()
     assert (first["target"] == 0).all() and (first["runs_needed"] == 0).all()
-    # Balls left come from the scheduled overs, not from how the innings ended.
-    assert set(
-        s.filter(pl.col("legal_before") == 0)["balls_remaining"].cast(pl.Int64).unique().to_list()
-    ) == {120}
+    # Balls left come from the scheduled overs (or a rain-revised target's overs), not from how the
+    # innings ended: a full T20 starts at 120, a reduced one at fewer whole overs, never more.
+    starts = s.filter(pl.col("legal_before") == 0)["balls_remaining"].cast(pl.Int64)
+    assert starts.max() == 120 and starts.min() > 0
+    assert (starts == 120).mean() > 0.95, "most innings are full 20-over innings"
     # A ground's average run rate is a T20 run rate, not a sum over its history.
     rates = ngi._venue_rates(s, set(s["match_id"].unique().to_list()))["venue_avg_rr"]
     assert rates.min() > 4 and rates.max() < 14

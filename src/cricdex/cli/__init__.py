@@ -90,7 +90,9 @@ def root(
 # Subcommands mounted as sub-apps.
 app.add_typer(config_cmd.app, name="config", help="Manage credentials + settings.")
 app.add_typer(data_cmd.app, name="data", help="Inventory + ingest local data.")
-app.add_typer(scout_cmd.app, name="scout", help="Scout look-alikes (IPL/SMAT/BBL/SA20/CPL/Blast).")
+app.add_typer(
+    scout_cmd.app, name="scout", help="Scout look-alikes (IPL, SMAT and every overseas league)."
+)
 app.add_typer(auction_cmd.app, name="auction", help="Real-rules IPL auction simulation.")
 
 # Top-level conveniences — one-shot commands without a sub-namespace.

@@ -22,7 +22,14 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-from cricdex.common.sql import DISMISSAL, MAIN_INNINGS, table_suffix, wickets_rel
+from cricdex.common.sql import (
+    DISMISSAL,
+    MAIN_INNINGS,
+    balls_per_over,
+    chase_targets,
+    table_suffix,
+    wickets_rel,
+)
 from cricdex.config import DATA_DIR
 
 DEFAULT_PRESSURE_MULTIPLIER = 1.5
@@ -42,11 +49,15 @@ def pressure_runs(
     top_n: int | None = 200,
 ) -> pl.DataFrame:
     safe = table_suffix(collection)
+    with _connect(db_path) as con:
+        bpo = balls_per_over(con, collection)
+        targets = chase_targets(con, collection)
     sql = f"""
     WITH match_meta AS (
         SELECT
             match_id, match_type, venue,
-            COALESCE(overs, CASE match_type WHEN 'T20' THEN 20 WHEN 'ODI' THEN 50 END) AS innings_overs
+            COALESCE(overs, CASE match_type WHEN 'T20' THEN 20 WHEN 'ODI' THEN 50 END) AS innings_overs,
+            {bpo} AS bpo
         FROM matches_{safe}
         WHERE match_type IN ('T20', 'ODI')
     ),
@@ -62,8 +73,9 @@ def pressure_runs(
             b.runs_batter, b.runs_total,
             CASE WHEN b.extras_type IN ('wides', 'noballs') THEN 0 ELSE 1 END AS legal_ball,
             (b.extras_type = 'wides') AS is_wide,
-            (fi.first_innings_total + 1) AS target_runs,
-            mm.innings_overs * 6 AS innings_balls,
+            -- the recorded (DLS-revised) target and overs when Cricsheet has them
+            COALESCE(t.target_runs, fi.first_innings_total + 1) AS target_runs,
+            COALESCE(t.target_balls, mm.innings_overs * mm.bpo) AS innings_balls,
             COALESCE(
                 SUM(CASE WHEN b.extras_type IN ('wides', 'noballs') THEN 0 ELSE 1 END) OVER (
                     PARTITION BY b.match_id
@@ -83,6 +95,7 @@ def pressure_runs(
         FROM balls_{safe} b
         JOIN first_innings fi USING (match_id)
         JOIN match_meta mm USING (match_id)
+        LEFT JOIN {targets} t ON t.match_id = b.match_id AND t.innings_idx = 1
         WHERE b.innings_idx = 1
     ),
     ball_pressure AS (

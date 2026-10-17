@@ -110,14 +110,26 @@ cp .env.example .env
 
 ```bash
 make refresh COLLECTION=ipl   # download → ratings → metrics → site data, one collection
+make refresh-all              # every exported league, one export at the end (hours)
 
 # or step by step:
+uv run python scripts/ingest_cricsheet.py list               # the league registry
 uv run python scripts/ingest_cricsheet.py ingest --collection ipl --force
-uv run python scripts/ingest_cricsheet.py indian-domestic        # the indian_domestic_male collection
+uv run python scripts/ingest_cricsheet.py ingest --collection indian_domestic_male  # SMAT (sma_json.zip)
 uv run python scripts/scout_rate.py --collection ipl         # ratings first: Wicket Quality reads them
 uv run python scripts/compute_metrics.py all --collection ipl
 uv run python scripts/export_site.py -c ipl
 ```
+
+Which collections exist, which Cricsheet zip each comes from and which ones are
+exported is set in [`config/leagues.toml`](../config/leagues.toml)
+(`uv run python -m cricdex.leagues list --exported`; how to add one:
+[LEAGUES.md](LEAGUES.md)). The Auction pool and Scout read every league's
+ratings at once, so after re-ingesting several leagues refit all of them
+before the final `export_site.py`.
+
+`CRICDEX_LEAGUES=/path/to/leagues.toml` points every command at a different
+registry (a franchise's own league list, say) without editing the repo copy.
 
 ### Run the API
 
@@ -143,6 +155,7 @@ list). The most important ones:
 | `LLM_API_KEY` / `LLM_API_BASE` | optional | Override the key / endpoint (a self-hosted or custom server). |
 | `CRICDEX_HOME` | optional | Where config lives (default `~/.cricdex`). |
 | `CRICDEX_DATA_DIR` | optional | Override the data folder (default: the repo's `data/` in a clone). |
+| `CRICDEX_LEAGUES` | optional | Path to a league registry TOML (default: `config/leagues.toml`; see [LEAGUES.md](LEAGUES.md)). |
 
 ### Persistence
 

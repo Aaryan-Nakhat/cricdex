@@ -1,7 +1,11 @@
 """CLI: download a Cricsheet collection, write Parquet, load into DuckDB.
 
+Which zip(s) a collection comes from is set in the league registry (config/leagues.toml).
+
 Usage:
-    uv run python scripts/ingest_cricsheet.py --collection recently_played_30_male
+    uv run python scripts/ingest_cricsheet.py ingest --collection recently_played_30_male
+    uv run python scripts/ingest_cricsheet.py all              # every exported league
+    uv run python scripts/ingest_cricsheet.py list             # the registry's collections
 """
 
 from __future__ import annotations
@@ -11,7 +15,7 @@ from pathlib import Path
 import typer
 from loguru import logger
 
-from cricdex.config import DATA_DIR
+from cricdex import leagues
 from cricdex.scout.ingest import cricsheet
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -19,12 +23,14 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 
 @app.callback()
 def _root() -> None:
-    """Cricsheet ETL — single collection or Indian-domestic aggregator."""
+    """Cricsheet ETL — any collection in the league registry."""
 
 
-def _load_to_duckdb(matches_path: Path, balls_path: Path, collection: str, db_path: Path) -> None:
-    # the shared loader: same tables, plus the venue-name cleanup
-    cricsheet.load_to_duckdb(matches_path, balls_path, collection, db_path)
+def _check(collection: str) -> str:
+    try:
+        return leagues.validate_collection(collection)
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--collection") from None
 
 
 @app.command()
@@ -36,37 +42,45 @@ def ingest(
     # Single shared pipeline (cricsheet.build) so the script + the
     # `cricdex data ingest cricsheet` CLI can't drift. `extract` auto-reruns
     # when the downloaded zip is newer, so a refreshed Cricsheet is picked up.
-    cricsheet.build(collection=collection, out=out, force=force)
+    cricsheet.build(collection=_check(collection), out=out, force=force)
 
 
-@app.command("indian-domestic")
+@app.command("all")
+def ingest_all(
+    out: Path | None = typer.Option(None, "--out"),
+    force: bool = typer.Option(False, "--force"),
+    include_unexported: bool = typer.Option(
+        False, "--include-unexported", help="Also the registry leagues with export = false."
+    ),
+) -> None:
+    """Ingest every exported league in the registry (stops at the first failure)."""
+    keys = leagues.keys() if include_unexported else leagues.exported_keys()
+    for key in keys:
+        logger.info(f"=== {key} ===")
+        cricsheet.build(collection=key, out=out, force=force)
+
+
+@app.command("list")
+def list_collections(
+    exported: bool = typer.Option(False, "--exported", help="Only the exported leagues."),
+) -> None:
+    """Print the registry's collections with their Cricsheet zip(s)."""
+    for lg in leagues.all():
+        if exported and not lg.export:
+            continue
+        flag = "export" if lg.export else "-"
+        typer.echo(f"{lg.key:28} {flag:7} {' + '.join(lg.zips):40} {lg.name}")
+
+
+@app.command("indian-domestic", hidden=True)
 def indian_domestic(
     out: Path | None = typer.Option(None, "--out"),
     force: bool = typer.Option(False, "--force"),
 ) -> None:
-    """Download all 38 Indian state-team zips, dedupe by match_id, and
-    ingest as a single `indian_domestic_male` collection."""
-    base = out or (DATA_DIR / "cricsheet")
-    raw_dir = base / "raw"
-    extracted_dir = base / "extracted"
-    parquet_dir = base / "parquet"
-    db_path = base / "cricsheet.duckdb"
-
-    merged_dir = cricsheet.aggregate_indian_domestic(raw_dir, extracted_dir, force=force)
-    parsed = cricsheet.parse_collection(merged_dir)
-    m_path, b_path = cricsheet.write_parquet(
-        parsed.matches,
-        parsed.balls,
-        parquet_dir,
-        "indian_domestic_male",
-        players=parsed.players,
-        wickets=parsed.wickets,
-    )
-    _load_to_duckdb(m_path, b_path, "indian_domestic_male", db_path)
-    logger.info(
-        f"duckdb loaded: {db_path} (indian_domestic_male — "
-        f"{len(parsed.matches)} matches, {len(parsed.balls)} balls)"
-    )
+    """Deprecated alias: SMAT now comes from Cricsheet's single `sma_json.zip` like any other
+    collection. Same as `ingest --collection indian_domestic_male`."""
+    logger.warning("`indian-domestic` is deprecated — use `ingest -c indian_domestic_male`")
+    cricsheet.build(collection="indian_domestic_male", out=out, force=force)
 
 
 if __name__ == "__main__":

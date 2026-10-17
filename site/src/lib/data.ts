@@ -2,6 +2,8 @@
 // Everything the UI shows is computed offline by scripts/export_site.py
 // and refreshed on demand by the GitHub Action; the browser only displays.
 
+import { registerLeagues, type LeagueRegistry } from "./leagues";
+
 const DATA_ROOT = `${import.meta.env.BASE_URL}data`;
 
 // A cache-buster token. Bumped by the Refresh button so a manual refresh
@@ -119,6 +121,14 @@ export interface Cohorts {
 // ---- fetchers -------------------------------------------------------------
 
 export const getCollections = () => getJSON<CollectionMeta[]>("collections.json");
+
+/** The league registry (config/leagues.toml, exported as leagues.json): labels, Scout pools,
+ * pricing discounts. Installed for the sync helpers in `./leagues` as soon as it arrives. */
+export const getLeagues = () =>
+  getJSON<LeagueRegistry>("leagues.json").then((reg) => {
+    registerLeagues(reg);
+    return reg;
+  });
 export const getPlayers = (c: string) => getJSON<PlayerRow[]>(`${c}/players.json`);
 export const getRatings = (c: string) => getJSON<RatingRow[]>(`${c}/ratings.json`);
 export const getLeaderboard = (c: string, slug: string, window?: string) =>
@@ -180,14 +190,8 @@ export interface ScoutPlayer {
   balls: number; // exposure in this tier — powers the uncapped-gem flag
   last_match_date: string | null;
 }
-export interface ScoutIndex {
-  ipl: ScoutPlayer[];
-  smat: ScoutPlayer[];
-  bbl: ScoutPlayer[];
-  sa20: ScoutPlayer[];
-  cpl: ScoutPlayer[];
-  blast: ScoutPlayer[];
-}
+// One list per Scout pool, keyed by the pool's tier (leagues.json: "ipl", "smat", "bbl", …).
+export type ScoutIndex = Record<string, ScoutPlayer[]>;
 export const getScoutIndex = (c: string) => getJSON<ScoutIndex>(`${c}/scout_index.json`);
 export const getCohorts = (c: string, cid: string) =>
   getJSON<Cohorts>(`${c}/cohorts/${cid}.json`);

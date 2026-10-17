@@ -155,8 +155,9 @@ allrounder / wk_batter).
 cricdex scout look-alikes "V Kohli" [--role batter] [--pos opener|no3|middle|finisher|lower|tailender] [-k 8]
 ```
 
-Cross-competition look-alike finder across six pools (IPL, SMAT,
-BBL, SA20, CPL, T20 Blast), ranked by within-tier Bayesian
+Cross-competition look-alike finder across every Scout pool in the
+league registry (IPL peers, SMAT, then each overseas league in
+`config/leagues.toml`), ranked by within-tier Bayesian
 skill-standing z-score. Each row carries an est. crore price +
 saving-vs-pick, an uncapped-gem flag, and role/slot filters. Shares
 one implementation with the web via `cricdex.web_parity`.

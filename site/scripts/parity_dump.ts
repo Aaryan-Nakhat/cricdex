@@ -16,6 +16,7 @@ import {
 } from "../src/lib/auction.ts";
 import { similarTo, gemThreshold, isGem } from "../src/lib/scout.ts";
 import type { ScoutPlayer } from "../src/lib/data.ts";
+import { registerLeagues, scoutPools, type LeagueRegistry } from "../src/lib/leagues.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(here, "..", "public", "data", "ipl");
@@ -24,6 +25,16 @@ const load = (f: string) => JSON.parse(readFileSync(join(dataDir, f), "utf8"));
 const pool = buildPool(load("auction_pool.json"));
 const ret = load("retentions.json");
 const scout = load("scout_index.json");
+// The league registry: the test passes the Python payload (config/leagues.toml) in
+// CRICDEX_LEAGUES_JSON so both sides price with the same table; else the exported copy.
+const leaguesPath = process.env.CRICDEX_LEAGUES_JSON || join(dataDir, "..", "leagues.json");
+const registry = JSON.parse(readFileSync(leaguesPath, "utf8")) as LeagueRegistry;
+registerLeagues(registry);
+// every registry Scout pool the export has (a pool added since the last export is skipped)
+const tiers = scoutPools(registry)
+  .map((l) => l.tier as PriceTier)
+  .filter((t) => t in scout);
+const gemTier = registry.gem_tier;
 
 const megaIds: Record<string, string[]> = {};
 const realPrices: Record<string, number> = {};
@@ -47,15 +58,16 @@ const res = simulateAuction(pool, teams, {
 // Scout: deterministic pick = lexicographically-first IPL id.
 const sel = [...(scout.ipl as ScoutPlayer[])].sort((a, b) => a.cricsheet_id.localeCompare(b.cricsheet_id))[0];
 const scoutOut: Record<string, { id: string; sim: number; price: number }[]> = {};
-for (const tier of ["ipl", "smat", "bbl", "sa20", "cpl", "blast"] as PriceTier[]) {
+for (const tier of tiers) {
   scoutOut[tier] = similarTo(sel, scout[tier] as ScoutPlayer[], sel.role, "").map((p) => ({
     id: p.cricsheet_id,
     sim: p.sim,
     price: estValue(p.value, p.role, tier),
   }));
 }
-const gemMedian = gemThreshold(scout.smat as ScoutPlayer[]);
-const gems = (scout.smat as ScoutPlayer[]).filter((p) => isGem(p, gemMedian)).map((p) => p.cricsheet_id);
+const gemPool = (gemTier && scout[gemTier] ? scout[gemTier] : []) as ScoutPlayer[];
+const gemMedian = gemThreshold(gemPool);
+const gems = gemPool.filter((p) => isGem(p, gemMedian)).map((p) => p.cricsheet_id);
 
 const out = {
   retentions,
@@ -88,6 +100,7 @@ const out = {
     overseas: s.overseas,
   })),
   scoutPick: sel.cricsheet_id,
+  scoutTiers: tiers,
   scout: scoutOut,
   gemMedian,
   gems,

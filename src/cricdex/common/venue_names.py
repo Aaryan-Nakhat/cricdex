@@ -17,6 +17,8 @@ from collections import Counter, defaultdict
 
 import duckdb
 
+from cricdex.common.sql import WINDOW_SUFFIXES
+
 # Grounds renamed over the years → (current name, city). Keys are normalised first segments (see _key).
 RENAMES: dict[str, tuple[str, str]] = {
     "feroz shah kotla": ("Arun Jaitley Stadium", "Delhi"),
@@ -103,7 +105,7 @@ def _tables(con: duckdb.DuckDBPyConnection) -> list[str]:
         for n in names
         if n.startswith("matches_")
         and f"balls_{n[len('matches_') :]}" in names
-        and not n.endswith(("_last1y", "_last3y"))
+        and not n.endswith(WINDOW_SUFFIXES)
     )
 
 

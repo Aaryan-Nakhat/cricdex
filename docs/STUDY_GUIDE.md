@@ -44,8 +44,9 @@ scrapes:
    skill scores fit with NumPyro/JAX (scoring + survival for batters,
    economy + strike for bowlers) so a player who only ever faced weak
    attacks doesn't outrank one who's faced everyone.
-3. **Scout** — cross-competition look-alikes across six pools (IPL,
-   SMAT, BBL, SA20, CPL, T20 Blast) ranked by within-tier Bayesian
+3. **Scout** — cross-competition look-alikes across every Scout pool
+   in the league registry (IPL, SMAT, BBL, SA20, CPL, T20 Blast, PSL,
+   ILT20, The Hundred, MLC and more) ranked by within-tier Bayesian
    skill-standing z-score, plus cosine style-twins on the Player
    Profile. File-driven (DuckDB + exported JSON; no graph database).
 4. **Auction room** — a real-rules IPL auction Monte-Carlo over a

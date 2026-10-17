@@ -31,9 +31,15 @@ metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [
 volunteer-maintained archive with one JSON file per match and one record per delivery: who bowled it, who
 faced it, what was scored, whether a wicket fell and who took the catch. CricDex downloads a whole
 *collection* at a time (the IPL, the BBL, men's T20Is and so on), flattens every delivery into a row and
-stores the result in one local DuckDB database (`src/cricdex/scout/ingest/cricsheet.py`). The live site
-ships eight men's collections: IPL, BBL, SA20, CPL, T20 Blast, Indian domestic (SMAT), men's T20Is and
-"recently played". There is no scraping and no live feed. Every number is computed from these files.
+stores the result in one local DuckDB database (`src/cricdex/scout/ingest/cricsheet.py`). Which
+collections exist, which Cricsheet zip each comes from and which ones the site ships is one file, the
+league registry [`config/leagues.toml`](../config/leagues.toml) ([LEAGUES.md](LEAGUES.md)). The site ships
+the men's T20 leagues marked `export = true`: IPL, SMAT (Indian domestic), BBL, SA20, CPL, T20 Blast, PSL,
+ILT20, The Hundred, MLC, BPL, LPL, Super Smash, CSA T20 Challenge, men's T20Is and "recently played". The
+parser reads every field of Cricsheet's JSON format (every extras type, every wicket on a ball, DRS
+reviews, Impact Player and other replacements, powerplays, the chase target, playing XIs, officials, season
+and stage), versioned by `SCHEMA_VERSION`. There is no scraping and no live feed. Every number is computed
+from these files.
 
 **One id per player.** Scorecards spell names inconsistently ("Navdeep Saini" in one match, "NA Saini" in
 another), and two players can share a name. Cricsheet solves this for us: every match file carries a
@@ -115,8 +121,14 @@ side's chance of winning each game he plays.
 
 **Limits.** Fielders get no credit yet (a stunning catch shows up as the bowler's wicket), and a run-out at
 the non-striker's end is booked to the striker of that ball. Byes, leg-byes and wides move win probability
-too, and that swing goes to the striker and bowler of the ball. Rain-reduced matches aren't marked in the
-data, so they stay in. NGI is T20-only.
+too, and that swing goes to the striker and bowler of the ball. NGI is T20-only.
+
+**Rain-reduced chases.** Cricsheet does flag Duckworth-Lewis-Stern results (`outcome.method = "D/L"`) and
+records the target each chase actually faced (`innings[].target`: runs and overs). Both are ingested
+(`matches_<col>.outcome_method`, `innings_<col>.target_runs` / `target_overs`), so a rain-hit chase is
+scored against its revised target with the shortened over count (overs × balls per over, so The Hundred's
+five-ball overs count right). A database ingested before the `innings_<col>` table existed falls back to
+first-innings total + 1 and the scheduled overs. Pressure Runs uses the same target.
 
 ---
 
@@ -253,9 +265,9 @@ player's whole career in that league: no separate rating per venue, phase or era
 
 ## 5. Scout look-alikes
 
-**What it does.** Pick an active IPL player; Scout finds others of the same mould in six pools: **IPL
-peers**, uncapped Indians from the **SMAT**, and overseas players from the **BBL**, **SA20**, **CPL** and
-**T20 Blast**. Each comes with an estimated price and the saving against your pick. Code:
+**What it does.** Pick an active IPL player; Scout finds others of the same mould in every Scout pool of
+the league registry: **IPL peers**, uncapped Indians from the **SMAT**, and overseas players from each
+overseas league (BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC, BPL, LPL, Super Smash, CSA T20). Each comes with an estimated price and the saving against your pick. Code:
 `src/cricdex/web_parity/scout.py` (Python) and `site/src/lib/scout.ts` (web), kept identical by a parity
 test. More: [SCOUT.md](SCOUT.md).
 
@@ -300,7 +312,9 @@ invents a fair price from skill, tuned so the spread looks like recent real auct
 
 1. **Tier discount.** A rating from a weaker league is lowered first (in `value` units): BBL −0.45,
    SA20 −0.45, CPL −0.64, T20 Blast −0.64, SMAT −1.28, IPL 0. A player in several leagues keeps his best
-   discounted value.
+   discounted value. The discounts live in `[tiers.*]` of `config/leagues.toml`; the leagues added later
+   borrow one by analogy until fitted (PSL, ILT20 and The Hundred −0.45 like BBL / SA20; MLC, BPL, LPL,
+   Super Smash and CSA T20 −0.64 like CPL / Blast) and are marked `calibrated = false`.
 2. **IPL relevance.** For the auction pool, a player who hasn't featured in the IPL lately loses up to
    2.7 from his value, scaled by an *IPL-relevance* weight between 0 and 1: about 1 for a current IPL
    regular (age barely matters while he's playing), fading with years since his last IPL game and with age
@@ -334,9 +348,11 @@ for roughly how much?* Code: `src/cricdex/web_parity/auction.py` ⇄ `site/src/l
 step-by-step version is [AUCTION_MATH.md](AUCTION_MATH.md).
 
 **The pool.** The active T20 world an IPL auction draws from: IPL players (each carrying his current
-franchise, so he can be retained) plus free agents from the BBL, SA20, CPL, T20 Blast and SMAT. Only
+franchise, so he can be retained) plus free agents from every `auction_pool` league in the registry
+(the overseas leagues and SMAT; men's T20Is are left out). Only
 players active in the last three years with at least 150 balls in one of those leagues; free agents must
-come from a nation whose players feature in IPL auctions (so not Pakistan or associate sides). Priced as
+come from a nation whose players feature in IPL auctions (so not Pakistan or associate sides — the
+`auction_nationalities` / `auction_excluded_nationalities` lists in the registry). Priced as
 in section 6; the top 600 by value make the pool.
 
 **Retentions.** Editable per team.
@@ -474,4 +490,6 @@ What the models can't see, and where they approximate. Most of these are on the
   and skewed toward well-known players.
 - **Men's cricket only, so far.** The ingester knows the women's collections, but none is built or checked
   yet.
-- **Rain-reduced matches stay in** the win-probability model unmarked, because Cricsheet doesn't flag them.
+- **Rain-reduced matches stay in** the win-probability model, scored against the revised DLS target and
+  over count Cricsheet records (a database ingested before that field was read falls back to first-innings
+  total + 1 over the scheduled overs until it is re-ingested).

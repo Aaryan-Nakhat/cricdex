@@ -112,15 +112,18 @@ def run_ingest(slice_: str, collection: str = "ipl", force: bool = False) -> str
     `ValueError` for unknown slices and `RuntimeError` when a step fails,
     so the caller can stop instead of reporting success.
     """
+    from cricdex import leagues
+
+    if slice_ not in SLICES:
+        raise ValueError(f"unknown slice `{slice_}` — choose: {' | '.join(SLICES)}")
+    if slice_ != "wikidata":
+        leagues.validate_collection(collection)  # unknown → ValueError naming the valid keys
     if slice_ == "cricsheet":
         out = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
         # Skip only when *this* collection is already loaded (other collections share the same DuckDB file).
         if _has_collection(collection) and not force:
             return f"{collection} is already in {out} (pass --force to re-download)"
-        if collection == "indian_domestic_male":
-            args = ["indian-domestic", *(["--force"] if force else [])]
-        else:
-            args = ["ingest", "--collection", collection, *(["--force"] if force else [])]
+        args = ["ingest", "--collection", collection, *(["--force"] if force else [])]
         proc = _script("ingest_cricsheet.py", *args)
         if proc.returncode != 0:
             raise RuntimeError(
@@ -155,7 +158,12 @@ def run_ingest(slice_: str, collection: str = "ipl", force: bool = False) -> str
 @app.command("ingest", help="Ingest a data slice (cricsheet|ratings|metrics|wikidata).")
 def ingest_cmd(
     slice_: str = typer.Argument(..., metavar="SLICE"),
-    collection: str = typer.Option("ipl", "--collection", "-c"),
+    collection: str = typer.Option(
+        "ipl",
+        "--collection",
+        "-c",
+        help="Any league key in config/leagues.toml (`python -m cricdex.leagues list`).",
+    ),
     force: bool = typer.Option(False, "--force/--no-force"),
 ) -> None:
     try:

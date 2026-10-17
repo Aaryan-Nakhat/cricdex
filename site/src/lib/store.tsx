@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useSearchParams } from "react-router-dom";
-import { bumpCacheBust, getCollections, type CollectionMeta } from "./data";
+import { bumpCacheBust, getCollections, getLeagues, type CollectionMeta } from "./data";
 
 interface Store {
   collections: CollectionMeta[];
@@ -47,7 +47,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (initial) setLoading(true); // a refresh keeps the page mounted
     setError(null);
     try {
-      const cols = await getCollections();
+      // the registry gives every league its label; without it labels fall back to the key
+      const [cols] = await Promise.all([getCollections(), getLeagues().catch(() => null)]);
       setCollections(cols);
       // keep current selection if still present, else first
       setCollectionRaw((prev) => {

@@ -1,6 +1,7 @@
 .PHONY: install dev precommit lint format format-check check fix test clean api dashboard refresh \
+        refresh-all leagues \
         docker-build docker-up docker-down docker-logs docker-shell docker-test \
-        docker-ingest-cricsheet docker-ingest-indian-domestic docker-ingest-people docker-ingest-wikidata \
+        docker-ingest-cricsheet docker-ingest-all docker-ingest-people docker-ingest-wikidata \
         docker-scout-rate docker-style-twin docker-records-all docker-records-today docker-pressure-runs \
         docker-export docker-metrics-all docker-dashboard-up docker-dashboard-down
 
@@ -66,8 +67,9 @@ docker-test:
 docker-ingest-cricsheet:
 	docker compose run --rm cricdex uv run python scripts/ingest_cricsheet.py ingest --collection "$${COLLECTION:-recently_played_30_male}"
 
-docker-ingest-indian-domestic:
-	docker compose run --rm cricdex uv run python scripts/ingest_cricsheet.py indian-domestic
+# Every exported league in config/leagues.toml (SMAT is one more collection now: sma_json.zip).
+docker-ingest-all:
+	docker compose run --rm cricdex uv run python scripts/ingest_cricsheet.py all
 
 docker-ingest-people:
 	docker compose run --rm cricdex uv run python scripts/ingest_people.py
@@ -115,3 +117,26 @@ refresh:
 	uv run python scripts/scout_rate.py --collection "$${COLLECTION:-ipl}" --advi-steps 12000
 	uv run python scripts/compute_metrics.py all --collection "$${COLLECTION:-ipl}"
 	uv run python scripts/export_site.py -c "$${COLLECTION:-ipl}"
+
+# Every exported league in config/leagues.toml, end to end, in this order: ingest every league →
+# the people register → ratings for every league → metrics for every league → ONE export. The
+# export runs only after every league is refit: the auction pool and Scout read every league's
+# ratings at once. `LEAGUES` overrides the list (space-separated keys).
+LEAGUES ?= $$(uv run python -m cricdex.leagues list --exported --sep " ")
+refresh-all:
+	set -e; for C in $(LEAGUES); do \
+		uv run python scripts/ingest_cricsheet.py ingest --collection "$$C" --force; \
+	done
+	uv run python scripts/ingest_people.py --force
+	set -e; for C in $(LEAGUES); do \
+		uv run python scripts/scout_rate.py --collection "$$C" --advi-steps 12000; \
+	done
+	set -e; for C in $(LEAGUES); do \
+		uv run python scripts/compute_metrics.py all --collection "$$C"; \
+	done
+	uv run python scripts/export_site.py
+
+# The league registry (config/leagues.toml): validate it and list every collection.
+leagues:
+	uv run python -m cricdex.leagues check
+	uv run python scripts/ingest_cricsheet.py list

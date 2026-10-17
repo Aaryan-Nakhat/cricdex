@@ -16,28 +16,36 @@ from typing import Any
 import duckdb
 import streamlit as st
 
+from cricdex import leagues
 from cricdex.config import DATA_DIR
 from cricdex.web_parity.loader import SITE_DATA
 
 
+def collections_in(table_names: list[str] | set[str]) -> list[str]:
+    """The registry leagues that have a `balls_<key>` table, in registry order. Time-window copies
+    (`balls_<key>_last1y` / `_last3y`) and tables of leagues not in config/leagues.toml are left out."""
+    have = {t.removeprefix("balls_") for t in table_names if t.startswith("balls_")}
+    return [k for k in leagues.keys() if k in have]
+
+
 @st.cache_data(ttl=60)
 def discover_collections() -> list[str]:
-    """Return the list of collections we have data for — scans the
-    cricsheet DuckDB for `balls_*` tables. Fallback to ['ipl'] when
-    DuckDB isn't ingested yet so the picker still has a default."""
+    """Return the collections we have data for — the registry leagues with a `balls_*` table in
+    the cricsheet DuckDB. Falls back to the first exported league when DuckDB isn't ingested yet
+    so the picker still has a default."""
+    fallback = leagues.exported_keys()[:1]
     db = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
     if not db.exists():
-        return ["ipl"]
+        return fallback
     try:
         con = duckdb.connect(str(db), read_only=True)
         try:
             rows = con.execute("SHOW TABLES").fetchall()
-            cols = sorted(r[0].removeprefix("balls_") for r in rows if r[0].startswith("balls_"))
-            return cols or ["ipl"]
+            return collections_in({r[0] for r in rows}) or fallback
         finally:
             con.close()
     except Exception:
-        return ["ipl"]
+        return fallback
 
 
 def collection_picker(
@@ -54,6 +62,7 @@ def collection_picker(
         options=options,
         index=index,
         key=key,
+        format_func=leagues.label,
         help=(
             "Pick a Cricsheet collection. New collections appear here once "
             "`cricdex data ingest cricsheet -c <name>` lands the duckdb table."

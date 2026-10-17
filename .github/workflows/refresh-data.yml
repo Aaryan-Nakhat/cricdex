@@ -48,7 +48,8 @@ jobs:
         run: |
           INPUT="${{ github.event.inputs.collections }}"
           if [ -z "$INPUT" ]; then
-            INPUT="ipl bbl t20s_male indian_domestic_male recently_played_30_male sa20 cpl blast"
+            # every league marked `export = true` in config/leagues.toml
+            INPUT="$(uv run python -m cricdex.leagues list --exported --sep ' ')"
           fi
           echo "list=$INPUT" >> "$GITHUB_OUTPUT"
           echo "Refreshing: $INPUT"
@@ -62,11 +63,7 @@ jobs:
           for C in ${{ steps.cols.outputs.list }}; do
             echo "::group::$C"
             # --force: always re-download, so a cached zip can't pin the data to an old date.
-            if [ "$C" = "indian_domestic_male" ]; then
-              uv run python scripts/ingest_cricsheet.py indian-domestic --force
-            else
-              uv run python scripts/ingest_cricsheet.py ingest --collection "$C" --force
-            fi
+            uv run python scripts/ingest_cricsheet.py ingest --collection "$C" --force
             # Ratings first: the Wicket Quality metric reads the fitted scout ratings.
             uv run python scripts/scout_rate.py --collection "$C" --advi-steps 12000
             uv run python scripts/compute_metrics.py all --collection "$C"

@@ -15,8 +15,11 @@ Pipeline
    decide ties, which are dropped along with no-results). Every
    feature is known *before* the delivery — balls left come from the
    scheduled overs minus legal balls bowled, the target only exists
-   in the chase. Rain-reduced (D/L) matches aren't marked in the data,
-   so they stay in.
+   in the chase. The chase's target and its ball count come from the
+   innings `target` Cricsheet records (`innings_<col>`), so a rain-hit
+   chase is scored against its revised DLS target and shortened overs;
+   a DB ingested before that table existed falls back to first-innings
+   total + 1 and the scheduled overs.
 
 2. **Score every ball.** WP_before is the model's prediction at the
    state just before the delivery; WP_after is the prediction after
@@ -64,7 +67,14 @@ import numpy as np
 import polars as pl
 from loguru import logger
 
-from cricdex.common.sql import player_ids, table_suffix
+from cricdex.common.sql import (
+    WINDOW_SUFFIXES,
+    balls_per_over,
+    base_suffix,
+    chase_targets,
+    player_ids,
+    table_suffix,
+)
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -74,7 +84,7 @@ FEATURES = [
     "balls_remaining",  # scheduled legal balls minus legal balls bowled
     "wickets_left",
     "score_before",
-    "target",  # 0 in the first innings, first-innings total + 1 in the chase
+    "target",  # 0 in the first innings; the chase's (DLS-revised) target, else first-innings total + 1
     "runs_needed",  # 0 in the first innings
     "required_rr",  # 0 in the first innings
     "current_rr",
@@ -93,6 +103,8 @@ def _build_state_table(con: duckdb.DuckDBPyConnection, collection: str) -> pl.Da
     safe = table_suffix(collection)
     not_wicket = ", ".join(f"'{w}'" for w in _NOT_A_WICKET)
     illegal = ", ".join(f"'{e}'" for e in _ILLEGAL)
+    bpo = balls_per_over(con, collection, "m.")
+    targets = chase_targets(con, collection)
     return con.execute(
         f"""
         WITH b AS (
@@ -128,19 +140,25 @@ def _build_state_table(con: duckdb.DuckDBPyConnection, collection: str) -> pl.Da
             s.match_id, s.innings_idx, s.batting_team, s.bowling_team, s.over, s.ball_in_over, s.ball_id,
             s.batter, s.bowler, s.runs_total, s.wicket_kind, s.legal, s.is_wicket, s.is_last_ball,
             s.score_before, s.wickets_before, s.legal_before,
-            GREATEST(0, COALESCE(m.overs, 20) * 6 - s.legal_before)       AS balls_remaining,
+            -- the chase uses the recorded (DLS-revised) target and overs when Cricsheet has them
+            GREATEST(0, CASE WHEN s.innings_idx = 1 AND t.target_balls IS NOT NULL THEN t.target_balls
+                             ELSE COALESCE(m.overs, 20) * {bpo} END - s.legal_before) AS balls_remaining,
             (10 - s.wickets_before)                                        AS wickets_left,
-            CASE WHEN s.innings_idx = 1 THEN f.first_total + 1 ELSE 0 END  AS target,
             CASE WHEN s.innings_idx = 1
-                 THEN GREATEST(0, f.first_total + 1 - s.score_before)
+                 THEN COALESCE(t.target_runs, f.first_total + 1) ELSE 0 END AS target,
+            CASE WHEN s.innings_idx = 1
+                 THEN GREATEST(0, COALESCE(t.target_runs, f.first_total + 1) - s.score_before)
                  ELSE 0 END                                                AS runs_needed,
             f.first_total, f.first_legal,
             m.venue, m.outcome_winner, m.result
         FROM seq s
         JOIN first_innings f ON f.match_id = s.match_id
         JOIN matches_{safe} m ON m.match_id = s.match_id
+        LEFT JOIN {targets} t ON t.match_id = s.match_id AND t.innings_idx = s.innings_idx
         WHERE COALESCE(m.result, '') NOT IN ('no result', 'tie')
           AND m.outcome_winner IS NOT NULL
+        -- a fixed row order, so the fitted model (and every number from it) is reproducible
+        ORDER BY s.match_id, s.innings_idx, s.over, s.ball_in_over, s.ball_id
         """
     ).pl()
 
@@ -400,15 +418,9 @@ def _per_player(
     return career.sort("ngi_per_match", descending=True)
 
 
-WINDOW_SUFFIXES = ("_last1y", "_last3y")
-
-
 def _base_collection(collection: str) -> str:
     """`ipl_last1y` → `ipl`: a time window is scored with the model trained on its whole collection."""
-    for suf in WINDOW_SUFFIXES:
-        if collection.endswith(suf):
-            return collection[: -len(suf)]
-    return collection
+    return base_suffix(collection) if collection.endswith(WINDOW_SUFFIXES) else collection
 
 
 def compute(

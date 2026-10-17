@@ -1,4 +1,5 @@
 import type { AuctionPoolRow } from "./data";
+import { tierDiscount } from "./leagues.ts";
 
 export type Role = "batter" | "bowler" | "all_rounder" | "keeper";
 
@@ -48,14 +49,14 @@ function priceTier(pv: number): number {
 // Mirrors the export-time penalty so Scout's est. prices agree with the
 // Auction pool. The auction_pool `value` is already penalised at export; raw
 // scout `value` is not, so callers pricing scout players pass their tier.
-// In value units (population sds): the old log-scale penalties × 6.4.
-export const TIER_PENALTY = { ipl: 0, smat: 1.28, bbl: 0.45, sa20: 0.45, cpl: 0.64, blast: 0.64 } as const;
-export type PriceTier = keyof typeof TIER_PENALTY;
+// In value units (population sds). The numbers come from the league registry
+// (config/leagues.toml → data/leagues.json), the same table the Python port reads.
+export type PriceTier = string; // a tier key from leagues.json: "ipl" | "smat" | "bbl" | …
 
 /** Estimated crore value from a raw Bayes value — same curve the auction uses.
  * `tier` discounts non-IPL comps so a SMAT/BBL price is comparable to IPL. */
 export function estValue(value: number, role: Role, tier: PriceTier = "ipl"): number {
-  const adj = value - TIER_PENALTY[tier];
+  const adj = value - tierDiscount(tier);
   return Math.max(0.3, Math.min(PV_MAX, PV_BASE * Math.exp(PV_SCALE * adj) * ROLE_MULT[role]));
 }
 

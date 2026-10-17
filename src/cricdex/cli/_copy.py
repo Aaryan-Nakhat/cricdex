@@ -140,6 +140,6 @@ AUCTION_SIMULATE_INTRO = (
 
 TWINS_INTRO = (
     "Cross-competition look-alikes — pick an active IPL player, see similar "
-    "players across IPL / SMAT / BBL / SA20 / CPL / Blast by within-tier "
+    "players across IPL, SMAT and every overseas league by within-tier "
     "skill standing, with est. price, saving-vs-pick and a gem flag."
 )

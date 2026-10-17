@@ -20,6 +20,7 @@
 ## Reference
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — the pipeline end to end, the layers, what reads what, how it ships.
+- [LEAGUES.md](LEAGUES.md) — the league registry (`config/leagues.toml`): every field, tiers and discounts, and how to add a league with one entry.
 - [API.md](API.md) — the FastAPI REST endpoints, with curl examples.
 - [DOCKER.md](DOCKER.md) — the image and Compose layout, and why it's built that way.
 - Module READMEs: [`metrics`](../src/cricdex/metrics/README.md), [`scout/ratings`](../src/cricdex/scout/ratings/README.md), [`web_parity`](../src/cricdex/web_parity/README.md), [`auction`](../src/cricdex/auction/README.md), [`scripts`](../scripts/README.md).

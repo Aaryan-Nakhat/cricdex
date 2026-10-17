@@ -1,0 +1,538 @@
+# CricDex league registry — the one list of every competition CricDex knows about.
+#
+# Adding a league is one `[[league]]` entry here plus `cricdex data ingest cricsheet -c <key>`
+# (see docs/LEAGUES.md). Nothing else in the code names a league: ingest, the exporter, the
+# website, the CLI/TUI, Streamlit, the API allow-list and the refresh workflow all read this file
+# through `cricdex.leagues`.
+#
+# Read with the standard-library `tomllib`; validated on load (unique keys, known tiers, zip-name
+# format, flag combinations). `uv run python -m cricdex.leagues check` validates it from the shell.
+
+schema = 1
+
+# ---------------------------------------------------------------------------------------------
+# Strength tiers. `discount` is the value (population-sd units, see scout/ratings/bayesian.py)
+# taken off a player's rating in that competition before it is compared with IPL value — the
+# Auction pool and Scout prices both use it. `calibrated = false` marks a discount borrowed by
+# analogy from a similar league and not yet checked against data (the site says so).
+# ---------------------------------------------------------------------------------------------
+
+[tiers.ipl]
+discount = 0.0
+calibrated = true
+note = "The reference competition: everything is priced in IPL value."
+
+[tiers.smat]
+discount = 1.28
+calibrated = true
+note = "Syed Mushtaq Ali: Indian domestic T20, far weaker attacks than the IPL."
+
+[tiers.bbl]
+discount = 0.45
+calibrated = true
+note = "Big Bash: strong overseas league."
+
+[tiers.sa20]
+discount = 0.45
+calibrated = true
+note = "SA20: strong overseas league, about BBL level."
+
+[tiers.cpl]
+discount = 0.64
+calibrated = true
+note = "CPL: slightly weaker than BBL / SA20."
+
+[tiers.blast]
+discount = 0.64
+calibrated = true
+note = "T20 Blast: English county T20, deep but uneven."
+
+[tiers.psl]
+discount = 0.45
+calibrated = false
+note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
+
+[tiers.ilt20]
+discount = 0.45
+calibrated = false
+note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
+
+[tiers.hundred]
+discount = 0.45
+calibrated = false
+note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
+
+[tiers.mlc]
+discount = 0.64
+calibrated = false
+note = "Borrowed from CPL / Blast; not yet fitted."
+
+[tiers.bpl]
+discount = 0.64
+calibrated = false
+note = "Borrowed from CPL / Blast; not yet fitted."
+
+[tiers.lpl]
+discount = 0.64
+calibrated = false
+note = "Borrowed from CPL / Blast; not yet fitted."
+
+[tiers.super_smash]
+discount = 0.64
+calibrated = false
+note = "Borrowed from CPL / Blast; not yet fitted."
+
+[tiers.csa_t20]
+discount = 0.64
+calibrated = false
+note = "Borrowed from CPL / Blast; not yet fitted."
+
+# ---------------------------------------------------------------------------------------------
+# Leagues. Fields:
+#   key           collection id: table suffix (`balls_<key>`), site folder and URL `?c=` value
+#   name / short  display label / abbreviation
+#   zips          Cricsheet download file(s) under https://cricsheet.org/downloads/ (several are
+#                 merged into one collection, de-duplicated by match id)
+#   gender        male | female
+#   kind          league | domestic | international | mixed
+#   country       where it is played (a region for mixed / international)
+#   tier          a [tiers.*] key (required for scout / auction pools)
+#   export        cooked into the website / CLI / TUI / dashboard snapshot
+#   active        still being played (inactive leagues stay readable)
+#   order         display order (lower first)
+#   scout_pool    a Scout look-alike panel; its key in scout_index.json is the tier key
+#     scout_group   peers (profile-linkable) | uncapped | overseas
+#     draftable     its players can be drafted into the Auction room
+#     gem_pool      the uncapped-gem (moneyball) board is drawn from this pool
+#   auction_pool  feeds the cross-league auction pool
+#   auction_target  the competition the auction pool is priced for (exactly one); its
+#                   `auction_nationalities` (allow) and `auction_excluded_nationalities` (deny)
+#                   lists say who may enter that pool as a free agent
+# ---------------------------------------------------------------------------------------------
+
+[[league]]
+key = "ipl"
+name = "IPL"
+short = "IPL"
+zips = ["ipl_json.zip"]
+gender = "male"
+kind = "league"
+country = "India"
+tier = "ipl"
+export = true
+active = true
+order = 10
+scout_pool = true
+scout_group = "peers"
+scout_title = "IPL peers"
+scout_subtitle = "Most-similar active IPL players"
+auction_pool = true
+auction_target = true
+# Who may enter this competition's auction pool as a free agent (a player already at a
+# franchise always stays). `auction_nationalities` is the allow-list: nations whose players
+# actually feature in an IPL auction; associate sides are left out because their value is
+# inflated against minnows. `auction_excluded_nationalities` always wins over the allow-list:
+# Pakistan (no IPL since 2008). Both spellings of a few codes appear in the taxonomy
+# (RSA/ZAF, SRI/LKA, WIN/WI), so both are listed. An empty allow-list means "every nation
+# except the excluded ones".
+auction_nationalities = [
+  "IND", "AUS", "ENG", "RSA", "ZAF", "NZL", "SRI", "LKA", "BAN", "AFG", "WIN", "WI", "IRE",
+]
+auction_excluded_nationalities = ["PAK"]
+
+[[league]]
+key = "indian_domestic_male"   # kept for existing data and links; the data is SMAT only
+name = "Syed Mushtaq Ali (SMAT)"
+short = "SMAT"
+zips = ["sma_json.zip"]
+gender = "male"
+kind = "domestic"
+country = "India"
+tier = "smat"
+export = true
+active = true
+order = 20
+scout_pool = true
+scout_group = "uncapped"
+scout_title = "Uncapped · SMAT"
+scout_subtitle = "Domestic Indian prospects of the same mould"
+draftable = true
+gem_pool = true
+auction_pool = true
+
+[[league]]
+key = "bbl"
+name = "Big Bash (BBL)"
+short = "BBL"
+zips = ["bbl_male_json.zip"]
+gender = "male"
+kind = "league"
+country = "Australia"
+tier = "bbl"
+export = true
+active = true
+order = 30
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · BBL"
+scout_subtitle = "Big Bash (Australia) of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "sa20"
+name = "SA20"
+short = "SA20"
+zips = ["sat_json.zip"]   # Cricsheet codes SA20 as "sat"
+gender = "male"
+kind = "league"
+country = "South Africa"
+tier = "sa20"
+export = true
+active = true
+order = 40
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · SA20"
+scout_subtitle = "SA20 (South Africa) of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "cpl"
+name = "Caribbean Premier League (CPL)"
+short = "CPL"
+zips = ["cpl_male_json.zip"]
+gender = "male"
+kind = "league"
+country = "West Indies"
+tier = "cpl"
+export = true
+active = true
+order = 50
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · CPL"
+scout_subtitle = "Caribbean Premier League of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "blast"
+name = "T20 Blast"
+short = "T20 Blast"
+zips = ["ntb_male_json.zip"]   # Cricsheet codes the T20 Blast as "ntb"
+gender = "male"
+kind = "league"
+country = "England"
+tier = "blast"
+export = true
+active = true
+order = 60
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · T20 Blast"
+scout_subtitle = "English county T20 of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "psl"
+name = "Pakistan Super League (PSL)"
+short = "PSL"
+zips = ["psl_male_json.zip"]
+gender = "male"
+kind = "league"
+country = "Pakistan"
+tier = "psl"
+export = true
+active = true
+order = 70
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · PSL"
+scout_subtitle = "Pakistan Super League of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "ilt20"
+name = "International League T20 (ILT20)"
+short = "ILT20"
+zips = ["ilt_male_json.zip"]
+gender = "male"
+kind = "league"
+country = "United Arab Emirates"
+tier = "ilt20"
+export = true
+active = true
+order = 80
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · ILT20"
+scout_subtitle = "ILT20 (UAE) of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "hundred_male"
+name = "The Hundred (men)"
+short = "Hundred"
+zips = ["hnd_male_json.zip"]
+gender = "male"
+kind = "league"
+country = "England"
+tier = "hundred"
+export = true
+active = true
+order = 90
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · The Hundred"
+scout_subtitle = "The Hundred (England) of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "mlc"
+name = "Major League Cricket (MLC)"
+short = "MLC"
+zips = ["mlc_male_json.zip"]
+gender = "male"
+kind = "league"
+country = "United States"
+tier = "mlc"
+export = true
+active = true
+order = 100
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · MLC"
+scout_subtitle = "Major League Cricket (USA) of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "bpl"
+name = "Bangladesh Premier League (BPL)"
+short = "BPL"
+zips = ["bpl_male_json.zip"]
+gender = "male"
+kind = "league"
+country = "Bangladesh"
+tier = "bpl"
+export = true
+active = true
+order = 110
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · BPL"
+scout_subtitle = "Bangladesh Premier League of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "lpl"
+name = "Lanka Premier League (LPL)"
+short = "LPL"
+zips = ["lpl_male_json.zip"]
+gender = "male"
+kind = "league"
+country = "Sri Lanka"
+tier = "lpl"
+export = true
+active = true
+order = 120
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · LPL"
+scout_subtitle = "Lanka Premier League of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "super_smash"
+name = "Super Smash (men)"
+short = "Super Smash"
+zips = ["ssm_male_json.zip"]
+gender = "male"
+kind = "domestic"
+country = "New Zealand"
+tier = "super_smash"
+export = true
+active = true
+order = 130
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · Super Smash"
+scout_subtitle = "New Zealand domestic T20 of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "csa_t20_challenge"
+name = "CSA T20 Challenge"
+short = "CSA T20"
+zips = ["ctc_male_json.zip"]
+gender = "male"
+kind = "domestic"
+country = "South Africa"
+tier = "csa_t20"
+export = true
+active = true
+order = 140
+scout_pool = true
+scout_group = "overseas"
+scout_title = "Overseas · CSA T20"
+scout_subtitle = "South African domestic T20 of the same mould"
+draftable = true
+auction_pool = true
+
+[[league]]
+key = "t20s_male"
+name = "Men's T20Is"
+short = "T20Is"
+zips = ["t20s_male_json.zip"]
+gender = "male"
+kind = "international"
+country = "International"
+export = true
+active = true
+order = 150
+# Not an auction pool: associate-nation matches inflate value against minnows.
+
+[[league]]
+key = "recently_played_30_male"
+name = "Recently played (men's T20)"
+short = "Recent"
+zips = ["recently_played_30_male_json.zip"]
+gender = "male"
+kind = "mixed"
+country = "Worldwide"
+export = true
+active = true
+order = 160
+
+# --- Women's competitions: ready to ingest, not exported yet ---------------------------------
+
+[[league]]
+key = "wpl"
+name = "Women's Premier League (WPL)"
+short = "WPL"
+zips = ["wpl_json.zip"]
+gender = "female"
+kind = "league"
+country = "India"
+export = false
+active = true
+order = 500
+
+[[league]]
+key = "wbbl"
+name = "Women's Big Bash (WBBL)"
+short = "WBBL"
+zips = ["wbb_female_json.zip"]
+gender = "female"
+kind = "league"
+country = "Australia"
+export = false
+active = true
+order = 510
+
+[[league]]
+key = "hundred_female"
+name = "The Hundred (women)"
+short = "Hundred (W)"
+zips = ["hnd_female_json.zip"]
+gender = "female"
+kind = "league"
+country = "England"
+export = false
+active = true
+order = 520
+
+[[league]]
+key = "t20s_female"
+name = "Women's T20Is"
+short = "T20Is (W)"
+zips = ["t20s_female_json.zip"]
+gender = "female"
+kind = "international"
+country = "International"
+export = false
+active = true
+order = 530
+
+[[league]]
+key = "recently_played_30_female"
+name = "Recently played (women's)"
+short = "Recent (W)"
+zips = ["recently_played_30_female_json.zip"]
+gender = "female"
+kind = "mixed"
+country = "Worldwide"
+export = false
+active = true
+order = 540
+
+# --- Other formats: ingestible on request, outside the T20 product ---------------------------
+
+[[league]]
+key = "tests_male"
+name = "Men's Tests"
+short = "Tests"
+zips = ["tests_male_json.zip"]
+gender = "male"
+kind = "international"
+country = "International"
+export = false
+active = true
+order = 900
+
+[[league]]
+key = "tests_female"
+name = "Women's Tests"
+short = "Tests (W)"
+zips = ["tests_female_json.zip"]
+gender = "female"
+kind = "international"
+country = "International"
+export = false
+active = true
+order = 910
+
+[[league]]
+key = "odis_male"
+name = "Men's ODIs"
+short = "ODIs"
+zips = ["odis_male_json.zip"]
+gender = "male"
+kind = "international"
+country = "International"
+export = false
+active = true
+order = 920
+
+[[league]]
+key = "odis_female"
+name = "Women's ODIs"
+short = "ODIs (W)"
+zips = ["odis_female_json.zip"]
+gender = "female"
+kind = "international"
+country = "International"
+export = false
+active = true
+order = 930
+
+[[league]]
+key = "all"
+name = "Every Cricsheet match"
+short = "All"
+zips = ["all_json.zip"]
+gender = "mixed"
+kind = "mixed"
+country = "Worldwide"
+export = false
+active = true
+order = 990

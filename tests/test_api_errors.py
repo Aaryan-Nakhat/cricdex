@@ -69,3 +69,23 @@ def test_ngi_cache_miss_is_503_not_a_live_fit(tmp_path, monkeypatch):
     r = client.get("/v1/metrics/ngi", params={"collection": "ipl"})
     assert r.status_code == 503
     assert "cricdex data ingest metrics" in r.json()["detail"]
+
+
+def test_unknown_collection_is_400_listing_the_registry(fake_db):
+    r = client.get("/v1/players/V%20Kohli", params={"collection": "not_a_league"})
+    assert r.status_code == 400
+    assert "Valid: ipl" in r.json()["detail"] and "psl" in r.json()["detail"]
+
+
+def test_time_window_of_a_registry_league_passes_the_check(fake_db):
+    assert (
+        client.get("/v1/players/V%20Kohli", params={"collection": "ipl_last1y"}).status_code == 200
+    )
+
+
+def test_leagues_endpoint_serves_the_registry():
+    from cricdex import leagues
+
+    r = client.get("/v1/leagues")
+    assert r.status_code == 200
+    assert [lg["key"] for lg in r.json()["leagues"]] == leagues.keys()

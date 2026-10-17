@@ -1,8 +1,9 @@
 """`cricdex scout look-alikes` — web-identical cross-competition look-alikes.
 
-Pick an active IPL player → similar players across IPL / SMAT / BBL / SA20 /
-CPL / T20 Blast, read from the same exported JSON and computed with
-`cricdex.web_parity` (locked to the web by `test_web_parity.py`).
+Pick an active IPL player → similar players across every Scout pool in the league
+registry (config/leagues.toml: IPL peers, uncapped SMAT, then each overseas league), read
+from the same exported JSON and computed with `cricdex.web_parity` (locked to the web
+by `test_web_parity.py`).
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 
 @app.command(
     "look-alikes",
-    help="Cross-competition look-alikes across six pools (IPL/SMAT/BBL/SA20/CPL/Blast) — identical to the web Scout.",
+    help="Cross-competition look-alikes across every Scout pool (IPL peers, SMAT, overseas leagues) — identical to the web Scout.",
 )
 def look_alikes(
     name: str = typer.Argument(..., help="active IPL player (fuzzy-matched)"),
@@ -25,6 +26,7 @@ def look_alikes(
     pos: str | None = typer.Option(None, "--pos", help="batting slot filter (opener…tailender)"),
     top_k: int = typer.Option(8, "-k", "--top-k"),
 ) -> None:
+    from cricdex import leagues
     from cricdex.web_parity import (
         est_value,
         gem_threshold,
@@ -46,7 +48,9 @@ def look_alikes(
     use_role = role or sel["role"]
     use_pos = pos or ""
     sel_price = est_value(sel["value"], sel["role"], "ipl")
-    gem_med = gem_threshold(idx["smat"])
+    gem_lg = leagues.gem_pool()
+    gem_tier = gem_lg.tier if gem_lg else None
+    gem_med = gem_threshold(idx.get(gem_tier, [])) if gem_tier else None
 
     _render.header(
         f"Scout — look-alikes for {name}",
@@ -54,15 +58,10 @@ def look_alikes(
     )
     _render.intro_panel(_copy.TWINS_INTRO, title="Scout")
 
-    titles = {
-        "ipl": "IPL peers",
-        "smat": "Uncapped · SMAT",
-        "bbl": "Overseas · BBL",
-        "sa20": "Overseas · SA20",
-        "cpl": "Overseas · CPL",
-        "blast": "Overseas · T20 Blast",
-    }
-    for tier in ("ipl", "smat", "bbl", "sa20", "cpl", "blast"):
+    for lg in leagues.scout_pools():
+        tier, title = lg.tier, lg.scout_title or lg.short
+        if tier not in idx:
+            continue  # a pool added to the registry since the last export
         rows = []
         for r in similar_to(sel, idx[tier], use_role, use_pos)[:top_k]:
             price = est_value(r["value"], r["role"], tier)
@@ -75,13 +74,13 @@ def look_alikes(
                     "est_cr": round(price, 1),
                     "save_cr": round(saving, 1) if saving > 0 else "",
                     "sim%": round(r["sim"] * 100),
-                    "gem": "💎" if (tier == "smat" and is_gem(r, gem_med)) else "",
+                    "gem": "💎" if (tier == gem_tier and is_gem(r, gem_med)) else "",
                 }
             )
         if rows:
-            _render.pretty_table(rows, title=titles[tier], column_styles={"name": "bold cyan"})
+            _render.pretty_table(rows, title=title, column_styles={"name": "bold cyan"})
         else:
-            console().print(f"[dim]{titles[tier]}: no close match of this archetype.[/dim]")
+            console().print(f"[dim]{title}: no close match of this archetype.[/dim]")
     _render.footnote(
         "Same data + logic as the web Scout (locked by test_web_parity.py). est_cr = the "
         "auction's skill→price curve (tier-discounted); 💎 = uncapped gem (high standing, low "

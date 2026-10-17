@@ -14,6 +14,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from cricdex import leagues
 from cricdex.common.filters import (
     ACTIVITY_OPTS,
     BOWLING_OPTS,
@@ -34,8 +35,13 @@ from cricdex.web_parity.loader import SITE_DATA
 
 @st.cache_data(ttl=300)
 def discover_collections() -> list[str]:
-    cols = [d.name for d in SITE_DATA.iterdir() if d.is_dir() and (d / "leaderboards").is_dir()]
-    return sorted(cols) or ["ipl"]
+    """Exported leagues that have leaderboards, in registry order (config/leagues.toml)."""
+    have = (
+        {d.name for d in SITE_DATA.iterdir() if d.is_dir() and (d / "leaderboards").is_dir()}
+        if SITE_DATA.exists()
+        else set()
+    )
+    return [k for k in leagues.keys() if k in have] or leagues.exported_keys()[:1]
 
 
 @st.cache_data(ttl=300)
@@ -99,7 +105,10 @@ def render() -> None:
     collections = discover_collections()
     with st.sidebar:
         collection = st.selectbox(
-            "Collection", collections, index=collections.index("ipl") if "ipl" in collections else 0
+            "Collection",
+            collections,
+            index=collections.index("ipl") if "ipl" in collections else 0,
+            format_func=leagues.label,
         )
         window = st.radio(
             "Time window",

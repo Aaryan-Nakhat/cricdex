@@ -28,6 +28,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM deps AS app
 COPY src ./src
+# the league registry (config/leagues.toml): every league list in the code reads it
+COPY config ./config
 COPY scripts ./scripts
 COPY tests ./tests
 COPY site/public/data ./site/public/data

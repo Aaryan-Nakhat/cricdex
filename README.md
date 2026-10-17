@@ -23,7 +23,7 @@ it predicts anything.
 **[Ten metrics](#-ten-numbers-a-scorecard-hides)** · **[The backtest](#-does-any-of-it-predict-anything)** ·
 **[How it works](#-how-it-works)** · **[Quickstart](#-quickstart)** · **[Docs](#-docs)**
 
-**8,300+ T20 matches. 1.9 million balls. Seven competitions. Every number computed from Cricsheet's
+**10,300+ T20 matches. 2.3 million balls. Fifteen competitions. Every number computed from Cricsheet's
 ball-by-ball data, and every model explained in plain English.**
 
 ---
@@ -41,8 +41,9 @@ you see **who lands each star, how often, and for how much**, and how every squa
 - **Bidding that behaves like the real room:** a team with more money left per open slot bids harder,
   the winner pays just above the second-best bid, and no player goes above 27 cr, the real record.
 - **Yours to change:** release or add any retention, swap a team's personality, change the purse.
-- **The pool is the whole T20 world:** IPL players plus free agents from the BBL, SA20, CPL, T20 Blast
-  and the SMAT, weighted by how relevant they are to the IPL right now.
+- **The pool is the whole T20 world:** IPL players plus free agents from the SMAT and every overseas
+  league in the registry (BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC, BPL, LPL and more),
+  weighted by how relevant they are to the IPL right now.
 
 Prices are estimated from the skill model, calibrated to recent auctions. They model how the room
 behaves, not the exact crore of a real sale. → [How the auction works](docs/AUCTION_MATH.md)
@@ -75,8 +76,8 @@ better than B?") use both ranges, so a thin record can't win the argument on its
 
 <p align="center"><img src="docs/media/scout.png" alt="Scout: an IPL bowler and look-alikes from six pools, with match score, estimated price and saving" width="100%"></p>
 
-Pick an IPL player. **Scout** finds players of the same role and type across six pools (IPL, SMAT,
-BBL, SA20, CPL, T20 Blast), ranks them by how they stand **within their own league**, and prices each
+Pick an IPL player. **Scout** finds players of the same role and type across every pool (IPL, SMAT,
+and each overseas league: BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC and more), ranks them by how they stand **within their own league**, and prices each
 one with the auction's own curve, so you see the budget swap and the saving. Uncapped prospects punching
 above their sample get a gem flag, and one click drafts a prospect into the auction room.
 → [Scout](docs/SCOUT.md)

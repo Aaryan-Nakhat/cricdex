@@ -23,7 +23,8 @@ Output layout (per collection):
         venues.json                    per-venue conditions
         profiles/<cricsheet_id>.json   full profile per qualifying player
         cohorts/<cricsheet_id>.json    co_faced (faced-the-same-bowlers cohort)
-    site/data/collections.json         index: [{collection, data_as_of, ...}]
+    site/data/collections.json         index: [{collection, data_as_of, ...}] in registry order
+    site/data/leagues.json             the league registry (labels, tiers, discounts, pools)
 
 `data_as_of` is the max match_date actually in the collection — the
 real "data up to" date the UI shows, not the build time.
@@ -39,7 +40,8 @@ import duckdb
 import typer
 from loguru import logger
 
-from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, player_ids, table_suffix
+from cricdex import leagues
+from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, WINDOWS, player_ids, table_suffix
 from cricdex.config import CURATED_DIR, DATA_DIR
 
 app = typer.Typer(add_completion=False)
@@ -109,16 +111,8 @@ METRIC_SLUGS = [
     "fielding",
 ]
 
-DEFAULT_COLLECTIONS = [
-    "ipl",
-    "bbl",
-    "t20s_male",
-    "indian_domestic_male",
-    "recently_played_30_male",
-    "sa20",
-    "cpl",
-    "blast",
-]
+# Every league the registry marks `export = true` (config/leagues.toml), in display order.
+DEFAULT_COLLECTIONS = leagues.exported_keys()
 
 
 def _json_default(o):
@@ -254,30 +248,16 @@ MEGA_RETENTIONS_2025: dict[str, list[tuple[str, float]]] = {
 }
 
 
-# t20s_male is deliberately excluded — it's polluted with associate-nation
-# matches where value inflates against minnows. Overseas IPL players already
-# come through `ipl`; free agents are Aus (BBL) + uncapped Indians (SMAT).
-AUCTION_POOL_COLLECTIONS = ["ipl", "bbl", "indian_domestic_male", "sa20", "cpl", "blast"]
+# The leagues the auction pool draws from (`auction_pool = true` in config/leagues.toml). Men's
+# T20Is are left out there — associate-nation matches inflate value against minnows.
+AUCTION_POOL_COLLECTIONS = [lg.key for lg in leagues.auction_pool()]
+# The competition the pool is priced for (the IPL), and who may enter it as a free agent: its
+# `auction_nationalities` allow-list and `auction_excluded_nationalities` deny-list (Pakistan and
+# associate sides are left out — data in config/leagues.toml, not code).
+AUCTION_TARGET = leagues.auction_target().key
+auction_eligible = leagues.auction_target().auction_eligible
 AUCTION_RECENCY_DAYS = 1100  # ~3 years of activity in ANY of those comps
 AUCTION_POOL_CAP = 600  # top-N by value (keeps the sim snappy + relevant)
-# Nations whose players actually feature in an IPL auction. Excludes PAK
-# (no IPL since 2008) and associate sides (Uganda etc.) whose Bayes value is
-# inflated against minnows — they'd otherwise flood the top of the pool.
-AUCTION_COUNTRIES = {
-    "IND",
-    "AUS",
-    "ENG",
-    "RSA",
-    "ZAF",
-    "NZL",
-    "SRI",
-    "LKA",
-    "BAN",
-    "AFG",
-    "WIN",
-    "WI",
-    "IRE",
-}
 AUCTION_MIN_BALLS = 150  # drop tiny-sample players whose Bayes value is inflated
 # Value removed from a player with zero IPL relevance (league-only veteran). In
 # value units (population sds, see bayesian._value_draws): 2.7 ≈ the old 0.42
@@ -299,24 +279,15 @@ def _export_auction_pool(
 
     # Value isn't comparable across tiers (a number vs weak SMAT attacks ≠ vs
     # IPL), so penalise lower tiers and take each player's best PENALISED value.
-    # One table for export + Scout pricing (web_parity/pricing ⇄ lib/auction.ts).
-    from cricdex.web_parity.pricing import TIER_PENALTY as _PEN
-
-    TIER_PENALTY = {
-        "ipl": _PEN["ipl"],
-        "bbl": _PEN["bbl"],
-        "sa20": _PEN["sa20"],  # SA20 — strong overseas league, ~BBL
-        "cpl": _PEN["cpl"],  # CPL — slightly weaker than BBL/SA20
-        "blast": _PEN["blast"],  # T20 Blast — English county T20, deep but uneven
-        "indian_domestic_male": _PEN["smat"],
-    }
+    # One table for export + Scout pricing: each league's tier discount in
+    # config/leagues.toml (web_parity/pricing ⇄ lib/auction.ts read the same).
     best: dict[str, dict] = {}
     max_balls: dict[str, int] = {}
     for col in AUCTION_POOL_COLLECTIONS:
         f = METRIC_DIR / f"scout_ratings_{col}.json"
         if not f.exists():
             continue
-        pen = TIER_PENALTY.get(col, _PEN["cpl"])
+        pen = leagues.discount(col)
         for r in json.loads(f.read_text()):
             cid, v = r.get("cricsheet_id"), r.get("value")
             if cid is None or v is None:
@@ -334,8 +305,12 @@ def _export_auction_pool(
     # single cross-league max — lets us tell "active in SA20 but hasn't played
     # IPL in years" apart from "current IPL regular".
     last_by_col: dict[str, dict[str, str]] = {col: {} for col in AUCTION_POOL_COLLECTIONS}
+    have = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
     for col in AUCTION_POOL_COLLECTIONS:
         safe = _safe(col)
+        if f"balls_{safe}" not in have:
+            logger.warning(f"auction_pool: {col} isn't ingested yet — left out of the pool")
+            continue
         for nm, d in con.execute(
             f"""
             SELECT nm, MAX(match_date) FROM (
@@ -349,7 +324,7 @@ def _export_auction_pool(
                 last_by_col[col][cid] = str(d)[:10]
 
     def _last_ipl(cid: str) -> str | None:
-        return last_by_col["ipl"].get(cid)
+        return last_by_col[AUCTION_TARGET].get(cid)
 
     def _last_any(cid: str) -> str | None:
         ds = [last_by_col[c].get(cid) for c in AUCTION_POOL_COLLECTIONS]
@@ -435,15 +410,15 @@ def _export_auction_pool(
         tax = taxonomy.get(cid, {})
         country = tax.get("country")
         team = teams.get(name)  # IPL franchise, else None (free agent)
-        if not team and country not in AUCTION_COUNTRIES:
+        if not team and not auction_eligible(country):
             continue
         age = _age(cid)
         rel = _relevance(cid, team, country, age)
         li = _last_ipl(cid)
-        leagues = _leagues(cid)
-        home = leagues[0]["league"] if leagues else None
+        played = _leagues(cid)
+        home = played[0]["league"] if played else None
         activity[cid] = {
-            "leagues": leagues,
+            "leagues": played,
             "last_ipl": li,
             "last_any": ld,
             "home_league": home,
@@ -489,22 +464,19 @@ def _scout_role_score(role: str, bat: float | None, bowl: float | None) -> float
 def _export_scout_index(
     con: duckdb.DuckDBPyConnection, out_dir: Path, taxonomy: dict[str, dict]
 ) -> int:
-    """Cross-tier scouting index: for IPL, SMAT (uncapped Indian) and BBL
-    (overseas), per recently-active player emit role/type + skill standing
-    (z on the player's own role, among the shown players of that role in
-    that tier, so levels compare across competitions). Powers
-    'players similar to <IPL player> in each tier'."""
+    """Cross-tier scouting index: for every Scout pool in the league registry (IPL peers, SMAT
+    uncapped Indians, each overseas league), per recently-active player emit role/type + skill
+    standing (z on the player's own role, among the shown players of that role in that tier, so
+    levels compare across competitions). Keyed by tier, in registry order; a pool whose league
+    hasn't been ingested and rated yet is an empty list. Powers 'players similar to <IPL player>
+    in each tier'."""
     import datetime as _dt
     import statistics as _st
 
-    tiers = {
-        "ipl": "ipl",
-        "smat": "indian_domestic_male",
-        "bbl": "bbl",
-        "sa20": "sa20",
-        "cpl": "cpl",
-        "blast": "blast",
-    }
+    # scout_index.json is keyed by each Scout pool's tier (`smat` for indian_domestic_male …)
+    pools = leagues.scout_pools()
+    tiers = {lg.tier: lg.key for lg in pools}
+    draftable = {lg.tier for lg in pools if lg.draftable}
     role_map = {
         "wk_batter": "keeper",
         "allrounder": "all_rounder",
@@ -512,9 +484,11 @@ def _export_scout_index(
         "batter": "batter",
     }
     index: dict[str, list[dict]] = {}
+    have = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
     for tier, col in tiers.items():
         f = METRIC_DIR / f"scout_ratings_{col}.json"
-        if not f.exists():
+        if not f.exists() or f"balls_{_safe(col)}" not in have:
+            logger.warning(f"scout_index: no ratings / balls for {col} — the {tier} pool is empty")
             index[tier] = []
             continue
         # Each player's batting and bowling value, kept apart so a player is
@@ -552,6 +526,10 @@ def _export_scout_index(
             if not nm or balls.get(cid, 0) < 150 or not ld or (cutoff and ld < cutoff):
                 continue
             tax = taxonomy.get(cid, {})
+            # a draftable pool only offers players who could enter the auction (a known country
+            # outside the auction target's nationality list is left out; untagged players stay)
+            if tier in draftable and tax.get("country") and not auction_eligible(tax["country"]):
+                continue
             role = role_map.get(tax.get("primary_role"), "batter")
             b, w = bat.get(cid), bowl.get(cid)
             sides = [x for x in (b, w) if x is not None]
@@ -793,7 +771,7 @@ def _activity_map(
 
 # Fixed time windows for the leaderboards period selector. label -> days
 # back from the collection's latest match. "all" (no window) is the base.
-WINDOWS: dict[str, int] = {"last3y": 1095, "last1y": 365}
+# WINDOWS (window → days) comes from common/sql.py, the one definition of the time windows.
 
 
 # Ball-faced buckets in innings order; the index is the x-axis of the curve.
@@ -1352,6 +1330,11 @@ def export(
     """Cook every artifact into site/data/ for the static frontend."""
     if clean and SITE_DATA.exists():
         shutil.rmtree(SITE_DATA)
+    if collection:
+        try:
+            leagues.validate_collection(collection)
+        except ValueError as e:
+            raise typer.BadParameter(str(e), param_hint="--collection") from None
     cols = [collection] if collection else DEFAULT_COLLECTIONS
 
     # PREP: build window tables (exclusive write) then cook window metrics via
@@ -1390,7 +1373,7 @@ def export(
             meta["windows"] = windows_by_col.get(col, [])
             _write(out_dir / "meta.json", meta)
             _write(out_dir / "players.json", players)
-            if col == "ipl":
+            if col == AUCTION_TARGET:
                 _export_retentions(players, out_dir)
                 n_pool = _export_auction_pool(con, out_dir, taxonomy, _current_teams(con, col))
                 n_scout = _export_scout_index(con, out_dir, taxonomy)
@@ -1430,9 +1413,15 @@ def export(
             pass
     for e in index:
         existing[e["collection"]] = e
-    ordered = [existing[c] for c in DEFAULT_COLLECTIONS if c in existing]
-    ordered += [e for c, e in existing.items() if c not in DEFAULT_COLLECTIONS]
+    # registry order; a league no longer in the registry drops out of the dropdown
+    known = leagues.keys()
+    ordered = [existing[c] for c in known if c in existing]
+    dropped = sorted(c for c in existing if c not in known)
+    if dropped:
+        logger.warning(f"collections.json: dropping {dropped} (not in config/leagues.toml)")
     _write(idx_path, ordered)
+    # the registry itself: labels, tiers, discounts and pools for the web app
+    _write(SITE_DATA / "leagues.json", leagues.site_payload())
     logger.info(
         f"wrote site/data/ for {len(index)} collections; index has {len(ordered)} → {SITE_DATA}"
     )

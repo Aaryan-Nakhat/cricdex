@@ -47,6 +47,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "0085a7ce": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "JFA Field",
+  "name": "JFA Field",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "00863408": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -104,6 +116,18 @@
   "country": "ENG",
   "full_name": "JDM Evison",
   "name": "JDM Evison",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "00cda8e4": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "AUS",
+  "full_name": "SM Elliott",
+  "name": "SM Elliott",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -177,6 +201,18 @@
   "full_name": "DB Loic",
   "name": "DB Loic",
   "primary_role": "unknown",
+  "source": "llm"
+ },
+ "016e5101": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "M Shezi",
+  "name": "M Shezi",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "0184dc35": {
@@ -287,6 +323,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "02789d88": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Shamsur Rahman",
+  "name": "Shamsur Rahman",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "02888f23": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -335,6 +383,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "02e83ac5": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Naeem Islam",
+  "name": "Naeem Islam",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "033e9d59": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -357,6 +417,18 @@
   "full_name": "VRV Singh",
   "name": "VRV Singh",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "03521fd3": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "HM Nicholls",
+  "name": "HM Nicholls",
+  "primary_role": "batter",
   "source": "llm"
  },
  "035cb925": {
@@ -407,6 +479,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "03a83c50": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "V Viyaskanth",
+  "name": "V Viyaskanth",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "03beb59f": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -455,6 +539,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "0480aba6": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Enamul Haque jnr",
+  "name": "Enamul Haque jnr",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "04855b85": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -488,6 +584,18 @@
   "country": "IND",
   "full_name": "Riyan Parag",
   "name": "R Parag",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "04a5b56e": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "OA Ramela",
+  "name": "OA Ramela",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -683,6 +791,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "0637aa94": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "BGD",
+  "full_name": "Nazmul Hossain Milon",
+  "name": "Nazmul Hossain Milon",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "06989091": {
   "batting_hand": "unknown",
   "batting_position": "unknown",
@@ -803,6 +923,30 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "07687c15": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "medium",
+  "country": "ARE",
+  "full_name": "Sultan Ahmed",
+  "name": "Sultan Ahmed",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "07793daf": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "JR Lennox",
+  "name": "JR Lennox",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "077da288": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -839,6 +983,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "07b6c3c1": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "LU Igalagamage",
+  "name": "LU Igalagamage",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "07c8a2f4": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -861,6 +1017,18 @@
   "full_name": "D Marks",
   "name": "D Marks",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "0827b38d": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "TG Mokoena",
+  "name": "TG Mokoena",
+  "primary_role": "batter",
   "source": "llm"
  },
  "0848ac5f": {
@@ -971,6 +1139,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "098229a5": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "SCO",
+  "full_name": "CH Stobo",
+  "name": "CH Stobo",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "098a757c": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -1053,6 +1233,18 @@
   "full_name": "TMJ Smith",
   "name": "TMJ Smith",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "0a2184d9": {
+  "batting_hand": "left",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "D Lakshan",
+  "name": "D Lakshan",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "0a3d54b9": {
@@ -1235,6 +1427,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "0b7363da": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-medium",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Mehedi Hasan Rana",
+  "name": "Mehedi Hasan Rana",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "0b7b78c6": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -1244,6 +1448,18 @@
   "country": "CAN",
   "full_name": "Hammad Mirza",
   "name": "Hammad Mirza",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "0ba03cec": {
+  "batting_hand": "right",
+  "batting_position": "no3",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "R van Tonder",
+  "name": "R van Tonder",
   "primary_role": "batter",
   "source": "llm"
  },
@@ -1281,6 +1497,18 @@
   "full_name": "BAC Howell",
   "name": "BAC Howell",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "0bf15e52": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "USA",
+  "full_name": "Harmeet Singh",
+  "name": "Harmeet Singh",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "0c0ef3fb": {
@@ -1475,6 +1703,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "0dda48b5": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "N McFadyen",
+  "name": "N McFadyen",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "0e0afd8b": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -1631,6 +1871,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "0f05655d": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BTN",
+  "full_name": "Tashi Dorji",
+  "name": "Tashi Dorji",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "0f12f9df": {
   "batting_hand": "left",
   "batting_position": "finisher",
@@ -1652,6 +1904,18 @@
   "country": "ENG",
   "full_name": "GG White",
   "name": "GG White",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "0f348f58": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Sunzamul Islam",
+  "name": "Sunzamul Islam",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -1799,6 +2063,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "1062bebb": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "Siyabonga Mahima",
+  "name": "Siyabonga Mahima",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "10636efb": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -1931,6 +2207,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "118e6f66": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "AR Schaw",
+  "name": "AR Schaw",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "119678fd": {
   "batting_hand": "left",
   "batting_position": "lower",
@@ -1991,6 +2279,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "12314277": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-medium",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Arshad Khan",
+  "name": "Arshad Khan",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "1252f71a": {
   "batting_hand": "right",
   "batting_position": "lower",
@@ -2001,6 +2301,18 @@
   "full_name": "MRJ Watt",
   "name": "MRJ Watt",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "125fa4de": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "JF Carter",
+  "name": "JF Carter",
+  "primary_role": "batter",
   "source": "llm"
  },
  "1274d7ab": {
@@ -2159,6 +2471,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "13d0b3d6": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "RS Second",
+  "name": "RS Second",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "13dd2a4b": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -2195,6 +2519,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "1439e6b5": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "IRL",
+  "full_name": "CM Carroll",
+  "name": "CM Carroll",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "145c2a1f": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -2216,6 +2552,18 @@
   "country": "CAN",
   "full_name": "Kaleem Sana",
   "name": "Kaleem Sana",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "149d0c18": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "PF Younghusband",
+  "name": "PF Younghusband",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -2408,6 +2756,18 @@
   "country": "IND",
   "full_name": "Bishworjit Konthoujam",
   "name": "Bishworjit Konthoujam",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "1670dcfd": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Nayeem Hasan",
+  "name": "Nayeem Hasan",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -2625,6 +2985,18 @@
   "full_name": "J Khadka",
   "name": "J Khadka",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "193ef196": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Sharjeel Khan",
+  "name": "Sharjeel Khan",
+  "primary_role": "batter",
   "source": "llm"
  },
  "1957c6b7": {
@@ -2891,6 +3263,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "1b42a100": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "RSA",
+  "full_name": "BS Makhanya",
+  "name": "BS Makhanya",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "1b6fef02": {
   "batting_hand": "left",
   "batting_position": "opener",
@@ -2939,6 +3323,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "1bb0993e": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Abu Jayed",
+  "name": "Abu Jayed",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "1bdbf53b": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -2949,6 +3345,42 @@
   "full_name": "B George",
   "name": "B George",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "1be67d37": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "RTM Mendis",
+  "name": "RTM Mendis",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "1bf9a8ef": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "PAK",
+  "full_name": "Mohammad Irfan (4)",
+  "name": "Mohammad Irfan (4)",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "1c06d60a": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "MD Rae",
+  "name": "MD Rae",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "1c17e270": {
@@ -3023,6 +3455,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "1c790f4f": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Rumman Raees",
+  "name": "Rumman Raees",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "1c8cd1c3": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -3059,6 +3503,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "1cb14aa4": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "CJ Dala",
+  "name": "CJ Dala",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "1cc0a83d": {
   "batting_hand": "left",
   "batting_position": "tailender",
@@ -3069,6 +3525,18 @@
   "full_name": "J Hull",
   "name": "J Hull",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "1ccf9e7e": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "JL Finnie",
+  "name": "JL Finnie",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "1ce4f664": {
@@ -3092,6 +3560,18 @@
   "country": "ENG",
   "full_name": "CP Wood",
   "name": "CP Wood",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "1d105638": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "M Budaza",
+  "name": "M Budaza",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -3203,6 +3683,30 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "1e182ae2": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "BD Walters",
+  "name": "BD Walters",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "1e1a8922": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "KDC Clarke",
+  "name": "KDC Clarke",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "1e569fb0": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -3260,6 +3764,18 @@
   "country": "MMR",
   "full_name": "Paing Danu",
   "name": "Paing Danu",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "1ec36a1e": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Mohammad Sharif",
+  "name": "Mohammad Sharif",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -3383,6 +3899,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "1f7adc8a": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Arafat Sunny",
+  "name": "Arafat Sunny",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "1f84183a": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -3429,6 +3957,18 @@
   "full_name": "Tenjin Rabgey",
   "name": "Tenjin Rabgey",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "1ff2f550": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Sohail Akhtar",
+  "name": "Sohail Akhtar",
+  "primary_role": "batter",
   "source": "llm"
  },
  "2011735e": {
@@ -3515,6 +4055,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "210b05cb": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Ehsan Adil",
+  "name": "Ehsan Adil",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "214f6461": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -3575,6 +4127,30 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "21b67523": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "KEN",
+  "full_name": "F Mutua",
+  "name": "F Mutua",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "21b97584": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-medium",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Mrittunjoy Chowdhury",
+  "name": "Mrittunjoy Chowdhury",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "21b9e62b": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -3585,6 +4161,54 @@
   "full_name": "Shakeeb Ahmed",
   "name": "Shakeeb Ahmed",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "21d4e29b": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Navdeep Saini",
+  "name": "Navdeep Saini",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "21db290f": {
+  "batting_hand": "unknown",
+  "batting_position": "unknown",
+  "bowling_category": "unknown",
+  "bowling_style": "unknown",
+  "confidence": "low",
+  "country": null,
+  "full_name": "Hammadullah Shinwari",
+  "name": "Hammadullah Shinwari",
+  "primary_role": "unknown",
+  "source": "llm"
+ },
+ "21dbacff": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Abdul Samad",
+  "name": "Abdul Samad",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "21e5f325": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "TA Blundell",
+  "name": "TA Blundell",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "22176fe7": {
@@ -3623,6 +4247,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "229962fc": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "SCO",
+  "full_name": "J Scott",
+  "name": "J Scott",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "22ae3041": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -3645,6 +4281,30 @@
   "full_name": "TW Hartley",
   "name": "TW Hartley",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "22bd731a": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "DG Brownlie",
+  "name": "DG Brownlie",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "22d73540": {
+  "batting_hand": "left",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Jahandad Khan",
+  "name": "Jahandad Khan",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "2306b48a": {
@@ -3741,6 +4401,18 @@
   "full_name": "Varun Sood",
   "name": "Varun Sood",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "236c8ffb": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "MW Snedden",
+  "name": "MW Snedden",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "239f7526": {
@@ -4079,6 +4751,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "267be846": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Rejaur Rahman",
+  "name": "Rejaur Rahman",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "2687fff2": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -4211,6 +4895,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "26d9937d": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "CJ Alexander",
+  "name": "CJ Alexander",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "26e5cabf": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -4319,6 +5015,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "2742086d": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "RR O'Donnell",
+  "name": "RR O'Donnell",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "27af6414": {
   "batting_hand": "left",
   "batting_position": "finisher",
@@ -4331,6 +5039,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "27c5715d": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Khurram Shahzad",
+  "name": "Khurram Shahzad",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "27c5a793": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -4341,6 +5061,18 @@
   "full_name": "DJ Lamb",
   "name": "DJ Lamb",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "27ca3a11": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "C Chetty",
+  "name": "C Chetty",
+  "primary_role": "batter",
   "source": "llm"
  },
  "27df03d2": {
@@ -4451,6 +5183,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "288dd46e": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Shykat Ali",
+  "name": "Shykat Ali",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "28adcce9": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -4545,6 +5289,18 @@
   "full_name": "Yashpal Singh",
   "name": "Yashpal Singh",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "298d9b83": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BHR",
+  "full_name": "Shariq Munir",
+  "name": "Shariq Munir",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "29b322c7": {
@@ -4715,6 +5471,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "2ae01eb0": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "medium",
+  "country": "ZAF",
+  "full_name": "I Khan",
+  "name": "I Khan",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "2af0e3b1": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -4748,6 +5516,18 @@
   "country": "KEN",
   "full_name": "Vraj Patel",
   "name": "Vraj Patel",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "2af838ee": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "N Pradeep",
+  "name": "N Pradeep",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -4905,6 +5685,18 @@
   "full_name": "Martin Guptill",
   "name": "MJ Guptill",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "2c1438ef": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "L Delport",
+  "name": "L Delport",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "2c25d4f5": {
@@ -5267,6 +6059,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "2e966563": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "RM Hira",
+  "name": "RM Hira",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "2e9fdf9b": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -5349,6 +6153,18 @@
   "full_name": "Mohammad Rizwan",
   "name": "Mohammad Rizwan",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "2f28dc94": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "RAS Lakmal",
+  "name": "RAS Lakmal",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "2f48362d": {
@@ -5435,6 +6251,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "3029e282": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Umar Amin",
+  "name": "Umar Amin",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "30564b3e": {
   "batting_hand": "left",
   "batting_position": "opener",
@@ -5493,6 +6321,18 @@
   "full_name": "SP Gomes",
   "name": "SP Gomes",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "30afc92b": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Salman Irshad",
+  "name": "Salman Irshad",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "30c917bf": {
@@ -5603,6 +6443,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "31803fac": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Abu Hider",
+  "name": "Abu Hider",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "31b01074": {
   "batting_hand": "right",
   "batting_position": "lower",
@@ -5685,6 +6537,18 @@
   "full_name": "Mois\u00e9s Henriques",
   "name": "MC Henriques",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "321be7e3": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "A Ashok",
+  "name": "A Ashok",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "321fcf79": {
@@ -5867,6 +6731,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "3361993b": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Mehedi Maruf",
+  "name": "Mehedi Maruf",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "33742f04": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -5877,6 +6753,18 @@
   "full_name": "Usman Qadir",
   "name": "Usman Qadir",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "339243d6": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "low",
+  "country": "GGY",
+  "full_name": "KJS Elliott",
+  "name": "KJS Elliott",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "33a364a6": {
@@ -5913,6 +6801,18 @@
   "full_name": "B Khumalo",
   "name": "B Khumalo",
   "primary_role": "unknown",
+  "source": "llm"
+ },
+ "33ad0ad9": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "ATE Hazeldine",
+  "name": "ATE Hazeldine",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "33b3d2df": {
@@ -6251,6 +7151,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "35f4cf7e": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Kamran Ghulam",
+  "name": "Kamran Ghulam",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "35f9a295": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -6308,6 +7220,18 @@
   "country": "THA",
   "full_name": "Sarawut Maliwan",
   "name": "Sarawut Maliwan",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "36ea17c1": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "TL Moreki",
+  "name": "TL Moreki",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -6467,6 +7391,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "383dd431": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "TD Astle",
+  "name": "TD Astle",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "384fa385": {
   "batting_hand": "left",
   "batting_position": "no3",
@@ -6477,6 +7413,18 @@
   "full_name": "TL Cutler",
   "name": "TL Cutler",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "3883402f": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "CHN",
+  "full_name": "Tian Sen Qun",
+  "name": "Tian Sen Qun",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "389ae08a": {
@@ -6548,6 +7496,18 @@
   "country": "ZAF",
   "full_name": "BC Cullen",
   "name": "BC Cullen",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "39181592": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "RSA",
+  "full_name": "PE Kruger",
+  "name": "PE Kruger",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -6645,6 +7605,18 @@
   "full_name": "L Tucker",
   "name": "L Tucker",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "397f4d3a": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "BM Wheeler",
+  "name": "BM Wheeler",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "3987e390": {
@@ -6791,6 +7763,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "3a0f6df2": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Zulfiqar Babar",
+  "name": "Zulfiqar Babar",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "3a3e7d82": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -6935,6 +7919,30 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "3b8679bf": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Hunain Shah",
+  "name": "Hunain Shah",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "3b8e7647": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "USA",
+  "full_name": "SP Krishnamurthi",
+  "name": "SP Krishnamurthi",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "3bc10d5b": {
   "batting_hand": "right",
   "batting_position": "lower",
@@ -6959,6 +7967,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "3be224b0": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Sameen Gul",
+  "name": "Sameen Gul",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "3bea1983": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -6969,6 +7989,18 @@
   "full_name": "DT Doram",
   "name": "DT Doram",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "3bf40832": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "GL Cloete",
+  "name": "GL Cloete",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "3bf7c034": {
@@ -7052,6 +8084,18 @@
   "country": "RWA",
   "full_name": "D Ndikubwimana",
   "name": "D Ndikubwimana",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "3cc7dd5f": {
+  "batting_hand": "left",
+  "batting_position": "finisher",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Irfan Sukkur",
+  "name": "Irfan Sukkur",
   "primary_role": "wk_batter",
   "source": "llm"
  },
@@ -7319,6 +8363,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "3ee0050f": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "LKA",
+  "full_name": "PM Liyanagamage",
+  "name": "PM Liyanagamage",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "3f1066d0": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -7487,6 +8543,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "4025c262": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "PJ van Biljon",
+  "name": "PJ van Biljon",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "402f8494": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -7511,6 +8579,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "40792cff": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Amit Mishra",
+  "name": "Amit Mishra",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "409ce380": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -7521,6 +8601,30 @@
   "full_name": "AA Onikoyi",
   "name": "AA Onikoyi",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "40aea524": {
+  "batting_hand": "right",
+  "batting_position": "no3",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "AFG",
+  "full_name": "Abdul Wahid",
+  "name": "Abdul Wahid",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "40c041ea": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Imam-ul-Haq",
+  "name": "Imam-ul-Haq",
+  "primary_role": "batter",
   "source": "llm"
  },
  "40caa465": {
@@ -8171,6 +9275,30 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "45d38a84": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "medium",
+  "country": "BAN",
+  "full_name": "Al Islam",
+  "name": "Al Islam",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "45df0e72": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "CJ Bowes",
+  "name": "CJ Bowes",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "45eda7c8": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -8228,6 +9356,18 @@
   "country": "IND",
   "full_name": "Jasprit Bumrah",
   "name": "JJ Bumrah",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "462d7c62": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "D Paterson",
+  "name": "D Paterson",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -8399,6 +9539,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "47b33198": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "CHN",
+  "full_name": "Chen Zhuo Yue",
+  "name": "Chen Zhuo Yue",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "47b4ad09": {
   "batting_hand": "left",
   "batting_position": "opener",
@@ -8409,6 +9561,18 @@
   "full_name": "JG Myburgh",
   "name": "JG Myburgh",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "47c449c5": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "Dayyaan Galiem",
+  "name": "Dayyaan Galiem",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "47ccd2bb": {
@@ -8591,6 +9755,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "492ff0c2": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "R Mondol",
+  "name": "R Mondol",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "4933f499": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -8601,6 +9777,18 @@
   "full_name": "Jason Behrendorff",
   "name": "JP Behrendorff",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "4948a447": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Farhad Reza",
+  "name": "Farhad Reza",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "4948a916": {
@@ -8723,6 +9911,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "4a370769": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "low",
+  "country": "MYS",
+  "full_name": "Gagandeep Singh",
+  "name": "Gagandeep Singh",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "4a461c24": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -8732,6 +9932,18 @@
   "country": "ENG",
   "full_name": "LA Dawson",
   "name": "LA Dawson",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "4a491652": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Muktar Ali",
+  "name": "Muktar Ali",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -8783,6 +9995,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "4aad78d3": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "K Zondo",
+  "name": "K Zondo",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "4add4c98": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -8831,6 +10055,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "4af9f5d4": {
+  "batting_hand": "right",
+  "batting_position": "unknown",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "low",
+  "country": "NZL",
+  "full_name": "CD Fletcher",
+  "name": "CD Fletcher",
+  "primary_role": "unknown",
+  "source": "llm"
+ },
  "4b167ede": {
   "batting_hand": "left",
   "batting_position": "middle",
@@ -8867,6 +10103,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "4b51bd51": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Mahmudul Hasan Joy",
+  "name": "Mahmudul Hasan Joy",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "4b57e452": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -8891,6 +10139,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "4b6f6b73": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "medium",
+  "country": "LKA",
+  "full_name": "S Colombage",
+  "name": "S Colombage",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "4ba2c04d": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -8913,6 +10173,18 @@
   "full_name": "M Muralitharan",
   "name": "M Muralitharan",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "4bb02ef1": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "ZAF",
+  "full_name": "D Smit",
+  "name": "D Smit",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "4bb7f51e": {
@@ -9009,6 +10281,30 @@
   "full_name": "NW Bracken",
   "name": "NW Bracken",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "4c7df2c8": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "AFG",
+  "full_name": "Mohammad Shahzad",
+  "name": "Mohammad Shahzad",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "4c895bc1": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "KJ McClure",
+  "name": "KJ McClure",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "4cfda770": {
@@ -9155,6 +10451,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "4e520f6c": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "OR Newton",
+  "name": "OR Newton",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "4e6ff836": {
   "batting_hand": "unknown",
   "batting_position": "unknown",
@@ -9189,6 +10497,18 @@
   "full_name": "A Shreshta",
   "name": "A Shreshta",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "4eb02f2e": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "LKA",
+  "full_name": "KTH Ratnayake",
+  "name": "KTH Ratnayake",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "4ec0443d": {
@@ -9251,6 +10571,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "4f1bb625": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "PAK",
+  "full_name": "Yasir Khan",
+  "name": "Yasir Khan",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "4f3a89ae": {
   "batting_hand": "right",
   "batting_position": "unknown",
@@ -9272,6 +10604,18 @@
   "country": "NZL",
   "full_name": "SE Bond",
   "name": "SE Bond",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "4f78497c": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "W Clark",
+  "name": "W Clark",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -9407,6 +10751,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "51355a30": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "LC Ngoepe",
+  "name": "LC Ngoepe",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "5152ab02": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -9452,6 +10808,18 @@
   "country": "GIB",
   "full_name": "T Nightingale",
   "name": "T Nightingale",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "51a36d3e": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "GH Worker",
+  "name": "GH Worker",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -9587,6 +10955,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "52d11798": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "DJ Grobbelaar",
+  "name": "DJ Grobbelaar",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "52d884b9": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -9659,6 +11039,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "534e65a9": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "R Mark",
+  "name": "R Mark",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "53597be1": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -9681,6 +11073,30 @@
   "full_name": "JT Brassell",
   "name": "JT Brassell",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "537f5ab2": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "USA",
+  "full_name": "DL Piedt",
+  "name": "DL Piedt",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "53834b36": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Ali Raza",
+  "name": "Ali Raza",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "53ace082": {
@@ -9717,6 +11133,30 @@
   "full_name": "SP Goswami",
   "name": "SP Goswami",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "5426de63": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "HB Shipley",
+  "name": "HB Shipley",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "54279e23": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Alok Kapali",
+  "name": "Alok Kapali",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "542fd5a6": {
@@ -9777,6 +11217,18 @@
   "full_name": "V Chopra",
   "name": "V Chopra",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "547c5509": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "M Mpongwana",
+  "name": "M Mpongwana",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "5491a9ff": {
@@ -9851,6 +11303,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "556df4f9": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "BS Smith",
+  "name": "BS Smith",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "5570c4c1": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -9921,6 +11385,30 @@
   "full_name": "Waqar Ali",
   "name": "Waqar Ali",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "55f33b32": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "JL Ontong",
+  "name": "JL Ontong",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "5661ef90": {
+  "batting_hand": "unknown",
+  "batting_position": "unknown",
+  "bowling_category": "unknown",
+  "bowling_style": "unknown",
+  "confidence": "low",
+  "country": null,
+  "full_name": "A Sharma",
+  "name": "A Sharma",
+  "primary_role": "unknown",
   "source": "llm"
  },
  "5673a3fc": {
@@ -10019,6 +11507,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "56feceb0": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "ZAF",
+  "full_name": "K Mungroo",
+  "name": "K Mungroo",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "5708d0b6": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -10053,6 +11553,30 @@
   "full_name": "Tanush Kotian",
   "name": "Tanush Kotian",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "572f55fb": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "AUS",
+  "full_name": "JA Bird",
+  "name": "JA Bird",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "574665e2": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Mohammad Asghar",
+  "name": "Mohammad Asghar",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "5748e866": {
@@ -10113,6 +11637,18 @@
   "full_name": "S Davizi",
   "name": "S Davizi",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "5791b840": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Yasir Ali Chowdhury",
+  "name": "Yasir Ali Chowdhury",
+  "primary_role": "batter",
   "source": "llm"
  },
  "57a76baa": {
@@ -10197,6 +11733,30 @@
   "full_name": "IDA Damarell",
   "name": "IDA Damarell",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "58431ca0": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "MADI Hemantha",
+  "name": "MADI Hemantha",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "585dda5d": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "LKA",
+  "full_name": "KNA Bandara",
+  "name": "KNA Bandara",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "5876c626": {
@@ -10367,6 +11927,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "59a7fc89": {
+  "batting_hand": "left",
+  "batting_position": "no3",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "low",
+  "country": "ZAF",
+  "full_name": "MQ Adams",
+  "name": "MQ Adams",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "59bff8c7": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -10439,6 +12011,30 @@
   "primary_role": "unknown",
   "source": "llm"
  },
+ "5a22d91c": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "SRI",
+  "full_name": "EMDY Munaweera",
+  "name": "EMDY Munaweera",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "5a4c12ab": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Sohag Gazi",
+  "name": "Sohag Gazi",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "5a74e559": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -10484,6 +12080,18 @@
   "country": "ENG",
   "full_name": "GJ Batty",
   "name": "GJ Batty",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "5af743d0": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Sohail Khan",
+  "name": "Sohail Khan",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -10679,6 +12287,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "5c756df3": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Abul Hasan",
+  "name": "Abul Hasan",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "5c805a60": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -10835,6 +12455,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "5d99a16a": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "BJ Horne",
+  "name": "BJ Horne",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "5d9a1a73": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -10919,6 +12551,18 @@
   "primary_role": "unknown",
   "source": "llm"
  },
+ "5ec126fa": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "I Manack",
+  "name": "I Manack",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "5ec41cd7": {
   "batting_hand": "right",
   "batting_position": "lower",
@@ -10929,6 +12573,18 @@
   "full_name": "Jasdeep Singh",
   "name": "Jasdeep Singh",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "5ed872ee": {
+  "batting_hand": "right",
+  "batting_position": "unknown",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "low",
+  "country": "ENG",
+  "full_name": "L Blackford",
+  "name": "L Blackford",
+  "primary_role": "unknown",
   "source": "llm"
  },
  "5ef3c310": {
@@ -11003,6 +12659,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "5f419ace": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "WL Coetsee",
+  "name": "WL Coetsee",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "5f547c8b": {
   "batting_hand": "right",
   "batting_position": "lower",
@@ -11051,6 +12719,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "5f966ec0": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "JA Raval",
+  "name": "JA Raval",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "5fa06777": {
   "batting_hand": "left",
   "batting_position": "finisher",
@@ -11061,6 +12741,18 @@
   "full_name": "Irfan Pathan",
   "name": "IK Pathan",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "5fbe14fc": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Imrul Kayes",
+  "name": "Imrul Kayes",
+  "primary_role": "batter",
   "source": "llm"
  },
  "5fcb6fb1": {
@@ -11171,6 +12863,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "607ed7c2": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Shohidul Islam",
+  "name": "Shohidul Islam",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "609d6c7c": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -11255,6 +12959,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "612a395c": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "low",
+  "country": "IRE",
+  "full_name": "S Singh",
+  "name": "S Singh",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "615688b6": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -11324,6 +13040,18 @@
   "country": "LKA",
   "full_name": "Gayan Munaweera",
   "name": "Gayan Munaweera",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "62175638": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "AFG",
+  "full_name": "Karim Janat",
+  "name": "Karim Janat",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -11471,6 +13199,30 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "637b6fbd": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "AG Puttick",
+  "name": "AG Puttick",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "63a1874a": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "AK Kitchen",
+  "name": "AK Kitchen",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "63aa8148": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -11493,6 +13245,18 @@
   "full_name": "Chintan Gaja",
   "name": "Chintan Gaja",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "63d6e16e": {
+  "batting_hand": "left",
+  "batting_position": "no3",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "medium",
+  "country": "PAK",
+  "full_name": "Saeed Ahmed",
+  "name": "Saeed Ahmed",
+  "primary_role": "batter",
   "source": "llm"
  },
  "63d6f031": {
@@ -11565,6 +13329,30 @@
   "full_name": "RP Meredith",
   "name": "RP Meredith",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "647a48da": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "medium",
+  "country": "ZAF",
+  "full_name": "AJ Pienaar",
+  "name": "AJ Pienaar",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "647e7d44": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "low",
+  "country": "AUS",
+  "full_name": "J Brown",
+  "name": "J Brown",
+  "primary_role": "batter",
   "source": "llm"
  },
  "64839cb3": {
@@ -11660,6 +13448,30 @@
   "country": "FJI",
   "full_name": "PV Vuniwaqa",
   "name": "PV Vuniwaqa",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "6575e3bc": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-wrist-spin",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Nazmul Islam",
+  "name": "Nazmul Islam",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "6581d753": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "ZAF",
+  "full_name": "JM Kemp",
+  "name": "JM Kemp",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -11891,6 +13703,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "6752c57b": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Jahurul Islam",
+  "name": "Jahurul Islam",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "6755cd5c": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -11963,6 +13787,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "6821ac10": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "JJ van der Wath",
+  "name": "JJ van der Wath",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "6834d1f2": {
   "batting_hand": "left",
   "batting_position": "tailender",
@@ -11996,6 +13832,18 @@
   "country": "WIN",
   "full_name": "RR Beaton",
   "name": "RR Beaton",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "687e20b3": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-medium",
+  "confidence": "medium",
+  "country": "PAK",
+  "full_name": "Mohammad Imran",
+  "name": "Mohammad Imran",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -12119,6 +13967,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "69c994e4": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "SHA Rance",
+  "name": "SHA Rance",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "69caf2be": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -12155,6 +14015,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "69e23303": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "medium",
+  "country": "BGD",
+  "full_name": "Shahadat Hossain",
+  "name": "Shahadat Hossain",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "69e53eb3": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -12165,6 +14037,18 @@
   "full_name": "F Stoman",
   "name": "F Stoman",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "6a0537aa": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "N Boje",
+  "name": "N Boje",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "6a26221c": {
@@ -12381,6 +14265,18 @@
   "full_name": "R Obuya",
   "name": "R Obuya",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "6be7b49d": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "LI Georgeson",
+  "name": "LI Georgeson",
+  "primary_role": "batter",
   "source": "llm"
  },
  "6c19c6e5": {
@@ -12743,6 +14639,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "6ed11905": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "ZAF",
+  "full_name": "M Nabe",
+  "name": "M Nabe",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "6eea0b32": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -12875,6 +14783,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "7068c81e": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "ENG",
+  "full_name": "MJ Fisher",
+  "name": "MJ Fisher",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "7081491e": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -12969,6 +14889,18 @@
   "full_name": "BM Pecic",
   "name": "BM Pecic",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "710dd98c": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "MN van Wyk",
+  "name": "MN van Wyk",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "711249d1": {
@@ -13079,6 +15011,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "719c8223": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "NAM",
+  "full_name": "H Hoekstra",
+  "name": "H Hoekstra",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "71ad618b": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -13101,6 +15045,18 @@
   "full_name": "P Useni",
   "name": "P Useni",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "721032ec": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Alauddin Babu",
+  "name": "Alauddin Babu",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "7210d461": {
@@ -13295,6 +15251,18 @@
   "primary_role": "unknown",
   "source": "llm"
  },
+ "730b57de": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "WT O'Donnell",
+  "name": "WT O'Donnell",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "730d120f": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -13316,6 +15284,18 @@
   "country": "SRI",
   "full_name": "KIC Asalanka",
   "name": "KIC Asalanka",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "732f711b": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "MJ Hay",
+  "name": "MJ Hay",
   "primary_role": "batter",
   "source": "llm"
  },
@@ -13400,6 +15380,18 @@
   "country": "AFG",
   "full_name": "Waqar Zalmai",
   "name": "Waqar Zalmai",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "74a1c1e3": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "WER Somerville",
+  "name": "WER Somerville",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -13619,6 +15611,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "760f445b": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Monir Hossain",
+  "name": "Monir Hossain",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "762f43b7": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -13787,6 +15791,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "77191792": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Mohammad Mithun",
+  "name": "Mohammad Mithun",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "77255a9e": {
   "batting_hand": "right",
   "batting_position": "no3",
@@ -13809,6 +15825,30 @@
   "full_name": "JN Mohammed",
   "name": "JN Mohammed",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "77768f72": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Rakibul Hasan",
+  "name": "Rakibul Hasan",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "77841dcc": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "J Symes",
+  "name": "J Symes",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "779b7f4d": {
@@ -13893,6 +15933,18 @@
   "full_name": "JT Langridge",
   "name": "JT Langridge",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "78adc879": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "N Wagner",
+  "name": "N Wagner",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "78bbeba1": {
@@ -14096,6 +16148,54 @@
   "country": "ENG",
   "full_name": "GT Griffiths",
   "name": "GT Griffiths",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "79f5bc26": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "BG Lister",
+  "name": "BG Lister",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "79f8472d": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "medium",
+  "country": "PAK",
+  "full_name": "Mohammad Mohsin",
+  "name": "Mohammad Mohsin",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "7a12be0a": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "KD Clarke",
+  "name": "KD Clarke",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "7a490dec": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "USA",
+  "full_name": "C le Roux",
+  "name": "C le Roux",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -14411,6 +16511,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "7cb2d9d2": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "DM Dupavillon",
+  "name": "DM Dupavillon",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "7cc15633": {
   "batting_hand": "left",
   "batting_position": "opener",
@@ -14421,6 +16533,18 @@
   "full_name": "JHK Adams",
   "name": "JHK Adams",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "7ccbb09f": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Shahnawaz Dhani",
+  "name": "Shahnawaz Dhani",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "7cff331d": {
@@ -14505,6 +16629,18 @@
   "full_name": "Mujeeb Ur Rahman",
   "name": "Mujeeb Ur Rahman",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "7d9b4224": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "L Senokwane",
+  "name": "L Senokwane",
+  "primary_role": "batter",
   "source": "llm"
  },
  "7daedf2f": {
@@ -14613,6 +16749,18 @@
   "full_name": "M van Lingen",
   "name": "M van Lingen",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "7ec9711d": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "P Subrayen",
+  "name": "P Subrayen",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "7ecb9a14": {
@@ -14879,6 +17027,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "800b52dc": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "NE Mbhalati",
+  "name": "NE Mbhalati",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "800d2d97": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -15071,6 +17231,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "817c1746": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Elias Sunny",
+  "name": "Elias Sunny",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "81898acc": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -15104,6 +17276,18 @@
   "country": "ENG",
   "full_name": "FS Organ",
   "name": "FS Organ",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "81a0e294": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NLD",
+  "full_name": "SA Engelbrecht",
+  "name": "SA Engelbrecht",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -15227,6 +17411,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "8361e524": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "SSB Magala",
+  "name": "SSB Magala",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "83c3e8e3": {
   "batting_hand": "left",
   "batting_position": "tailender",
@@ -15248,6 +17444,18 @@
   "country": "WIN",
   "full_name": "MW Forde",
   "name": "MW Forde",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "84212ffb": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "J Liyanage",
+  "name": "J Liyanage",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -15321,6 +17529,18 @@
   "full_name": "Ashutosh Sharma",
   "name": "Ashutosh Sharma",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "84dc72db": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "ARE",
+  "full_name": "Junaid Siddique",
+  "name": "Junaid Siddique",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "85119526": {
@@ -15731,6 +17951,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "8812869d": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Nikhil Gangta",
+  "name": "Nikhil Gangta",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "881a9bdd": {
   "batting_hand": "left",
   "batting_position": "middle",
@@ -15777,6 +18009,18 @@
   "full_name": "ARJ Ogborne",
   "name": "ARJ Ogborne",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "8836fcac": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "M Mosehle",
+  "name": "M Mosehle",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "884f72a1": {
@@ -15861,6 +18105,18 @@
   "full_name": "Naman Ojha",
   "name": "NV Ojha",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "890b877d": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "VB van Jaarsveld",
+  "name": "VB van Jaarsveld",
+  "primary_role": "batter",
   "source": "llm"
  },
  "890de8cb": {
@@ -16019,6 +18275,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "8a58f203": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "low",
+  "country": "IND",
+  "full_name": "R Ugarkar",
+  "name": "R Ugarkar",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "8a75e999": {
   "batting_hand": "right",
   "batting_position": "no3",
@@ -16127,6 +18395,18 @@
   "primary_role": "unknown",
   "source": "llm"
  },
+ "8b248d88": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "R Frylinck",
+  "name": "R Frylinck",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "8b261d84": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -16199,6 +18479,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "8bd614b2": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Rony Talukdar",
+  "name": "Rony Talukdar",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "8bd9fd13": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -16257,6 +18549,18 @@
   "full_name": "Mohammad Ali",
   "name": "Mohammad Ali",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "8c7b16c8": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Nahidul Islam",
+  "name": "Nahidul Islam",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "8c7d6cbe": {
@@ -16439,6 +18743,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "8dc152d1": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "D Jansen",
+  "name": "D Jansen",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "8dd02a98": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -16511,6 +18827,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "8e9a5d20": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "A Verma",
+  "name": "A Verma",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "8e9d3dc4": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -16545,6 +18873,18 @@
   "full_name": "F Mutua",
   "name": "F Mutua",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "8eb611d0": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Mosharraf Hossain",
+  "name": "Mosharraf Hossain",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "8ec4841c": {
@@ -16619,6 +18959,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "8f3f2d61": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "RD Harrison",
+  "name": "RD Harrison",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "8f3fde65": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -16688,6 +19040,18 @@
   "country": "ENG",
   "full_name": "AC Lenham",
   "name": "AC Lenham",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "8fb49ef8": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Suhrawadi Shuvo",
+  "name": "Suhrawadi Shuvo",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -16799,6 +19163,30 @@
   "primary_role": "unknown",
   "source": "llm"
  },
+ "90701232": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "MB Bacon",
+  "name": "MB Bacon",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "907d6e58": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Aamer Yamin",
+  "name": "Aamer Yamin",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "90830f8d": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -16833,6 +19221,18 @@
   "full_name": "D Norotam",
   "name": "D Norotam",
   "primary_role": "unknown",
+  "source": "llm"
+ },
+ "90d6cdea": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "TB de Bruyn",
+  "name": "TB de Bruyn",
+  "primary_role": "batter",
   "source": "llm"
  },
  "90de905a": {
@@ -16919,6 +19319,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "917f66da": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "low",
+  "country": "NZL",
+  "full_name": "TM Johnson",
+  "name": "TM Johnson",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "919a3be2": {
   "batting_hand": "left",
   "batting_position": "middle",
@@ -16941,6 +19353,30 @@
   "full_name": "Z Khan",
   "name": "Z Khan",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "91cc319d": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "CHN",
+  "full_name": "Ma Qiancheng",
+  "name": "Ma Qiancheng",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "91cd48e0": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "JF Smith",
+  "name": "JF Smith",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "91ffa6c6": {
@@ -17171,6 +19607,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "93a751e8": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "RT Bailey",
+  "name": "RT Bailey",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "93a77ad4": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -17219,6 +19667,30 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "93f25f4f": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "BR Hampton",
+  "name": "BR Hampton",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "93fefdfa": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Ram Dayal",
+  "name": "Ram Dayal",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "94113d54": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -17243,6 +19715,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "94238673": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "HK Bennett",
+  "name": "HK Bennett",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "94253925": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -17255,6 +19739,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "9440ef41": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Suyash Sharma",
+  "name": "Suyash Sharma",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "944533a5": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -17265,6 +19761,42 @@
   "full_name": "Karun Nair",
   "name": "KK Nair",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "945981e5": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "IND",
+  "full_name": "D Johnson",
+  "name": "D Johnson",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "94734e80": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "JG Walker",
+  "name": "JG Walker",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "9489623e": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Asif Afridi",
+  "name": "Asif Afridi",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "948beb1f": {
@@ -17348,6 +19880,18 @@
   "country": "LKA",
   "full_name": "WIA Fernando",
   "name": "WIA Fernando",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "955e8e86": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "A Mgijima",
+  "name": "A Mgijima",
   "primary_role": "batter",
   "source": "llm"
  },
@@ -17495,6 +20039,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "9656afbf": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Ahmed Daniyal",
+  "name": "Ahmed Daniyal",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "9679838c": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -17589,6 +20145,18 @@
   "full_name": "S Joseph",
   "name": "S Joseph",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "972f217b": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "ZAF",
+  "full_name": "BJ Jacobs",
+  "name": "BJ Jacobs",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "977b841a": {
@@ -17807,6 +20375,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "987187b9": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "medium",
+  "country": "USA",
+  "full_name": "Zeeshan Ali",
+  "name": "Zeeshan Ali",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "9889da93": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -17939,6 +20519,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "99528b4b": {
+  "batting_hand": "right",
+  "batting_position": "no3",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "HR Cooper",
+  "name": "HR Cooper",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "995fd3b2": {
   "batting_hand": "unknown",
   "batting_position": "unknown",
@@ -17975,6 +20567,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "99c81226": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Zia-ul-Haq",
+  "name": "Zia-ul-Haq",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "99cddc5e": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -17997,6 +20601,18 @@
   "full_name": "Kedar Jadhav",
   "name": "KM Jadhav",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "99d7d5b7": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Akif Javed",
+  "name": "Akif Javed",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "99ed60f8": {
@@ -18095,6 +20711,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "9ab2914d": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "S Samarawickrama",
+  "name": "S Samarawickrama",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "9ab63e7b": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -18117,6 +20745,18 @@
   "full_name": "Sumit Singh",
   "name": "Sumit Singh",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "9b05c1c1": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "AL Olliver",
+  "name": "AL Olliver",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "9b4935c8": {
@@ -18153,6 +20793,30 @@
   "full_name": "Mohammad Ahnaff",
   "name": "Mohammad Ahnaff",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "9b8a3c39": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Muhammad Musa",
+  "name": "Muhammad Musa",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "9ba59a3c": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "LJ Woodcock",
+  "name": "LJ Woodcock",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "9bab2b81": {
@@ -18275,6 +20939,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "9c8448ba": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "OJ Peake",
+  "name": "OJ Peake",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "9c91218d": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -18321,6 +20997,18 @@
   "full_name": "Naseem Shah",
   "name": "Naseem Shah",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "9c9f8dbc": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "H Davids",
+  "name": "H Davids",
+  "primary_role": "batter",
   "source": "llm"
  },
  "9ca68676": {
@@ -18443,6 +21131,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "9d50c7e1": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "MP Siboto",
+  "name": "MP Siboto",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "9d704f6f": {
   "batting_hand": "left",
   "batting_position": "finisher",
@@ -18512,6 +21212,18 @@
   "country": "PAK",
   "full_name": "Shadab Khan",
   "name": "Shadab Khan",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "9df3a2f4": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "ACR Birch",
+  "name": "ACR Birch",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -18695,6 +21407,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "9f77963a": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "AFG",
+  "full_name": "Gulbadin Naib",
+  "name": "Gulbadin Naib",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "9f7932a7": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -18741,6 +21465,18 @@
   "full_name": "R Escobar",
   "name": "R Escobar",
   "primary_role": "unknown",
+  "source": "llm"
+ },
+ "9fa54c94": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "MY Vallie",
+  "name": "MY Vallie",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "9fc0ef64": {
@@ -19007,6 +21743,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "a1ad8978": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "J McKenzie",
+  "name": "J McKenzie",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "a1b69936": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -19077,6 +21825,18 @@
   "full_name": "PM Nevill",
   "name": "PM Nevill",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "a2316f90": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "J Dawood",
+  "name": "J Dawood",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "a2317d14": {
@@ -19199,6 +21959,30 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "a354c917": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "NT Broom",
+  "name": "NT Broom",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "a3690f55": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "PAK",
+  "full_name": "Khuzaima Tanveer",
+  "name": "Khuzaima Tanveer",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "a36915ce": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -19235,6 +22019,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "a3a078ba": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Subashis Roy",
+  "name": "Subashis Roy",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "a3a275ec": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -19245,6 +22041,18 @@
   "full_name": "K Waiswa",
   "name": "K Waiswa",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "a3ae63f4": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "RSA",
+  "full_name": "GJ Snyman",
+  "name": "GJ Snyman",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "a3ead8da": {
@@ -19415,6 +22223,30 @@
   "primary_role": "unknown",
   "source": "llm"
  },
+ "a5501504": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "low",
+  "country": "IND",
+  "full_name": "AP Yadav",
+  "name": "AP Yadav",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "a55e0360": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "JEY",
+  "full_name": "CP Savage",
+  "name": "CP Savage",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "a5735bd3": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -19424,6 +22256,42 @@
   "country": "GRC",
   "full_name": "A Karvelas",
   "name": "A Karvelas",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "a573ad7a": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "LC Johnson",
+  "name": "LC Johnson",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "a5c48ed1": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "LKA",
+  "full_name": "C Wickramasinghe",
+  "name": "C Wickramasinghe",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "a5e1e2d4": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "BHR",
+  "full_name": "Muhammad Soban",
+  "name": "Muhammad Soban",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -19475,6 +22343,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "a63775d6": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Rahat Ali",
+  "name": "Rahat Ali",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "a63dfe8a": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -19485,6 +22365,18 @@
   "full_name": "JJG Sales",
   "name": "JJG Sales",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "a699488a": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Mukidul Islam",
+  "name": "Mukidul Islam",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "a6c17509": {
@@ -19607,6 +22499,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "a7bc76a0": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "E Leie",
+  "name": "E Leie",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "a7c226e1": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -19643,6 +22547,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "a81d6706": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "C Jonker",
+  "name": "C Jonker",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "a81e957f": {
   "batting_hand": "right",
   "batting_position": "lower",
@@ -19665,6 +22581,54 @@
   "full_name": "TP Ura",
   "name": "TP Ura",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "a830c083": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "ND McKenzie",
+  "name": "ND McKenzie",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "a833f99c": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "JD Vandiar",
+  "name": "JD Vandiar",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "a83c44b8": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "A Gqamane",
+  "name": "A Gqamane",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "a86a37ab": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Mohammad Ali",
+  "name": "Mohammad Ali",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "a879b92c": {
@@ -19727,6 +22691,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "a8e54ef4": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Aamer Jamal",
+  "name": "Aamer Jamal",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "a8f91f78": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -19749,6 +22725,18 @@
   "full_name": "Matthew Short",
   "name": "MW Short",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "a9231c3f": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "USA",
+  "full_name": "SR Taylor",
+  "name": "SR Taylor",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "a94e08ea": {
@@ -19847,6 +22835,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "a9e63549": {
+  "batting_hand": "unknown",
+  "batting_position": "unknown",
+  "bowling_category": "unknown",
+  "bowling_style": "unknown",
+  "confidence": "low",
+  "country": null,
+  "full_name": "N Chejay",
+  "name": "N Chejay",
+  "primary_role": "unknown",
+  "source": "llm"
+ },
  "a9fd84fb": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -19871,6 +22871,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "aa467af0": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Tanvir Islam",
+  "name": "Tanvir Islam",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "aa710a58": {
   "batting_hand": "left",
   "batting_position": "opener",
@@ -19881,6 +22893,18 @@
   "full_name": "EN Gay",
   "name": "EN Gay",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "aa8914ad": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-wrist-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "BNJ Lockrose",
+  "name": "BNJ Lockrose",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "aa8d28ae": {
@@ -20147,6 +23171,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "ac688e55": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "G Roelofsen",
+  "name": "G Roelofsen",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "acc1aeda": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -20193,6 +23229,18 @@
   "full_name": "Imran Tahir",
   "name": "Imran Tahir",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "ad1730bc": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Ariful Haque",
+  "name": "Ariful Haque",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "ad1e02b4": {
@@ -20675,6 +23723,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "afe7d695": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "low",
+  "country": "AUS",
+  "full_name": "JM Tashkoff",
+  "name": "JM Tashkoff",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "afe8ff08": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -20819,6 +23879,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "b10e8c85": {
+  "batting_hand": "left",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Abid Mushtaq",
+  "name": "Abid Mushtaq",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "b11d8647": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -20852,6 +23924,18 @@
   "country": "IND",
   "full_name": "KL Rahul",
   "name": "KL Rahul",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "b1b7b7de": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "BJ Small",
+  "name": "BJ Small",
   "primary_role": "wk_batter",
   "source": "llm"
  },
@@ -21083,6 +24167,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "b40ee8a8": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "SRI",
+  "full_name": "PC de Silva",
+  "name": "PC de Silva",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "b410bd3d": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -21117,6 +24213,18 @@
   "full_name": "Milind Kumar",
   "name": "Milind Kumar",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "b42d5053": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "MWT Boyle",
+  "name": "MWT Boyle",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "b43f7a6a": {
@@ -21167,6 +24275,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "b4bef2ed": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Fazle Mahmud",
+  "name": "Fazle Mahmud",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "b4c52f5f": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -21189,6 +24309,18 @@
   "full_name": "FA Allen",
   "name": "FA Allen",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "b53136ce": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "AW McKenzie",
+  "name": "AW McKenzie",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "b552a935": {
@@ -21635,6 +24767,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "b8d18afc": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Nabil Samad",
+  "name": "Nabil Samad",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "b8d490fd": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -21755,6 +24899,30 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "b98b5e1c": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Sohaib Maqsood",
+  "name": "Sohaib Maqsood",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "b9c225c2": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Shahriar Nafees",
+  "name": "Shahriar Nafees",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "b9cfb0b1": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -21777,6 +24945,18 @@
   "full_name": "R Abdulkareem",
   "name": "R Abdulkareem",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "ba158afd": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Zahid Mahmood",
+  "name": "Zahid Mahmood",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "ba377b40": {
@@ -21813,6 +24993,18 @@
   "full_name": "R Ravindra",
   "name": "R Ravindra",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "ba603555": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "MNK Fernando",
+  "name": "MNK Fernando",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "ba607b88": {
@@ -21908,6 +25100,30 @@
   "country": "SGP",
   "full_name": "R Rohan",
   "name": "R Rohan",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "bafb9238": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Usman Khan",
+  "name": "Usman Khan",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "bb01f9e0": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Shuvagata Hom",
+  "name": "Shuvagata Hom",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -22077,6 +25293,18 @@
   "full_name": "Andre Russell",
   "name": "AD Russell",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "bbfa0b42": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Mohammad Ilyas",
+  "name": "Mohammad Ilyas",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "bbff906c": {
@@ -22343,6 +25571,42 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "bdf7a718": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "AUS",
+  "full_name": "W Prestwidge",
+  "name": "W Prestwidge",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "be0077ba": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Junaid Khan",
+  "name": "Junaid Khan",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "be0c9f5b": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "DN Phillips",
+  "name": "DN Phillips",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "be0f9ce9": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -22403,6 +25667,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "be8b147b": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "C Seleka",
+  "name": "C Seleka",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "bec5cab9": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -22413,6 +25689,18 @@
   "full_name": "DK Mathias",
   "name": "DK Mathias",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "bed90114": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "JA Clarkson",
+  "name": "JA Clarkson",
+  "primary_role": "batter",
   "source": "llm"
  },
  "bee290b6": {
@@ -22485,6 +25773,18 @@
   "full_name": "BI Dilruksha",
   "name": "BI Dilruksha",
   "primary_role": "unknown",
+  "source": "llm"
+ },
+ "bf64dc29": {
+  "batting_hand": "right",
+  "batting_position": "no3",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "KD Petersen",
+  "name": "KD Petersen",
+  "primary_role": "batter",
   "source": "llm"
  },
  "bf659c0f": {
@@ -22689,6 +25989,18 @@
   "full_name": "Harpreet Brar",
   "name": "Harpreet Brar",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "c05f9d20": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "SSD Arachchige",
+  "name": "SSD Arachchige",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "c06c25fd": {
@@ -22943,6 +26255,42 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "c27518d2": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Ziaur Rahman",
+  "name": "Ziaur Rahman",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "c285c86e": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Mohammad Shahid",
+  "name": "Mohammad Shahid",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "c290033d": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Ihsanullah",
+  "name": "Ihsanullah",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "c2b6764d": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -23015,6 +26363,30 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "c32087fc": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Waseem Raza",
+  "name": "Waseem Raza",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "c33d8116": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Mohsin Khan",
+  "name": "Mohsin Khan",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "c343a8c6": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -23024,6 +26396,18 @@
   "country": "MMR",
   "full_name": "H Lin Aung",
   "name": "H Lin Aung",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "c3576908": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "MA Abbas",
+  "name": "MA Abbas",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -23195,6 +26579,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "c439461b": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "AUT",
+  "full_name": "Ahmed Hassan",
+  "name": "Ahmed Hassan",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "c4441675": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -23361,6 +26757,18 @@
   "full_name": "G Sesay",
   "name": "G Sesay",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "c56fc66d": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "J Clayton",
+  "name": "J Clayton",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "c573d173": {
@@ -23552,6 +26960,18 @@
   "country": "IND",
   "full_name": "AS Raut",
   "name": "AS Raut",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "c6a1b1bb": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Amad Butt",
+  "name": "Amad Butt",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -23783,6 +27203,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "c8ad0749": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "AK Perera",
+  "name": "AK Perera",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "c8f5f961": {
   "batting_hand": "left",
   "batting_position": "finisher",
@@ -23891,6 +27323,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "c9bb898a": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "EJ Nuttall",
+  "name": "EJ Nuttall",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "c9c0fe50": {
   "batting_hand": "left",
   "batting_position": "opener",
@@ -23913,6 +27357,18 @@
   "full_name": "Yasim Murtaza",
   "name": "Yasim Murtaza",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "ca322fd6": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "low",
+  "country": "ZAF",
+  "full_name": "L Mbane",
+  "name": "L Mbane",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "ca82673d": {
@@ -24059,6 +27515,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "cb5100f1": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Ebadat Hossain",
+  "name": "Ebadat Hossain",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "cb932841": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -24069,6 +27537,30 @@
   "full_name": "AKS Bains",
   "name": "AKS Bains",
   "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "cb9b8664": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "W O'Rourke",
+  "name": "W O'Rourke",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "cba5185d": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "RSA",
+  "full_name": "AR Swanepoel",
+  "name": "AR Swanepoel",
+  "primary_role": "batter",
   "source": "llm"
  },
  "cbabd6ad": {
@@ -24104,6 +27596,18 @@
   "country": "IND",
   "full_name": "Umesh Yadav",
   "name": "UT Yadav",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "cc535250": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Ubaid Shah",
+  "name": "Ubaid Shah",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -24431,6 +27935,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "cfe70281": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "VD Philander",
+  "name": "VD Philander",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "d0042e16": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -24501,6 +28017,18 @@
   "full_name": "Cameron White",
   "name": "CL White",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "d07c1b2f": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Saud Shakeel",
+  "name": "Saud Shakeel",
+  "primary_role": "batter",
   "source": "llm"
  },
  "d0b643e1": {
@@ -24959,6 +28487,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "d3a1c63d": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "T de Zorzi",
+  "name": "T de Zorzi",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "d3b1d991": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -24968,6 +28508,18 @@
   "country": "SWE",
   "full_name": "Mukhtar Ghulami",
   "name": "Mukhtar Ghulami",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "d3b84c59": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "MA Pollard",
+  "name": "MA Pollard",
   "primary_role": "batter",
   "source": "llm"
  },
@@ -24981,6 +28533,18 @@
   "full_name": "Deepraj Gaonkar",
   "name": "Deepraj Gaonkar",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "d3cc2954": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "S Simetu",
+  "name": "S Simetu",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "d3d096f5": {
@@ -25175,6 +28739,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "d5f96736": {
+  "batting_hand": "unknown",
+  "batting_position": "unknown",
+  "bowling_category": "unknown",
+  "bowling_style": "unknown",
+  "confidence": "low",
+  "country": null,
+  "full_name": "DPS Tyagi",
+  "name": "DPS Tyagi",
+  "primary_role": "unknown",
+  "source": "llm"
+ },
  "d62f04f5": {
   "batting_hand": "right",
   "batting_position": "no3",
@@ -25353,6 +28929,18 @@
   "full_name": "RA Reifer",
   "name": "RA Reifer",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "d7a57f75": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "RSA",
+  "full_name": "D du Preez",
+  "name": "D du Preez",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "d7acab5d": {
@@ -25607,6 +29195,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "da3b91fd": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "low",
+  "country": "PAK",
+  "full_name": "Imran Khan",
+  "name": "Imran Khan",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "da934ee8": {
   "batting_hand": "left",
   "batting_position": "middle",
@@ -25617,6 +29217,18 @@
   "full_name": "MK Lomror",
   "name": "MK Lomror",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "da9f58aa": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Hasan Murad",
+  "name": "Hasan Murad",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "dab18aa5": {
@@ -25641,6 +29253,18 @@
   "full_name": "B Fernando",
   "name": "B Fernando",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "dac6aabc": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Mahidul Islam Ankon",
+  "name": "Mahidul Islam Ankon",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "dadbdb68": {
@@ -25688,6 +29312,18 @@
   "country": "IND",
   "full_name": "AS Rajpoot",
   "name": "AS Rajpoot",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "db3643f3": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Umer Khan",
+  "name": "Umer Khan",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -25773,6 +29409,18 @@
   "full_name": "Ijaz Hussain",
   "name": "Ijaz Hussain",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "dc2abe5e": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Ahsan Ali",
+  "name": "Ahsan Ali",
+  "primary_role": "batter",
   "source": "llm"
  },
  "dc4686e6": {
@@ -25919,6 +29567,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "dd572696": {
+  "batting_hand": "right",
+  "batting_position": "no3",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Haider Ali",
+  "name": "Haider Ali",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "dd5a9067": {
   "batting_hand": "right",
   "batting_position": "lower",
@@ -26063,6 +29723,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "de3d549a": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "AM Fernando",
+  "name": "AM Fernando",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "de4b0555": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -26205,6 +29877,18 @@
   "full_name": "Vichanath Singh",
   "name": "Vichanath Singh",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "dfb51f40": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "LJ Carter",
+  "name": "LJ Carter",
+  "primary_role": "batter",
   "source": "llm"
  },
  "dfc3f02d": {
@@ -26555,6 +30239,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "e29e9c12": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "KWT",
+  "full_name": "Shakeel Ahmed",
+  "name": "Shakeel Ahmed",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "e2abcf16": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -26687,6 +30383,30 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "e3a949be": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "D Cleaver",
+  "name": "D Cleaver",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "e3aa97a2": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "JM Gibson",
+  "name": "JM Gibson",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "e3bf8356": {
   "batting_hand": "left",
   "batting_position": "opener",
@@ -26697,6 +30417,18 @@
   "full_name": "KR Patterson",
   "name": "KR Patterson",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "e3e09091": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "BAN",
+  "full_name": "Zakir Hasan",
+  "name": "Zakir Hasan",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "e3eb9e46": {
@@ -27045,6 +30777,18 @@
   "full_name": "O Tuyisenge",
   "name": "O Tuyisenge",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "e6e154e3": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "low",
+  "country": "NZL",
+  "full_name": "FL Walker",
+  "name": "FL Walker",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "e6e9b619": {
@@ -27491,6 +31235,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "e9c7f0d0": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-fast",
+  "confidence": "high",
+  "country": "AFG",
+  "full_name": "Fazalhaq Farooqi",
+  "name": "Fazalhaq Farooqi",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "e9cb8d60": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -27536,6 +31292,18 @@
   "country": "SRI",
   "full_name": "BAW Mendis",
   "name": "BAW Mendis",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "ea1eba98": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "SA Mothoa",
+  "name": "SA Mothoa",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -27609,6 +31377,18 @@
   "full_name": "Cameron Green",
   "name": "C Green",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "eab74985": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "Aaron Beard",
+  "name": "Aaron Beard",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "eade4650": {
@@ -27755,6 +31535,18 @@
   "primary_role": "unknown",
   "source": "llm"
  },
+ "ebb1f8e8": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "low",
+  "country": "ZAF",
+  "full_name": "T Muller",
+  "name": "T Muller",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
  "ebcfef83": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -27839,6 +31631,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "ec72efc5": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Al-Amin",
+  "name": "Al-Amin",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "ec9fc54b": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -27848,6 +31652,18 @@
   "country": "IND",
   "full_name": "Akshay Wakhare",
   "name": "Akshay Wakhare",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "eca6dcb2": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "medium",
+  "country": "BAN",
+  "full_name": "Nihaduzzaman",
+  "name": "Nihaduzzaman",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -27884,6 +31700,18 @@
   "country": "ENG",
   "full_name": "TJ Phillips",
   "name": "TJ Phillips",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "ed031922": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Arshad Iqbal",
+  "name": "Arshad Iqbal",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -28115,6 +31943,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "ee95065d": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Irfan Khan",
+  "name": "Irfan Khan",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "eeb78e0a": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -28124,6 +31964,18 @@
   "country": "RWA",
   "full_name": "D Gumyusenge",
   "name": "D Gumyusenge",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "eec5fe00": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "ZN Gibson",
+  "name": "ZN Gibson",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -28199,6 +32051,18 @@
   "primary_role": "unknown",
   "source": "llm"
  },
+ "ef55b38c": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "low",
+  "country": "ZAF",
+  "full_name": "D Warren",
+  "name": "D Warren",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "ef9acbcc": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -28209,6 +32073,18 @@
   "full_name": "C Esterhuizen",
   "name": "C Esterhuizen",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "ef9f75f8": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "MW Chu",
+  "name": "MW Chu",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "efc04be7": {
@@ -28427,6 +32303,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "f146c339": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "medium",
+  "country": "BGD",
+  "full_name": "SM Meherob",
+  "name": "SM Meherob",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "f16e776a": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -28595,6 +32483,42 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "f25cebec": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "C Fortuin",
+  "name": "C Fortuin",
+  "primary_role": "wk_batter",
+  "source": "llm"
+ },
+ "f277f531": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "FD Adams",
+  "name": "FD Adams",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "f2800ef3": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Yasir Shah",
+  "name": "Yasir Shah",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "f28a60e0": {
   "batting_hand": "left",
   "batting_position": "finisher",
@@ -28655,6 +32579,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "f2e8b37c": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Arafat Minhas",
+  "name": "Arafat Minhas",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "f310704c": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -28691,6 +32627,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "f32d890a": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "PJ Malan",
+  "name": "PJ Malan",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "f32dbc84": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -28713,6 +32661,18 @@
   "full_name": "B Masaba",
   "name": "B Masaba",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "f390904d": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-wrist-spin",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "GH Bodi",
+  "name": "GH Bodi",
+  "primary_role": "batter",
   "source": "llm"
  },
  "f3982af9": {
@@ -28773,6 +32733,18 @@
   "full_name": "Rex Rajkumar",
   "name": "Rex Rajkumar",
   "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "f3c150bb": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Saqlain Sajib",
+  "name": "Saqlain Sajib",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "f3ca5af8": {
@@ -28881,6 +32853,18 @@
   "full_name": "P Koech",
   "name": "P Koech",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "f4dfcbb4": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "S van Zyl",
+  "name": "S van Zyl",
+  "primary_role": "batter",
   "source": "llm"
  },
  "f4ef0fd7": {
@@ -29003,6 +32987,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "f59b3bd1": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "left-arm-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Waqas Maqsood",
+  "name": "Waqas Maqsood",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "f5ba4611": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -29087,6 +33083,30 @@
   "primary_role": "unknown",
   "source": "llm"
  },
+ "f69f1d8a": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Umaid Asif",
+  "name": "Umaid Asif",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "f6b4f746": {
+  "batting_hand": "right",
+  "batting_position": "no3",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "MYS",
+  "full_name": "Ahmed Faiz",
+  "name": "Ahmed Faiz",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "f6c2659d": {
   "batting_hand": "right",
   "batting_position": "finisher",
@@ -29159,6 +33179,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "f732f3e7": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Ian Dev Singh",
+  "name": "Ian Dev Singh",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "f737ab44": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -29181,6 +33213,18 @@
   "full_name": "JL Pattinson",
   "name": "JL Pattinson",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "f76d7466": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "JN Malan",
+  "name": "JN Malan",
+  "primary_role": "batter",
   "source": "llm"
  },
  "f787e0eb": {
@@ -29219,6 +33263,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "f7b3d625": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "JCT Boyle",
+  "name": "JCT Boyle",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "f7ce1f24": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -29252,6 +33308,18 @@
   "country": "USA",
   "full_name": "NP Kenjige",
   "name": "NP Kenjige",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "f7e9a562": {
+  "batting_hand": "left",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "BGD",
+  "full_name": "Kamrul Islam Rabbi",
+  "name": "Kamrul Islam Rabbi",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -29399,6 +33467,18 @@
   "primary_role": "wk_batter",
   "source": "llm"
  },
+ "f8e6dbdd": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "DS Rosier",
+  "name": "DS Rosier",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "f8ef3653": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -29435,6 +33515,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "f92c9151": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "TC Bruce",
+  "name": "TC Bruce",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "f986ca1a": {
   "batting_hand": "right",
   "batting_position": "lower",
@@ -29445,6 +33537,18 @@
   "full_name": "Harshal Patel",
   "name": "HV Patel",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "f987245c": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "AM Ellis",
+  "name": "AM Ellis",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "f98c24ec": {
@@ -29483,6 +33587,18 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "f9d99806": {
+  "batting_hand": "right",
+  "batting_position": "finisher",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "IND",
+  "full_name": "Tajinder Singh",
+  "name": "Tajinder Singh",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "f9e6e7ef": {
   "batting_hand": "left",
   "batting_position": "finisher",
@@ -29507,6 +33623,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "fa0d1410": {
+  "batting_hand": "unknown",
+  "batting_position": "unknown",
+  "bowling_category": "unknown",
+  "bowling_style": "unknown",
+  "confidence": "low",
+  "country": "unknown",
+  "full_name": "Irfan Ringku",
+  "name": "Irfan Ringku",
+  "primary_role": "unknown",
+  "source": "llm"
+ },
  "fa23405f": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -29529,6 +33657,18 @@
   "full_name": "D Robson",
   "name": "D Robson",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "fa41edde": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "medium",
+  "country": "BGD",
+  "full_name": "Ruyel Miah",
+  "name": "Ruyel Miah",
+  "primary_role": "bowler",
   "source": "llm"
  },
  "fa433be6": {
@@ -29648,6 +33788,18 @@
   "country": "IND",
   "full_name": "Monu Kumar",
   "name": "Monu Kumar",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "fb266d70": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "KWT",
+  "full_name": "Sageer Ahmad",
+  "name": "Sageer Ahmad",
   "primary_role": "bowler",
   "source": "llm"
  },
@@ -29771,6 +33923,30 @@
   "primary_role": "bowler",
   "source": "llm"
  },
+ "fbfea9c2": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast-medium",
+  "confidence": "medium",
+  "country": "ZAF",
+  "full_name": "E Jones",
+  "name": "E Jones",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "fc2fffb5": {
+  "batting_hand": "right",
+  "batting_position": "opener",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "PAK",
+  "full_name": "Abdullah Shafique",
+  "name": "Abdullah Shafique",
+  "primary_role": "batter",
+  "source": "llm"
+ },
  "fc362c5d": {
   "batting_hand": "right",
   "batting_position": "middle",
@@ -29807,6 +33983,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "fc60e81a": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "left-arm-orthodox",
+  "confidence": "high",
+  "country": "ZAF",
+  "full_name": "B Parsons",
+  "name": "B Parsons",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "fc63d916": {
   "batting_hand": "right",
   "batting_position": "opener",
@@ -29817,6 +34005,18 @@
   "full_name": "AW Finch",
   "name": "AW Finch",
   "primary_role": "batter",
+  "source": "llm"
+ },
+ "fcbd6eb8": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "CG Heaphy",
+  "name": "CG Heaphy",
+  "primary_role": "wk_batter",
   "source": "llm"
  },
  "fcc21ace": {
@@ -29951,6 +34151,18 @@
   "primary_role": "batter",
   "source": "llm"
  },
+ "fd9f43bb": {
+  "batting_hand": "left",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-medium",
+  "confidence": "high",
+  "country": "NZL",
+  "full_name": "SM Solia",
+  "name": "SM Solia",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
  "fdb8ed0d": {
   "batting_hand": "right",
   "batting_position": "tailender",
@@ -29961,6 +34173,30 @@
   "full_name": "SD Parry",
   "name": "SD Parry",
   "primary_role": "bowler",
+  "source": "llm"
+ },
+ "fdd837ba": {
+  "batting_hand": "left",
+  "batting_position": "opener",
+  "bowling_category": "none",
+  "bowling_style": "none",
+  "confidence": "high",
+  "country": "AUS",
+  "full_name": "TP Ward",
+  "name": "TP Ward",
+  "primary_role": "batter",
+  "source": "llm"
+ },
+ "fde53ec1": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "seam",
+  "bowling_style": "right-arm-fast",
+  "confidence": "medium",
+  "country": "DEU",
+  "full_name": "Adil Butt",
+  "name": "Adil Butt",
+  "primary_role": "allrounder",
   "source": "llm"
  },
  "fdf7491e": {
@@ -30092,6 +34328,18 @@
   "country": "IND",
   "full_name": "Ravindra Jadeja",
   "name": "RA Jadeja",
+  "primary_role": "allrounder",
+  "source": "llm"
+ },
+ "fec50c96": {
+  "batting_hand": "right",
+  "batting_position": "middle",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "high",
+  "country": "LKA",
+  "full_name": "SMA Priyanjan",
+  "name": "SMA Priyanjan",
   "primary_role": "allrounder",
   "source": "llm"
  },
@@ -30251,6 +34499,18 @@
   "primary_role": "allrounder",
   "source": "llm"
  },
+ "ff4ff5f5": {
+  "batting_hand": "right",
+  "batting_position": "tailender",
+  "bowling_category": "spin",
+  "bowling_style": "off-spin",
+  "confidence": "medium",
+  "country": "NZL",
+  "full_name": "BP Coburn",
+  "name": "BP Coburn",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
  "ff6a7ab5": {
   "batting_hand": "right",
   "batting_position": "lower",
@@ -30260,6 +34520,18 @@
   "country": "NAM",
   "full_name": "R Trumpelmann",
   "name": "R Trumpelmann",
+  "primary_role": "bowler",
+  "source": "llm"
+ },
+ "ffd3fc37": {
+  "batting_hand": "right",
+  "batting_position": "lower",
+  "bowling_category": "spin",
+  "bowling_style": "leg-spin",
+  "confidence": "high",
+  "country": "RSA",
+  "full_name": "S von Berg",
+  "name": "S von Berg",
   "primary_role": "bowler",
   "source": "llm"
  },

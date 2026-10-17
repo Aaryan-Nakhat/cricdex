@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { leagueLabel } from "./leagues";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -21,19 +22,9 @@ export function fmtSigned(n: number | null | undefined, digits = 2): string {
   return n > 0 ? `+${body}` : n < 0 ? `−${body}` : body;
 }
 
-/** Human collection label. */
+/** Human collection label, from the league registry (leagues.json); the slug until it loads. */
 export function collectionLabel(slug: string): string {
-  const map: Record<string, string> = {
-    ipl: "IPL",
-    bbl: "Big Bash (BBL)",
-    t20s_male: "Men's T20Is",
-    indian_domestic_male: "Syed Mushtaq Ali (SMAT)",
-    recently_played_30_male: "Recently played (men's T20)",
-    sa20: "SA20",
-    cpl: "Caribbean Premier League (CPL)",
-    blast: "T20 Blast",
-  };
-  return map[slug] ?? slug;
+  return leagueLabel(slug);
 }
 
 /** "2026-05-07" -> "7 May 2026". */

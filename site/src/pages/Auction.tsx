@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Gavel, Dices, Plane, Calculator, X, Users } from "lucide-react";
 import { useAsync } from "@/lib/useAsync";
-import { getAuctionPool, getRetentions, getActivityIndex } from "@/lib/data";
+import { getAuctionPool, getRetentions, getActivityIndex, getLeagues } from "@/lib/data";
 import {
   buildPool,
   simulateAuction,
@@ -15,6 +15,30 @@ import {
 } from "@/lib/auction";
 import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox } from "@/components/ui";
 import { cn, fmt } from "@/lib/utils";
+import { leagueShort, type LeagueRegistry } from "@/lib/leagues";
+
+/** "BBL, SA20 & CPL" */
+function andList(xs: string[]): string {
+  return xs.length > 1 ? `${xs.slice(0, -1).join(", ")} & ${xs[xs.length - 1]}` : (xs[0] ?? "");
+}
+
+/** Who feeds the pool and each tier's discount, from the league registry (leagues.json). */
+function poolLeagues(reg: LeagueRegistry | null) {
+  const pool = (reg?.leagues ?? []).filter((l) => l.auction_pool && !l.auction_target);
+  const overseas = pool.filter((l) => l.scout_group !== "uncapped").map((l) => l.short);
+  const uncapped = pool.filter((l) => l.scout_group === "uncapped").map((l) => l.short);
+  // one "BBL/SA20 −0.45" entry per distinct discount, smallest first
+  const byDiscount = new Map<number, string[]>();
+  for (const l of pool) {
+    if (l.discount == null) continue;
+    byDiscount.set(l.discount, [...(byDiscount.get(l.discount) ?? []), l.short]);
+  }
+  const discounts = [...byDiscount.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([d, names]) => `${names.join("/")} −${d.toFixed(2)}`)
+    .join(", ");
+  return { overseas: andList(overseas), uncapped: andList(uncapped), discounts };
+}
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
@@ -39,6 +63,8 @@ function Code({ children }: { children: React.ReactNode }) {
 }
 
 function AuctionMath() {
+  const reg = useAsync<LeagueRegistry>(() => getLeagues(), []);
+  const pl = poolLeagues(reg.data);
   return (
     <Collapsible title="How the auction math works (plain English)" icon={<Calculator className="h-4 w-4" />}>
       <div className="space-y-6">
@@ -83,13 +109,13 @@ function AuctionMath() {
           </p>
           <ul className="mt-2 space-y-1 text-sm text-muted">
             <li>• <b className="text-fg">IPL players</b> — retainable, carry their current franchise.</li>
-            <li>• <b className="text-fg">Free agents</b> — overseas via the <b>BBL</b>, <b>SA20</b>, <b>CPL</b> &amp; <b>T20 Blast</b>, uncapped Indians via <b>SMAT</b>.</li>
+            <li>• <b className="text-fg">Free agents</b> — overseas via the <b>{pl.overseas || "overseas leagues"}</b>, uncapped Indians via <b>{pl.uncapped || "domestic T20"}</b>.</li>
             <li>• Active only (last ~3 years), ≥150 balls (cuts tiny-sample flukes).</li>
             <li>• Excludes men's-T20I associate noise + non-IPL nations (PAK).</li>
           </ul>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             Value isn't comparable across tiers (runs vs weak attacks ≠ vs IPL), so lower tiers are
-            penalised (BBL/SA20 −0.45, CPL/Blast −0.64, SMAT −1.28) before pricing.
+            penalised{pl.discounts ? ` (${pl.discounts})` : ""} before pricing.
           </p>
         </div>
 
@@ -271,7 +297,7 @@ function Simulate({
     const yr = a.last_ipl ? a.last_ipl.slice(0, 4) : "never";
     const bits = [`last IPL ${yr}`];
     if (a.age != null) bits.push(`age ${a.age}`);
-    if (a.home_league) bits.push(`plays ${a.home_league.toUpperCase()}`);
+    if (a.home_league) bits.push(`plays ${leagueShort(a.home_league)}`);
     return (
       <span
         title={bits.join(" · ")}

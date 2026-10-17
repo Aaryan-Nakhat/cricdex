@@ -33,8 +33,10 @@ BOWLER_WICKET = (
 DISMISSAL = "(wicket_kind IS NOT NULL AND wicket_kind NOT IN ('retired hurt', 'retired not out'))"
 
 
-# `<col>_last1y` / `<col>_last3y` are time-window copies of a collection's balls/matches tables.
-WINDOW_SUFFIXES = ("_last1y", "_last3y")
+# `<col>_last1y` / `<col>_last3y` are time-window copies of a collection's balls/matches tables. The one
+# definition: the league registry, NGI, venue names, Wikidata and the exporter all import it.
+WINDOWS: dict[str, int] = {"last3y": 1095, "last1y": 365}  # window → days before the latest match
+WINDOW_SUFFIXES = tuple(f"_{w}" for w in sorted(WINDOWS, key=WINDOWS.get))  # ("_last1y", "_last3y")
 
 
 def base_suffix(collection: str) -> str:
@@ -48,6 +50,37 @@ def base_suffix(collection: str) -> str:
 
 def _tables(con) -> set[str]:
     return {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+
+
+def _columns(con, table: str) -> set[str]:
+    return {r[0] for r in con.execute(f"DESCRIBE {table}").fetchall()}
+
+
+def balls_per_over(con, collection: str, alias: str = "") -> str:
+    """SQL for a match's balls per over (`matches_<col>.balls_per_over`, 5 in The Hundred); `6` for a
+    DB ingested before the column existed. `alias` prefixes the column (e.g. `m.`)."""
+    safe = table_suffix(collection)
+    if "balls_per_over" in _columns(con, f"matches_{safe}"):
+        return f"COALESCE({alias}balls_per_over, 6)"
+    return "6"
+
+
+def chase_targets(con, collection: str) -> str:
+    """A `(match_id, innings_idx, target_runs, target_balls)` relation: the target each innings chased as
+    Cricsheet records it (`innings_<col>.target`), which is the revised DLS target and over count when rain
+    shortened the chase. `target_balls` is in legal balls. Empty when the innings table hasn't been built
+    (a DB ingested before schema 2) — callers then fall back to first-innings total + 1 and scheduled overs."""
+    base = base_suffix(collection)
+    table = f"innings_{base}"
+    if table not in _tables(con) or not {"target_runs", "target_balls"} <= _columns(con, table):
+        return (
+            "(SELECT CAST(NULL AS VARCHAR) AS match_id, CAST(NULL AS BIGINT) AS innings_idx, "
+            "CAST(NULL AS BIGINT) AS target_runs, CAST(NULL AS BIGINT) AS target_balls WHERE FALSE)"
+        )
+    return (
+        f"(SELECT match_id, innings_idx, target_runs, target_balls FROM {table} "
+        f"WHERE target_runs IS NOT NULL)"
+    )
 
 
 def player_ids(con, collection: str) -> str | None:
