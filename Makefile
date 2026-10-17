@@ -1,5 +1,5 @@
 .PHONY: install dev precommit lint format format-check check fix test clean api dashboard refresh \
-        refresh-all leagues \
+        refresh-all rebuild-all auction-check leagues player-master \
         docker-build docker-up docker-down docker-logs docker-shell docker-test \
         docker-ingest-cricsheet docker-ingest-all docker-ingest-people docker-ingest-wikidata \
         docker-scout-rate docker-style-twin docker-records-all docker-records-today docker-pressure-runs \
@@ -134,9 +134,23 @@ refresh-all:
 	set -e; for C in $(LEAGUES); do \
 		uv run python scripts/compute_metrics.py all --collection "$$C"; \
 	done
+	uv run python scripts/build_player_master.py
 	uv run python scripts/export_site.py
+
+# The player master alone (display names, capped, roles, country, squads, DOB): open data in cached
+# batches plus the LLM name check if one is configured. Read by export_site.py.
+player-master:
+	uv run python scripts/build_player_master.py
 
 # The league registry (config/leagues.toml): validate it and list every collection.
 leagues:
 	uv run python -m cricdex.leagues check
 	uv run python scripts/ingest_cricsheet.py list
+
+# One-command, resumable rebuild of every exported league (see scripts/README.md).
+rebuild-all:
+	bash scripts/rebuild_all.sh
+
+# Sanity-check the IPL auction on the exported data after a rebuild.
+auction-check:
+	uv run python scripts/auction_check.py

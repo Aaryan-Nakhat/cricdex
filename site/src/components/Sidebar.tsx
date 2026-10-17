@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { NAV, NAV_GROUPS } from "@/lib/nav";
 import { useStore } from "@/lib/store";
 import { cn, prettyDate } from "@/lib/utils";
+import { StaleBadge } from "./ui";
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { meta } = useStore();
@@ -38,6 +39,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <span className="font-medium text-accent-glow">{prettyDate(meta?.data_as_of)}</span>.
           Refreshed on demand.
         </div>
+        {meta?.stale && (
+          <div className="mt-2">
+            <StaleBadge asOf={meta.data_as_of} />
+            <div className="mt-1">This league's feed has stopped updating; newer matches exist elsewhere.</div>
+          </div>
+        )}
       </div>
     </nav>
   );

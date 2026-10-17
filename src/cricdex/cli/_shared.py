@@ -9,6 +9,9 @@ import typing as t
 
 import typer
 
+from cricdex.common.display import player_label as _display_label
+from cricdex.common.display import search_names
+
 # Exit codes — keep grep-able and matches docs/CLI.md.
 EXIT_OK = 0
 EXIT_USER_ERROR = 1
@@ -120,14 +123,25 @@ def match_player(query: str, players: list[dict]) -> tuple[dict | None, list[dic
         return None, []
 
     def names(p: dict) -> list[str]:
-        return [str(n).lower() for n in (p.get("name"), p.get("full_name")) if n]
+        # display name, scorecard name, full name and every alias
+        return [n.lower() for n in search_names(p)]
 
     def by_matches(rows: list[dict]) -> list[dict]:
         return sorted(rows, key=lambda p: -(p.get("matches") or 0))
 
-    exact = [p for p in players if q in names(p)]
+    def primary(p: dict) -> list[str]:
+        return [
+            str(n).lower() for n in (p.get("display_name"), p.get("name"), p.get("full_name")) if n
+        ]
+
+    exact = [p for p in players if q in primary(p)]
     if exact:
         return (exact[0], []) if len(exact) == 1 else (None, by_matches(exact))
+    # an alias ("Hitman") picks a player only when it's his alone; a shared one (a bare
+    # surname two players carry) falls through to the prefix / substring search below
+    alias_hits = [p for p in players if q in names(p)]
+    if len(alias_hits) == 1:
+        return alias_hits[0], []
 
     def starts_a_word(n: str) -> bool:  # "bumr" / "jasp" / "kohli" — the start of any word
         return n.startswith(q) or f" {q}" in n
@@ -142,9 +156,8 @@ def match_player(query: str, players: list[dict]) -> tuple[dict | None, list[dic
 
 
 def player_label(p: dict) -> str:
-    """'RG Sharma (Rohit Sharma)' — the scorecard name plus the full name when different."""
-    name, full = p.get("name", ""), p.get("full_name")
-    return f"{name} ({full})" if full and full != name else name
+    """'Rohit Sharma (RG Sharma)' — the display name plus the scorecard name and other aliases."""
+    return _display_label(p) or p.get("name", "")
 
 
 def _close_names(query: str, players: list[dict], k: int = 3) -> list[str]:
@@ -152,9 +165,8 @@ def _close_names(query: str, players: list[dict], k: int = 3) -> list[str]:
 
     by_label = {}
     for p in players:
-        for n in (p.get("name"), p.get("full_name")):
-            if n:
-                by_label.setdefault(str(n), p["name"])
+        for n in search_names(p):
+            by_label.setdefault(n, p["name"])
     out: list[str] = []
     for label, _score, _ in process.extract(
         query, list(by_label), scorer=fuzz.WRatio, limit=k * 3, score_cutoff=60
@@ -237,3 +249,91 @@ def render_kv(d: dict, title: str | None = None) -> None:
     for k, v in d.items():
         table.add_row(str(k), str(v))
     console().print(table)
+
+
+def out_every(balls: object, outs: object) -> str:
+    """A dismissal rate a fan can read: "out once every 26 balls" ("never out" with 0 outs)."""
+    try:
+        b, o = float(balls), float(outs)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "—"
+    if o <= 0:
+        return "never out"
+    return f"out once every {round(b / o):,} balls"
+
+
+def catalog_view(rows: list[dict], metric) -> tuple[list[dict], list[str], str]:
+    """Project leaderboard rows onto a metric's catalog columns (cricdex.common.metrics), keyed by
+    the catalog labels and in display units (a "pct" column reads +9.7%), so every surface names
+    and formats the columns like the web. Returns (rows, column labels, headline label)."""
+    from cricdex.common.metrics import fmt_metric
+
+    present = set(rows[0]) if rows else set()
+    cols = [c for c in metric.columns if c.key in present or c.key == metric.name_col]
+    headline = next((c.label for c in cols if c.primary), cols[0].label if cols else "")
+    out = []
+    for r in rows:
+        row: dict = {}
+        for c in cols:
+            v = r.get(c.key)
+            row[c.label] = fmt_metric(v, c) if (c.fmt or c.digits is not None) else v
+        out.append(row)
+    return out, [c.label for c in cols], headline
+
+
+def metric_explainer(metric) -> str:
+    """The plain-English read-out shared by the CLI and TUI: how to read it, what's good, which way."""
+    from cricdex.common.metrics import DIRECTION_LABEL
+
+    return f"{metric.read}\nGood: {metric.good}\n{DIRECTION_LABEL.get(metric.direction, '')}"
+
+
+def metric_headline(slug: str, payload) -> tuple[str, str]:
+    """A profile's metric record -> (headline column label, value in display units), from the
+    catalog: NGI reads ("Win chance added / match", "+3.4%"). ("", "—") when there is no record."""
+    from cricdex.common.metrics import METRIC_BY_SLUG, fmt_metric
+
+    m = METRIC_BY_SLUG.get(slug)
+    if not m or not isinstance(payload, dict):
+        return ("", "—")
+    col = next((c for c in m.columns if c.primary), None)
+    if col is None:
+        return ("", "—")
+    return (col.label, fmt_metric(payload.get(col.key), col))
+
+
+def form_note(metric) -> str:
+    """How to read a form Δ for this metric's direction (shared by the CLI and TUI form boards)."""
+    if metric.direction == "lower":
+        return "lower is better → form Δ sign-flipped (positive = improving)"
+    if metric.direction == "descriptive":
+        return (
+            "a style, not a level — positive Δ = lower than his career figure (neither is better)"
+        )
+    return "positive Δ = improving"
+
+
+def form_display(rows: list[dict], metric) -> list[dict]:
+    """Form-board rows in the metric's display units: a pct headline (NGI) reads +3.4%, and its Δ
+    is in percentage points. Other metrics keep their two-decimal numbers."""
+    from cricdex.common.metrics import fmt_metric
+
+    col = next((c for c in metric.columns if c.primary), None)
+    if col is None or col.fmt != "pct":
+        return rows
+    out = []
+    for r in rows:
+        d = dict(r)
+        for k in ("career", "recent", "form_Δ"):
+            if k in d and d[k] is not None:
+                d[k] = fmt_metric(d[k], col)
+        out.append(d)
+    return out
+
+
+def coll_subtitle(collection: str) -> str:
+    """'collection: ipl' — plus 'data to 15 Dec 2024 — stale' when that league's data stops early."""
+    from cricdex.common.display import stale_marker
+
+    mark = stale_marker(collection)
+    return f"collection: {collection}" + (f"  ·  ⚠ {mark}" if mark else "")

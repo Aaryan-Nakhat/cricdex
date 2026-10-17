@@ -10,10 +10,15 @@ import typer
 from cricdex.cli import _copy, _render
 from cricdex.cli._shared import (
     EXIT_MISSING_DATA,
+    coll_subtitle,
     console,
     die,
+    load_players,
+    metric_headline,
     resolve_or_die,
 )
+from cricdex.common.display import display_name
+from cricdex.common.metrics import DIRECTION_LABEL, METRIC_BY_SLUG
 
 
 def _need_duckdb(what: str, collection: str) -> None:
@@ -40,7 +45,9 @@ def profile(
     with _render.spinner(f"building profile for {name}"):
         p = builder.build(name, collection)
 
-    _render.header(p.get("name", name), subtitle=f"collection: {collection}")
+    row = next((r for r in load_players(collection) or [] if r.get("name") == name), None)
+    shown = display_name(row) if row else ""
+    _render.header(shown or p.get("name", name), subtitle=coll_subtitle(collection))
     _render.intro_panel(_copy.PROFILE_INTRO, title="Profile")
 
     # cross-source IDs as a chip row
@@ -103,18 +110,20 @@ def profile(
     metrics = p.get("metrics") or {}
     _render.section("Novel metrics")
     rows = []
-    for slug, hint in _copy.METRIC_HINTS.items():
+    for slug, m in METRIC_BY_SLUG.items():
         payload = metrics.get(slug)
+        label, value = metric_headline(slug, payload)
         rows.append(
             {
-                "metric": slug.replace("_", " ").title(),
-                "value": _summarise_metric_payload(payload),
-                "what it captures": hint,
+                "metric": m.name,
+                "value": f"{value} ({label.lower()})" if label and value != "—" else value,
+                "how to read it": m.read,
+                "which way": DIRECTION_LABEL.get(m.direction, ""),
             }
         )
     _render.pretty_table(
         rows,
-        columns=["metric", "value", "what it captures"],
+        columns=["metric", "value", "how to read it", "which way"],
         column_styles={"metric": "bold", "value": "cyan"},
     )
 
@@ -172,36 +181,6 @@ def profile(
     _render.hint("`cricdex tui` for an interactive view, `cricdex dashboard` for the browser UI.")
 
 
-def _summarise_metric_payload(payload) -> str:
-    """One-liner summary of a metric record — picks a headline number."""
-    if not payload:
-        return "[dim]—[/dim]"
-    if isinstance(payload, dict):
-        for key in (
-            "ngi_per_match",
-            "pressure_sr_per_100_balls",
-            "early_sr",
-            "sr",
-            "runs_per_6_after_dot",
-            "counter_attack_sr",
-            "bdr_pct",
-            "wicket_rate_pct",
-            "wicket_quality",
-            "longevity_index",
-            "slow_start_cost",
-            "dismissals",
-        ):
-            if key in payload and payload[key] is not None:
-                v = payload[key]
-                return f"{v:.2f}" if isinstance(v, float) else str(v)
-        # fall back to first numeric value
-        for v in payload.values():
-            if isinstance(v, int | float):
-                return f"{v:.2f}" if isinstance(v, float) else str(v)
-        return "[dim]see expander[/dim]"
-    return str(payload)
-
-
 def _fmt_twin(t: dict) -> dict:
     """Trim a twin row to {name, distance} for compact display."""
     return {
@@ -229,7 +208,7 @@ def compare(
     _need_duckdb("compare", collection)
     a = resolve_or_die(a, collection=collection)
     b = resolve_or_die(b, collection=collection)
-    _render.header(f"{a}  vs  {b}", subtitle=f"collection: {collection}")
+    _render.header(f"{a}  vs  {b}", subtitle=coll_subtitle(collection))
     _render.intro_panel(_copy.COMPARE_INTRO, title="Compare")
     df = cmp.compare([a, b], collection=collection)
     if df.is_empty():
@@ -315,7 +294,7 @@ def records(
 
     from cricdex.records import queries
 
-    _render.header(f"Records — {key}", subtitle=f"collection: {collection}")
+    _render.header(f"Records — {key}", subtitle=coll_subtitle(collection))
     _render.intro_panel(_copy.RECORDS_INTRO, title="Records")
 
     if key == "today":
@@ -388,7 +367,7 @@ def venues(
             )
         venue = hits[0]
 
-    _render.header(venue, subtitle=f"collection: {collection}")
+    _render.header(venue, subtitle=coll_subtitle(collection))
     _render.intro_panel(_copy.VENUES_INTRO, title="Venue")
     try:
         innings = v.innings_totals(venue, collection)

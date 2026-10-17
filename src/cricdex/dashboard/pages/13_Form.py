@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from cricdex.common.display import league_label
 from cricdex.common.filters import (
     ACTIVITY_OPTS,
     BOWLING_OPTS,
@@ -22,7 +23,7 @@ from cricdex.common.filters import (
     countries_in,
     load_leaderboard,
 )
-from cricdex.common.metrics import METRICS
+from cricdex.common.metrics import DIRECTION_LABEL, METRICS, fmt_metric
 from cricdex.dashboard._widgets import provenance_banner
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -31,7 +32,8 @@ st.title("📈 CricDex — form board")
 st.caption(
     "Who's trending up and who's fading — each metric recomputed over the recent "
     "window and compared against the player's career baseline. Positive Δ means "
-    "improving form (already direction-corrected for 'lower is better' metrics)."
+    "improving form (already direction-corrected for 'lower is better' metrics; "
+    "Boundary Dependency is a style, so its Δ just means lower than career)."
 )
 
 
@@ -65,6 +67,7 @@ with st.sidebar:
         collections,
         index=collections.index("ipl") if "ipl" in collections else 0,
         key="form-collection",
+        format_func=league_label,
     )
     metric_name = st.selectbox("Metric", [m.name for m in METRICS], key="form-metric")
 
@@ -109,6 +112,14 @@ filters = Filters(
 )
 val = metric.sort_col
 name_col = metric.name_col
+# NGI's headline is a 0–1 win-chance share, shown as a signed percentage (+3.4%).
+_pct_col = next((c for c in metric.columns if c.primary and c.fmt == "pct"), None)
+
+
+def _show(v: float) -> str | float:
+    return fmt_metric(v, _pct_col) if _pct_col else v
+
+
 career_by = {r[name_col]: r for r in career if r.get(name_col) is not None}
 
 rows: list[dict] = []
@@ -121,12 +132,13 @@ for rr in apply_filters(recent_rows, filters):
     recent_v = float(rr[val])
     raw = recent_v - career_v
     mv = raw if metric.higher_is_better else -raw  # +ve = improving
+    nd = 4 if _pct_col else 2  # a pct headline keeps its precision until it's shown as a %
     rows.append(
         {
             "Player": name,
-            "Career": round(career_v, 2),
-            "Recent": round(recent_v, 2),
-            "Form Δ": round(mv, 2),
+            "Career": round(career_v, nd),
+            "Recent": round(recent_v, nd),
+            "Form Δ": round(mv, nd),
         }
     )
 
@@ -137,15 +149,36 @@ if not rows:
 rows.sort(key=lambda r: r["Form Δ"], reverse=True)
 st.caption(
     f"**{metric.name}** — {WINDOW_LABELS[recent_win].lower()} vs career"
-    + ("  ·  lower is better → sign-flipped" if not metric.higher_is_better else "")
+    + (
+        "  ·  lower is better → sign-flipped"
+        if metric.direction == "lower"
+        else "  ·  a style, not a level — positive Δ = lower than his career figure"
+        if metric.direction == "descriptive"
+        else ""
+    )
     + f"  ·  {len(rows)} players"
+)
+st.markdown(
+    f"**How to read {metric.name}.** {metric.read}  \n**What's good.** {metric.good}  "
+    f"\n*{DIRECTION_LABEL[metric.direction]}.*"
 )
 with st.expander("How it's calculated"):
     st.write(metric.how)
 
 c1, c2 = st.columns(2)
-c1.metric("Biggest riser", str(rows[0]["Player"]), f"+{rows[0]['Form Δ']:.2f}")
-c2.metric("Biggest faller", str(rows[-1]["Player"]), f"{rows[-1]['Form Δ']:.2f}")
+_rise, _fall = rows[0]["Form Δ"], rows[-1]["Form Δ"]
+c1.metric("Biggest riser", str(rows[0]["Player"]), _show(_rise) if _pct_col else f"+{_rise:.2f}")
+c2.metric("Biggest faller", str(rows[-1]["Player"]), _show(_fall) if _pct_col else f"{_fall:.2f}")
+if _pct_col:
+    rows = [
+        {
+            **r,
+            "Career": _show(r["Career"]),
+            "Recent": _show(r["Recent"]),
+            "Form Δ": _show(r["Form Δ"]),
+        }
+        for r in rows
+    ]
 
 left, right = st.columns(2)
 with left:

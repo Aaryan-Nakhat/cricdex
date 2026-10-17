@@ -10,6 +10,7 @@ import typer
 
 from cricdex.cli import _copy, _render
 from cricdex.cli._shared import EXIT_USER_ERROR, die
+from cricdex.common.display import display_name
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -36,11 +37,13 @@ def room(
     if mode not in ("mega", "mini"):
         die("--mode must be `mega` or `mini`", code=EXIT_USER_ERROR)
     try:
-        pool = build_pool(load_auction_pool("ipl"))
+        raw = load_auction_pool("ipl")
+        pool = build_pool(raw)
         ret = load_retentions("ipl")
     except FileNotFoundError as e:
         die(str(e), code=EXIT_USER_ERROR)
 
+    shown = {r["cricsheet_id"]: display_name(r) for r in raw}  # fan-facing names
     mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
     real_prices = {r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows}
     act = load_activity_index("ipl")  # cid -> last-IPL / age / ipl_relevance
@@ -85,7 +88,7 @@ def room(
     _render.pretty_table(
         [
             {
-                "player": m["player"]["name"],
+                "player": shown.get(m["player"]["cricsheet_id"]) or m["player"]["name"],
                 "role": m["player"]["role"].replace("_", "-"),
                 "value": round(m["player"]["projected_value"], 1),
                 "ipl_fit": (

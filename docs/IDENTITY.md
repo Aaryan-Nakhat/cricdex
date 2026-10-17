@@ -80,6 +80,43 @@ Two on-disk caches extend the register by `cricsheet_id`, both committed:
    via LiteLLM (configured with `LLM_MODEL` in `.env`) and shown as
    "AI-classified".
 
+## The player master
+
+`scripts/build_player_master.py` (`make player-master`; code in
+`src/cricdex/scout/identity/`) builds one identity record per player of every exported league
+and writes `data/curated/player_master.json`, which `scripts/export_site.py` reads. It reads the
+DuckDB file read-only, so it can run at any time; every source is cached on disk and fetched in
+polite batches (rerun = only what's missing; `--force` refetches, `--no-fetch` works offline).
+
+| Field | Source, in order of precedence |
+|---|---|
+| `display_name` | overrides → LLM check of the candidate → Wikidata English label (by ESPNcricinfo id, P2697) → shortest full-word People Register variant → scorecard name |
+| `full_name` | overrides → Wikipedia infobox `full_name` → Wikidata birth name (P1477) → longest register variant |
+| `aliases` | every name we know: scorecard names in each league, register variants, Wikidata label and aliases, full name |
+| `capped`, `first_international` | Cricsheet men's T20I (ingested), ODI and Test archives (downloaded, only `info.players` read, never exported) |
+| `primary_role` | overrides → the ball data when it is decisive (overs per match, batting position, stumpings across every exported league) → Wikipedia infobox role → LLM taxonomy |
+| `bowling_style` / `bowling_arm` / `bowling_category` | overrides → Wikipedia infobox bowling → LLM taxonomy |
+| `batting_hand` | overrides → Wikipedia infobox batting → Wikidata playing hand → LLM taxonomy |
+| `country` | overrides → latest international side (Cricsheet) → Wikidata country for sport → infobox → LLM, normalised to ISO alpha-3 (ENG / SCO / WIN for the non-ISO sides) by `countries.normalise` |
+| `active` | played any exported league or a men's international in the last 18 months (`master.ACTIVE_MONTHS`) of the data |
+| `retired` | overrides (with evidence); the Wikipedia IPL personnel page's retirements are listed as review TODOs |
+| `team` | the 2026 IPL squads (retained + bought + replacements) from Wikipedia's "List of 2026 Indian Premier League personnel changes", cached and hand-editable in `data/curated/ipl_squads_2026.json` |
+| `dob` | overrides → Wikidata (P569) → Wikipedia infobox → the older `wikidata_enrichment.json` |
+
+The LLM name check asks, 25 players a call, whether each candidate is how fans refer to the
+player (`Virat Kohli`, not `V Kohli` or a legal full name); a correction is accepted only when it
+keeps a token the open data already knows (normally the surname). Answers are cached in
+`data/curated/player_names_llm.json`.
+
+**Reviewing.** Every disagreement between sources (role, bowling style, batting hand, country,
+rejected or applied name corrections, squad rows that didn't match a player, retirements to
+verify) is written to `data/curated/player_master_review.json`. Settle a row by adding the right
+value to `data/curated/player_overrides.json` (keyed by `cricsheet_id`, with `_name` and
+`_evidence`); overrides always win.
+
+Licences: Wikidata is CC0; Wikipedia-derived facts (infobox fields, the 2026 squads) are CC BY-SA
+4.0 and cited in the master's `_sources`; Cricsheet is ODC-By.
+
 Out of scope (year-2 at the earliest): a grassroots **CricHeroes** tier —
 see [`ROADMAP.md`](ROADMAP.md#later). Cricbuzz and BCCI-domestic
 scrapes were dropped.

@@ -4,13 +4,22 @@ import { Network, Users, Sprout, Plane, Gem, Gavel } from "lucide-react";
 import { usePlayers } from "@/lib/usePlayers";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
-import { getAuctionPool, getLeagues, getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
+import { displayName, getAuctionPool, getLeagues, getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
 import { scoutPools, type LeagueRegistry, type ScoutGroup } from "@/lib/leagues";
 import { estValue, type PriceTier, type Role } from "@/lib/auction";
-import { similarTo, isGem, gemThreshold, type SimilarRow } from "@/lib/scout";
+import {
+  similarTo,
+  isGem,
+  gemThreshold,
+  slotBand,
+  BAND_LABEL,
+  SAME_SLOT,
+  type SimilarRow,
+  type CountryMode,
+} from "@/lib/scout";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, Collapsible, ErrorBox } from "@/components/ui";
-import { fmt } from "@/lib/utils";
+import { PageTitle, Card, CardHeader, Spinner, Empty, Badge, Collapsible, ErrorBox, Segmented, StaleBadge } from "@/components/ui";
+import { fmt, profilePath } from "@/lib/utils";
 import { hasKey, useUrlId, useUrlParams } from "@/lib/useUrlState";
 
 const POS = {
@@ -77,9 +86,11 @@ function ScoutMath({ reg }: { reg: LeagueRegistry | null }) {
     <Collapsible title="How the scout works (plain English)" icon={<Network className="h-4 w-4" />}>
       <div className="space-y-3 text-sm leading-relaxed text-muted">
         <p>
-          Pick an active IPL player. We find players of the <b>same archetype</b> (same role; for
-          bowlers, same seam/spin type) across {scoutPools(reg).length || "every"} pools and rank them by how close their{" "}
-          <b>skill standing</b> is to your pick.
+          Pick an active IPL player. We find players of the <b>same type</b> across{" "}
+          {scoutPools(reg).length || "every"} pools — same role, the same bowling type for anyone who bowls (a
+          seam-bowling all-rounder only gets seam-bowling all-rounders), and by default the same part of the batting
+          order (top 1–3, middle 4–7, lower 8–11) — and rank them by how close their <b>skill standing</b> is to your
+          pick. The country filter starts on the pick's own country; switch to <b>Overseas</b> or <b>All</b> to widen it.
         </p>
         <ul className="space-y-1.5">
           <li>• <b className="text-fg">IPL peers</b> — who else in the IPL is most like them.</li>
@@ -118,6 +129,7 @@ function TierPanel({
   draftable,
   inPool,
   navigate,
+  stale,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -131,10 +143,21 @@ function TierPanel({
   /** cricsheet ids in the auction pool — only these can be drafted */
   inPool: Set<string>;
   navigate: (path: string) => void;
+  /** The pool's last data date when its league feed is stale (null = fresh). */
+  stale: string | null;
 }) {
   return (
     <Card>
-      <CardHeader title={<span className="flex items-center gap-2">{icon}{title}</span>} subtitle={subtitle} />
+      <CardHeader
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {icon}
+            {title}
+            {stale && <StaleBadge asOf={stale} />}
+          </span>
+        }
+        subtitle={subtitle}
+      />
       <div className="p-2">
         {rows.length === 0 ? (
           <div className="px-3 py-6 text-center text-sm text-muted">No close match of this archetype.</div>
@@ -150,15 +173,16 @@ function TierPanel({
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="stat-num w-4 shrink-0 text-xs text-muted">{i + 1}</span>
-                    {linkable ? (
+                    {p.profile_collection || linkable ? (
                       <button
-                        onClick={() => navigate(`/player?cid=${p.cricsheet_id}`)}
+                        onClick={() => navigate(profilePath(p.cricsheet_id, p.profile_collection ?? "ipl"))}
+                        title="Open profile"
                         className="truncate text-left text-fg hover:text-accent-glow"
                       >
-                        {p.name}
+                        {displayName(p)}
                       </button>
                     ) : (
-                      <span className="truncate text-fg">{p.name}</span>
+                      <span className="truncate text-fg">{displayName(p)}</span>
                     )}
                     {gem && (
                       <span title="Uncapped gem — high standing for very few balls played (moneyball)">
@@ -201,11 +225,13 @@ function GemsBoard({
   gemTier,
   navigate,
   inPool,
+  stale,
 }: {
   gems: ScoutPlayer[];
   gemTier: PriceTier;
   navigate: (p: string) => void;
   inPool: Set<string>;
+  stale: string | null;
 }) {
   if (!gems.length) return null;
   return (
@@ -214,6 +240,7 @@ function GemsBoard({
         title={
           <span className="flex items-center gap-2">
             <Gem className="h-4 w-4 text-willow" /> The next big things
+            {stale && <StaleBadge asOf={stale} />}
           </span>
         }
         subtitle="Uncapped SMAT prospects punching above their sample — high standing on below-median exposure (moneyball)"
@@ -225,7 +252,17 @@ function GemsBoard({
             className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-md px-3 py-2 text-sm hover:bg-surface"
           >
             <span className="stat-num w-4 shrink-0 text-xs text-muted">{i + 1}</span>
-            <span className="font-medium text-fg">{p.name}</span>
+            {p.profile_collection ? (
+              <button
+                onClick={() => navigate(profilePath(p.cricsheet_id, p.profile_collection))}
+                className="font-medium text-fg hover:text-accent-glow"
+                title="Open profile"
+              >
+                {displayName(p)}
+              </button>
+            ) : (
+              <span className="font-medium text-fg">{displayName(p)}</span>
+            )}
             {p.country && <span className="text-[11px] text-muted">{p.country}</span>}
             <Badge tone="willow">standing {fmt(p.z, 2)}</Badge>
             <span className="text-[11px] text-muted">{p.balls} balls</span>
@@ -252,12 +289,9 @@ function GemsBoard({
 
 export function Scout() {
   const rawNavigate = useNavigate();
-  const { collection, setCollection } = useStore();
-  // Scout works on IPL data; a profile link must open in IPL whatever league the header shows
-  const navigate = (path: string) => {
-    if (path.startsWith("/player") && collection !== "ipl") setCollection("ipl");
-    rawNavigate(path);
-  };
+  const { collection } = useStore();
+  // profile links carry their own league (`?c=<profile_collection>`), so they open in the right place
+  const navigate = (path: string) => rawNavigate(path);
   const { options } = usePlayers("ipl"); // nice full-name search
   const idx = useAsync<ScoutIndex>(() => getScoutIndex("ipl"), []);
   // the registry: which pools to show (and their price discounts — estValue needs it loaded)
@@ -279,7 +313,7 @@ export function Scout() {
   const [cid] = useUrlId("pick", iplById, !!idx.data);
   const sel = cid ? iplById.get(cid) : null;
   // a new pick starts from its own role and any slot
-  const setCid = (v: string | null) => update({ pick: v, role: null, pos: null }, { replace: false });
+  const setCid = (v: string | null) => update({ pick: v, role: null, pos: null, country: null }, { replace: false });
 
   // the role filter defaults to the pick's own role; only a different one is written to the URL
   const urlRole = params.get("role");
@@ -296,7 +330,8 @@ export function Scout() {
   const gems = useMemo(
     () =>
       gemPool
-        .filter((p) => isGem(p, gemMedian))
+        // a capped international is never an "uncapped gem" (needs the export's capped flag)
+        .filter((p) => isGem(p, gemMedian) && p.capped !== true)
         .sort((a, b) => b.z - a.z)
         .slice(0, 12),
     [gemPool, gemMedian],
@@ -305,15 +340,50 @@ export function Scout() {
   // the pick's own est. IPL price — the baseline the savings compare against
   const selPrice = sel && reg.data ? estValue(sel.value, sel.role, "ipl") : null;
   const posDisabled = roleSel === "bowler";
-  // a batting-slot filter means nothing for a bowler match — drop it rather than keep filtering invisibly
-  const posSel = !posDisabled && hasKey(POS, urlPos) ? urlPos : "";
-  const setPosSel = (p: string) => update({ pos: p || null });
-  // tidy unknown / meaningless role and slot values out of the URL
+  // batting slot: by default the pick's own band (top / middle / lower order); "any" or one exact slot on demand.
+  // Meaningless for a bowler match, so it's dropped rather than kept filtering invisibly.
+  const selBand = slotBand(sel?.batting_position);
+  const posDefault = selBand ? SAME_SLOT : "any";
+  const posValue = posDisabled ? "" : urlPos === "any" || hasKey(POS, urlPos) ? urlPos : posDefault;
+  const posSel = posValue === "any" ? "" : posValue;
+  const setPosSel = (p: string) => update({ pos: p === posDefault ? null : p });
+  // country: the pick's own by default; overseas or all on demand
+  const urlCountry = params.get("country");
+  const countryOk = urlCountry === "overseas" || urlCountry === "all";
+  const countrySel: CountryMode = sel?.country ? (countryOk ? (urlCountry as CountryMode) : "same") : "all";
+  const setCountrySel = (c: CountryMode) => update({ country: c === "same" ? null : c });
+  // tidy unknown / meaningless role, slot and country values out of the URL
   const badRole = !!urlRole && !roleOk;
-  const badPos = !!urlPos && !posSel;
+  const badPos = !!urlPos && urlPos !== "any" && !hasKey(POS, urlPos);
+  const badCountry = !!urlCountry && !countryOk;
   useEffect(() => {
-    if (badRole || badPos) update({ ...(badRole ? { role: null } : {}), ...(badPos ? { pos: null } : {}) });
-  }, [badRole, badPos, update]);
+    if (badRole || badPos || badCountry)
+      update({
+        ...(badRole ? { role: null } : {}),
+        ...(badPos ? { pos: null } : {}),
+        ...(badCountry ? { country: null } : {}),
+      });
+  }, [badRole, badPos, badCountry, update]);
+
+  const results = useMemo(() => {
+    if (!sel || !idx.data) return [];
+    return tiers.map((t) => ({
+      t,
+      rows: similarTo(sel, idx.data![t.key], roleSel, posSel, 8, {
+        country: countrySel,
+        // the uncapped pool is domestic: a player with no country on file is from the pick's country
+        fallbackCountry: t.gem ? sel.country : null,
+      }),
+    }));
+  }, [sel, idx.data, tiers, roleSel, posSel, countrySel]);
+  const shown = results.filter((r) => r.rows.length > 0);
+  // a pool whose league feed has stopped updating (rows carry `stale` + `data_as_of`): its last data date
+  const staleOf = (tier: string): string | null => {
+    const row = (idx.data?.[tier] ?? []).find((r) => r.stale);
+    return row ? (row.data_as_of ?? "") : null;
+  };
+  const empty = results.filter((r) => r.rows.length === 0);
+  const bowlsType = sel && (sel.role === "bowler" || sel.role === "all_rounder") ? sel.bowling_category : null;
 
   return (
     <>
@@ -331,17 +401,20 @@ export function Scout() {
         </div>
       )}
 
-      {gemTier && reg.data && <GemsBoard gems={gems} gemTier={gemTier} navigate={navigate} inPool={inPool} />}
+      {gemTier && reg.data && (
+        <GemsBoard gems={gems} gemTier={gemTier} navigate={navigate} inPool={inPool} stale={staleOf(gemTier)} />
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Combobox options={pickOptions} value={cid} onChange={setCid} placeholder="Search an active IPL player…" className="max-w-md flex-1" />
         {sel && (
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
             <Badge tone="accent">{sel.role.replace("_", "-")}</Badge>
-            {sel.role === "bowler" && sel.bowling_category && (
-              <Badge tone={sel.bowling_category === "spin" ? "willow" : "ball"}>{sel.bowling_category}</Badge>
+            {bowlsType && (
+              <Badge tone={bowlsType === "spin" ? "willow" : "ball"}>{bowlsType === "spin" ? "spin bowling" : "seam bowling"}</Badge>
             )}
             {sel.batting_position && <Badge>{POS[sel.batting_position] ?? sel.batting_position}</Badge>}
+            {sel.country && <Badge>{sel.country}</Badge>}
             <span className="text-xs">standing {fmt(sel.z, 2)}</span>
             {selPrice != null && <span className="text-xs">· ≈{fmt(selPrice, 1)}cr</span>}
           </div>
@@ -366,20 +439,42 @@ export function Scout() {
           <label className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted">Batting slot</span>
             <select
-              value={posSel}
+              value={posValue}
               disabled={posDisabled}
+              title={posDisabled ? "Batting slot doesn't apply when matching bowlers" : undefined}
               onChange={(e) => setPosSel(e.target.value)}
               className="input w-auto cursor-pointer py-1 text-xs disabled:opacity-40"
             >
-              <option value="" className="bg-card">Any</option>
+              {posDisabled && <option value="" className="bg-card">n/a for bowlers</option>}
+              {selBand && (
+                <option value={SAME_SLOT} className="bg-card">Same as pick — {BAND_LABEL[selBand]}</option>
+              )}
+              <option value="any" className="bg-card">Any slot</option>
               {Object.entries(POS).map(([k, v]) => (
                 <option key={k} value={k} className="bg-card">{v}</option>
               ))}
             </select>
           </label>
-          {(roleSel !== sel.role || posSel) && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted">Country</span>
+            {sel.country ? (
+              <Segmented<CountryMode>
+                label="Country"
+                value={countrySel}
+                onChange={setCountrySel}
+                options={[
+                  { value: "same", label: `Same (${sel.country})` },
+                  { value: "overseas", label: "Overseas" },
+                  { value: "all", label: "All" },
+                ]}
+              />
+            ) : (
+              <span className="text-xs text-faint">all (pick's country unknown)</span>
+            )}
+          </div>
+          {(roleSel !== sel.role || urlPos || urlCountry) && (
             <button
-              onClick={() => update({ role: null, pos: null })}
+              onClick={() => update({ role: null, pos: null, country: null })}
               className="text-xs text-accent-glow hover:underline"
             >
               reset
@@ -395,23 +490,43 @@ export function Scout() {
       ) : !sel ? (
         <Empty>Pick an IPL player to scout look-alikes across IPL, SMAT &amp; overseas ({overseasNames(reg.data)}).</Empty>
       ) : (
-        <div className="grid grid-cols-1 gap-5 animate-fade-up lg:grid-cols-3">
-          {tiers.map((t) => (
-            <TierPanel
-              key={t.key}
-              title={t.title}
-              icon={t.icon}
-              subtitle={t.subtitle}
-              rows={similarTo(sel, idx.data![t.key], roleSel, posSel)}
-              tier={t.key}
-              selPrice={selPrice}
-              gemMedian={t.gem ? gemMedian : null}
-              linkable={t.linkable}
-              draftable={t.draftable}
-              inPool={inPool}
-              navigate={navigate}
-            />
-          ))}
+        <div className="animate-fade-up">
+          {empty.length > 0 && (
+            <div className="mb-4 rounded-xl border border-border bg-surface/50 px-4 py-2.5 text-sm text-muted">
+              No {countrySel === "same" ? `${sel.country} ` : countrySel === "overseas" ? "overseas " : ""}match of this
+              type in {empty.map((r) => r.t.title.replace(/^.*·\s*/, "")).join(", ")}
+              {countrySel !== "all" ? (
+                <>
+                  {" "}— switch Country to{" "}
+                  <button className="text-accent-glow hover:underline" onClick={() => setCountrySel("all")}>
+                    All
+                  </button>{" "}
+                  to see them.
+                </>
+              ) : (
+                "."
+              )}
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            {shown.map(({ t, rows }) => (
+              <TierPanel
+                key={t.key}
+                title={t.title}
+                icon={t.icon}
+                subtitle={t.subtitle}
+                rows={rows}
+                tier={t.key}
+                selPrice={selPrice}
+                gemMedian={t.gem ? gemMedian : null}
+                linkable={t.linkable}
+                draftable={t.draftable}
+                inPool={inPool}
+                navigate={navigate}
+                stale={staleOf(t.key)}
+              />
+            ))}
+          </div>
         </div>
       )}
     </>

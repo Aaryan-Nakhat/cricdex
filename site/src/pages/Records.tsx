@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+import { usePlayers } from "@/lib/usePlayers";
 import { useEffect, useMemo, useState } from "react";
 import { Medal, CalendarRange } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -56,7 +58,21 @@ export function Records() {
   const [tab, setTab] = useUrlState<string>("tab", "", { valid: keys, ready: !!data, replace: false });
   const active = tab && keys.includes(tab) ? tab : keys[0];
   const rawRows = active && data ? data[active] : [];
-  const cols = rawRows.length ? Object.keys(rawRows[0]).filter((c) => c !== "match_id") : [];
+  // `<field>_display` / `display_name` / `cricsheet_id` feed the name cells; they aren't columns of their own
+  const cols = rawRows.length
+    ? Object.keys(rawRows[0]).filter(
+        (c) => c !== "match_id" && c !== "cricsheet_id" && c !== "display_name" && !c.endsWith("_display"),
+      )
+    : [];
+  const { nameOf } = usePlayers(collection);
+  const navigate = useNavigate();
+  /** A player cell shows the fan name: the row's `<col>_display`, else a players.json lookup. */
+  const cellText = (r: Record<string, unknown>, c: string): string => {
+    const disp = r[`${c}_display`];
+    if (typeof disp === "string" && disp.trim()) return disp;
+    if ((c === "batter" || c === "bowler") && typeof r[c] === "string") return nameOf(String(r[c]));
+    return prettyCell(r[c]);
+  };
   const hasDate = rawRows.some((r) => yearOf(r.match_date) !== null);
 
   // year span present in this record table (only for dated records); each tab starts at its full range
@@ -171,7 +187,16 @@ export function Records() {
                               (c === "batter" || c === "bowler" || c === "team") && "font-medium text-fg",
                             )}
                           >
-                            {prettyCell(v)}
+                            {(c === "batter" || c === "bowler") && typeof r.cricsheet_id === "string" ? (
+                              <button
+                                className="text-left hover:text-accent-glow"
+                                onClick={() => navigate(`/player?cid=${String(r.cricsheet_id)}`)}
+                              >
+                                {cellText(r, c)}
+                              </button>
+                            ) : (
+                              cellText(r, c)
+                            )}
                           </td>
                         );
                       })}

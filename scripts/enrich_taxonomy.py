@@ -26,6 +26,7 @@ from loguru import logger
 
 from cricdex.common import llm
 from cricdex.config import CURATED_DIR, SITE_DATA  # importing config loads .env
+from cricdex.scout.identity import countries
 
 CACHE = CURATED_DIR / "player_taxonomy.json"
 
@@ -48,16 +49,24 @@ SCHEMA_HELP = (
     "- batting_position: opener | no3 | middle | finisher | lower | tailender | unknown "
     "(opener=1-2, no3=3, middle=4-5, finisher=6-7, lower=8, tailender=9-11)\n"
     "- batting_hand: right | left | unknown\n"
-    "- country: ISO-3 code (IND, AUS, ENG, PAK, RSA, NZL, SRI, BAN, AFG, WIN, IRE, ...)\n"
+    "- country: ISO 3166-1 alpha-3 code (IND, AUS, PAK, ZAF, NZL, LKA, BGD, AFG, IRL, NLD, ARE, "
+    "...); ENG / SCO for England / Scotland and WIN for the West Indies\n"
     "- confidence: high | medium | low"
 )
 
 
-def _collect_players() -> dict[str, dict]:
+# players.json now lists every player of a league; the taxonomy keeps its old scope (players with
+# real volume) so a refresh doesn't send thousands of one-match players to the LLM.
+MIN_BALLS = 300
+
+
+def _collect_players(min_balls: int = MIN_BALLS) -> dict[str, dict]:
     seen: dict[str, dict] = {}
     for f in sorted(SITE_DATA.glob("*/players.json")):
-        for p in json.loads(f.read_text()):
+        for p in json.loads(f.read_text(encoding="utf-8")):
             cid = p["cricsheet_id"]
+            if (p.get("balls_faced") or 0) + (p.get("balls_bowled") or 0) < min_balls:
+                continue
             if cid not in seen:
                 seen[cid] = {"name": p["name"], "full_name": p.get("full_name", p["name"])}
     return seen
@@ -130,7 +139,7 @@ def run(
                 "bowling_style": g.get("bowling_style"),
                 "batting_position": g.get("batting_position"),
                 "batting_hand": g.get("batting_hand"),
-                "country": g.get("country"),
+                "country": countries.normalise(g.get("country")),
                 "confidence": g.get("confidence"),
                 "source": "llm",
             }

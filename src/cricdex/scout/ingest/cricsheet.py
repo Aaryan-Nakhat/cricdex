@@ -810,6 +810,7 @@ def load_to_duckdb(matches_path: Path, balls_path: Path, collection: str, db_pat
                     f"CREATE OR REPLACE TABLE {table}_{safe} AS "
                     f"SELECT * FROM read_parquet('{_sql_path(path)}')"
                 )
+        drop_orphan_rows(con, safe)
         n = con.execute(f"SELECT COUNT(*) FROM matches_{safe}").fetchone()[0]
         try:
             zips = " ".join(leagues.get(collection).zips)
@@ -822,6 +823,29 @@ def load_to_duckdb(matches_path: Path, balls_path: Path, collection: str, db_pat
         normalize_venues(con)
     finally:
         con.close()
+
+
+def drop_orphan_rows(con: duckdb.DuckDBPyConnection, safe: str) -> dict[str, int]:
+    """Delete rows of the per-match side tables (players_ / wickets_ / innings_ / …) whose match
+    isn't in matches_<col>: a side table rebuilt from newer extracted JSON would otherwise point at
+    matches the ball data doesn't have. Returns rows removed per table."""
+    have = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+    removed: dict[str, int] = {}
+    if f"matches_{safe}" not in have:
+        return removed
+    for table in EXTRA_TABLES:
+        name = f"{table}_{safe}"
+        if name not in have:
+            continue
+        before = con.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+        con.execute(
+            f"DELETE FROM {name} WHERE match_id NOT IN (SELECT match_id FROM matches_{safe})"
+        )
+        after = con.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+        if before != after:
+            removed[name] = int(before - after)
+            logger.info(f"{name}: dropped {before - after} rows for matches not in matches_{safe}")
+    return removed
 
 
 def extracted_dirs_for(collection: str, base: Path) -> list[Path]:
@@ -857,6 +881,8 @@ def backfill_identity(
         con.register("wickets_df", wickets.to_arrow())
         con.execute(f"CREATE OR REPLACE TABLE players_{safe} AS SELECT * FROM players_df")
         con.execute(f"CREATE OR REPLACE TABLE wickets_{safe} AS SELECT * FROM wickets_df")
+        # the extracted JSON can be newer than the ingested matches: keep only matches we have
+        drop_orphan_rows(con, safe)
     finally:
         con.close()
     logger.info(f"{collection}: players_{safe} {len(players)} rows, wickets_{safe} {len(wickets)}")

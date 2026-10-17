@@ -10,6 +10,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
+from cricdex.common.display import league_label
 from cricdex.dashboard._widgets import player_select, provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -56,6 +57,7 @@ with st.sidebar:
         options=collections,
         index=collections.index("ipl") if "ipl" in collections else 0,
         key="aging-collection",
+        format_func=league_label,
     )
     role = st.radio("Discipline", ["batting", "bowling"], horizontal=True, key="aging-role")
     metric_label = st.selectbox("Metric", [m[1] for m in METRICS[role]], key="aging-metric")

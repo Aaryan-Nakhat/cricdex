@@ -121,3 +121,31 @@ def test_compare_keeps_its_career_keys(mini_db):
         "career_runs_conceded": 0,
         "career_legal_balls_bowled": 0,
     }
+
+
+def test_standard_stat_line():
+    con = duckdb.connect()
+    con.execute(
+        "CREATE TABLE balls_s (match_id TEXT, innings_idx INTEGER, match_type TEXT, batter TEXT, "
+        "bowler TEXT, runs_batter INTEGER, runs_extras INTEGER, extras_type TEXT, player_out TEXT, "
+        "wicket_kind TEXT)"
+    )
+    rows = []
+    # m1: A makes 60 (10 sixes) and is out; m2: A makes 104 not out; super over (idx 2) ignored
+    rows += [("m1", 0, "T20", "A", "B", 6, 0, None, None, None)] * 10
+    rows += [("m1", 0, "T20", "A", "B", 0, 0, None, "A", "caught")]
+    rows += [("m2", 0, "T20", "A", "B", 4, 0, None, None, None)] * 26
+    rows += [("m2", 2, "T20", "A", "B", 6, 0, None, None, None)] * 5
+    # B takes 3 wickets for 10 in m3 (a run out isn't his)
+    rows += [("m3", 1, "T20", f"X{i}", "B", 0, 0, None, f"X{i}", "bowled") for i in range(3)]
+    rows += [("m3", 1, "T20", "X9", "B", 10, 0, None, None, None)]
+    rows += [("m3", 1, "T20", "X8", "B", 0, 0, None, "X8", "run out")]
+    con.executemany("INSERT INTO balls_s VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+    a = builder.career_standard(con, "s", "A")
+    assert (a["career_fifties"], a["career_hundreds"]) == (1, 1)
+    assert a["career_highest_score"] == 104 and a["career_highest_score_not_out"] is True
+    assert a["career_dismissals"] == 1 and a["career_dots_faced"] == 1
+    b = builder.career_standard(con, "s", "B")
+    assert (b["career_best_bowling_wickets"], b["career_best_bowling_runs"]) == (3, 10)
+    assert (b["career_three_wkt_hauls"], b["career_four_wkt_hauls"]) == (1, 0)
+    assert b["career_dots_bowled"] == 5  # the wicket ball in m1, four in m3

@@ -41,6 +41,15 @@ def _emit(df: pl.DataFrame, metric: str, collection: str, out_json: Path | None)
     typer.echo(df.to_pandas().to_string(index=False))
     out_path = out_json or (DATA_DIR / "metrics" / f"{metric}_{collection}.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    # SQL SUMs come back as HUGEINT / Decimal, which write_json stores as strings: write numbers
+    df = df.with_columns(
+        pl.col(c).cast(pl.Int64 if dt.scale == 0 else pl.Float64)
+        if isinstance(dt, pl.Decimal)
+        else pl.col(c).cast(pl.Int64)
+        if dt == pl.Int128
+        else pl.col(c)
+        for c, dt in df.schema.items()
+    )
     df.write_json(str(out_path))
     logger.info(f"wrote {out_path}")
     return out_path

@@ -114,7 +114,8 @@ def test_dead_credential_helpers_are_gone():
 
 
 def test_fresh_clone_json_commands_resolve_names_from_players_json(tmp_path):
-    code, out = _fresh_clone(tmp_path, "matchups", "Kohli", "-c", "ipl", "--json")
+    # "Kohli" alone now fits two IPL players (V Kohli, T Kohli) and is listed back; the display name resolves
+    code, out = _fresh_clone(tmp_path, "matchups", "Virat Kohli", "-c", "ipl", "--json")
     assert code == 0, out
     assert json.loads(out[out.index("{") :])  # the raw matchups JSON
     code, out = _fresh_clone(tmp_path, "partnerships", "V Kohli", "-c", "ipl", "-n", "3")

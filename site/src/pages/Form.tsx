@@ -4,19 +4,22 @@ import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight } from "lucide-r
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getLeaderboard, type LeaderboardRow } from "@/lib/data";
-import { METRICS, METRIC_BY_SLUG } from "@/lib/metrics";
+import { METRICS, METRIC_BY_SLUG, fmtMetric, primaryCol } from "@/lib/metrics";
+import { usePlayers } from "@/lib/usePlayers";
+import { MetricInfo } from "@/components/MetricInfo";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, countriesIn, DEFAULT_FILTERS } from "@/lib/filters";
+import { applyFilters, smartFilters, DEFAULT_FILTERS } from "@/lib/filters";
 import { useUrlFilters, useUrlState } from "@/lib/useUrlState";
-import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip, StatTile, Segmented } from "@/components/ui";
+import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, StatTile, Segmented } from "@/components/ui";
 import { cn, fmtSigned } from "@/lib/utils";
 
 type Row = Record<string, unknown>;
 
 // Keeping and fielding boards rank dismissal *counts*: a 12-month count against a career count isn't form, so
 // they're left out here (every other board is a rate or an index).
-const FORM_METRICS = METRICS.filter((m) => m.slug !== "keeping" && m.slug !== "fielding");
+// Form needs a "better" direction: the volume boards and the descriptive Boundary Dependency are left out.
+const FORM_METRICS = METRICS.filter((m) => m.slug !== "keeping" && m.slug !== "fielding" && m.direction !== "descriptive");
 
 const WINDOW_LABEL: Record<string, string> = {
   last1y: "last 12 months",
@@ -34,7 +37,11 @@ export function Form() {
   // same defaults as the leaderboards: established, active players
   const [filters, setFilters] = useUrlFilters(DEFAULT_FILTERS);
   const metric = METRIC_BY_SLUG[slug];
-  const valueKey = metric.columns.find((c) => c.primary)?.key ?? metric.columns[1]?.key;
+  const pcol = primaryCol(metric);
+  const valueKey = pcol.key;
+  // NGI reads as a percentage ("+3.4%"); everything else as a plain number
+  const show = (v: number) => (pcol.fmt ? fmtMetric(v, pcol) : fmtSigned(v, 2));
+  const { nameOf } = usePlayers(collection);
   const nameKey = metric.nameCol;
 
   // Recent-window picker — whichever recomputed windows this collection cooked.
@@ -48,7 +55,11 @@ export function Form() {
     [collection, slug, recentWin],
   );
 
-  const countryOpts = useMemo(() => countriesIn((recent.data ?? []) as Row[]), [recent.data]);
+  // only the filters / options that can apply to this metric's board
+  const smart = useMemo(
+    () => smartFilters((recent.data ?? []) as Row[], filters, metric.filters, metric.exclude),
+    [recent.data, filters, metric],
+  );
 
   const rows = useMemo(() => {
     if (!career.data || !recent.data) return [];
@@ -57,7 +68,7 @@ export function Form() {
       const k = r[nameKey];
       if (typeof k === "string") careerBy.set(k, r);
     }
-    const filteredRecent = applyFilters(recent.data as Row[], filters);
+    const filteredRecent = applyFilters(recent.data as Row[], smart.effective);
     const out: Row[] = [];
     for (const rr of filteredRecent) {
       const name = rr[nameKey];
@@ -72,7 +83,7 @@ export function Form() {
       out.push({ name, career: careerVal, recent: recentVal, mv });
     }
     return out;
-  }, [career.data, recent.data, nameKey, valueKey, metric.higherIsBetter, filters]);
+  }, [career.data, recent.data, nameKey, valueKey, metric.higherIsBetter, smart.effective]);
 
   const top = useMemo(() => [...rows].sort((a, b) => Number(b.mv) - Number(a.mv)), [rows]);
   // risers are only players actually improving, fallers only players declining — the two lists never overlap
@@ -82,9 +93,9 @@ export function Form() {
   const faller = cooling[0];
 
   const cols: Col<Row>[] = [
-    { key: "name", label: "Player", primary: false },
-    { key: "career", label: "Career", align: "right", digits: 2 },
-    { key: "recent", label: WINDOW_LABEL[recentWin ?? ""] ?? "Recent", align: "right", digits: 2 },
+    { key: "name", label: "Player", primary: false, render: (r: Row) => <span className="font-medium text-fg">{nameOf(String(r.name))}</span> },
+    { key: "career", label: "Career", align: "right", digits: 2, fmtValue: pcol.fmt ? (v) => fmtMetric(v, pcol) : undefined },
+    { key: "recent", label: WINDOW_LABEL[recentWin ?? ""] ?? "Recent", align: "right", digits: 2, fmtValue: pcol.fmt ? (v) => fmtMetric(v, pcol) : undefined },
     {
       key: "mv",
       label: "Form Δ",
@@ -97,7 +108,7 @@ export function Form() {
         return (
           <span className={cn("inline-flex items-center gap-1 stat-num", up ? "text-willow" : "text-ball")}>
             {up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-            {fmtSigned(v, 2)}
+            {show(v)}
           </span>
         );
       },
@@ -150,8 +161,7 @@ export function Form() {
         filters={filters}
         onChange={setFilters}
         defaults={DEFAULT_FILTERS}
-        show={["minMatches", "activity", "role", "bowling", "position", "country"]}
-        countryOpts={countryOpts}
+        smart={smart}
         count={rows.length}
       />
 
@@ -172,7 +182,7 @@ export function Form() {
                   <h3 className="text-sm font-semibold text-fg">
                     {metric.name} — {WINDOW_LABEL[recentWin]} vs career
                   </h3>
-                  <InfoTip title={`How ${metric.name} is calculated`}>{metric.how}</InfoTip>
+                  <MetricInfo m={metric} />
                   {!metric.higherIsBetter && <Badge tone="muted">lower is better → sign-flipped</Badge>}
                 </div>
                 <p className="mt-1 text-sm leading-relaxed text-muted">{metric.what}</p>
@@ -182,10 +192,10 @@ export function Form() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {riser && (
-              <StatTile label="Biggest riser" value={String(riser.name)} hint={`${fmtSigned(Number(riser.mv), 2)} form Δ`} />
+              <StatTile label="Biggest riser" value={nameOf(String(riser.name))} hint={`${show(Number(riser.mv))} form Δ`} />
             )}
             {faller && (
-              <StatTile label="Biggest faller" value={String(faller.name)} hint={`${fmtSigned(Number(faller.mv), 2)} form Δ`} />
+              <StatTile label="Biggest faller" value={nameOf(String(faller.name))} hint={`${show(Number(faller.mv))} form Δ`} />
             )}
           </div>
 
@@ -199,7 +209,7 @@ export function Form() {
                   rows={heating.slice(0, 25)}
                   cols={cols}
                   initialSort={{ key: "mv", dir: "desc" }}
-                  rowLabel={(r) => `Open ${String(r.name)}'s profile`}
+                  rowLabel={(r) => `Open ${nameOf(String(r.name))}'s profile`}
                   onRowClick={(r) => navigate(`/player?name=${encodeURIComponent(String(r.name))}`)}
                 />
               ) : (
@@ -215,7 +225,7 @@ export function Form() {
                   rows={cooling.slice(0, 25)}
                   cols={cols}
                   initialSort={{ key: "mv", dir: "asc" }}
-                  rowLabel={(r) => `Open ${String(r.name)}'s profile`}
+                  rowLabel={(r) => `Open ${nameOf(String(r.name))}'s profile`}
                   onRowClick={(r) => navigate(`/player?name=${encodeURIComponent(String(r.name))}`)}
                 />
               ) : (

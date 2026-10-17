@@ -2,7 +2,8 @@
 
 Each metric recomputed over the recent window (last 1y, else last 3y) and
 compared against career. Positive form Δ = improving (direction-corrected for
-'lower is better' metrics). Reads the same exported leaderboards as the web.
+'lower is better' metrics; a descriptive one like Boundary Dependency is noted).
+Reads the same exported leaderboards as the web.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from __future__ import annotations
 import typer
 
 from cricdex.cli import _render
-from cricdex.cli._shared import console, die
+from cricdex.cli._shared import coll_subtitle, console, die, form_display, form_note
 from cricdex.common import filters as cf
 from cricdex.common.metrics import METRIC_BY_SLUG
 
@@ -70,8 +71,15 @@ def form(
             continue
         cv, rv = float(cr[val]), float(rr[val])
         mv = (rv - cv) if m.higher_is_better else (cv - rv)
+        pct = any(c.primary and c.fmt == "pct" for c in m.columns)
+        nd = 4 if pct else 2  # a pct headline keeps its precision until it's shown as a %
         rows.append(
-            {"player": nm, "career": round(cv, 2), "recent": round(rv, 2), "form_Δ": round(mv, 2)}
+            {
+                "player": nm,
+                "career": round(cv, nd),
+                "recent": round(rv, nd),
+                "form_Δ": round(mv, nd),
+            }
         )
     if not rows:
         die("no players appear in both the career and recent boards")
@@ -79,14 +87,15 @@ def form(
     rows.sort(key=lambda r: r["form_Δ"], reverse=True)
     _render.header(
         f"Form — {m.name}",
-        subtitle=f"{cf.WINDOW_LABELS[recent_win].lower()} vs career · {collection}",
+        subtitle=f"{cf.WINDOW_LABELS[recent_win].lower()} vs career · {coll_subtitle(collection)}",
     )
-    if not m.higher_is_better:
-        console().print(
-            "[dim]lower-is-better metric → form Δ sign-flipped (positive = improving)[/dim]"
-        )
-    _render.pretty_table(rows[:top], title="Heating up ▲", column_styles={"player": "bold cyan"})
+    console().print(f"[dim]{form_note(m)}[/dim]")
     _render.pretty_table(
-        list(reversed(rows))[:top], title="Cooling down ▼", column_styles={"player": "bold cyan"}
+        form_display(rows[:top], m), title="Heating up ▲", column_styles={"player": "bold cyan"}
+    )
+    _render.pretty_table(
+        form_display(list(reversed(rows))[:top], m),
+        title="Cooling down ▼",
+        column_styles={"player": "bold cyan"},
     )
     _render.footnote("Recent window vs career, from the same exported leaderboards.")

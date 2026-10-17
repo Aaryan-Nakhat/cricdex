@@ -13,8 +13,8 @@ import {
   type SimResult,
   type AuctionMode,
 } from "@/lib/auction";
-import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox } from "@/components/ui";
-import { cn, fmt } from "@/lib/utils";
+import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StaleBadge } from "@/components/ui";
+import { cn, fmt, profilePath } from "@/lib/utils";
 import { leagueShort, type LeagueRegistry } from "@/lib/leagues";
 
 /** "BBL, SA20 & CPL" */
@@ -264,6 +264,21 @@ const MODE_BLURB: Record<AuctionMode, string> = {
   mini: "Mini auction — franchises keep most of their squad; only a handful of slots are auctioned.",
 };
 
+/** Display names, profile league and staleness per player, from the raw auction pool (the parity-locked sim pool
+ * keeps only what the simulation needs). The fetch is shared, so every component can call this. */
+function useAuctionNames() {
+  const poolData = useAsync(() => getAuctionPool("ipl"), []);
+  const rawById = useMemo(() => new Map((poolData.data ?? []).map((r) => [r.cricsheet_id, r])), [poolData.data]);
+  const nm = (p: { cricsheet_id: string; name: string }) => (rawById.get(p.cricsheet_id)?.display_name || "").trim() || p.name;
+  const linkFor = (cid: string) => profilePath(cid, rawById.get(cid)?.profile_collection ?? "ipl");
+  const isStale = (cid: string) => !!rawById.get(cid)?.stale;
+  const searchText = (cid: string, name: string) => {
+    const r = rawById.get(cid);
+    return [name, r?.display_name, ...(r?.aliases ?? [])].filter(Boolean).join(" ").toLowerCase();
+  };
+  return { nm, linkFor, isStale, searchText };
+}
+
 function Simulate({
   pool,
   megaIds,
@@ -277,6 +292,7 @@ function Simulate({
   draftId: string | null;
   navigate: (p: string) => void;
 }) {
+  const { nm, linkFor, isStale, searchText } = useAuctionNames();
   const [teams, setTeams] = useState(IPL_TEAMS_DEFAULT);
   const [mode, setSimMode] = useState<AuctionMode>("mega");
   const [purse, setPurse] = useState(120);
@@ -405,7 +421,7 @@ function Simulate({
           <Card className="flex flex-wrap items-center gap-2 border-accent/40 bg-accent/5 px-4 py-3 text-sm">
             <Gavel className="h-4 w-4 shrink-0 text-accent" />
             <span className="text-muted">
-              Drafted <b className="text-fg">{draftPlayer.name}</b> from Scout — locked as a retention for
+              Drafted <b className="text-fg">{nm(draftPlayer)}</b> from Scout — locked as a retention for
             </span>
             <select
               value={draftTeam}
@@ -509,7 +525,7 @@ function Simulate({
                     if (!p) return null;
                     return (
                       <span key={cid} className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-glow">
-                        {p.name}<span className="text-muted/70">{fmt(retCost(cid, i), 0)}</span>
+                        {nm(p)}<span className="text-muted/70">{fmt(retCost(cid, i), 0)}</span>
                         <button onClick={() => { setRetentions((r) => ({ ...r, [t.team]: (r[t.team] ?? []).filter((x) => x !== cid) })); setResult(null); }} className="hover:text-ball"><X className="h-3 w-3" /></button>
                       </span>
                     );
@@ -522,7 +538,7 @@ function Simulate({
                 >
                   <option value="" className="bg-card">+ add player…</option>
                   {addable.map((p) => (
-                    <option key={p.cricsheet_id} value={p.cricsheet_id} className="bg-card">{p.name} ({fmt(p.projected_value, 0)}cr)</option>
+                    <option key={p.cricsheet_id} value={p.cricsheet_id} className="bg-card">{nm(p)} ({fmt(p.projected_value, 0)}cr)</option>
                   ))}
                 </select>
               </div>
@@ -597,7 +613,10 @@ function Simulate({
             <tbody>
               {result.marquee.map(({ player, winners }) => (
                 <tr key={player.cricsheet_id} className="hover:bg-surface/50">
-                  <td className="td cursor-pointer font-medium text-fg hover:text-accent-glow" onClick={() => navigate(`/player?cid=${player.cricsheet_id}`)}>{player.name}</td>
+                  <td className="td cursor-pointer font-medium text-fg hover:text-accent-glow" onClick={() => navigate(linkFor(player.cricsheet_id))}>
+                    {nm(player)}
+                    {isStale(player.cricsheet_id) && <StaleBadge className="ml-1.5" />}
+                  </td>
                   <td className="td"><Badge tone={ROLE_TONE[player.role]}>{player.role.replace("_", "-")}</Badge></td>
                   <td className="td stat-num text-right">{fmt(player.projected_value, 1)}</td>
                   <td className="td text-right">{relCell(player.cricsheet_id)}</td>
@@ -635,7 +654,7 @@ function Simulate({
           ) : (
             (() => {
               const needle = q.trim().toLowerCase();
-              const hits = result.outcomes.filter((o) => o.name.toLowerCase().includes(needle));
+              const hits = result.outcomes.filter((o) => searchText(o.cricsheet_id, o.name).includes(needle));
               if (hits.length === 0)
                 return <p className="mt-3 text-sm text-muted">No player matches “{q}”.</p>;
               return (
@@ -655,7 +674,12 @@ function Simulate({
                     <tbody>
                       {hits.slice(0, 40).map((o) => (
                         <tr key={o.cricsheet_id} className="hover:bg-surface/50">
-                          <td className="td font-medium text-fg">{o.name}</td>
+                          <td className="td font-medium text-fg">
+                            <button className="text-left hover:text-accent-glow" onClick={() => navigate(linkFor(o.cricsheet_id))}>
+                              {nm(o)}
+                            </button>
+                            {isStale(o.cricsheet_id) && <StaleBadge className="ml-1.5" />}
+                          </td>
                           <td className="td"><Badge tone={ROLE_TONE[o.role]}>{o.role.replace("_", "-")}</Badge></td>
                           <td className="td text-right">{relCell(o.cricsheet_id)}</td>
                           <td className="td">
@@ -718,9 +742,9 @@ function Simulate({
               <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">Retained ({draft.retained.length})</div>
               <div className="flex flex-wrap gap-2">
                 {draft.retained.length === 0 ? <span className="text-xs text-muted">none</span> : draft.retained.map((p) => (
-                  <button key={p.cricsheet_id} onClick={() => navigate(`/player?cid=${p.cricsheet_id}`)}
+                  <button key={p.cricsheet_id} onClick={() => navigate(linkFor(p.cricsheet_id))}
                     className="inline-flex items-center gap-1.5 rounded-md border border-accent/30 bg-accent/10 px-2 py-1 text-xs hover:border-accent/50">
-                    <span className="text-accent-glow">{p.name}</span>
+                    <span className="text-accent-glow">{nm(p)}</span>
                     <Badge tone={ROLE_TONE[p.role]}>{p.role.replace("_", "-")}</Badge>
                     {p.is_overseas && <Plane className="h-3 w-3 text-willow" />}
                   </button>
@@ -731,9 +755,9 @@ function Simulate({
               <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">Bought ({draft.bought.length})</div>
               <div className="flex flex-wrap gap-2">
                 {draft.bought.length === 0 ? <span className="text-xs text-muted">no buys in this sample</span> : draft.bought.map((p) => (
-                  <button key={p.cricsheet_id} onClick={() => navigate(`/player?cid=${p.cricsheet_id}`)}
+                  <button key={p.cricsheet_id} onClick={() => navigate(linkFor(p.cricsheet_id))}
                     className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-xs hover:border-accent/40">
-                    <span className="text-fg">{p.name}</span>
+                    <span className="text-fg">{nm(p)}</span>
                     <Badge tone={ROLE_TONE[p.role]}>{p.role.replace("_", "-")}</Badge>
                     {p.is_overseas && <Plane className="h-3 w-3 text-willow" />}
                   </button>

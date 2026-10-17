@@ -10,6 +10,12 @@ export interface Col<T> {
   primary?: boolean;
   render?: (row: T) => React.ReactNode;
   sortable?: boolean;
+  /** Display format for a numeric cell (e.g. "+9.7%"); sorting still uses the raw number. */
+  fmtValue?: (raw: unknown) => string;
+  /** An (i) explainer shown beside the header (outside the sort button). */
+  info?: React.ReactNode;
+  /** Plain-text header tooltip. */
+  title?: string;
 }
 
 export function DataTable<T extends Record<string, unknown>>({
@@ -95,7 +101,9 @@ export function DataTable<T extends Record<string, unknown>>({
                     scope="col"
                     aria-sort={isSort ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
                     className={cn("th", c.align === "right" && "text-right")}
+                    title={c.title}
                   >
+                    <span className={cn("inline-flex items-center gap-1.5", c.align === "right" && "flex-row-reverse")}>
                     {sortable ? (
                       <button
                         type="button"
@@ -108,6 +116,8 @@ export function DataTable<T extends Record<string, unknown>>({
                     ) : (
                       inner
                     )}
+                    {c.info}
+                    </span>
                   </th>
                 );
               })}
@@ -158,7 +168,7 @@ export function DataTable<T extends Record<string, unknown>>({
                         c.render(row)
                       ) : isNum ? (
                         <div className={cn(c.align === "right" ? "text-right" : "text-left")}>
-                          <span>{fmt(raw as number | string | null, c.digits ?? 2)}</span>
+                          <span>{c.fmtValue ? c.fmtValue(raw) : fmt(raw as number | string | null, c.digits ?? 2)}</span>
                           {frac !== null && (
                             <div className="mt-1 h-1 w-full max-w-[120px] overflow-hidden rounded-full bg-border/50">
                               <div

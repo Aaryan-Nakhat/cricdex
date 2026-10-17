@@ -12,7 +12,14 @@ from pathlib import Path
 import typer
 
 from cricdex.cli import _copy, _render
-from cricdex.cli._shared import EXIT_MISSING_DATA, die, sort_missing_last
+from cricdex.cli._shared import (
+    EXIT_MISSING_DATA,
+    catalog_view,
+    coll_subtitle,
+    die,
+    metric_explainer,
+    sort_missing_last,
+)
 from cricdex.common.metrics import METRIC_BY_SLUG
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -54,13 +61,13 @@ def leaderboard(
         typer.echo(json.dumps(rows, indent=2))
         return
 
-    pretty = metric.replace("_", " ").title()
-    _render.header(f"{pretty} — top {top}", subtitle=f"collection: {collection}")
+    m = METRIC_BY_SLUG[metric]
+    pretty = m.name
+    _render.header(f"{pretty} — top {top}", subtitle=coll_subtitle(collection))
     _render.intro_panel(_copy.LEADERBOARD_INTRO, title="Leaderboards")
 
-    hint = _copy.METRIC_HINTS.get(metric)
-    if hint:
-        _render.intro_panel(hint, title=f"What this captures — {pretty}")
+    hint = _copy.METRIC_HINTS.get(metric) or m.one_liner
+    _render.intro_panel(f"{hint}\n\n{metric_explainer(m)}", title=f"What this captures — {pretty}")
 
     # Trim to a useful preview: primary key + sort col + 3-4 extras.
     if rows:
@@ -71,14 +78,14 @@ def leaderboard(
         if spark:
             from cricdex.cli._shared import console as _c
 
-            _c().print(f"[dim]{sort_col} shape:[/dim] [cyan]{spark}[/cyan]")
-        extras = [k for k in rows[0].keys() if k not in {primary_key, sort_col}][:4]
-        cols = [primary_key, sort_col, *extras]
-        pruned = [{c: r.get(c) for c in cols} for r in rows]
+            label = next((c.label for c in m.columns if c.key == sort_col), sort_col)
+            _c().print(f"[dim]{label} shape:[/dim] [cyan]{spark}[/cyan]")
+        pruned, cols, headline = catalog_view(rows, m)
+        name_label = next((c.label for c in m.columns if c.key == primary_key), primary_key)
         _render.pretty_table(
             pruned,
             columns=cols,
-            column_styles={primary_key: "bold cyan", sort_col: "bold"},
+            column_styles={name_label: "bold cyan", headline: "bold"},
         )
     _render.footnote(
         f"Path: {path.relative_to(Path.cwd()) if path.is_absolute() and Path.cwd() in path.parents else path}  "

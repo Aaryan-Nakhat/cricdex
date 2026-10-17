@@ -38,3 +38,9 @@ export function prettyDate(iso: string | null | undefined): string {
     year: "numeric",
   });
 }
+
+/** A Player Profile link in the league where that player's profile lives (`profile_collection` on Scout / auction
+ * rows; non-IPL players have no IPL profile). */
+export function profilePath(cid: string, collection?: string | null): string {
+  return collection ? `/player?c=${encodeURIComponent(collection)}&cid=${encodeURIComponent(cid)}` : `/player?cid=${encodeURIComponent(cid)}`;
+}

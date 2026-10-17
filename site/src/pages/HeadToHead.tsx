@@ -84,6 +84,15 @@ export function HeadToHead() {
   );
 
   const pct = result ? Math.round(result.pAbetter * 100) : 50;
+  // fan names: ratings rows (or players.json) carry display_name; the parity-locked engine uses scorecard names
+  const disp = (cid: string | null, fallback: string) => {
+    if (!cid) return fallback;
+    const r = rows.find((x) => x.cricsheet_id === cid && x.display_name);
+    return (r?.display_name || byId.get(cid)?.display_name || "").trim() || fallback;
+  };
+  const nameA = result ? disp(a, result.a.name) : "";
+  const nameB = result ? disp(b, result.b.name) : "";
+  const verdict = result ? result.verdict.split(result.a.name).join(nameA).split(result.b.name).join(nameB) : "";
 
   return (
     <>
@@ -138,9 +147,9 @@ export function HeadToHead() {
           {/* the gauge */}
           <Card className="px-6 py-7">
             <div className="mb-2 flex items-center justify-between text-sm font-semibold">
-              <span className="text-accent-glow">{result.a.name}</span>
-              <Badge tone={pct >= 55 ? "accent" : pct <= 45 ? "ball" : "muted"}>{result.verdict}</Badge>
-              <span className="text-fg">{result.b.name}</span>
+              <span className="text-accent-glow">{nameA}</span>
+              <Badge tone={pct >= 55 ? "accent" : pct <= 45 ? "ball" : "muted"}>{verdict}</Badge>
+              <span className="text-fg">{nameB}</span>
             </div>
             <div className="relative h-10 w-full overflow-hidden rounded-xl border border-border bg-surface">
               <div
@@ -155,10 +164,10 @@ export function HeadToHead() {
             </div>
             <p className="mt-3 text-center text-sm text-muted">
               The model gives{" "}
-              <span className="font-semibold text-accent-glow">{result.a.name}</span> a{" "}
+              <span className="font-semibold text-accent-glow">{nameA}</span> a{" "}
               <span className="stat-num font-bold text-fg">{pct}%</span> chance of being the better{" "}
               {ROLE_LABEL[result.role]} than{" "}
-              <span className="font-semibold text-fg">{result.b.name}</span>.
+              <span className="font-semibold text-fg">{nameB}</span>.
             </p>
           </Card>
 
@@ -167,7 +176,7 @@ export function HeadToHead() {
             {[result.a, result.b].map((side, i) => (
               <Card key={i} className="px-5 py-4">
                 <div className={cn("text-sm font-semibold", i === 0 ? "text-accent-glow" : "text-fg")}>
-                  {side.name}
+                  {i === 0 ? nameA : nameB}
                 </div>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between">

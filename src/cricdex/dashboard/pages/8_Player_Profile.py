@@ -14,7 +14,9 @@ import json
 
 import streamlit as st
 
+from cricdex.common.display import league_label
 from cricdex.common.filters import load_cohorts
+from cricdex.common.metrics import DIRECTION_LABEL, METRIC_BY_SLUG, fmt_metric
 from cricdex.dashboard._widgets import player_select, provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -39,7 +41,7 @@ POS_LABEL = {
 # slug -> (title, value-key, subtitle, digits) — mirror PlayerProfile.tsx
 # MetricCard. One card per catalog metric the player appears in.
 METRIC_CARDS = {
-    "ngi": ("Net Game Impact", "ngi_per_match", "win chance added per match", 3),
+    "ngi": ("Net Game Impact", "ngi_per_match", "win chance added per match", 1),
     "pressure_runs": ("Pressure Runs", "pressure_sr_per_100_balls", "SR under chase pressure", 1),
     "intent_curve": ("Intent Curve", "early_sr", "SR over the first 10 balls", 1),
     "dot_ball_recovery": (
@@ -143,6 +145,7 @@ with st.sidebar:
         options=collections,
         index=collections.index("ipl") if "ipl" in collections else 0,
         key="profile-collection",
+        format_func=league_label,
         help="Only collections with exported players.json + profiles are listed.",
     )
 
@@ -176,7 +179,13 @@ with img_col:
     if wd.get("image_url"):
         st.image(wd["image_url"], width=150)
 with info_col:
-    st.header(wd.get("label") or profile.get("name") or player_name)
+    st.header(
+        (profile.get("identity") or {}).get("display_name")
+        or (sel or {}).get("display_name")
+        or wd.get("label")
+        or profile.get("name")
+        or player_name
+    )
     dob = wd.get("dob")
     if dob:
         age = _age_from(dob)
@@ -279,13 +288,15 @@ with sk_left:
             "Scoring (runs added)",
             _num(bat.get("skill")),
             _num(bat.get("skill_sd")),
-            "how fast they score above a replacement batter",
+            "how fast they score compared with an average batter in this league "
+            "(0 on the line = average; right of it = faster)",
         )
         _skill_axis(
             "Survival (wicket-avoidance)",
             _num(bat.get("survival_skill")),
             _num(bat.get("survival_skill_sd")),
-            "how well they avoid getting out per ball",
+            "how well they avoid getting out per ball, compared with an average batter "
+            "(0 = average)",
         )
         st.caption(f"From {_fmt(_num(bat.get('balls')), 0)} balls faced.")
 with sk_right:
@@ -315,9 +326,24 @@ if shown:
         for col, slug in zip(cols, shown[start : start + 4], strict=False):
             title, val_key, sub, digits = METRIC_CARDS[slug]
             m = metrics[slug]
+            cat = METRIC_BY_SLUG.get(slug)
+            pcol = next((c for c in cat.columns if c.primary), None) if cat else None
+            # the catalog's display units (NGI as +3.4% win chance per match)
+            value = (
+                fmt_metric(m.get(val_key), pcol)
+                if pcol is not None and pcol.key == val_key
+                else _fmt(_num(m.get(val_key)), digits)
+            )
             with col:
-                st.markdown(f"**{title}**")
-                st.markdown(f"### {_fmt(_num(m.get(val_key)), digits)}")
+                st.metric(
+                    title,
+                    value,
+                    help=(
+                        f"{cat.read}\n\nGood: {cat.good}\n\n{DIRECTION_LABEL[cat.direction]}."
+                        if cat
+                        else None
+                    ),
+                )
                 st.caption(sub)
                 curve = m.get("curve") if slug == "intent_curve" else None
                 if isinstance(curve, list) and any(c is not None for c in curve):

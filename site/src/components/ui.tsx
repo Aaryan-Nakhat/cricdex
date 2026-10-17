@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Info, ChevronRight, AlertTriangle, RotateCw, Inbox } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -38,7 +39,12 @@ export function Collapsible({
   );
 }
 
-/** A small "i" button that pops a panel on click. Closes on outside-click or Escape. */
+// Only one info popover is open at a time: opening one tells the others to close.
+const INFO_OPEN_EVENT = "cricdex:infotip-open";
+
+/** A small "i" button that pops a panel anchored to it. One open at a time; closes on outside click,
+ * Escape (focus returns to the button) or scrolling it out of view. Rendered in a portal so a card's
+ * stacking context or overflow can't hide it or let it overlap another popover. */
 export function InfoTip({
   title,
   label,
@@ -52,33 +58,93 @@ export function InfoTip({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
   const id = useId();
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; above: boolean } | null>(null);
+
+  const place = useCallback(() => {
+    const b = btn.current;
+    if (!b) return;
+    const r = b.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const width = Math.min(320, vw - 24);
+    const left = Math.max(12, Math.min(vw - width - 12, r.left + r.width / 2 - width / 2));
+    const h = pop.current?.offsetHeight ?? 200;
+    const above = r.bottom + 8 + h > vh && r.top - 8 - h > 0;
+    setPos({ top: above ? r.top - 8 - h : r.bottom + 8, left, width, above });
+  }, []);
+
+  useEffect(() => {
+    function onOther(e: Event) {
+      if ((e as CustomEvent<string>).detail !== id) setOpen(false);
+    }
+    window.addEventListener(INFO_OPEN_EVENT, onOther);
+    return () => window.removeEventListener(INFO_OPEN_EVENT, onOther);
+  }, [id]);
+
+  useLayoutEffect(() => {
+    if (open) place();
+  }, [open, place]);
+
   useEffect(() => {
     if (!open) return;
-    function onDoc(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    function onDown(e: PointerEvent) {
+      const t = e.target as Node;
+      if (btn.current?.contains(t) || pop.current?.contains(t)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        btn.current?.focus();
+      }
     }
-    document.addEventListener("mousedown", onDoc);
+    function onMove() {
+      const b = btn.current;
+      if (!b) return;
+      const r = b.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight) setOpen(false);
+      else place();
+    }
+    document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
     return () => {
-      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
     };
-  }, [open]);
+  }, [open, place]);
+
+  function toggle(e: React.MouseEvent) {
+    // never let the click reach a sortable header or a clickable row behind the icon
+    e.stopPropagation();
+    e.preventDefault();
+    setOpen((o) => {
+      if (!o) window.dispatchEvent(new CustomEvent(INFO_OPEN_EVENT, { detail: id }));
+      return !o;
+    });
+  }
+
   return (
-    <div ref={ref} className={cn("relative inline-flex", className)}>
+    <span className={cn("relative inline-flex align-middle", className)}>
       <button
+        ref={btn}
         type="button"
-        aria-label={label ?? title ?? "More information"}
+        aria-label={label ?? (title ? `About: ${title}` : "More information")}
         aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((o) => !o)}
+        aria-controls={open ? id : undefined}
+        onClick={toggle}
+        // Enter / Space open the tip without also activating a clickable row behind it; Escape still bubbles up
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+        }}
         className={cn(
-          "inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] transition-colors",
+          "inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
           open
             ? "border-accent/50 bg-accent/15 text-accent-glow"
             : "border-border bg-surface text-muted hover:border-accent/40 hover:text-accent-glow",
@@ -86,17 +152,29 @@ export function InfoTip({
       >
         <Info className="h-3 w-3" />
       </button>
-      {open && (
-        <div
-          id={id}
-          role="dialog"
-          className="absolute left-1/2 top-7 z-50 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-border bg-card p-3.5 text-left shadow-card"
-        >
-          {title && <div className="mb-1.5 text-xs font-semibold text-accent-glow">{title}</div>}
-          <div className="text-xs leading-relaxed text-muted">{children}</div>
-        </div>
-      )}
-    </div>
+      {open &&
+        createPortal(
+          <div
+            ref={pop}
+            id={id}
+            role="dialog"
+            aria-label={title ?? label ?? "More information"}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "fixed",
+              top: pos?.top ?? -9999,
+              left: pos?.left ?? -9999,
+              width: pos?.width ?? 320,
+              visibility: pos ? "visible" : "hidden",
+            }}
+            className="z-[100] max-h-[70vh] overflow-auto rounded-xl border border-border bg-card p-3.5 text-left normal-case tracking-normal shadow-card"
+          >
+            {title && <div className="mb-1.5 text-xs font-semibold text-accent-glow">{title}</div>}
+            <div className="text-xs font-normal leading-relaxed text-muted">{children}</div>
+          </div>,
+          document.body,
+        )}
+    </span>
   );
 }
 
@@ -260,5 +338,25 @@ export function Segmented<T extends string>({
         </button>
       ))}
     </div>
+  );
+}
+
+/** "data to 15 Dec 2024 · stale" — for a league whose data has stopped updating (collections meta `stale`). */
+export function StaleBadge({ asOf, className }: { asOf?: string | null; className?: string }) {
+  const d = asOf ? new Date(`${asOf}T00:00:00`) : null;
+  const label =
+    d && !Number.isNaN(d.getTime())
+      ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+      : null;
+  return (
+    <span
+      title="This league's data has stopped updating — its numbers end at this date and may be out of date."
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-md border border-gold/40 bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold text-gold",
+        className,
+      )}
+    >
+      {label ? `data to ${label} · stale` : "stale data"}
+    </span>
   );
 }

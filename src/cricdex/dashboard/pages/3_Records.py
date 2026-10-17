@@ -12,6 +12,7 @@ import json
 import pandas as pd
 import streamlit as st
 
+from cricdex.common.display import apply_display, league_label
 from cricdex.dashboard._widgets import provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -94,6 +95,7 @@ with st.sidebar:
         options=collections,
         index=collections.index("ipl") if "ipl" in collections else 0,
         key="records-collection",
+        format_func=league_label,
         help="Only collections with an exported records.json are listed.",
     )
 
@@ -116,7 +118,7 @@ for tab, key in zip(tabs, keys, strict=True):
         if not rows:
             st.info("No rows for this record board.")
             continue
-        df = pd.DataFrame(rows)
+        df = pd.DataFrame(apply_display(rows))  # fan-facing names (Chris Gayle, not CH Gayle)
         # Records.tsx drops the match_id column from the displayed table.
         if "match_id" in df.columns:
             df = df.drop(columns=["match_id"])

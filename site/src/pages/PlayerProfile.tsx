@@ -4,9 +4,14 @@ import { UserSearch, Activity, Target, Shield, Swords, Users2, Instagram, Twitte
 import { useStore } from "@/lib/store";
 import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
-import { getProfile, getCohorts, type Profile } from "@/lib/data";
+import { getProfile, getCohorts, displayName, type Profile, type PlayerRow } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
-import { PageTitle, Card, CardHeader, Spinner, ErrorBox, Empty, Badge, StatTile } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, ErrorBox, Empty, Badge, StatTile, Segmented, InfoTip, StaleBadge } from "@/components/ui";
+import { MetricInfo } from "@/components/MetricInfo";
+import { METRIC_BY_SLUG, fmtMetric } from "@/lib/metrics";
+import { BAT_STATS, BOWL_STATS, fmtStat, standardStats } from "@/lib/standard";
+import { useUrlState } from "@/lib/useUrlState";
+import { normCountry } from "@/lib/scout";
 import { cn, collectionLabel, fmt } from "@/lib/utils";
 
 function num(v: unknown): number | null {
@@ -15,7 +20,8 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** A latent skill axis: mean dot on a ±band, sd as the band width. */
+/** A latent skill axis on a scale centred on the average player (0). The centre line is that average
+ * player, drawn clearly and labelled; the dot is this player; the shaded band is the model's uncertainty. */
 function SkillAxis({
   label,
   mean,
@@ -35,31 +41,37 @@ function SkillAxis({
   const good = mean >= 0;
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs font-medium text-muted">{label}</span>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-xs font-medium text-fg">{label}</span>
         <span className={cn("stat-num text-sm font-semibold", good ? "text-accent-glow" : "text-ball")}>
           {mean >= 0 ? "+" : ""}
           {mean.toFixed(3)}
           {sd !== null && <span className="ml-1 text-[11px] text-muted">±{sd.toFixed(3)}</span>}
         </span>
       </div>
-      <div className="relative mt-1.5 h-2 w-full rounded-full bg-border/50">
-        <div className="absolute left-1/2 top-0 h-full w-px bg-muted/40" />
+      <div className="relative mt-2 h-3 w-full rounded-full bg-border/50">
+        {/* the average-player baseline: a solid, full-height line */}
+        <div className="absolute -top-1 left-1/2 h-5 w-0.5 -translate-x-1/2 rounded bg-fg/70" aria-hidden />
         {/* uncertainty band */}
         <div
-          className="absolute top-0 h-full rounded-full bg-accent/20"
+          className="absolute top-0 h-full rounded-full bg-accent/25"
           style={{ left: `${Math.max(0, pct - band / 2)}%`, width: `${band}%` }}
         />
-        {/* mean dot */}
+        {/* this player */}
         <div
           className={cn(
-            "absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-bg",
+            "absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-bg",
             good ? "bg-accent" : "bg-ball",
           )}
           style={{ left: `${pct}%` }}
         />
       </div>
-      <div className="mt-1 text-[11px] text-muted">{hint}</div>
+      <div className="relative mt-1 flex justify-between text-[10px] uppercase tracking-wider text-faint">
+        <span>worse</span>
+        <span className="absolute left-1/2 -translate-x-1/2 font-semibold text-muted">average</span>
+        <span>better</span>
+      </div>
+      <div className="mt-1 text-[11px] leading-relaxed text-muted">{hint}</div>
     </div>
   );
 }
@@ -69,7 +81,7 @@ const INTENT_BUCKETS = ["0-5", "6-10", "11-20", "21-30", "31-50", "51+"];
 // slug -> [title, value key, subtitle, digits] — one card per catalog metric
 // the player appears in (all 12 boards). Mirrored by 8_Player_Profile.py.
 const METRIC_CARDS: Record<string, [string, string, string, number]> = {
-  ngi: ["Net Game Impact", "ngi_per_match", "win chance added per match", 3],
+  ngi: ["Net Game Impact", "ngi_per_match", "win chance added per match", 1],
   pressure_runs: ["Pressure Runs", "pressure_sr_per_100_balls", "SR under chase pressure", 1],
   intent_curve: ["Intent Curve", "early_sr", "SR over the first 10 balls", 1],
   dot_ball_recovery: ["Dot-Ball Recovery", "runs_per_6_after_dot", "runs / 6 balls after a dot", 1],
@@ -106,14 +118,25 @@ function IntentBars({ curve }: { curve: unknown }) {
 
 function MetricCard({ slug, m }: { slug: string; m: Record<string, unknown> }) {
   const t = METRIC_CARDS[slug];
-  if (!t) return null;
+  const def = METRIC_BY_SLUG[slug];
+  if (!t || !def) return null;
   const [name, valKey, sub, digits] = t;
-  const v = num(m[valKey]);
+  const col = def.columns.find((c) => c.key === valKey);
+  const total = slug === "ngi" ? num(m.ngi_total) : null;
   return (
     <Card className="px-4 py-3">
-      <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{name}</div>
-      <div className="mt-1 stat-num text-lg font-bold text-fg">{fmt(v, digits)}</div>
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{name}</div>
+        <MetricInfo m={def} />
+      </div>
+      <div className="mt-1 stat-num text-lg font-bold text-fg">{fmtMetric(m[valKey], { digits, fmt: col?.fmt })}</div>
       <div className="mt-0.5 text-[11px] text-muted">{sub}</div>
+      {total !== null && (
+        <div className="mt-1.5 border-t border-border pt-1.5 text-[11px] text-muted">
+          <span className="stat-num font-semibold text-fg">{fmt(total, 1)}</span> wins added (career total — grows with
+          matches played)
+        </div>
+      )}
       {slug === "intent_curve" && <IntentBars curve={m.curve} />}
     </Card>
   );
@@ -168,7 +191,20 @@ function Identity({
   bowl?: Record<string, number>;
 }) {
   const w = (profile.wikidata ?? {}) as Record<string, string | null>;
-  const tax = profile.taxonomy ?? null;
+  // identity (the player-data pass) wins over the older taxonomy block; both are optional
+  const idn = profile.identity ?? null;
+  const tax0 = (profile.taxonomy ?? {}) as Record<string, string | undefined>;
+  const tax = profile.taxonomy || idn
+    ? {
+        primary_role: idn?.primary_role ?? tax0.primary_role,
+        bowling_style: idn?.bowling_style ?? tax0.bowling_style,
+        bowling_category: idn?.bowling_category ?? tax0.bowling_category,
+        batting_position: tax0.batting_position,
+        country: idn?.country ?? tax0.country,
+        batting_hand: idn?.batting_hand ?? tax0.batting_hand,
+      }
+    : null;
+  const shownName = (idn?.display_name && idn.display_name.trim()) || w.label || profile.name;
   const photo = w.image_url ?? null;
   const dob = w.dob ?? null;
   const age = dob ? ageFrom(dob) : null;
@@ -182,7 +218,7 @@ function Identity({
       {photo ? (
         <img
           src={photo}
-          alt={profile.name}
+          alt={shownName}
           loading="lazy"
           className="h-16 w-16 shrink-0 rounded-xl border border-border object-cover"
           onError={(e) => {
@@ -191,11 +227,16 @@ function Identity({
         />
       ) : (
         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-2xl font-bold text-accent">
-          {profile.name.split(" ").pop()?.[0] ?? "?"}
+          {shownName.split(" ").pop()?.[0] ?? "?"}
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <h2 className="text-xl font-bold text-fg">{w.label ?? profile.name}</h2>
+        <h2 className="text-xl font-bold text-fg">{shownName}</h2>
+        {(shownName !== profile.name || (idn?.full_name && idn.full_name !== shownName)) && (
+          <div className="mt-0.5 text-xs text-muted">
+            {idn?.full_name && idn.full_name !== shownName ? `${idn.full_name} · ` : ""}scorecard name {profile.name}
+          </div>
+        )}
         {dob && (
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
             <Cake className="h-3.5 w-3.5" />
@@ -213,7 +254,11 @@ function Identity({
               </Badge>
             )}
             {tax.batting_position && <Badge>{POS_LABEL[tax.batting_position] ?? tax.batting_position}</Badge>}
+            {tax.batting_hand && <Badge>{tax.batting_hand}-hand bat</Badge>}
             {tax.country && <Badge>{tax.country}</Badge>}
+            {idn?.team && <Badge tone="gold">{idn.team}</Badge>}
+            {idn?.capped === true && <Badge tone="accent">capped</Badge>}
+            {idn?.capped === false && <Badge>uncapped</Badge>}
           </div>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -223,8 +268,16 @@ function Identity({
             ) : (
               <Badge tone="ball">retired{profile.activity.last_match_date ? ` · last ${profile.activity.last_match_date.slice(0, 4)}` : ""}</Badge>
             ))}
-          {bat && <Badge tone="accent">batting value {fmt(bat.value, 3)}</Badge>}
-          {bowl && bowl.balls > 60 && <Badge tone="willow">bowling value {fmt(bowl.value, 3)}</Badge>}
+          {bat && <Badge tone="accent">batting value {fmt(bat.value, 2)}</Badge>}
+          {bowl && bowl.balls > 60 && <Badge tone="willow">bowling value {fmt(bowl.value, 2)}</Badge>}
+          {(bat || (bowl && bowl.balls > 60)) && (
+            <InfoTip title="Batting / bowling value" label="What batting and bowling value mean">
+              One number per role from the skill model, centred on the average player in this league: 0 = average,
+              +1 = one typical player-to-player gap better, −1 = one gap worse. The best in the IPL sit near +3.
+              Batting value adds scoring speed and how hard he is to get out; bowling value adds run-saving and
+              wicket-taking.
+            </InfoTip>
+          )}
           <Badge>id {profile.cricsheet_id}</Badge>
         </div>
       </div>
@@ -287,9 +340,12 @@ function DismissalFingerprint({ fp }: { fp: Record<string, unknown> | null }) {
 }
 
 export function PlayerProfile() {
-  const { collection } = useStore();
-  const { options, byName, loading: pl } = usePlayers(collection);
+  const { collection, meta } = useStore();
+  const { options, byName, byId, loading: pl } = usePlayers(collection);
   const [params, setParams] = useSearchParams();
+  // a link that names its league (`?c=bbl&cid=…`, e.g. from Scout) waits for the store to switch to it
+  const urlC = params.get("c");
+  const switching = !!urlC && urlC !== collection;
   const navigate = useNavigate();
 
   // resolve incoming ?name= / ?cid= to a cricsheet_id
@@ -309,18 +365,20 @@ export function PlayerProfile() {
   useEffect(() => {
     if (prevCollection.current === collection) return;
     prevCollection.current = collection;
+    // …unless the switch came from a link that named this league for this player
+    if (params.get("c") === collection) return;
     setParams({});
-  }, [collection, setParams]);
+  }, [collection, setParams, params]);
 
   const nameNotFound = !qCid && !!qName && !pl && !byName.has(qName);
 
   const { data: profile, loading, error } = useAsync<Profile | null>(
-    () => (cid ? getProfile(collection, cid) : Promise.resolve(null)),
-    [collection, cid],
+    () => (cid && !switching ? getProfile(collection, cid) : Promise.resolve(null)),
+    [collection, cid, switching],
   );
   const { data: cohorts } = useAsync(
-    () => (cid ? getCohorts(collection, cid) : Promise.resolve(null)),
-    [collection, cid],
+    () => (cid && !switching ? getCohorts(collection, cid) : Promise.resolve(null)),
+    [collection, cid, switching],
   );
 
   function pick(id: string | null) {
@@ -328,6 +386,12 @@ export function PlayerProfile() {
     else setParams({});
   }
 
+  const [statView, setStatView] = useUrlState<"totals" | "standard">("stats", "totals", { valid: ["totals", "standard"] });
+  const [twinCountry, setTwinCountry] = useUrlState<TwinCountry>("twins", "same", { valid: ["same", "overseas", "all"] });
+  const lg = collectionLabel(collection);
+  const playerRow = cid ? (byId.get(cid) ?? null) : null;
+  const playerCountry =
+    profile?.identity?.country ?? (profile?.taxonomy?.country as string | undefined) ?? playerRow?.country ?? null;
   const bat = profile?.bayes?.bayes_batter as Record<string, number> | undefined;
   const bowl = profile?.bayes?.bayes_bowler as Record<string, number> | undefined;
   const career = profile?.career as Record<string, number> | undefined;
@@ -358,7 +422,7 @@ export function PlayerProfile() {
         </Empty>
       ) : !cid ? (
         <Empty>Pick a player to see their dossier.</Empty>
-      ) : loading && !profile ? (
+      ) : switching || (loading && !profile) ? (
         <Spinner label="Building dossier…" />
       ) : error ? (
         <ErrorBox message={error} />
@@ -367,38 +431,35 @@ export function PlayerProfile() {
       ) : (
         <div className="space-y-5 animate-fade-up">
           {/* identity */}
-          <Identity profile={profile} bat={bat} bowl={bowl} />
-
-          {/* career tiles */}
-          {career && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <StatTile label="Runs" value={fmt(career.career_runs, 0)} />
-              <StatTile label="Balls faced" value={fmt(career.career_balls_faced, 0)} />
-              <StatTile label="Innings" value={fmt(career.career_innings, 0)} />
-              <StatTile label="Fours / Sixes" value={`${career.career_fours ?? 0}/${career.career_sixes ?? 0}`} />
-              <StatTile label="Wickets" value={fmt(career.career_wickets, 0)} />
-              <StatTile label="Balls bowled" value={fmt(career.career_legal_balls_bowled, 0)} />
+          {meta?.stale && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gold/30 bg-gold/5 px-4 py-2.5 text-sm text-muted">
+              <StaleBadge asOf={meta.data_as_of} />
+              {collectionLabel(collection)} data has stopped updating — every number on this page ends at that date.
             </div>
           )}
+          <Identity profile={profile} bat={bat} bowl={bowl} />
+
+          {/* career: totals or the standard scorecard stats, one click apart */}
+          {career && <CareerBlock profile={profile} career={career} view={statView} setView={setStatView} />}
 
           {/* bayes skill axes */}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             {bat && (
               <Card>
-                <CardHeader title="Batting skill" subtitle="Two latent axes — scoring & survival — with model uncertainty" right={<Activity className="h-4 w-4 text-accent" />} />
+                <CardHeader title="Batting skill" subtitle={`Measured against an average ${lg} batter (the centre line) — the dot is this player, the shaded band is how sure the model is`} right={<Activity className="h-4 w-4 text-accent" />} />
                 <div className="space-y-4 p-5">
-                  <SkillAxis label="Scoring (runs added)" mean={num(bat.skill)} sd={num(bat.skill_sd)} hint="how fast they score above a replacement batter" />
-                  <SkillAxis label="Survival (wicket-avoidance)" mean={num(bat.survival_skill)} sd={num(bat.survival_skill_sd)} hint="how well they avoid getting out per ball" />
+                  <SkillAxis label="Scoring speed" mean={num(bat.skill)} sd={num(bat.skill_sd)} hint={`How fast he scores compared with an average ${lg} batter facing the same bowlers. Right of the centre line = scores faster than average.`} />
+                  <SkillAxis label="Staying in (hard to dismiss)" mean={num(bat.survival_skill)} sd={num(bat.survival_skill_sd)} hint={`How hard he is to get out, ball for ball, compared with an average ${lg} batter. Right of the centre line = harder to dismiss.`} />
                   <div className="text-xs text-muted">From {fmt(bat.balls, 0)} balls faced.</div>
                 </div>
               </Card>
             )}
             {bowl && (bowl.balls ?? 0) > 60 && (
               <Card>
-                <CardHeader title="Bowling skill" subtitle="Two latent axes — economy & strike — with model uncertainty" right={<Shield className="h-4 w-4 text-willow" />} />
+                <CardHeader title="Bowling skill" subtitle={`Measured against an average ${lg} bowler (the centre line) — the dot is this player, the shaded band is how sure the model is`} right={<Shield className="h-4 w-4 text-willow" />} />
                 <div className="space-y-4 p-5">
-                  <SkillAxis label="Economy (run suppression)" mean={num(bowl.skill)} sd={num(bowl.skill_sd)} hint="how few runs they concede per ball" />
-                  <SkillAxis label="Strike (wicket-taking)" mean={num(bowl.strike_skill)} sd={num(bowl.strike_skill_sd)} hint="how often they take a wicket per ball" />
+                  <SkillAxis label="Economy (keeping runs down)" mean={num(bowl.skill)} sd={num(bowl.skill_sd)} hint={`How few runs he gives away per ball compared with an average ${lg} bowler bowling to the same batters. Right = tighter.`} />
+                  <SkillAxis label="Wicket-taking" mean={num(bowl.strike_skill)} sd={num(bowl.strike_skill_sd)} hint={`How often he takes a wicket compared with an average ${lg} bowler. Right = takes wickets more often.`} />
                   <div className="text-xs text-muted">From {fmt(bowl.balls, 0)} balls bowled.</div>
                 </div>
               </Card>
@@ -421,10 +482,27 @@ export function PlayerProfile() {
           {/* style twins + cohorts */}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Card>
-              <CardHeader title="Style twins" subtitle="Nearest players in feature space" right={<Users2 className="h-4 w-4 text-accent" />} />
+              <CardHeader
+                title="Style twins"
+                subtitle="Players whose numbers look most like this player's"
+                right={<Users2 className="h-4 w-4 text-accent" />}
+              />
+              <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-2.5">
+                <span className="text-xs font-medium text-muted">Country</span>
+                <Segmented<TwinCountry>
+                  label="Style twins country"
+                  value={playerCountry ? twinCountry : "all"}
+                  onChange={setTwinCountry}
+                  options={[
+                    { value: "same", label: playerCountry ? `Same (${playerCountry})` : "Same" },
+                    { value: "overseas", label: "Overseas" },
+                    { value: "all", label: "All" },
+                  ]}
+                />
+              </div>
               <div className="p-3">
-                <TwinList twins={profile.style_twins_batter} byName={byName} onPick={(c) => navigate(`/player?cid=${c}`)} role="batter" />
-                <TwinList twins={profile.style_twins_bowler} byName={byName} onPick={(c) => navigate(`/player?cid=${c}`)} role="bowler" />
+                <TwinList twins={profile.style_twins_batter} byName={byName} onPick={(c) => navigate(`/player?cid=${c}`)} role="batter" country={playerCountry} mode={playerCountry ? twinCountry : "all"} />
+                <TwinList twins={profile.style_twins_bowler} byName={byName} onPick={(c) => navigate(`/player?cid=${c}`)} role="bowler" country={playerCountry} mode={playerCountry ? twinCountry : "all"} />
               </div>
             </Card>
             <Card>
@@ -440,39 +518,63 @@ export function PlayerProfile() {
   );
 }
 
+type TwinCountry = "same" | "overseas" | "all";
+
 function TwinList({
   twins,
   role,
   byName,
   onPick,
+  country,
+  mode,
 }: {
   twins: Record<string, unknown>[] | null;
   role: string;
-  byName: Map<string, { cricsheet_id: string }>;
+  byName: Map<string, PlayerRow>;
   onPick: (cid: string) => void;
+  /** The profiled player's country (null = unknown: no country filter). */
+  country: string | null;
+  mode: TwinCountry;
 }) {
   if (!twins || twins.length === 0) return null;
+  const home = normCountry(country);
+  const dists = twins.map((x) => Number(x.distance)).filter(Number.isFinite);
+  const closest = dists.length ? Math.min(...dists) : NaN;
+  const kept = twins.filter((t) => {
+    if (mode === "all" || !home) return true;
+    const row = byName.get(String(t.name));
+    const c = normCountry((t.country as string | null | undefined) ?? row?.country ?? null);
+    if (!c) return false;
+    return mode === "same" ? c === home : c !== home;
+  });
   return (
     <div className="mb-2">
       <div className="px-2 pb-1 text-[11px] uppercase tracking-wider text-muted">{role}</div>
-      {twins.slice(0, 6).map((t, i, list) => {
+      {kept.length === 0 && (
+        <div className="px-2 py-2 text-xs text-muted">
+          None of his {twins.length} closest {role} twins {mode === "same" ? `are from ${home}` : "are from overseas"} — try{" "}
+          {mode === "same" ? "Overseas or All" : "Same or All"}.
+        </div>
+      )}
+      {kept.slice(0, 6).map((t, i) => {
         const name = String(t.name);
-        const cid = byName.get(name)?.cricsheet_id;
-        const dists = list.map((x) => Number(x.distance)).filter(Number.isFinite);
+        const row = byName.get(name);
+        const cid = row?.cricsheet_id;
         const dist = Number(t.distance);
-        const closest = dists.length ? Math.min(...dists) : NaN;
         // 1 = as close as the closest twin, falling with distance
         const rel = Number.isFinite(dist) && dist > 0 ? Math.min(1, closest / dist) : Number.isFinite(dist) ? 1 : null;
+        const c = (t.country as string | null | undefined) ?? row?.country ?? null;
         return (
           <button
-            key={i}
+            key={name}
             disabled={!cid}
             onClick={() => cid && onPick(cid)}
             className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-surface disabled:opacity-60"
           >
             <span className="flex min-w-0 items-center gap-2">
               <span className="stat-num w-5 text-right text-xs text-faint">{i + 1}</span>
-              <span className="truncate text-fg">{name}</span>
+              <span className="truncate text-fg">{displayName(row ?? { name })}</span>
+              {c && <span className="text-[11px] text-muted">{c}</span>}
             </span>
             {rel !== null && (
               <span className="ml-3 h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-border/60" title="How close, relative to the closest twin">
@@ -482,6 +584,73 @@ function TwinList({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** Career totals, or the standard scorecard stats (average, strike rate, economy…) — one click apart. */
+function CareerBlock({
+  profile,
+  career,
+  view,
+  setView,
+}: {
+  profile: Profile;
+  career: Record<string, number>;
+  view: "totals" | "standard";
+  setView: (v: "totals" | "standard") => void;
+}) {
+  const st = standardStats(profile);
+  const bowls = (st.ballsBowled ?? 0) >= 60;
+  const bats = (st.balls ?? 0) > 0;
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold text-fg">Career</h3>
+        <Segmented
+          label="Career view"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "totals", label: "Totals" },
+            { value: "standard", label: "Standard stats" },
+          ]}
+        />
+      </div>
+      {view === "totals" ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <StatTile label="Runs" value={fmt(career.career_runs, 0)} />
+          <StatTile label="Balls faced" value={fmt(career.career_balls_faced, 0)} />
+          <StatTile label="Innings" value={fmt(career.career_innings, 0)} />
+          <StatTile label="Fours / Sixes" value={`${career.career_fours ?? 0}/${career.career_sixes ?? 0}`} />
+          <StatTile label="Wickets" value={fmt(career.career_wickets, 0)} />
+          <StatTile label="Balls bowled" value={fmt(career.career_legal_balls_bowled, 0)} />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {bats && (
+            <div>
+              <div className="eyebrow mb-1.5">Batting</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+                {BAT_STATS.map((r) => (
+                  <StatTile key={r.key} label={r.label} value={fmtStat(st, r)} hint={r.hint} />
+                ))}
+              </div>
+            </div>
+          )}
+          {bowls && (
+            <div>
+              <div className="eyebrow mb-1.5">Bowling</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+                {BOWL_STATS.map((r) => (
+                  <StatTile key={r.key} label={r.label} value={fmtStat(st, r)} hint={r.hint} />
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-muted">“—” = not in this data export yet.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -496,7 +665,7 @@ function CohortList({
   rows: Record<string, unknown>[];
   label: string;
   keyField: string;
-  byName: Map<string, { cricsheet_id: string }>;
+  byName: Map<string, PlayerRow>;
   onPick: (cid: string) => void;
 }) {
   if (!rows.length) return <div className="px-2 py-3 text-sm text-muted">No graph cohort available.</div>;
@@ -513,7 +682,7 @@ function CohortList({
             onClick={() => cid && onPick(cid)}
             className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-surface disabled:opacity-60"
           >
-            <span className="text-fg">{name}</span>
+            <span className="text-fg">{displayName(byName.get(name) ?? { name })}</span>
             <span className="stat-num text-xs text-muted">{String(r[keyField] ?? r.shared_bowlers ?? r.shared_batters ?? "")} shared</span>
           </button>
         );

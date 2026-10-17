@@ -1,15 +1,17 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trophy, Info, TrendingDown } from "lucide-react";
+import { Trophy, Info } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getLeaderboard } from "@/lib/data";
-import { METRIC_BY_SLUG } from "@/lib/metrics";
+import { METRIC_BY_SLUG, fmtMetric } from "@/lib/metrics";
+import { MetricInfo, DirectionBadge } from "@/components/MetricInfo";
+import { usePlayers } from "@/lib/usePlayers";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, countriesIn, DEFAULT_FILTERS } from "@/lib/filters";
+import { applyFilters, smartFilters, DEFAULT_FILTERS } from "@/lib/filters";
 import { hasKey, useUrlFilters, useUrlState } from "@/lib/useUrlState";
-import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, InfoTip, Segmented } from "@/components/ui";
+import { PageTitle, Card, Spinner, ErrorBox, Empty, InfoTip, Segmented } from "@/components/ui";
 import { cn, collectionLabel } from "@/lib/utils";
 
 // Metric switcher, grouped so twelve boards scan as three short rows.
@@ -88,10 +90,21 @@ export function Leaderboards() {
     [collection, slug, activePeriod],
   );
 
-  const countryOpts = useMemo(() => countriesIn(data ?? []), [data]);
+  const { nameOf } = usePlayers(collection);
+  // Only the filters (and options) that can apply on this board: e.g. no "wicket-keeper" role on the
+  // Fielding board, no batting slot on a bowling board; options with no players are disabled.
+  const smart = useMemo(
+    () => smartFilters(data ?? [], filters, metric.filters, metric.exclude),
+    [data, filters, metric],
+  );
   // Min-matches + role/bowling/position/country gates. Min-matches keeps
   // 1-match flukes (hi Tanush Kotian) off the top.
-  const filtered = useMemo(() => applyFilters(data ?? [], filters), [data, filters]);
+  const filtered = useMemo(() => applyFilters(data ?? [], smart.effective), [data, smart.effective]);
+  // a value carried over from another board that can't apply here is dropped from the URL too
+  const stale = !!data && (["role", "bowling", "position", "country"] as const).some((d) => smart.effective[d] !== filters[d]);
+  useEffect(() => {
+    if (stale) setFilters(smart.effective);
+  }, [stale, smart.effective, setFilters]);
 
   const cols: Col<Record<string, unknown>>[] = [
     ...metric.columns.map((c) =>
@@ -105,18 +118,29 @@ export function Leaderboards() {
               <Sparkline values={(row.curve as (number | null)[]) ?? []} />
             ),
           }
-        : {
-            key: c.key,
-            label: c.label,
-            digits: c.digits,
-            primary: c.primary,
-            align: (c.digits !== undefined ? "right" : "left") as "left" | "right",
-          },
+        : c.key === metric.nameCol
+          ? {
+              key: c.key,
+              label: c.label,
+              align: "left" as const,
+              render: (row: Record<string, unknown>) => (
+                <span className="font-medium text-fg">{nameOf(String(row[c.key] ?? ""))}</span>
+              ),
+            }
+          : {
+              key: c.key,
+              label: c.label,
+              digits: c.digits,
+              primary: c.primary,
+              align: (c.digits !== undefined ? "right" : "left") as "left" | "right",
+              fmtValue: c.fmt ? (v: unknown) => fmtMetric(v, c) : undefined,
+              info: c.primary ? <MetricInfo m={metric} /> : undefined,
+            },
     ),
     // a matches column, unless the metric already shows one (NGI does)
     ...(metric.columns.some((c) => c.key === "matches")
       ? []
-      : [{ key: "matches", label: "Mts", digits: 0, align: "right" as const }]),
+      : [{ key: "matches", label: "Matches", digits: 0, align: "right" as const }]),
   ];
 
   return (
@@ -163,14 +187,20 @@ export function Leaderboards() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-semibold text-fg">{metric.name}</h3>
-              <InfoTip title={`How ${metric.name} is calculated`}>{metric.how}</InfoTip>
-              {!metric.higherIsBetter && (
-                <Badge tone="ball">
-                  <TrendingDown className="h-3 w-3" /> lower is better
-                </Badge>
-              )}
+              <InfoTip title={`How ${metric.name} is worked out`}>{metric.how}</InfoTip>
+              <DirectionBadge direction={metric.direction} />
             </div>
             <p className="mt-1 text-sm leading-relaxed text-muted">{metric.what}</p>
+            <div className="mt-3 grid gap-3 text-sm leading-relaxed text-muted md:grid-cols-2">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-fg">How to read it</div>
+                <p className="mt-0.5">{metric.read}</p>
+              </div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-fg">What good looks like</div>
+                <p className="mt-0.5">{metric.good}</p>
+              </div>
+            </div>
           </div>
         </div>
       </Card>
@@ -198,8 +228,7 @@ export function Leaderboards() {
         filters={filters}
         onChange={setFilters}
         defaults={DEFAULT_FILTERS}
-        show={["minMatches", "activity", "role", "bowling", "position", "country"]}
-        countryOpts={countryOpts}
+        smart={smart}
         count={filtered.length}
         total={data?.length}
       />
@@ -218,7 +247,7 @@ export function Leaderboards() {
           rows={filtered}
           cols={cols}
           higherIsBetter={metric.higherIsBetter}
-          rowLabel={(row) => `Open ${String(row[metric.nameCol])}'s profile`}
+          rowLabel={(row) => `Open ${nameOf(String(row[metric.nameCol]))}'s profile`}
           onRowClick={(row) => {
             const name = row[metric.nameCol];
             if (typeof name === "string")

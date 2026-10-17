@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { Timer } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getPhase } from "@/lib/data";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, countriesIn, DEFAULT_FILTERS } from "@/lib/filters";
+import { applyFilters, smartFilters, DEFAULT_FILTERS, type Dim } from "@/lib/filters";
 import { useUrlFilters, useUrlState } from "@/lib/useUrlState";
 import { PageTitle, Spinner, ErrorBox, Empty } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -33,10 +34,14 @@ const BOWL_COLS: Col<Row>[] = [
   { key: "econ", label: "Economy", align: "right", digits: 2, primary: true },
 ];
 const TOP = 25;
+const PHASE_DIMS: Dim[] = ["minMatches", "activity", "role", "bowling", "position", "country"];
 
 export function Phase() {
   const { collection } = useStore();
   const { data, loading, error } = useAsync(() => getPhase(collection), [collection]);
+  const { nameOf } = usePlayers(collection);
+  const named = (cols: Col<Row>[]) =>
+    cols.map((c) => (c.key === "name" ? { ...c, render: (r: Row) => <span className="text-fg">{nameOf(String(r.name ?? ""))}</span> } : c));
   const [phase, setPhase] = useUrlState<PhaseKey>("phase", "powerplay", {
     valid: PHASES.map((p) => p.key),
     replace: false,
@@ -48,17 +53,18 @@ export function Phase() {
   const rawBatters = (board?.batters ?? []) as unknown as Row[];
   const rawBowlers = (board?.bowlers ?? []) as unknown as Row[];
 
-  const countryOpts = useMemo(
-    () => countriesIn([...rawBatters, ...rawBowlers]),
-    [rawBatters, rawBowlers],
+  // options come from the rows actually on this phase's boards; dead ends are hidden / disabled
+  const smart = useMemo(
+    () => smartFilters([...rawBatters, ...rawBowlers], filters, PHASE_DIMS),
+    [rawBatters, rawBowlers, filters],
   );
   const batters = useMemo(
-    () => applyFilters(rawBatters, filters).slice(0, TOP),
-    [rawBatters, filters],
+    () => applyFilters(rawBatters, smart.effective).slice(0, TOP),
+    [rawBatters, smart.effective],
   );
   const bowlers = useMemo(
-    () => applyFilters(rawBowlers, filters).slice(0, TOP),
-    [rawBowlers, filters],
+    () => applyFilters(rawBowlers, smart.effective).slice(0, TOP),
+    [rawBowlers, smart.effective],
   );
 
   return (
@@ -91,8 +97,7 @@ export function Phase() {
         filters={filters}
         onChange={setFilters}
         defaults={DEFAULT_FILTERS}
-        show={["minMatches", "activity", "role", "bowling", "position", "country"]}
-        countryOpts={countryOpts}
+        smart={smart}
       />
 
       {loading ? (
@@ -106,7 +111,7 @@ export function Phase() {
           <div>
             <div className="mb-2 text-sm font-semibold text-fg">Best strike rates</div>
             {batters.length ? (
-              <DataTable rows={batters} cols={BAT_COLS} initialSort={{ key: "sr", dir: "desc" }} />
+              <DataTable rows={batters} cols={named(BAT_COLS)} initialSort={{ key: "sr", dir: "desc" }} />
             ) : (
               <Empty>No batters match these filters.</Empty>
             )}
@@ -114,7 +119,7 @@ export function Phase() {
           <div>
             <div className="mb-2 text-sm font-semibold text-fg">Tightest economies</div>
             {bowlers.length ? (
-              <DataTable rows={bowlers} cols={BOWL_COLS} initialSort={{ key: "econ", dir: "asc" }} />
+              <DataTable rows={bowlers} cols={named(BOWL_COLS)} initialSort={{ key: "econ", dir: "asc" }} />
             ) : (
               <Empty>No bowlers match these filters.</Empty>
             )}

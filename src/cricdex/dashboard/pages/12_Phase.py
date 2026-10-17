@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from cricdex.common.display import league_label
 from cricdex.common.filters import (
     ACTIVITY_OPTS,
     BOWLING_OPTS,
@@ -73,6 +74,7 @@ with st.sidebar:
         options=collections,
         index=collections.index("ipl") if "ipl" in collections else 0,
         key="phase-collection",
+        format_func=league_label,
     )
 
 provenance_banner(source="cricsheet", path=SITE_DATA / collection / "meta.json")

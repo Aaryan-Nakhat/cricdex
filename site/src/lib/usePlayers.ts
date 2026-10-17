@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useAsync } from "./useAsync";
-import { getPlayers, type PlayerRow } from "./data";
+import { displayName, getPlayers, type PlayerRow } from "./data";
 import type { Option } from "@/components/Combobox";
 
 export function usePlayers(collection: string) {
@@ -10,15 +10,23 @@ export function usePlayers(collection: string) {
 
   const options: Option[] = useMemo(
     () =>
-      players.map((p) => ({
-        value: p.cricsheet_id,
-        // Show the full name when we have it; keep the Cricsheet short
-        // form alongside so searching either ("Manish" or "MK Pandey")
-        // matches. The Combobox filters on `label` + `search`.
-        label: p.full_name && p.full_name !== p.name ? `${p.full_name} (${p.name})` : p.name,
-        search: `${p.full_name} ${p.name}`,
-        hint: `${p.matches} matches`,
-      })),
+      players.map((p) => {
+        const shown = displayName(p);
+        return {
+          value: p.cricsheet_id,
+          // the fan name, with the scorecard name alongside when it differs ("Virat Kohli (V Kohli)")
+          // (older exports without display_name fall back to the full name)
+          label:
+            shown !== p.name
+              ? `${shown} (${p.name})`
+              : !p.display_name && p.full_name && p.full_name !== p.name
+                ? `${p.full_name} (${p.name})`
+                : p.name,
+          // searchable by every name we know: scorecard, display, full name and aliases
+          search: [p.name, p.display_name, p.full_name, ...(p.aliases ?? [])].filter(Boolean).join(" "),
+          hint: `${p.matches} matches`,
+        };
+      }),
     [players],
   );
 
@@ -34,5 +42,8 @@ export function usePlayers(collection: string) {
     return m;
   }, [players]);
 
-  return { players, options, byName, byId, loading, error };
+  /** Fan-facing name for a scorecard name (leaderboard rows carry the scorecard name). */
+  const nameOf = useCallback((scorecard: string) => displayName(byName.get(scorecard) ?? { name: scorecard }), [byName]);
+
+  return { players, options, byName, byId, nameOf, loading, error };
 }

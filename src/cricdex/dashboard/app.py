@@ -89,16 +89,18 @@ the rest stay in sync. Best of both worlds: edit once, read everywhere.
 The Leaderboards page splits these across tabs; the Player Profile page
 surfaces them per-player with the same definitions.
 
-- **NGI (Net Game Impact)** — WPA-style flagship. Per ball we estimate the
-  win-probability swing and credit batter (+) / bowler (−); career NGI =
-  mean per-match contribution. One currency for offense + defense + clutch.
+- **NGI (Net Game Impact)** — the flagship. Per ball we estimate the
+  win-probability swing and credit batter (+) / bowler (−). **Win chance added
+  per match** is the per-game average as a percentage (+5% = five percentage
+  points a game); **wins added** is the career total, which grows with matches
+  played, like career runs. One currency for batting + bowling + clutch.
 - **Pressure Runs** — strike rate when the required rate is climbing in a
   chase. Higher = lifts when it's tight.
 - **Dot-Ball Recovery** — runs in the six balls after a dot. Higher =
   doesn't let dots spiral.
 - **Counter-Attack** — strike rate right after a partner is dismissed.
-- **Boundary Dependency** — share of runs from 4s + 6s. Lower = rotates
-  strike; higher = relies on the rope.
+- **Boundary Dependency** — share of runs from 4s + 6s. A style, not a level:
+  lower = rotates strike; higher = relies on the rope.
 - **Intent Curve** — strike rate from ball one: ranks batters by **early SR**
   (balls 1–10) with the full innings curve as an inline sparkline.
 - **Pressure Conversion (bowler)** — how often the next ball after a 4+ dot

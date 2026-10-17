@@ -15,9 +15,11 @@ import pandas as pd
 import streamlit as st
 
 from cricdex import leagues
+from cricdex.common.display import display_name, player_label, stale_marker
 from cricdex.dashboard._widgets import load_players, provenance_banner
 from cricdex.web_parity import est_value, gem_threshold, is_gem, load_scout_index, similar_to
 from cricdex.web_parity.loader import SITE_DATA
+from cricdex.web_parity.scout import BAND_LABEL, SAME_SLOT, slot_band
 
 st.set_page_config(page_title="CricDex Scout", page_icon="🔭", layout="wide")
 st.title("🔭 CricDex — Scout")
@@ -31,8 +33,9 @@ provenance_banner(source="cricsheet", path=SITE_DATA / "ipl" / "scout_index.json
 
 with st.expander("How the scout works (plain English)"):
     st.markdown(
-        "Pick an active IPL player. We find players of the **same archetype** (same role; for "
-        "bowlers, same seam/spin type) across every pool and rank them by how close their **skill "
+        "Pick an active IPL player. We find players of the **same type** (same role; for "
+        "bowlers and all-rounders, same seam/spin type; by default the same batting band — top, "
+        "middle or lower order — and the same country) across every pool and rank them by how close their **skill "
         "standing** is to your pick:\n\n"
         "- **IPL peers** — who else in the IPL is most like them.\n"
         "- **Uncapped (SMAT)** — domestic Indian prospects of the same mould — the 'next one'.\n"
@@ -51,6 +54,7 @@ with st.expander("How the scout works (plain English)"):
 
 ROLE_OPTS = ["batter", "all_rounder", "keeper", "bowler"]
 POS = {
+    SAME_SLOT: "Same band as pick",
     "": "Any",
     "opener": "Opener",
     "no3": "No. 3",
@@ -62,6 +66,8 @@ POS = {
 # Every Scout pool in config/leagues.toml, keyed by its tier (as scout_index.json is).
 _POOLS = leagues.scout_pools()
 TIER_TITLE = {lg.tier: lg.scout_title or lg.short for lg in _POOLS}
+# "data to 15 Dec 2024 — stale" for a pool whose league data stops early (SMAT, CSA T20)
+TIER_STALE = {lg.tier: stale_marker(lg.key) for lg in _POOLS}
 TIER_ORDER = [lg.tier for lg in _POOLS]
 DRAFTABLE_TIERS = [lg.tier for lg in _POOLS if lg.draftable]
 _GEM = leagues.gem_pool()
@@ -90,7 +96,7 @@ except (FileNotFoundError, ValueError) as e:  # missing or corrupt export
     st.error(f"{e}")
     st.stop()
 
-ipl = sorted(idx["ipl"], key=lambda p: p["name"])
+ipl = sorted(idx["ipl"], key=lambda p: display_name(p).lower())
 by_cid = {p["cricsheet_id"]: p for p in ipl}
 TIER_ORDER = [t for t in TIER_ORDER if t in idx]  # a pool added since the last export is skipped
 gem_pool = idx.get(GEM_TIER, []) if GEM_TIER else []
@@ -101,9 +107,17 @@ gem_med = gem_threshold(gem_pool)
 _full = {p["cricsheet_id"]: p.get("full_name") for p in load_players("ipl")}
 
 
+_prow = {p["cricsheet_id"]: p for p in load_players("ipl")}
+
+
 def _scout_label(p: dict) -> str:
+    row = _prow.get(p["cricsheet_id"])
+    if row:
+        return player_label(row)  # display, scorecard, full name and aliases
+    disp = display_name(p)
     full = _full.get(p["cricsheet_id"])
-    return f"{full} ({p['name']})" if full and full != p["name"] else p["name"]
+    alt = [n for n in (p["name"], full) if n and n != disp]
+    return f"{disp} ({' · '.join(dict.fromkeys(alt))})" if alt else disp
 
 
 _labels = {p["cricsheet_id"]: _scout_label(p) for p in ipl}
@@ -115,11 +129,12 @@ if gems:
         st.caption(
             "Uncapped prospects punching above their sample — high standing on below-median "
             "exposure (moneyball). Pick-independent."
+            + (f" SMAT {TIER_STALE[GEM_TIER]}." if TIER_STALE.get(GEM_TIER) else "")
         )
         st.dataframe(
             [
                 {
-                    "Player": g["name"],
+                    "Player": display_name(g),
                     "Country": g.get("country") or "—",
                     "Standing": round(g["z"], 2),
                     "Balls": g.get("balls", 0),
@@ -140,28 +155,55 @@ pick_cid = st.selectbox(
 )
 sel = by_cid[pick_cid]
 
-c1, c2 = st.columns(2)
+COUNTRY = {"same": "Same as pick", "overseas": "Overseas", "all": "All countries"}
+
+c1, c2, c3 = st.columns(3)
 role = c1.selectbox(
     "Match role", ROLE_OPTS, index=ROLE_OPTS.index(sel["role"]) if sel["role"] in ROLE_OPTS else 0
 )
-pos_label = c2.selectbox("Batting slot", list(POS.values()), index=0, disabled=role == "bowler")
+pos_label = c2.selectbox(
+    "Batting slot",
+    list(POS.values()),
+    index=0,
+    disabled=role == "bowler",
+    help="Same band = the pick's top (1–3), middle (4–7) or lower (8–11) order. "
+    "Not used when matching as a bowler.",
+)
 pos = "" if role == "bowler" else next(k for k, v in POS.items() if v == pos_label)
+country = c3.selectbox(
+    "Country",
+    list(COUNTRY),
+    index=0,
+    format_func=lambda k: (
+        COUNTRY[k] + (f" ({sel.get('country')})" if k == "same" and sel.get("country") else "")
+    ),
+    help="Same = the pick's own country; overseas = every other country; all = anyone.",
+)
 
 sel_price = est_value(sel["value"], sel["role"], "ipl")
+_kind = f" ({sel['bowling_category']})" if sel.get("bowling_category") else ""
+_band = BAND_LABEL.get(slot_band(sel.get("batting_position")), "")
 st.markdown(
-    f"**{sel['name']}** · {sel['role'].replace('_', '-')} · standing {sel['z']:.2f} · "
+    f"**{display_name(sel)}** · {sel['role'].replace('_', '-')}{_kind}"
+    + (f" · {_band}" if _band else "")
+    + f" · {sel.get('country') or 'country unknown'} · standing {sel['z']:.2f} · "
     f"≈ **{sel_price:.1f} cr**"
 )
 
 
+def _similar(tier: str) -> list[dict]:
+    fb = sel.get("country") if tier == GEM_TIER else None
+    return similar_to(sel, idx.get(tier, []), role, pos, country=country, fallback_country=fb)
+
+
 def _tier_df(tier: str) -> pd.DataFrame:
     out = []
-    for r in similar_to(sel, idx[tier], role, pos):
+    for r in _similar(tier):
         price = est_value(r["value"], r["role"], tier)
         saving = sel_price - price if price < sel_price else 0.0
         out.append(
             {
-                "Player": r["name"],
+                "Player": display_name(r),
                 "Country": r.get("country") or "—",
                 "Last": (r.get("last_match_date") or "")[:4],
                 "Est cr": round(price, 1),
@@ -173,26 +215,35 @@ def _tier_df(tier: str) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-# The pools laid out in rows of up to 3 columns.
-for start in range(0, len(TIER_ORDER), 3):
-    chunk = TIER_ORDER[start : start + 3]
+# The pools laid out in rows of up to 3 columns; pools with no match collapse into one line.
+_frames = {t: _tier_df(t) for t in TIER_ORDER}
+_empty = [t for t in TIER_ORDER if _frames[t].empty]
+_shown = [t for t in TIER_ORDER if not _frames[t].empty]
+if _empty:
+    st.info(
+        "No close match of this type in "
+        + ", ".join(leagues.by_tier(t).short for t in _empty)
+        + (" — set Country to Overseas or All countries to see them." if country == "same" else ".")
+    )
+for start in range(0, len(_shown), 3):
+    chunk = _shown[start : start + 3]
     cols = st.columns(len(chunk))
     for col, tier in zip(cols, chunk, strict=True):
         with col:
             st.subheader(TIER_TITLE[tier])
-            df = _tier_df(tier)
-            if df.empty:
-                st.info("No close match of this archetype.")
-            else:
-                st.dataframe(df, hide_index=True, width="stretch")
+            if TIER_STALE.get(tier):
+                st.caption(f"⚠ {TIER_STALE[tier]}")
+            st.dataframe(_frames[tier], hide_index=True, width="stretch")
 
 # --- draft handoff: same effect as the web's ?draft= -----------------------
 st.divider()
 # Options are keyed by cricsheet_id (two prospects can share a name).
 prospects: dict[str, str] = {}
 for tier in DRAFTABLE_TIERS:
-    for r in similar_to(sel, idx.get(tier, []), role, pos):
-        prospects.setdefault(r["cricsheet_id"], f"{r['name']} ({leagues.by_tier(tier).short})")
+    for r in _similar(tier):
+        prospects.setdefault(
+            r["cricsheet_id"], f"{display_name(r)} ({leagues.by_tier(tier).short})"
+        )
 # The draft list accumulates across picks: this pick's multiselect only adds or
 # removes its own prospects; drafts made from earlier picks are kept.
 drafted_before: list[str] = list(st.session_state.get("drafted", []))
@@ -201,7 +252,7 @@ chosen = st.multiselect(
     list(prospects),
     default=[c for c in prospects if c in drafted_before],
     format_func=lambda c: prospects[c],
-    key=f"draftpick_{pick_cid}_{role}_{pos}",
+    key=f"draftpick_{pick_cid}_{role}_{pos}_{country}",
     help="Look-alikes you pick here are pre-loaded as retentions on the Auction page.",
 )
 # Only players in the priced auction pool can be drafted (the rest are too few

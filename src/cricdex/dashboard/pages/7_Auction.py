@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 
 from cricdex import leagues
+from cricdex.common.display import display_name, player_label
 from cricdex.dashboard._widgets import load_players, provenance_banner
 from cricdex.web_parity import (
     ARCHETYPES,
@@ -77,6 +78,14 @@ except (FileNotFoundError, ValueError) as e:  # missing or corrupt export
 
 pool = build_pool(pool_rows)
 by_id = {p["cricsheet_id"]: p for p in pool}
+# fan-facing names (the priced pool keeps only the scorecard name)
+_display = {r["cricsheet_id"]: display_name(r) for r in pool_rows}
+
+
+def _nm(p: dict) -> str:
+    return _display.get(p.get("cricsheet_id", "")) or p.get("name", "")
+
+
 try:
     act = load_activity_index("ipl")  # cid -> last-IPL / age / ipl_relevance
 except ValueError as e:
@@ -143,7 +152,7 @@ if drafted:
     )
     base_ret[draft_team] = list(dict.fromkeys(base_ret[draft_team] + drafted))
     st.info(
-        f"{', '.join(by_id[c]['name'] for c in drafted)} → locked as retention(s) for "
+        f"{', '.join(_nm(by_id[c]) for c in drafted)} → locked as retention(s) for "
         f"{draft_team} (editable below)."
     )
 
@@ -162,7 +171,7 @@ with st.expander("Retentions (editable per team)", expanded=True):
             team,
             opt_ids,
             default=[c for c in base_ret[team] if c in opt_ids],
-            format_func=lambda c: f"{by_id[c]['name']} ({by_id[c]['projected_value']:.0f}cr)",
+            format_func=lambda c: f"{_nm(by_id[c])} ({by_id[c]['projected_value']:.0f}cr)",
             key=f"ret_{team}_{mode}",
         )
         retentions[team] = sel
@@ -231,7 +240,7 @@ st.subheader("Who lands the marquee names")
 marq_df = pd.DataFrame(
     [
         {
-            "Player": m["player"]["name"],
+            "Player": _nm(m["player"]),
             "Role": m["player"]["role"].replace("_", "-"),
             "Value": round(m["player"]["projected_value"], 1),
             "IPL fit %": _fit(m["player"]["cricsheet_id"]),
@@ -246,28 +255,32 @@ marq_df = pd.DataFrame(
 st.dataframe(marq_df, hide_index=True, width="stretch")
 
 st.subheader("Find a player")
-# Searchable dropdown over the run's players (type-ahead on full + short name),
-# mirroring the web Combobox instead of a bare text field.
-_full_by_name = {p["name"]: p.get("full_name") for p in load_players("ipl")}
+# Searchable dropdown over the run's players (type-ahead on display, scorecard, full name and
+# aliases), mirroring the web Combobox instead of a bare text field.
+_players_by_cid = {p["cricsheet_id"]: p for p in load_players("ipl")}
+_outcome_name = {o["cricsheet_id"]: o["name"] for o in res["outcomes"]}
 
 
-def _auction_label(n: str) -> str:
-    full = _full_by_name.get(n)
-    return f"{full} ({n})" if full and full != n else n
+def _auction_label(cid: str) -> str:
+    row = _players_by_cid.get(cid)
+    if row:
+        return player_label(row)
+    disp, name = _display.get(cid), _outcome_name.get(cid, cid)
+    return f"{disp} ({name})" if disp and disp != name else name
 
 
 _PICK = "— pick a player —"
-_names = sorted({o["name"] for o in res["outcomes"]})
+_cids = sorted(_outcome_name, key=lambda c: _auction_label(c).lower())
 pick = st.selectbox(
     "Where did anyone land, for how much, or did they go unsold?",
-    [_PICK, *_names],
-    format_func=lambda n: n if n == _PICK else _auction_label(n),
+    [_PICK, *_cids],
+    format_func=lambda c: c if c == _PICK else _auction_label(c),
     key="auction_search",
 )
 if pick != _PICK:
-    hits = [o for o in res["outcomes"] if o["name"] == pick]
+    hits = [o for o in res["outcomes"] if o["cricsheet_id"] == pick]
     if not hits:
-        st.info(f"No outcome for '{pick}'.")
+        st.info(f"No outcome for '{_auction_label(pick)}'.")
     else:
         srows = []
         for o in hits[:50]:
@@ -279,7 +292,7 @@ if pick != _PICK:
                 where = ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in o["winners"])
             srows.append(
                 {
-                    "Player": o["name"],
+                    "Player": _nm(o),
                     "Role": o["role"].replace("_", "-"),
                     "IPL fit %": _fit(o["cricsheet_id"]),
                     "Last IPL": _last_ipl(o["cricsheet_id"]),
@@ -304,7 +317,7 @@ st_state = next(s for s in res["sample_draft"] if s["team"] == squad_team)
 
 def _squad_chip(p: dict) -> str:
     plane = " ✈" if p.get("is_overseas") else ""
-    return f"- **{p['name']}** · {p['role'].replace('_', '-')}{plane}"
+    return f"- **{_nm(p)}** · {p['role'].replace('_', '-')}{plane}"
 
 
 rc, bc = st.columns(2)

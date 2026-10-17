@@ -65,6 +65,25 @@ for (const tier of tiers) {
     price: estValue(p.value, p.role, tier),
   }));
 }
+// Same-type matching + slot + country filters: every bowling all-rounder with a known country and slot
+// (lexicographic id order), each against every pool, in all three country modes with the pick's own slot.
+// The domestic gem pool assumes the pick's country for players with none on file, as Scout.tsx does.
+const typedPicks = (scout.ipl as ScoutPlayer[])
+  .filter((p) => p.role === "all_rounder" && p.bowling_category && p.country && p.batting_position)
+  .sort((a, b) => a.cricsheet_id.localeCompare(b.cricsheet_id))
+  .slice(0, 4);
+const scoutTyped: Record<string, string[]> = {};
+for (const pick of typedPicks) {
+  for (const tier of tiers) {
+    for (const mode of ["same", "overseas", "all"] as const) {
+      const fb = tier === gemTier ? pick.country : null;
+      scoutTyped[`${pick.cricsheet_id}|${tier}|${mode}`] = similarTo(pick, scout[tier] as ScoutPlayer[], "", "same", 8, {
+        country: mode,
+        fallbackCountry: fb,
+      }).map((p) => `${p.cricsheet_id}:${p.sim}`);
+    }
+  }
+}
 const gemPool = (gemTier && scout[gemTier] ? scout[gemTier] : []) as ScoutPlayer[];
 const gemMedian = gemThreshold(gemPool);
 const gems = gemPool.filter((p) => isGem(p, gemMedian)).map((p) => p.cricsheet_id);
@@ -102,6 +121,8 @@ const out = {
   scoutPick: sel.cricsheet_id,
   scoutTiers: tiers,
   scout: scoutOut,
+  scoutTypedPicks: typedPicks.map((p) => p.cricsheet_id),
+  scoutTyped,
   gemMedian,
   gems,
 };

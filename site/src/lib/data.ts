@@ -52,6 +52,9 @@ function getJSON<T>(rel: string): Promise<T> {
 export interface CollectionMeta {
   collection: string;
   data_as_of: string | null;
+  /** True when this league's data has stopped updating (e.g. SMAT); show a "stale" badge. */
+  stale?: boolean;
+  newest_data_anywhere?: string | null;
   n_matches: number;
   n_balls: number;
   n_players: number;
@@ -59,10 +62,41 @@ export interface CollectionMeta {
   windows?: string[]; // recomputed time windows available, e.g. ["last3y","last1y"]
 }
 
+/** Identity fields the player-data pass adds (players.json rows, profiles' `identity`). All optional:
+ * older exports don't carry them, and every surface falls back gracefully. */
+export interface PlayerIdentity {
+  display_name?: string | null; // how fans say it ("Virat Kohli")
+  full_name?: string | null; // legal full name
+  aliases?: string[] | null; // other spellings / scorecard names, all searchable
+  capped?: boolean | null; // has played international cricket
+  active?: boolean | null;
+  retired?: boolean | null;
+  country?: string | null; // ISO-3
+  team?: string | null;
+  batting_hand?: string | null;
+  bowling_arm?: string | null;
+  bowling_category?: "seam" | "spin" | string | null;
+  bowling_style?: string | null;
+  primary_role?: string | null;
+}
+
+/** The name to show a fan: display name when the export has one, else the scorecard name. */
+export function displayName(p: { name: string; display_name?: string | null } | null | undefined): string {
+  if (!p) return "";
+  return (p.display_name && p.display_name.trim()) || p.name;
+}
+
 export interface PlayerRow {
   cricsheet_id: string;
   name: string;
   full_name: string;
+  display_name?: string | null;
+  aliases?: string[] | null;
+  capped?: boolean | null;
+  retired?: boolean | null;
+  batting_hand?: string | null;
+  bowling_arm?: string | null;
+  bowling_style?: string | null;
   balls_faced: number;
   balls_bowled: number;
   matches: number;
@@ -94,6 +128,8 @@ export interface RatingRow {
   value_sd?: number | null;
   balls: number;
   runs: number;
+  display_name?: string | null;
+  aliases?: string[] | null;
 }
 
 export type LeaderboardRow = Record<string, string | number | null>;
@@ -111,6 +147,7 @@ export interface Profile {
   style_twins_bowler: Record<string, unknown>[] | null;
   dismissal_fingerprint: Record<string, unknown> | null;
   taxonomy?: Record<string, string> | null;
+  identity?: PlayerIdentity | null;
   activity?: { first_match_date: string | null; last_match_date: string | null; active: boolean } | null;
 }
 
@@ -151,6 +188,12 @@ export const getRetentions = (c: string) => getJSON<RetentionData>(`${c}/retenti
 export interface AuctionPoolRow {
   cricsheet_id: string;
   name: string;
+  display_name?: string | null;
+  aliases?: string[] | null;
+  capped?: boolean | null;
+  /** League where this player's profile lives. */
+  profile_collection?: string | null;
+  stale?: boolean;
   value: number; // already IPL-relevance-decayed at export
   role: "batter" | "bowler" | "all_rounder" | "keeper";
   country: string | null;
@@ -181,6 +224,12 @@ export const getActivityIndex = (c: string) =>
 export interface ScoutPlayer {
   cricsheet_id: string;
   name: string;
+  display_name?: string | null;
+  capped?: boolean | null; // international appearances (absent in older exports)
+  /** League where this player's profile lives (non-IPL players have no IPL profile). */
+  profile_collection?: string | null;
+  data_as_of?: string | null;
+  stale?: boolean;
   role: "batter" | "bowler" | "all_rounder" | "keeper";
   bowling_category: string | null;
   batting_position: string | null;
@@ -255,6 +304,8 @@ export interface Partnership {
   b: string;
   a_cid: string | null;
   b_cid: string | null;
+  a_display?: string | null;
+  b_display?: string | null;
   innings: number;
   runs: number;
   balls: number;

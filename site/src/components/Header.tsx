@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import { useTheme, type ThemeChoice } from "@/lib/theme";
 import { collectionLabel, fmt, prettyDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { StaleBadge } from "./ui";
 
 const REPO_URL = "https://github.com/Aaryan-Nakhat/cricdex";
 
@@ -56,6 +57,9 @@ function CollectionSelect() {
         aria-label={`League: ${collectionLabel(collection)}`}
       >
         <span className="truncate sm:overflow-visible">{collectionLabel(collection)}</span>
+        {collections.find((c) => c.collection === collection)?.stale && (
+          <span className="h-2 w-2 shrink-0 rounded-full bg-gold" title="This league's data is stale" aria-hidden />
+        )}
         <ChevronDown className={cn("h-4 w-4 text-muted transition-transform", open && "rotate-180")} />
       </button>
       {open && (
@@ -87,6 +91,7 @@ function CollectionSelect() {
                 <span className="flex min-w-0 items-center gap-2">
                   <Check className={cn("h-3.5 w-3.5 shrink-0", c.collection === collection ? "opacity-100" : "opacity-0")} />
                   <span className="whitespace-normal leading-snug">{collectionLabel(c.collection)}</span>
+                  {c.stale && <StaleBadge asOf={c.data_as_of} />}
                 </span>
                 <span className="shrink-0 stat-num text-xs text-muted">{fmt(c.n_matches)} matches</span>
               </div>
@@ -169,6 +174,7 @@ export function Header() {
               <div className="eyebrow leading-none">Data up to</div>
               <div className="text-xs font-semibold leading-none text-fg">{prettyDate(meta?.data_as_of)}</div>
             </div>
+            {meta?.stale && <StaleBadge asOf={null} />}
           </div>
 
           <CollectionSelect />

@@ -85,3 +85,131 @@ export function countriesIn(rows: Record<string, unknown>[]): { value: string; l
     ...[...set].sort().map((c) => ({ value: c, label: c })),
   ];
 }
+
+// ---- smart options ----------------------------------------------------------
+// A filter option that can't apply is hidden (no row on this board has it, or the
+// board rules it out) or disabled (no row left once the other filters apply), so a
+// user never picks a dead end. Options carry live counts.
+
+export type Dim = "minMatches" | "activity" | "role" | "bowling" | "position" | "country";
+export type CatDim = "activity" | "role" | "bowling" | "position" | "country";
+
+export interface SmartOpt {
+  value: string;
+  label: string;
+  count?: number;
+  disabled?: boolean;
+}
+
+export interface SmartFilters {
+  /** Dimensions worth showing (asked for, and with at least two real choices). */
+  show: Dim[];
+  opts: Partial<Record<CatDim, SmartOpt[]>>;
+  /** Plain-English notes on what was hidden and why (shown in the filter help). */
+  notes: string[];
+  /** The filters with any value that can't apply here dropped back to "any". */
+  effective: Filters;
+}
+
+const DIM_FIELD: Record<Exclude<CatDim, "activity">, string> = {
+  role: "primary_role",
+  bowling: "bowling_category",
+  position: "batting_position",
+  country: "country",
+};
+
+const DIM_NAME: Record<Dim, string> = {
+  minMatches: "Min matches",
+  activity: "Active / retired",
+  role: "Role",
+  bowling: "Bowling type",
+  position: "Batting position",
+  country: "Country",
+};
+
+function baseOpts(dim: CatDim, rows: Record<string, unknown>[]): { value: string; label: string }[] {
+  if (dim === "activity") return ACTIVITY_OPTS;
+  if (dim === "role") return ROLE_OPTS;
+  if (dim === "bowling") return BOWLING_OPTS;
+  if (dim === "position") return POSITION_OPTS;
+  return countriesIn(rows);
+}
+
+function matchesDim(r: Record<string, unknown>, dim: CatDim, value: string): boolean {
+  if (!value) return true;
+  if (dim === "activity") return value === "all" || (value === "active" ? !!r.active : !r.active);
+  return r[DIM_FIELD[dim]] === value;
+}
+
+/**
+ * Work out which filter options make sense for these rows.
+ * `allowed` = the dimensions this board/page supports (others are hidden with a note);
+ * `exclude` = options the board rules out, value -> reason.
+ */
+export function smartFilters(
+  rows: Record<string, unknown>[],
+  filters: Filters,
+  allowed: Dim[],
+  exclude: Partial<Record<Dim, Record<string, string>>> = {},
+  hiddenReason = "doesn't apply on this board",
+): SmartFilters {
+  const notes: string[] = [];
+  const eff: Filters = { ...filters };
+  const all: Dim[] = ["minMatches", "activity", "role", "bowling", "position", "country"];
+  for (const d of all) {
+    if (allowed.includes(d)) continue;
+    if (d !== "minMatches" && d !== "activity" && eff[d]) (eff as unknown as Record<string, string>)[d] = "";
+  }
+  const cats: CatDim[] = ["activity", "role", "bowling", "position", "country"];
+  // first pass: drop values that are excluded or absent from the board entirely
+  for (const d of cats) {
+    if (!allowed.includes(d) || d === "activity") continue;
+    const v = eff[d];
+    if (!v) continue;
+    if (exclude[d]?.[v] || !rows.some((r) => r[DIM_FIELD[d]] === v)) (eff as unknown as Record<string, string>)[d] = "";
+  }
+  const opts: SmartFilters["opts"] = {};
+  const show: Dim[] = [];
+  for (const d of all) {
+    if (!allowed.includes(d)) continue;
+    if (d === "minMatches") {
+      show.push(d);
+      continue;
+    }
+    // counts under every other filter
+    const others: Filters = { ...eff, [d]: d === "activity" ? "all" : "" } as Filters;
+    const pool = applyFilters(rows, others);
+    const present = baseOpts(d, rows).filter((o) => {
+      if (!o.value || (d === "activity" && o.value === "all")) return true;
+      if (exclude[d]?.[o.value]) return false;
+      return d === "activity" ? rows.some((r) => matchesDim(r, d, o.value)) : rows.some((r) => r[DIM_FIELD[d]] === o.value);
+    });
+    const real = present.filter((o) => o.value && !(d === "activity" && o.value === "all"));
+    for (const [v, why] of Object.entries(exclude[d] ?? {})) {
+      const lab = baseOpts(d, rows).find((o) => o.value === v)?.label ?? v;
+      notes.push(`${DIM_NAME[d]} “${lab}” isn't offered: ${why}`);
+    }
+    if (d !== "activity" && real.length < 2) {
+      // nothing to choose between — hide it, and drop any value it held
+      (eff as unknown as Record<string, string>)[d] = "";
+      if (real.length === 1) notes.push(`${DIM_NAME[d]}: every player here is “${real[0].label}”.`);
+      continue;
+    }
+    opts[d] = present.map((o) => {
+      const isAny = !o.value || (d === "activity" && o.value === "all");
+      const count = pool.filter((r) => matchesDim(r, d, isAny ? "" : o.value)).length;
+      const isCurrent = eff[d] === o.value;
+      return {
+        value: o.value,
+        label: `${o.label} (${count})`,
+        count,
+        disabled: !isAny && count === 0 && !isCurrent,
+      };
+    });
+    show.push(d);
+  }
+  for (const d of all) {
+    if (!allowed.includes(d) && d !== "minMatches" && d !== "activity") notes.push(`${DIM_NAME[d]} filter hidden — it ${hiddenReason}.`);
+  }
+  return { show, opts, notes, effective: eff };
+}

@@ -52,6 +52,15 @@ data/drs/*
 data/curated/*
 !data/curated/player_taxonomy.json
 !data/curated/wikidata_enrichment.json
+# The player master (scripts/build_player_master.py): its cached open-data lookups, the LLM name
+# check, the reviewed overrides, the 2026 IPL squads, the built master and its review file.
+!data/curated/player_overrides.json
+# player_master.json + player_master_review.json are derived: scripts/build_player_master.py --no-fetch
+!data/curated/player_names_llm.json
+!data/curated/wikidata_players.json
+!data/curated/wikipedia_infobox.json
+!data/curated/international_caps.json
+!data/curated/ipl_squads_2026.json
 *.parquet
 *.duckdb
 *.duckdb.wal

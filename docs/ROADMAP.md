@@ -62,6 +62,11 @@ From an in-depth review against commercial tools, the public analyst community, 
 data sources and the modelling literature. Every item is listed; tick it off when it ships. The "Next" and
 "Later" lists below predate this review and overlap with it (fielder credit, era effects, women's leagues).
 
+The player-master pass (2026-10-17, `scripts/build_player_master.py`, see
+[IDENTITY.md](IDENTITY.md#the-player-master)) closed items 19–23 and 32, Tier A #2, P1–P3 and P18, and
+the capped half of item 26 (the uncapped Scout pool drops anyone with a men's T20I / ODI / Test). Source
+disagreements left for a human are in `data/curated/player_master_review.json`.
+
 ### Correctness fixes
 
 **Data and ingest**
@@ -114,18 +119,18 @@ data sources and the modelling literature. Every item is listed; tick it off whe
   real auction prices (roadmap 13).
 
 **Tags, flags and data hygiene**
-- [ ] 19. Wrong AI role/bowling tags in `data/curated/player_taxonomy.json`: Digvesh Rathi tagged right-arm
+- [x] 19. Wrong AI role/bowling tags in `data/curated/player_taxonomy.json`: Digvesh Rathi tagged right-arm
   fast-medium (leg-spinner; #1 on Wicket Quality), Mitchell Owen "bowler", Gayle / Head / Shashank Singh /
   Raina "allrounder" (×1.15 auction price), Navdeep Saini null; 864 all-rounders vs 462 batters overall.
   Check and override from Wikipedia/DBpedia infoboxes plus a human-reviewed override file; flag
   disagreements.
-- [ ] 20. Duplicate country codes (RSA/ZAF, SRI/LKA, BAN/BGD, IRL/IRE). Normalise to ISO and add a test.
-- [ ] 21. Retired players still active (Russell, Ashwin in the pool; Maxwell relevance 1.0 at 37.9; Dhoni
+- [x] 20. Duplicate country codes (RSA/ZAF, SRI/LKA, BAN/BGD, IRL/IRE). Normalise to ISO and add a test.
+- [x] 21. Retired players still active (Russell, Ashwin in the pool; Maxwell relevance 1.0 at 37.9; Dhoni
   team None; 27 "active" players with no team). Add retirement and in-squad flags from the 2026 squads.
-- [ ] 22. No profiles under 300 balls, so leaderboard links dead-end (365 of ~800 IPL players; 49/169 on
+- [x] 22. No profiles under 300 balls, so leaderboard links dead-end (365 of ~800 IPL players; 49/169 on
   ngi.last1y, 84/226 on fielding.last3y, 51/300 on pressure_runs). Build a profile for every IPL player and
   test every link resolves.
-- [ ] 23. Time-window boards use career match counts (KL Rahul 149 on the last-year Counter-Attack board),
+- [x] 23. Time-window boards use career match counts (KL Rahul 149 on the last-year Counter-Attack board),
   so the min-matches filter does nothing. Compute `matches` within the window.
 - [ ] 24. Pressure Conversion samples are tiny (median 11 balls; #1 Saini on 2/7; last-year board 4 rows at
   0%). Redefine, add Empirical-Bayes shrinkage and intervals, or hide it.
@@ -147,7 +152,7 @@ data sources and the modelling literature. Every item is listed; tick it off whe
 - [ ] 30. The profile says "above a replacement batter", but the model is centred on average. Fix the label.
 - [ ] 31. Auction state is stale: Mega replays the 2025 retentions (Russell at KKR, Samson at RR); Mini
   gives every team 30 cr and its top 18 free. Load real 2026 squads and purses (roadmap 12).
-- [ ] 32. Numbers stored as strings in the JSON (`"total_runs":"1028"`; record runs as floats). Use numeric
+- [x] 32. Numbers stored as strings in the JSON (`"total_runs":"1028"`; record runs as floats). Use numeric
   types and add a schema test.
 
 **Backtest and evaluation (`scripts/backtest_*.py`)**
@@ -185,7 +190,7 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
 - [x] 1. Ingest correctness sprint (S–M): the zip names, `sma_json.zip`, DLS method and target, all extras,
   both wickets, `season`, `event.stage`, `players`, `replacements`, `review`, `powerplays`,
   `non_boundary`.
-- [ ] 2. Data hygiene pass (M): taxonomy override from Wikipedia/DBpedia plus a reviewed file, ISO country
+- [x] 2. Data hygiene pass (M): taxonomy override from Wikipedia/DBpedia plus a reviewed file, ISO country
   codes, retired and in-squad flags, date-of-birth coverage above 90%, profiles for every IPL player,
   windowed `matches`, numeric JSON, an SMAT-staleness flag on every SMAT number, data-quality assertions.
 - [ ] 3. Remove the mockable items (S): fix or hide Pressure Conversion, z-score style twins, retire "clearly
@@ -265,6 +270,48 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
 - [ ] 34. Research models (M–L): time-varying skill (random walk), correlated priors, within-player aging;
   keep each only if held-out fit improves.
 - [ ] 35. Non-IPL auction and draft rooms (L): WPL, ILT20, MLC, SA20.
+
+### Product review (owner, 2026-10-17)
+
+One player-data pass (do together with Tier A #2):
+- [x] P1. Common display names everywhere ("Virat Kohli", "Sanju Samson", "Yashasvi Jaiswal" — how fans say
+  them, not scorecard initials like "V Kohli" and not legal full names like "Yashasvi Bhupendra Kumar
+  Jaiswal"). Keep the scorecard name and full name as metadata; every alias stays searchable.
+- [x] P2. A real "capped" flag (international appearances), so capped players (Hardik Pandya, Bhuvneshwar
+  Kumar, Tilak Varma, Ishant Sharma…) never appear as uncapped SMAT prospects ("The next big things").
+- [x] P3. Correct role and bowling type per player (Hardik Pandya = seam-bowling all-rounder), plus batting
+  hand, bowling arm, ISO country, retired / active and current team — checked against open sources with a
+  reviewed override file.
+
+Player profile:
+- [ ] P4. A "standard stats" view next to the totals: average, strike rate, economy, bowling average and
+  strike rate, 50s/100s, best figures, dot %, boundary % — one click.
+- [ ] P5. Explain "replacement batter" (what it is, how it's set) in plain words, and draw the baseline
+  clearly (today it's a faint dash).
+- [ ] P6. Every novel metric has an (i) with what it means and how to read it (higher or lower better,
+  what a good value looks like).
+- [ ] P7. Style twins: filter by country (same country by default; overseas / all on demand).
+- [ ] P8. Pace / spin splits: "out rate" isn't clear — show it as "out once every N balls" (and say what
+  the % is of).
+
+Leaderboards and metrics:
+- [ ] P9. Every metric says how to read it and whether higher or lower is better, in plain words.
+- [ ] P10. NGI in human units (e.g. win chance added per match, wins added per season) instead of raw
+  0.097-style numbers; same for NGI total / per match columns.
+- [ ] P11. (i) popovers overlap each other and open for the wrong button — fix.
+- [ ] P12. Filters are smart: options that can't apply are hidden or disabled (e.g. Fielding board → no
+  "wicketkeeper" role filter, since keeping is its own board); audit every page for the same problem.
+
+Compare / charts:
+- [ ] P13. "Skill shape" is hard to read — replace with a clearer format.
+- [ ] P14. Side by side: show standard stats too, and explain how to read batting / bowling value.
+- [ ] P15. Aging curves: smooth, fast updates when selecting several players.
+
+Scout:
+- [ ] P16. Same type only: a seam-bowling all-rounder gets seam-bowling all-rounders (not Will Jacks or
+  Naman Dhir); same for spin and batting slot.
+- [ ] P17. Country filter: same country as the pick by default, overseas or all on demand.
+- [x] P18. Fix "The next big things" (uncapped gems) listing capped stars (needs P2).
 
 ### Guardrails
 

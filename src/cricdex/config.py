@@ -45,7 +45,8 @@ else:
 # Curated player facts (LLM taxonomy, Wikidata DOB / photo) — one place for writers and readers.
 CURATED_DIR = DATA_DIR / "curated"
 # The exported site JSON the web app, CLI, TUI and dashboard read.
-SITE_DATA = ROOT / "site" / "public" / "data"
+# CRICDEX_SITE_DATA points every reader (and the site-data tests) at another export, e.g. a scratch one.
+SITE_DATA = Path(os.environ.get("CRICDEX_SITE_DATA") or (ROOT / "site" / "public" / "data"))
 
 CONFIG_PATH = CRICDEX_HOME / "config.toml"
 

@@ -17,6 +17,23 @@ parity test. As part of that consolidation, three legacy subsystems were
 at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 **MILP auction solver + war-room advisor + GRPO RL**.
 
+### Player master (names, capped, roles, squads)
+
+- **`scripts/build_player_master.py`** (`make player-master`) builds one identity record per player
+  of every exported league into `data/curated/player_master.json`: fan display names (Wikidata label
+  by ESPNcricinfo id or the People Register, checked by the LLM, reviewed overrides win), full name
+  and every alias, **capped** from Cricsheet's men's T20I / ODI / Test XIs, role from the ball data
+  plus the Wikipedia infobox (the LLM taxonomy is now the last resort), bowling style / arm /
+  category, batting hand, ISO country (`scout.identity.countries`), active / retired, the 2026 IPL
+  squad and date of birth. Disagreements go to `player_master_review.json`; corrections to
+  `player_overrides.json`.
+- **Exporter**: players.json and profiles carry the identity block; every player of a league gets a
+  profile (no dead links; tested), windowed boards count matches inside the window, numbers are
+  numbers, stale leagues (SMAT) are flagged, retired players leave the auction pool, capped players
+  leave the uncapped pool, impossible values stop the export, `--out` / `--skip-prep` allow a scratch
+  export with no DB writes. Profiles gain the standard stat line (50s / 100s, highest score, best
+  bowling, hauls, dots) and 25 style twins with country.
+
 ### League registry and complete Cricsheet ingest
 
 - **One league registry** — `config/leagues.toml` (read with the standard-library `tomllib` by the new

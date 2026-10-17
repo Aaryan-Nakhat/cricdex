@@ -152,6 +152,20 @@ def build_batter_features(collection: str, db_path: Path | str) -> pl.DataFrame:
     return df.with_columns(pl.lit("batter").alias("role"))
 
 
+# A player is only indexed in a role he has this many balls in (rated balls): a bowler's handful of
+# innings at No. 10 made him a "batting twin" of top-order batters (roadmap 25).
+MIN_ROLE_BALLS = 120
+
+
+def _role_volume(ratings: pl.DataFrame, role: str) -> pl.DataFrame | None:
+    """(name, balls) for one role from the ratings, or None when the file can't say."""
+    if ratings.is_empty() or "unique_name" not in ratings.columns or "balls" not in ratings.columns:
+        return None
+    return ratings.filter(pl.col("role") == role).select(
+        pl.col("unique_name").alias("name"), pl.col("balls").cast(pl.Float64, strict=False)
+    )
+
+
 def _rated(ratings: pl.DataFrame, role: str, db_path: Path | str) -> pl.DataFrame | None:
     """(name, bayes_skill) for one role. The ratings JSON carries each player's scorecard name (the name the
     metric tables use); older files without it are bridged through the People Register."""
@@ -228,7 +242,16 @@ class TwinIndex:
         self._nn: NearestNeighbors | None = None
         if df.is_empty():
             return
+        # per-role pool: only players with real volume in this role
+        vol = _role_volume(_load_json(f"scout_ratings_{collection}.json"), role)
+        if vol is not None and not vol.is_empty():
+            keep = set(vol.filter(pl.col("balls") >= MIN_ROLE_BALLS)["name"].to_list())
+            df = df.filter(pl.col("name").is_in(list(keep)))
+            if df.is_empty():
+                return
         X, self.names, _ = _vectorise(df)
+        # every axis z-scored first (StandardScaler), then cosine distance (0 = same shape; the
+        # CLI / TUI / web read 1 - distance as "% alike")
         self._X = StandardScaler().fit_transform(X)
         self._nn = NearestNeighbors(metric="cosine").fit(self._X)
         self._idx = {n: i for i, n in enumerate(self.names)}

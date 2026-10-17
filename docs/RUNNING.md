@@ -111,6 +111,8 @@ cp .env.example .env
 ```bash
 make refresh COLLECTION=ipl   # download → ratings → metrics → site data, one collection
 make refresh-all              # every exported league, one export at the end (hours)
+make rebuild-all              # same, resumable: re-run to continue after a failure or reboot
+make auction-check            # sanity-check the IPL auction on the exported data
 
 # or step by step:
 uv run python scripts/ingest_cricsheet.py list               # the league registry

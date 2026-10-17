@@ -34,7 +34,10 @@ const SECTIONS: Section[] = [
         ball — score, wickets and balls left, target and required rate, run rate against the ground's
         average — and the change in win chance after the ball is that ball's value: plus to the batter,
         minus to the bowler. Summed per match, a 30* that wins a tight chase counts for more than a
-        hundred in a lost cause. The model is trained on one set of matches and checked on others it
+        hundred in a lost cause. It is shown two ways: <strong>win chance added per match</strong> (+5% means he
+        adds five percentage points to his side's chance of winning in a typical game; 0% is break-even) and{" "}
+        <strong>wins added</strong>, the career total — every 1.0 is one whole win's worth, and like career runs
+        it grows with every match played. The model is trained on one set of matches and checked on others it
         never saw, and the all-time board needs at least 25 matches. Fielders aren't credited yet.
       </>
     ),

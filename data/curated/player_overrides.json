@@ -1,0 +1,50 @@
+{
+ "_note": "Reviewed corrections to the player master (scripts/build_player_master.py). Keyed by cricsheet_id; every field here wins over every other source. Fields: display_name, full_name, aliases (added to the searchable list), primary_role (batter|bowler|allrounder|wk_batter), bowling_style (right-arm-fast|right-arm-fast-medium|right-arm-medium|left-arm-fast|left-arm-medium|off-spin|leg-spin|left-arm-orthodox|left-arm-wrist-spin), batting_hand (left|right), country (ISO alpha-3, or ENG/SCO/WIN), team (IPL franchise code or null), retired (true) + retired_scope (ipl|all), dob (YYYY-MM-DD). Give every entry a `_name` and an `_evidence` (a source a reviewer can check). Disagreements still to settle are listed in data/curated/player_master_review.json.",
+ "495d42a5": {
+  "_name": "R Ashwin",
+  "retired": true,
+  "retired_scope": "ipl",
+  "_evidence": "Retired from the IPL on 27 August 2025 (Cricbuzz, https://m.cricbuzz.com/cricket-news/135418/ravichandran-ashwin-retires-from-ipl; listed under 'Retired players' on Wikipedia's 'List of 2026 Indian Premier League personnel changes'). Retired from international cricket in December 2024."
+ },
+ "bbd41817": {
+  "_name": "Andre Russell",
+  "retired": true,
+  "retired_scope": "ipl",
+  "_evidence": "Retired from the IPL on 30 November 2025 (News18, https://www.news18.com/cricket/andre-russell-announces-retirement-from-ipl-ws-l-9740387.html; Wikipedia 2026 IPL personnel changes). Still plays other T20 leagues, so he stays active elsewhere but is out of the IPL auction pool."
+ },
+ "759ac88f": {
+  "_name": "Mohit Sharma",
+  "retired": true,
+  "retired_scope": "all",
+  "_evidence": "Retired from all forms of cricket on 3 December 2025 (ESPNcricinfo, https://www.espncricinfo.com/story/mohit-sharma-retires-from-ipl-and-all-forms-of-cricket-1514249; Wikipedia 2026 IPL personnel changes)."
+ },
+ "13fc5c6d": {
+  "_name": "DS Rathi (Digvesh Rathi)",
+  "display_name": "Digvesh Rathi",
+  "primary_role": "bowler",
+  "bowling_style": "leg-spin",
+  "_evidence": "Right-arm leg-spinner (mystery spin) for Lucknow Super Giants; the LLM taxonomy had him as right-arm fast-medium (review backlog item 19)."
+ },
+ "dbe50b21": {
+  "_name": "HH Pandya (Hardik Pandya)",
+  "primary_role": "allrounder",
+  "bowling_style": "right-arm-fast-medium",
+  "_evidence": "Seam-bowling all-rounder: Wikipedia infobox 'Right-arm medium-fast', role 'All-rounder' (owner review P3)."
+ },
+ "c27b5a0e": {
+  "_name": "PVSN Raju (Satyanarayana Raju)",
+  "display_name": "Satyanarayana Raju",
+  "_evidence": "Full name Penumatsa Venkata Satyanarayana Raju (People Register); played for Mumbai Indians in 2025 as Satyanarayana Raju. The LLM check renamed him after Venkatapathy Raju, a different (1990s) cricketer."
+ },
+ "21d4e29b": {
+  "_name": "NA Saini (Navdeep Saini)",
+  "primary_role": "bowler",
+  "bowling_style": "right-arm-fast",
+  "_evidence": "Right-arm fast bowler (Wikipedia infobox 'Right-arm fast'); the LLM taxonomy left him null (review backlog item 19)."
+ },
+ "e824e6ee": {
+  "dob": "1992-04-02",
+  "_name": "Tom Latham",
+  "_evidence": "Wikidata id match landed on a namesake (dob 1923); Tom Latham (NZ) was born 2 April 1992 (ESPNcricinfo profile)"
+ }
+}

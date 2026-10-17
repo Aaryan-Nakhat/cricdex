@@ -1,0 +1,1470 @@
+{
+ "_note": "Parsed automatically; edit by hand if a row is wrong (a rerun keeps this file unless --force). `cricsheet_id` is filled by the player-master build.",
+ "_source": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829 of 2026-09-19T08:26:22Z: https://en.wikipedia.org/wiki/List_of_2026_Indian_Premier_League_personnel_changes",
+ "retired": [
+  {
+   "date": "27 August 2025",
+   "evidence": "https://m.cricbuzz.com/cricket-news/135418/ravichandran-ashwin-retires-from-ipl",
+   "name": "Ravichandran Ashwin",
+   "team": "CSK",
+   "wiki_title": "Ravichandran Ashwin"
+  },
+  {
+   "date": "30 November 2025",
+   "evidence": "https://www.news18.com/cricket/andre-russell-announces-retirement-from-ipl-ws-l-9740387.html",
+   "name": "Andre Russell",
+   "team": "KKR",
+   "wiki_title": "Andre Russell"
+  },
+  {
+   "date": "3 December 2025",
+   "evidence": "https://www.espncricinfo.com/story/mohit-sharma-retires-from-ipl-and-all-forms-of-cricket-1514249",
+   "name": "Mohit Sharma",
+   "team": "DC",
+   "wiki_title": "Mohit Sharma"
+  }
+ ],
+ "season": 2026,
+ "squads": {
+  "CSK": [
+   {
+    "name": "Ruturaj Gaikwad",
+    "status": "retained",
+    "wiki_title": "Ruturaj Gaikwad"
+   },
+   {
+    "name": "Sanju Samson",
+    "status": "retained",
+    "wiki_title": "Sanju Samson"
+   },
+   {
+    "name": "Shivam Dube",
+    "status": "retained",
+    "wiki_title": "Shivam Dube"
+   },
+   {
+    "name": "Noor Ahmad",
+    "status": "retained",
+    "wiki_title": "Noor Ahmad"
+   },
+   {
+    "name": "Khaleel Ahmed",
+    "status": "retained",
+    "wiki_title": "Khaleel Ahmed",
+    "withdrawn": true
+   },
+   {
+    "name": "MS Dhoni",
+    "status": "retained",
+    "wiki_title": "MS Dhoni"
+   },
+   {
+    "name": "Anshul Kamboj",
+    "status": "retained",
+    "wiki_title": "Anshul Kamboj"
+   },
+   {
+    "name": "Dewald Brevis",
+    "status": "retained",
+    "wiki_title": "Dewald Brevis"
+   },
+   {
+    "name": "Gurjapneet Singh",
+    "status": "retained",
+    "wiki_title": "Gurjapneet Singh"
+   },
+   {
+    "name": "Nathan Ellis",
+    "status": "retained",
+    "wiki_title": "Nathan Ellis",
+    "withdrawn": true
+   },
+   {
+    "name": "Jamie Overton",
+    "status": "retained",
+    "wiki_title": "Jamie Overton",
+    "withdrawn": true
+   },
+   {
+    "name": "Mukesh Choudhary",
+    "status": "retained",
+    "wiki_title": "Mukesh Choudhary"
+   },
+   {
+    "name": "Ramakrishna Ghosh",
+    "status": "retained",
+    "wiki_title": "Ramakrishna Ghosh",
+    "withdrawn": true
+   },
+   {
+    "name": "Shreyas Gopal",
+    "status": "retained",
+    "wiki_title": "Shreyas Gopal"
+   },
+   {
+    "name": "Ayush Mhatre",
+    "status": "retained",
+    "wiki_title": "Ayush Mhatre",
+    "withdrawn": true
+   },
+   {
+    "name": "Urvil Patel",
+    "status": "retained",
+    "wiki_title": "Urvil Patel"
+   },
+   {
+    "name": "Sarfaraz Khan",
+    "status": "bought",
+    "wiki_title": "Sarfaraz Khan (cricketer)"
+   },
+   {
+    "name": "Matt Henry",
+    "status": "bought",
+    "wiki_title": "Matt Henry (cricketer)"
+   },
+   {
+    "name": "Rahul Chahar",
+    "status": "bought",
+    "wiki_title": "Rahul Chahar"
+   },
+   {
+    "name": "Akeal Hosein",
+    "status": "bought",
+    "wiki_title": "Akeal Hosein"
+   },
+   {
+    "name": "Prashant Veer",
+    "status": "bought",
+    "wiki_title": "Prashant Veer"
+   },
+   {
+    "name": "Kartik Sharma",
+    "status": "bought",
+    "wiki_title": "Kartik Sharma"
+   },
+   {
+    "name": "Zak Foulkes",
+    "status": "bought",
+    "wiki_title": "Zak Foulkes"
+   },
+   {
+    "name": "Matthew Short",
+    "status": "bought",
+    "wiki_title": "Matthew Short"
+   },
+   {
+    "name": "Aman Khan",
+    "status": "bought",
+    "wiki_title": "Aman Khan"
+   },
+   {
+    "name": "Spencer Johnson",
+    "replaced": "Nathan Ellis",
+    "status": "replacement",
+    "wiki_title": "Spencer Johnson (cricketer)"
+   },
+   {
+    "name": "Kuldip Yadav",
+    "replaced": "Khaleel Ahmed",
+    "status": "replacement",
+    "wiki_title": "Kuldip Yadav"
+   },
+   {
+    "name": "Akash Madhwal",
+    "replaced": "Ayush Mhatre",
+    "status": "replacement",
+    "wiki_title": "Akash Madhwal"
+   },
+   {
+    "name": "Macneil Noronha",
+    "replaced": "Ramakrishna Ghosh",
+    "status": "replacement",
+    "wiki_title": "Macneil Noronha"
+   },
+   {
+    "name": "Dian Forrester",
+    "replaced": "Jamie Overton",
+    "status": "replacement",
+    "wiki_title": "Dian Forrester"
+   }
+  ],
+  "DC": [
+   {
+    "name": "Axar Patel",
+    "status": "retained",
+    "wiki_title": "Axar Patel"
+   },
+   {
+    "name": "KL Rahul",
+    "status": "retained",
+    "wiki_title": "KL Rahul"
+   },
+   {
+    "name": "Kuldeep Yadav",
+    "status": "retained",
+    "wiki_title": "Kuldeep Yadav"
+   },
+   {
+    "name": "Mitchell Starc",
+    "status": "retained",
+    "wiki_title": "Mitchell Starc"
+   },
+   {
+    "name": "T. Natarajan",
+    "status": "retained",
+    "wiki_title": "T. Natarajan"
+   },
+   {
+    "name": "Tristan Stubbs",
+    "status": "retained",
+    "wiki_title": "Tristan Stubbs"
+   },
+   {
+    "name": "Mukesh Kumar",
+    "status": "retained",
+    "wiki_title": "Mukesh Kumar (cricketer)"
+   },
+   {
+    "name": "Nitish Rana",
+    "status": "retained",
+    "wiki_title": "Nitish Rana"
+   },
+   {
+    "name": "Abhishek Porel",
+    "status": "retained",
+    "wiki_title": "Abhishek Porel"
+   },
+   {
+    "name": "Ashutosh Sharma",
+    "status": "retained",
+    "wiki_title": "Ashutosh Sharma (cricketer)"
+   },
+   {
+    "name": "Sameer Rizvi",
+    "status": "retained",
+    "wiki_title": "Sameer Rizvi"
+   },
+   {
+    "name": "Dushmantha Chameera",
+    "status": "retained",
+    "wiki_title": "Dushmantha Chameera"
+   },
+   {
+    "name": "Karun Nair",
+    "status": "retained",
+    "wiki_title": "Karun Nair"
+   },
+   {
+    "name": "Madhav Tiwari",
+    "status": "retained",
+    "wiki_title": "Madhav Tiwari"
+   },
+   {
+    "name": "Ajay Mandal",
+    "status": "retained",
+    "wiki_title": "Ajay Mandal"
+   },
+   {
+    "name": "Tripurana Vijay",
+    "status": "retained",
+    "wiki_title": "Tripurana Vijay"
+   },
+   {
+    "name": "Vipraj Nigam",
+    "status": "retained",
+    "wiki_title": "Vipraj Nigam"
+   },
+   {
+    "name": "David Miller",
+    "status": "bought",
+    "wiki_title": "David Miller (South African cricketer)"
+   },
+   {
+    "name": "Prithvi Shaw",
+    "status": "bought",
+    "wiki_title": "Prithvi Shaw"
+   },
+   {
+    "name": "Ben Duckett",
+    "status": "bought",
+    "wiki_title": "Ben Duckett",
+    "withdrawn": true
+   },
+   {
+    "name": "Auqib Nabi",
+    "status": "bought",
+    "wiki_title": "Auqib Nabi"
+   },
+   {
+    "name": "Pathum Nissanka",
+    "status": "bought",
+    "wiki_title": "Pathum Nissanka"
+   },
+   {
+    "name": "Kyle Jamieson",
+    "status": "bought",
+    "wiki_title": "Kyle Jamieson"
+   },
+   {
+    "name": "Lungi Ngidi",
+    "status": "bought",
+    "wiki_title": "Lungi Ngidi"
+   },
+   {
+    "name": "Sahil Parekh",
+    "status": "bought",
+    "wiki_title": "Sahil Parekh (cricketer)"
+   },
+   {
+    "name": "Rehan Ahmed",
+    "replaced": "Ben Duckett",
+    "status": "replacement",
+    "wiki_title": "Rehan Ahmed"
+   }
+  ],
+  "GT": [
+   {
+    "name": "Rashid Khan",
+    "status": "retained",
+    "wiki_title": "Rashid Khan"
+   },
+   {
+    "name": "Shubman Gill",
+    "status": "retained",
+    "wiki_title": "Shubman Gill"
+   },
+   {
+    "name": "Jos Buttler",
+    "status": "retained",
+    "wiki_title": "Jos Buttler"
+   },
+   {
+    "name": "Mohammed Siraj",
+    "status": "retained",
+    "wiki_title": "Mohammed Siraj"
+   },
+   {
+    "name": "Kagiso Rabada",
+    "status": "retained",
+    "wiki_title": "Kagiso Rabada"
+   },
+   {
+    "name": "Prasidh Krishna",
+    "status": "retained",
+    "wiki_title": "Prasidh Krishna"
+   },
+   {
+    "name": "Sai Sudharsan",
+    "status": "retained",
+    "wiki_title": "Sai Sudharsan"
+   },
+   {
+    "name": "Rahul Tewatia",
+    "status": "retained",
+    "wiki_title": "Rahul Tewatia"
+   },
+   {
+    "name": "Shahrukh Khan",
+    "status": "retained",
+    "wiki_title": "Shahrukh Khan (cricketer)"
+   },
+   {
+    "name": "Washington Sundar",
+    "status": "retained",
+    "wiki_title": "Washington Sundar"
+   },
+   {
+    "name": "Sai Kishore",
+    "status": "retained",
+    "wiki_title": "Sai Kishore"
+   },
+   {
+    "name": "Glenn Phillips",
+    "status": "retained",
+    "wiki_title": "Glenn Phillips (cricketer)"
+   },
+   {
+    "name": "Arshad Khan",
+    "status": "retained",
+    "wiki_title": "Arshad Khan (Indian cricketer)"
+   },
+   {
+    "name": "Gurnoor Brar",
+    "status": "retained",
+    "wiki_title": "Gurnoor Brar"
+   },
+   {
+    "name": "Ishant Sharma",
+    "status": "retained",
+    "wiki_title": "Ishant Sharma"
+   },
+   {
+    "name": "Jayant Yadav",
+    "status": "retained",
+    "wiki_title": "Jayant Yadav"
+   },
+   {
+    "name": "Kumar Kushagra",
+    "status": "retained",
+    "wiki_title": "Kumar Kushagra"
+   },
+   {
+    "name": "Anuj Rawat",
+    "status": "retained",
+    "wiki_title": "Anuj Rawat"
+   },
+   {
+    "name": "Manav Suthar",
+    "status": "retained",
+    "wiki_title": "Manav Suthar"
+   },
+   {
+    "name": "Nishant Sindhu",
+    "status": "retained",
+    "wiki_title": "Nishant Sindhu"
+   },
+   {
+    "name": "Ashok Sharma",
+    "status": "bought",
+    "wiki_title": "Ashok Sharma (cricketer)"
+   },
+   {
+    "name": "Jason Holder",
+    "status": "bought",
+    "wiki_title": "Jason Holder"
+   },
+   {
+    "name": "Tom Banton",
+    "status": "bought",
+    "wiki_title": "Tom Banton",
+    "withdrawn": true
+   },
+   {
+    "name": "Prithvi Raj",
+    "status": "bought",
+    "wiki_title": "Prithvi Raj (cricketer)"
+   },
+   {
+    "name": "Luke Wood",
+    "status": "bought",
+    "wiki_title": "Luke Wood (cricketer)"
+   },
+   {
+    "name": "Kulwant Khejroliya",
+    "replaced": "Prithvi Raj Yarra",
+    "status": "replacement",
+    "wiki_title": "Kulwant Khejroliya"
+   },
+   {
+    "name": "Connor Esterhuizen",
+    "replaced": "Tom Banton",
+    "status": "replacement",
+    "wiki_title": "Connor Esterhuizen"
+   }
+  ],
+  "KKR": [
+   {
+    "name": "Rinku Singh",
+    "status": "retained",
+    "wiki_title": "Rinku Singh (cricketer)"
+   },
+   {
+    "name": "Sunil Narine",
+    "status": "retained",
+    "wiki_title": "Sunil Narine"
+   },
+   {
+    "name": "Varun Chakravarthy",
+    "status": "retained",
+    "wiki_title": "Varun Chakravarthy"
+   },
+   {
+    "name": "Harshit Rana",
+    "status": "retained",
+    "wiki_title": "Harshit Rana",
+    "withdrawn": true
+   },
+   {
+    "name": "Ramandeep Singh",
+    "status": "retained",
+    "wiki_title": "Ramandeep Singh (cricketer)"
+   },
+   {
+    "name": "Angkrish Raghuvanshi",
+    "status": "retained",
+    "wiki_title": "Angkrish Raghuvanshi"
+   },
+   {
+    "name": "Vaibhav Arora",
+    "status": "retained",
+    "wiki_title": "Vaibhav Arora"
+   },
+   {
+    "name": "Ajinkya Rahane",
+    "status": "retained",
+    "wiki_title": "Ajinkya Rahane"
+   },
+   {
+    "name": "Rovman Powell",
+    "status": "retained",
+    "wiki_title": "Rovman Powell"
+   },
+   {
+    "name": "Manish Pandey",
+    "status": "retained",
+    "wiki_title": "Manish Pandey"
+   },
+   {
+    "name": "Umran Malik",
+    "status": "retained",
+    "wiki_title": "Umran Malik"
+   },
+   {
+    "name": "Anukul Roy",
+    "status": "retained",
+    "wiki_title": "Anukul Roy"
+   },
+   {
+    "name": "Cameron Green",
+    "status": "bought",
+    "wiki_title": "Cameron Green"
+   },
+   {
+    "name": "Rachin Ravindra",
+    "status": "bought",
+    "wiki_title": "Rachin Ravindra"
+   },
+   {
+    "name": "Finn Allen",
+    "status": "bought",
+    "wiki_title": "Finn Allen"
+   },
+   {
+    "name": "Akash Deep",
+    "status": "bought",
+    "wiki_title": "Akash Deep",
+    "withdrawn": true
+   },
+   {
+    "name": "Matheesha Pathirana",
+    "status": "bought",
+    "wiki_title": "Matheesha Pathirana",
+    "withdrawn": true
+   },
+   {
+    "name": "Tejasvi Singh",
+    "status": "bought",
+    "wiki_title": "Tejasvi Singh"
+   },
+   {
+    "name": "Kartik Tyagi",
+    "status": "bought",
+    "wiki_title": "Kartik Tyagi"
+   },
+   {
+    "name": "Prashant Solanki",
+    "status": "bought",
+    "wiki_title": "Prashant Solanki"
+   },
+   {
+    "name": "Rahul Tripathi",
+    "status": "bought",
+    "wiki_title": "Rahul Tripathi"
+   },
+   {
+    "name": "Tim Seifert",
+    "status": "bought",
+    "wiki_title": "Tim Seifert"
+   },
+   {
+    "name": "Mustafizur Rahman",
+    "status": "bought",
+    "wiki_title": "Mustafizur Rahman",
+    "withdrawn": true
+   },
+   {
+    "name": "Sarthak Ranjan",
+    "status": "bought",
+    "wiki_title": "Sarthak Ranjan"
+   },
+   {
+    "name": "Daksh Kamra",
+    "status": "bought",
+    "wiki_title": "Daksh Kamra"
+   },
+   {
+    "name": "Blessing Muzarabani",
+    "replaced": "Mustafizur Rahman",
+    "status": "replacement",
+    "wiki_title": "Blessing Muzarabani"
+   },
+   {
+    "name": "Navdeep Saini",
+    "replaced": "Harshit Rana",
+    "status": "replacement",
+    "wiki_title": "Navdeep Saini"
+   },
+   {
+    "name": "Saurabh Dubey",
+    "replaced": "Akash Deep",
+    "status": "replacement",
+    "wiki_title": "Saurabh Dubey (Maharashtra cricketer)"
+   },
+   {
+    "name": "Luvnith Sisodia",
+    "replaced": "Matheesha Pathirana",
+    "status": "replacement",
+    "wiki_title": "Luvnith Sisodia"
+   }
+  ],
+  "LSG": [
+   {
+    "name": "Rishabh Pant",
+    "status": "retained",
+    "wiki_title": "Rishabh Pant"
+   },
+   {
+    "name": "Nicholas Pooran",
+    "status": "retained",
+    "wiki_title": "Nicholas Pooran"
+   },
+   {
+    "name": "Mayank Yadav",
+    "status": "retained",
+    "wiki_title": "Mayank Yadav"
+   },
+   {
+    "name": "Mohammed Shami",
+    "status": "retained",
+    "wiki_title": "Mohammed Shami"
+   },
+   {
+    "name": "Avesh Khan",
+    "status": "retained",
+    "wiki_title": "Avesh Khan"
+   },
+   {
+    "name": "Abdul Samad",
+    "status": "retained",
+    "wiki_title": "Abdul Samad (Indian cricketer)"
+   },
+   {
+    "name": "Ayush Badoni",
+    "status": "retained",
+    "wiki_title": "Ayush Badoni"
+   },
+   {
+    "name": "Mohsin Khan",
+    "status": "retained",
+    "wiki_title": "Mohsin Khan (Indian cricketer)"
+   },
+   {
+    "name": "Mitchell Marsh",
+    "status": "retained",
+    "wiki_title": "Mitchell Marsh",
+    "withdrawn": true
+   },
+   {
+    "name": "Shahbaz Ahmed",
+    "status": "retained",
+    "wiki_title": "Shahbaz Ahmed (cricketer)"
+   },
+   {
+    "name": "Aiden Markram",
+    "status": "retained",
+    "wiki_title": "Aiden Markram"
+   },
+   {
+    "name": "Manimaran Siddharth",
+    "status": "retained",
+    "wiki_title": "Manimaran Siddharth"
+   },
+   {
+    "name": "Matthew Breetzke",
+    "status": "retained",
+    "wiki_title": "Matthew Breetzke"
+   },
+   {
+    "name": "Akash Singh",
+    "status": "retained",
+    "wiki_title": "Akash Singh (cricketer, born 2002)"
+   },
+   {
+    "name": "Arjun Tendulkar",
+    "status": "retained",
+    "wiki_title": "Arjun Tendulkar"
+   },
+   {
+    "name": "Arshin Kulkarni",
+    "status": "retained",
+    "wiki_title": "Arshin Kulkarni"
+   },
+   {
+    "name": "Himmat Singh",
+    "status": "retained",
+    "wiki_title": "Himmat Singh (cricketer)"
+   },
+   {
+    "name": "Digvesh Rathi",
+    "status": "retained",
+    "wiki_title": "Digvesh Rathi"
+   },
+   {
+    "name": "Prince Yadav",
+    "status": "retained",
+    "wiki_title": "Prince Yadav"
+   },
+   {
+    "name": "Wanindu Hasaranga",
+    "status": "bought",
+    "wiki_title": "Wanindu Hasaranga",
+    "withdrawn": true
+   },
+   {
+    "name": "Anrich Nortje",
+    "status": "bought",
+    "wiki_title": "Anrich Nortje"
+   },
+   {
+    "name": "Mukul Choudhary",
+    "status": "bought",
+    "wiki_title": "Mukul Choudhary"
+   },
+   {
+    "name": "Naman Tiwari",
+    "status": "bought",
+    "wiki_title": "Naman Tiwari"
+   },
+   {
+    "name": "Josh Inglis",
+    "status": "bought",
+    "wiki_title": "Josh Inglis"
+   },
+   {
+    "name": "Akshat Raghuwanshi",
+    "status": "bought",
+    "wiki_title": "Akshat Raghuwanshi"
+   },
+   {
+    "name": "George Linde",
+    "replaced": "Wanindu Hasaranga",
+    "status": "replacement",
+    "wiki_title": "George Linde"
+   }
+  ],
+  "MI": [
+   {
+    "name": "Jasprit Bumrah",
+    "status": "retained",
+    "wiki_title": "Jasprit Bumrah"
+   },
+   {
+    "name": "Hardik Pandya",
+    "status": "retained",
+    "wiki_title": "Hardik Pandya"
+   },
+   {
+    "name": "Suryakumar Yadav",
+    "status": "retained",
+    "wiki_title": "Suryakumar Yadav"
+   },
+   {
+    "name": "Rohit Sharma",
+    "status": "retained",
+    "wiki_title": "Rohit Sharma"
+   },
+   {
+    "name": "Trent Boult",
+    "status": "retained",
+    "wiki_title": "Trent Boult"
+   },
+   {
+    "name": "Deepak Chahar",
+    "status": "retained",
+    "wiki_title": "Deepak Chahar"
+   },
+   {
+    "name": "Tilak Varma",
+    "status": "retained",
+    "wiki_title": "Tilak Varma"
+   },
+   {
+    "name": "Will Jacks",
+    "status": "retained",
+    "wiki_title": "Will Jacks"
+   },
+   {
+    "name": "Naman Dhir",
+    "status": "retained",
+    "wiki_title": "Naman Dhir"
+   },
+   {
+    "name": "Allah Ghazanfar",
+    "status": "retained",
+    "wiki_title": "Allah Ghazanfar"
+   },
+   {
+    "name": "Sherfane Rutherford",
+    "status": "retained",
+    "wiki_title": "Sherfane Rutherford"
+   },
+   {
+    "name": "Shardul Thakur",
+    "status": "retained",
+    "wiki_title": "Shardul Thakur"
+   },
+   {
+    "name": "Mitchell Santner",
+    "status": "retained",
+    "wiki_title": "Mitchell Santner",
+    "withdrawn": true
+   },
+   {
+    "name": "Ryan Rickelton",
+    "status": "retained",
+    "wiki_title": "Ryan Rickelton"
+   },
+   {
+    "name": "Corbin Bosch",
+    "status": "retained",
+    "wiki_title": "Corbin Bosch"
+   },
+   {
+    "name": "Robin Minz",
+    "status": "retained",
+    "wiki_title": "Robin Minz"
+   },
+   {
+    "name": "Raj Angad Bawa",
+    "status": "retained",
+    "wiki_title": "Raj Angad Bawa",
+    "withdrawn": true
+   },
+   {
+    "name": "Ashwani Kumar",
+    "status": "retained",
+    "wiki_title": "Ashwani Kumar (cricketer)"
+   },
+   {
+    "name": "Raghu Sharma",
+    "status": "retained",
+    "wiki_title": "Raghu Sharma (cricketer)"
+   },
+   {
+    "name": "Mayank Markande",
+    "status": "retained",
+    "wiki_title": "Mayank Markande"
+   },
+   {
+    "name": "Quinton de Kock",
+    "status": "bought",
+    "wiki_title": "Quinton de Kock",
+    "withdrawn": true
+   },
+   {
+    "name": "Danish Malewar",
+    "status": "bought",
+    "wiki_title": "Danish Malewar"
+   },
+   {
+    "name": "Mayank Rawat",
+    "status": "bought",
+    "wiki_title": "Mayank Rawat"
+   },
+   {
+    "name": "Mohammad Izhar",
+    "status": "bought",
+    "wiki_title": "Mohammad Izhar"
+   },
+   {
+    "name": "Atharva Ankolekar",
+    "status": "bought",
+    "wiki_title": "Atharva Ankolekar",
+    "withdrawn": true
+   },
+   {
+    "name": "Krish Bhagat",
+    "replaced": "Atharva Ankolekar",
+    "status": "replacement",
+    "wiki_title": "Krish Bhagat"
+   },
+   {
+    "name": "Keshav Maharaj",
+    "replaced": "Mitchell Santner",
+    "status": "replacement",
+    "wiki_title": "Keshav Maharaj"
+   },
+   {
+    "name": "Mahipal Lomror",
+    "replaced": "Quinton de Kock",
+    "status": "replacement",
+    "wiki_title": "Mahipal Lomror"
+   },
+   {
+    "name": "Ruchit Ahir",
+    "replaced": "Raj Angad Bawa",
+    "status": "replacement",
+    "wiki_title": "Ruchit Ahir"
+   }
+  ],
+  "PBKS": [
+   {
+    "name": "Shreyas Iyer",
+    "status": "retained",
+    "wiki_title": "Shreyas Iyer"
+   },
+   {
+    "name": "Arshdeep Singh",
+    "status": "retained",
+    "wiki_title": "Arshdeep Singh"
+   },
+   {
+    "name": "Yuzvendra Chahal",
+    "status": "retained",
+    "wiki_title": "Yuzvendra Chahal"
+   },
+   {
+    "name": "Marcus Stoinis",
+    "status": "retained",
+    "wiki_title": "Marcus Stoinis"
+   },
+   {
+    "name": "Marco Jansen",
+    "status": "retained",
+    "wiki_title": "Marco Jansen"
+   },
+   {
+    "name": "Shashank Singh",
+    "status": "retained",
+    "wiki_title": "Shashank Singh"
+   },
+   {
+    "name": "Nehal Wadhera",
+    "status": "retained",
+    "wiki_title": "Nehal Wadhera"
+   },
+   {
+    "name": "Prabhsimran Singh",
+    "status": "retained",
+    "wiki_title": "Prabhsimran Singh"
+   },
+   {
+    "name": "Priyansh Arya",
+    "status": "retained",
+    "wiki_title": "Priyansh Arya"
+   },
+   {
+    "name": "Mitchell Owen",
+    "status": "retained",
+    "wiki_title": "Mitchell Owen"
+   },
+   {
+    "name": "Azmatullah Omarzai",
+    "status": "retained",
+    "wiki_title": "Azmatullah Omarzai"
+   },
+   {
+    "name": "Lockie Ferguson",
+    "status": "retained",
+    "wiki_title": "Lockie Ferguson"
+   },
+   {
+    "name": "Vijaykumar Vyshak",
+    "status": "retained",
+    "wiki_title": "Vijaykumar Vyshak"
+   },
+   {
+    "name": "Yash Thakur",
+    "status": "retained",
+    "wiki_title": "Yash Thakur"
+   },
+   {
+    "name": "Harpreet Brar",
+    "status": "retained",
+    "wiki_title": "Harpreet Brar"
+   },
+   {
+    "name": "Vishnu Vinod",
+    "status": "retained",
+    "wiki_title": "Vishnu Vinod"
+   },
+   {
+    "name": "Xavier Bartlett",
+    "status": "retained",
+    "wiki_title": "Xavier Bartlett"
+   },
+   {
+    "name": "Pyla Avinash",
+    "status": "retained",
+    "wiki_title": "Pyla Avinash"
+   },
+   {
+    "name": "Harnoor Pannu",
+    "status": "retained",
+    "wiki_title": "Harnoor Pannu"
+   },
+   {
+    "name": "Musheer Khan",
+    "status": "retained",
+    "wiki_title": "Musheer Khan"
+   },
+   {
+    "name": "Suryansh Shedge",
+    "status": "retained",
+    "wiki_title": "Suryansh Shedge"
+   },
+   {
+    "name": "Ben Dwarshuis",
+    "status": "bought",
+    "wiki_title": "Ben Dwarshuis"
+   },
+   {
+    "name": "Praveen Dubey",
+    "status": "bought",
+    "wiki_title": "Praveen Dubey"
+   },
+   {
+    "name": "Cooper Connolly",
+    "status": "bought",
+    "wiki_title": "Cooper Connolly"
+   },
+   {
+    "name": "Vishal Nishad",
+    "status": "bought",
+    "wiki_title": "Vishal Nishad"
+   }
+  ],
+  "RCB": [
+   {
+    "name": "Virat Kohli",
+    "status": "retained",
+    "wiki_title": "Virat Kohli"
+   },
+   {
+    "name": "Josh Hazlewood",
+    "status": "retained",
+    "wiki_title": "Josh Hazlewood"
+   },
+   {
+    "name": "Phil Salt",
+    "status": "retained",
+    "wiki_title": "Phil Salt"
+   },
+   {
+    "name": "Rajat Patidar",
+    "status": "retained",
+    "wiki_title": "Rajat Patidar"
+   },
+   {
+    "name": "Jitesh Sharma",
+    "status": "retained",
+    "wiki_title": "Jitesh Sharma"
+   },
+   {
+    "name": "Bhuvneshwar Kumar",
+    "status": "retained",
+    "wiki_title": "Bhuvneshwar Kumar"
+   },
+   {
+    "name": "Rasikh Salam",
+    "status": "retained",
+    "wiki_title": "Rasikh Salam"
+   },
+   {
+    "name": "Krunal Pandya",
+    "status": "retained",
+    "wiki_title": "Krunal Pandya"
+   },
+   {
+    "name": "Yash Dayal",
+    "status": "retained",
+    "wiki_title": "Yash Dayal",
+    "withdrawn": true
+   },
+   {
+    "name": "Tim David",
+    "status": "retained",
+    "wiki_title": "Tim David"
+   },
+   {
+    "name": "Suyash Sharma",
+    "status": "retained",
+    "wiki_title": "Suyash Sharma"
+   },
+   {
+    "name": "Jacob Bethell",
+    "status": "retained",
+    "wiki_title": "Jacob Bethell",
+    "withdrawn": true
+   },
+   {
+    "name": "Devdutt Padikkal",
+    "status": "retained",
+    "wiki_title": "Devdutt Padikkal"
+   },
+   {
+    "name": "Nuwan Thushara",
+    "status": "retained",
+    "wiki_title": "Nuwan Thushara",
+    "withdrawn": true
+   },
+   {
+    "name": "Romario Shepherd",
+    "status": "retained",
+    "wiki_title": "Romario Shepherd"
+   },
+   {
+    "name": "Swapnil Singh",
+    "status": "retained",
+    "wiki_title": "Swapnil Singh"
+   },
+   {
+    "name": "Abhinandan Singh",
+    "status": "retained",
+    "wiki_title": "Abhinandan Singh"
+   },
+   {
+    "name": "Venkatesh Iyer",
+    "status": "bought",
+    "wiki_title": "Venkatesh Iyer"
+   },
+   {
+    "name": "Jacob Duffy",
+    "status": "bought",
+    "wiki_title": "Jacob Duffy"
+   },
+   {
+    "name": "Jordan Cox",
+    "status": "bought",
+    "wiki_title": "Jordan Cox (cricketer)"
+   },
+   {
+    "name": "Satvik Deswal",
+    "status": "bought",
+    "wiki_title": "Satvik Deswal"
+   },
+   {
+    "name": "Vicky Ostwal",
+    "status": "bought",
+    "wiki_title": "Vicky Ostwal"
+   },
+   {
+    "name": "Mangesh Yadav",
+    "status": "bought",
+    "wiki_title": "Mangesh Yadav"
+   },
+   {
+    "name": "Vihaan Malhotra",
+    "status": "bought",
+    "wiki_title": "Vihaan Malhotra"
+   },
+   {
+    "name": "Kanishk Chouhan",
+    "status": "bought",
+    "wiki_title": "Kanishk Chouhan"
+   },
+   {
+    "name": "Richard Gleeson",
+    "replaced": "Nuwan Thushara",
+    "status": "replacement",
+    "wiki_title": "Richard Gleeson"
+   }
+  ],
+  "RR": [
+   {
+    "name": "Yashasvi Jaiswal",
+    "status": "retained",
+    "wiki_title": "Yashasvi Jaiswal"
+   },
+   {
+    "name": "Riyan Parag",
+    "status": "retained",
+    "wiki_title": "Riyan Parag"
+   },
+   {
+    "name": "Ravindra Jadeja",
+    "status": "retained",
+    "wiki_title": "Ravindra Jadeja"
+   },
+   {
+    "name": "Dhruv Jurel",
+    "status": "retained",
+    "wiki_title": "Dhruv Jurel"
+   },
+   {
+    "name": "Jofra Archer",
+    "status": "retained",
+    "wiki_title": "Jofra Archer"
+   },
+   {
+    "name": "Shimron Hetmyer",
+    "status": "retained",
+    "wiki_title": "Shimron Hetmyer"
+   },
+   {
+    "name": "Tushar Deshpande",
+    "status": "retained",
+    "wiki_title": "Tushar Deshpande"
+   },
+   {
+    "name": "Sandeep Sharma",
+    "status": "retained",
+    "wiki_title": "Sandeep Sharma"
+   },
+   {
+    "name": "Nandre Burger",
+    "status": "retained",
+    "wiki_title": "Nandre Burger"
+   },
+   {
+    "name": "Sam Curran",
+    "status": "retained",
+    "wiki_title": "Sam Curran",
+    "withdrawn": true
+   },
+   {
+    "name": "Kwena Maphaka",
+    "status": "retained",
+    "wiki_title": "Kwena Maphaka"
+   },
+   {
+    "name": "Vaibhav Sooryavanshi",
+    "status": "retained",
+    "wiki_title": "Vaibhav Sooryavanshi"
+   },
+   {
+    "name": "Donovan Ferreira",
+    "status": "retained",
+    "wiki_title": "Donovan Ferreira"
+   },
+   {
+    "name": "Shubham Dubey",
+    "status": "retained",
+    "wiki_title": "Shubham Dubey"
+   },
+   {
+    "name": "Yudhvir Singh",
+    "status": "retained",
+    "wiki_title": "Yudhvir Singh (cricketer)"
+   },
+   {
+    "name": "Lhuan-dre Pretorius",
+    "status": "retained",
+    "wiki_title": "Lhuan-dre Pretorius"
+   },
+   {
+    "name": "Ravi Bishnoi",
+    "status": "bought",
+    "wiki_title": "Ravi Bishnoi"
+   },
+   {
+    "name": "Sushant Mishra",
+    "status": "bought",
+    "wiki_title": "Sushant Mishra"
+   },
+   {
+    "name": "Yash Raj Punja",
+    "status": "bought",
+    "wiki_title": "Yash Raj Punja"
+   },
+   {
+    "name": "Vignesh Puthur",
+    "status": "bought",
+    "wiki_title": "Vignesh Puthur"
+   },
+   {
+    "name": "Adam Milne",
+    "status": "bought",
+    "wiki_title": "Adam Milne"
+   },
+   {
+    "name": "Kuldeep Sen",
+    "status": "bought",
+    "wiki_title": "Kuldeep Sen"
+   },
+   {
+    "name": "Aman Rao",
+    "status": "bought",
+    "wiki_title": "Aman Rao (cricketer, born 2004)"
+   },
+   {
+    "name": "Ravi Singh",
+    "status": "bought",
+    "wiki_title": "Ravi Singh (cricketer, born 2001)",
+    "withdrawn": true
+   },
+   {
+    "name": "Brijesh Sharma",
+    "status": "bought",
+    "wiki_title": "Brijesh Sharma"
+   },
+   {
+    "name": "Dasun Shanaka",
+    "replaced": "Sam Curran",
+    "status": "replacement",
+    "wiki_title": "Dasun Shanaka"
+   },
+   {
+    "name": "Emanjot Chahal",
+    "replaced": "Ravi Singh",
+    "status": "replacement",
+    "wiki_title": "Emanjot Chahal"
+   }
+  ],
+  "SRH": [
+   {
+    "name": "Heinrich Klaasen",
+    "status": "retained",
+    "wiki_title": "Heinrich Klaasen"
+   },
+   {
+    "name": "Pat Cummins",
+    "status": "retained",
+    "wiki_title": "Pat Cummins"
+   },
+   {
+    "name": "Travis Head",
+    "status": "retained",
+    "wiki_title": "Travis Head"
+   },
+   {
+    "name": "Abhishek Sharma",
+    "status": "retained",
+    "wiki_title": "Abhishek Sharma"
+   },
+   {
+    "name": "Ishan Kishan",
+    "status": "retained",
+    "wiki_title": "Ishan Kishan"
+   },
+   {
+    "name": "Harshal Patel",
+    "status": "retained",
+    "wiki_title": "Harshal Patel"
+   },
+   {
+    "name": "Nitish Kumar Reddy",
+    "status": "retained",
+    "wiki_title": "Nitish Kumar Reddy"
+   },
+   {
+    "name": "Eshan Malinga",
+    "status": "retained",
+    "wiki_title": "Eshan Malinga"
+   },
+   {
+    "name": "Brydon Carse",
+    "status": "retained",
+    "wiki_title": "Brydon Carse",
+    "withdrawn": true
+   },
+   {
+    "name": "Jaydev Unadkat",
+    "status": "retained",
+    "wiki_title": "Jaydev Unadkat"
+   },
+   {
+    "name": "Kamindu Mendis",
+    "status": "retained",
+    "wiki_title": "Kamindu Mendis"
+   },
+   {
+    "name": "Zeeshan Ansari",
+    "status": "retained",
+    "wiki_title": "Zeeshan Ansari"
+   },
+   {
+    "name": "Smaran Ravichandran",
+    "status": "retained",
+    "wiki_title": "Smaran Ravichandran"
+   },
+   {
+    "name": "Aniket Verma",
+    "status": "retained",
+    "wiki_title": "Aniket Verma"
+   },
+   {
+    "name": "Harsh Dubey",
+    "status": "retained",
+    "wiki_title": "Harsh Dubey"
+   },
+   {
+    "name": "Liam Livingstone",
+    "status": "bought",
+    "wiki_title": "Liam Livingstone"
+   },
+   {
+    "name": "Shivam Mavi",
+    "status": "bought",
+    "wiki_title": "Shivam Mavi",
+    "withdrawn": true
+   },
+   {
+    "name": "Shivang Kumar",
+    "status": "bought",
+    "wiki_title": "Shivang Kumar"
+   },
+   {
+    "name": "Salil Arora",
+    "status": "bought",
+    "wiki_title": "Salil Arora"
+   },
+   {
+    "name": "Sakib Hussain",
+    "status": "bought",
+    "wiki_title": "Sakib Hussain"
+   },
+   {
+    "name": "Onkar Tarmale",
+    "status": "bought",
+    "wiki_title": "Onkar Tarmale"
+   },
+   {
+    "name": "Amit Kumar",
+    "status": "bought",
+    "wiki_title": "Amit Kumar (cricketer, born 2002)"
+   },
+   {
+    "name": "Praful Hinge",
+    "status": "bought",
+    "wiki_title": "Praful Hinge"
+   },
+   {
+    "name": "Krains Fuletra",
+    "status": "bought",
+    "wiki_title": "Krains Fuletra"
+   },
+   {
+    "name": "Jack Edwards",
+    "status": "bought",
+    "wiki_title": "Jack Edwards (cricketer, born 2000)",
+    "withdrawn": true
+   },
+   {
+    "name": "David Payne",
+    "replaced": "Jack Edwards",
+    "status": "replacement",
+    "wiki_title": "David Payne (cricketer)",
+    "withdrawn": true
+   },
+   {
+    "name": "Dilshan Madushanka",
+    "replaced": "Brydon Carse",
+    "status": "replacement",
+    "wiki_title": "Dilshan Madushanka"
+   },
+   {
+    "name": "Gerald Coetzee",
+    "replaced": "David Payne",
+    "status": "replacement",
+    "wiki_title": "Gerald Coetzee"
+   },
+   {
+    "name": "RS Ambrish",
+    "replaced": "Shivam Mavi",
+    "status": "replacement",
+    "wiki_title": "RS Ambrish"
+   }
+  ]
+ }
+}

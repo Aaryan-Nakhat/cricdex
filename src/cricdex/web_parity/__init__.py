@@ -34,11 +34,20 @@ from cricdex.web_parity.loader import (
     load_scout_index,
 )
 from cricdex.web_parity.pricing import TIER_PENALTY, est_value
-from cricdex.web_parity.scout import gem_threshold, is_gem, similar_to
+from cricdex.web_parity.scout import (
+    COUNTRY_MODES,
+    SAME_SLOT,
+    gem_threshold,
+    is_gem,
+    norm_country,
+    similar_to,
+)
 
 __all__ = [
     "ARCHETYPES",
+    "COUNTRY_MODES",
     "IPL_TEAMS_DEFAULT",
+    "SAME_SLOT",
     "TIER_PENALTY",
     "build_pool",
     "default_retentions",
@@ -49,6 +58,7 @@ __all__ = [
     "load_auction_pool",
     "load_retentions",
     "load_scout_index",
+    "norm_country",
     "similar_to",
     "simulate_auction",
 ]

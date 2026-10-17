@@ -1,16 +1,6 @@
 import { Filter, RotateCcw } from "lucide-react";
 import { InfoTip } from "./ui";
-import {
-  type Filters,
-  EMPTY_FILTERS,
-  ROLE_OPTS,
-  BOWLING_OPTS,
-  POSITION_OPTS,
-  ACTIVITY_OPTS,
-  FILTER_HELP,
-} from "@/lib/filters";
-
-type Dim = "minMatches" | "activity" | "role" | "bowling" | "position" | "country";
+import { type Filters, type SmartFilters, type SmartOpt, type Dim, EMPTY_FILTERS, FILTER_HELP } from "@/lib/filters";
 
 function Select({
   value,
@@ -20,7 +10,7 @@ function Select({
 }: {
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  options: SmartOpt[];
   label?: string;
 }) {
   return (
@@ -31,8 +21,9 @@ function Select({
       className="input w-auto cursor-pointer py-1.5 pr-8"
     >
       {options.map((o) => (
-        <option key={o.value} value={o.value} className="bg-card">
+        <option key={o.value} value={o.value} disabled={o.disabled} className="bg-card">
           {o.label}
+          {o.disabled ? " — none with the other filters" : ""}
         </option>
       ))}
     </select>
@@ -42,22 +33,24 @@ function Select({
 export function FilterBar({
   filters,
   onChange,
-  show,
-  countryOpts,
+  smart,
   count,
   total,
   defaults = EMPTY_FILTERS,
 }: {
   filters: Filters;
   onChange: (f: Filters) => void;
-  show: Dim[];
-  countryOpts?: { value: string; label: string }[];
+  /** Which filters and options apply here (from `smartFilters`): dead-end options are hidden or disabled. */
+  smart: SmartFilters;
   count?: number;
   total?: number;
   /** What "reset" returns to — the page's own starting filters. */
   defaults?: Filters;
 }) {
-  const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
+  const { show, opts, notes } = smart;
+  // edits start from the effective filters, so a value that can't apply here is dropped on the next change
+  const set = (patch: Partial<Filters>) => onChange({ ...smart.effective, ...patch });
+  filters = smart.effective;
   const active =
     filters.minMatches > 0 ||
     filters.activity !== "all" ||
@@ -67,6 +60,7 @@ export function FilterBar({
     !!filters.country;
 
   const helpLines = show.map((d) => `• ${labelFor(d)}: ${FILTER_HELP[d]}`).join("\n");
+  const noteLines = notes.map((n) => `• ${n}`).join("\n");
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2.5 rounded-lg border border-border bg-surface/50 px-4 py-3">
@@ -75,6 +69,12 @@ export function FilterBar({
         Filters
         <InfoTip title="What you can filter">
           <div className="whitespace-pre-line">{helpLines}</div>
+          {noteLines && (
+            <div className="mt-2 whitespace-pre-line border-t border-border pt-2">
+              <div className="mb-1 font-semibold text-fg">Not offered here</div>
+              {noteLines}
+            </div>
+          )}
         </InfoTip>
       </div>
 
@@ -104,25 +104,25 @@ export function FilterBar({
           label={labelFor("activity")}
           value={filters.activity}
           onChange={(v) => set({ activity: v as Filters["activity"] })}
-          options={ACTIVITY_OPTS}
+          options={opts.activity ?? []}
         />
       )}
-      {show.includes("role") && (
-        <Select label={labelFor("role")} value={filters.role} onChange={(v) => set({ role: v })} options={ROLE_OPTS} />
+      {show.includes("role") && opts.role && (
+        <Select label={labelFor("role")} value={filters.role} onChange={(v) => set({ role: v })} options={opts.role} />
       )}
-      {show.includes("bowling") && (
-        <Select label={labelFor("bowling")} value={filters.bowling} onChange={(v) => set({ bowling: v })} options={BOWLING_OPTS} />
+      {show.includes("bowling") && opts.bowling && (
+        <Select label={labelFor("bowling")} value={filters.bowling} onChange={(v) => set({ bowling: v })} options={opts.bowling} />
       )}
-      {show.includes("position") && (
+      {show.includes("position") && opts.position && (
         <Select
           label={labelFor("position")}
           value={filters.position}
           onChange={(v) => set({ position: v })}
-          options={POSITION_OPTS}
+          options={opts.position}
         />
       )}
-      {show.includes("country") && countryOpts && (
-        <Select label={labelFor("country")} value={filters.country} onChange={(v) => set({ country: v })} options={countryOpts} />
+      {show.includes("country") && opts.country && (
+        <Select label={labelFor("country")} value={filters.country} onChange={(v) => set({ country: v })} options={opts.country} />
       )}
 
       {active && (

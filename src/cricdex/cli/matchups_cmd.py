@@ -11,7 +11,15 @@ import json
 import typer
 
 from cricdex.cli import _render
-from cricdex.cli._shared import EXIT_MISSING_DATA, console, die, load_players, resolve_or_die
+from cricdex.cli._shared import (
+    EXIT_MISSING_DATA,
+    coll_subtitle,
+    console,
+    die,
+    load_players,
+    out_every,
+    resolve_or_die,
+)
 from cricdex.web_parity.loader import SITE_DATA
 
 
@@ -45,7 +53,7 @@ def matchups(
         typer.echo(json.dumps(data, indent=2))
         return
 
-    _render.header(f"Matchups — {name}", subtitle=f"collection: {collection}")
+    _render.header(f"Matchups — {name}", subtitle=coll_subtitle(collection))
 
     splits = data.get("splits") or {}
     seam, spin = splits.get("vs_seam"), splits.get("vs_spin")
@@ -59,7 +67,8 @@ def matchups(
                         "balls": s["balls"],
                         "runs": s["runs"],
                         "sr": s["sr"],
-                        "out_rate%": s["out_rate"],
+                        "dismissals": out_every(s["balls"], s["outs"]),
+                        "out % of balls faced": f"{s['out_rate']:.2f}%",
                     }
                 )
         _render.pretty_table(srows, title="Pace vs spin", column_styles={"vs": "bold cyan"})

@@ -95,6 +95,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [load]);
 
+  // A link can name its league (`?c=<league>`, e.g. a Scout row opening a BBL player's profile): follow it.
+  const urlC = params.get("c");
+  useEffect(() => {
+    if (urlC && urlC !== collection && collections.some((c) => c.collection === urlC)) {
+      setCollectionRaw(urlC);
+      localStorage.setItem(LS_KEY, urlC);
+    }
+  }, [urlC, collection, collections]);
+
   const meta = collections.find((c) => c.collection === collection) ?? null;
 
   return (

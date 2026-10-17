@@ -70,6 +70,16 @@ jobs:
             echo "::endgroup::"
           done
 
+      # Display names, capped, roles / bowling style, ISO country, active / retired, IPL squads, DOB
+      # (Wikidata, Wikipedia, Cricsheet internationals; cached in data/curated). The LLM name check
+      # runs only when an LLM is configured. Non-fatal: the export falls back to the committed master.
+      - name: Build the player master
+        env:
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_BASE: ${{ secrets.LLM_API_BASE }}
+        run: uv run python scripts/build_player_master.py || echo "player master failed (non-fatal)"
+
       - name: Cook the static snapshot
         run: uv run python scripts/export_site.py
 

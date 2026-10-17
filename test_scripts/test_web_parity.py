@@ -32,6 +32,7 @@ from cricdex.web_parity import (
     similar_to,
     simulate_auction,
 )
+from cricdex.web_parity.scout import slot_band
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
@@ -169,6 +170,32 @@ def test_web_parity():
             for r in rows
         ]
         _approx_eq(py, js["scout"][tier], f"scout.{tier}")
+
+    # 3b) same-type matching (seam/spin for all-rounders) + own slot + country modes
+    gem_lg = leagues.gem_pool()
+    gem_tier = gem_lg.tier if gem_lg else None
+    by_id = {p["cricsheet_id"]: p for p in scout["ipl"]}
+    picks = [by_id[c] for c in js["scoutTypedPicks"]]
+    assert picks, "no bowling all-rounder to exercise same-type matching"
+    for pick in picks:
+        for tier in tiers:
+            for mode in ("same", "overseas", "all"):
+                fb = pick["country"] if tier == gem_tier else None
+                rows = similar_to(
+                    pick, scout[tier], "", "same", 8, country=mode, fallback_country=fb
+                )
+                key = f"{pick['cricsheet_id']}|{tier}|{mode}"
+                want = js["scoutTyped"][key]
+                got = [f"{r['cricsheet_id']}:{r['sim']}" for r in rows]
+                assert [g.split(":")[0] for g in got] == [w.split(":")[0] for w in want], key
+                for g, w in zip(got, want, strict=True):
+                    assert abs(float(g.split(":")[1]) - float(w.split(":")[1])) <= TOL, key
+                # never a different bowling type, never a different slot
+                for r in rows:
+                    assert r["bowling_category"] == pick["bowling_category"], key
+                    assert slot_band(r["batting_position"]) == slot_band(
+                        pick["batting_position"]
+                    ), key
 
     # 4) uncapped-gem cutoff + flags (lib/scout.ts gemThreshold / isGem)
     gem_lg = leagues.gem_pool()

@@ -51,7 +51,7 @@ export function Partnerships() {
     return pairs
       .filter((p) => (p.a_cid === cid || p.b_cid === cid) && p.runs >= minRuns)
       .map((p: Partnership) => ({
-        partner: p.a_cid === cid ? p.b : p.a,
+        partner: p.a_cid === cid ? (p.b_display || p.b) : (p.a_display || p.a),
         partner_cid: p.a_cid === cid ? p.b_cid : p.a_cid,
         runs: p.runs,
         innings: p.innings,
@@ -70,7 +70,7 @@ export function Partnerships() {
         .filter((p) => p.runs >= minRuns)
         .slice(0, 60)
         .map((p) => ({
-          pair: `${p.a} & ${p.b}`,
+          pair: `${p.a_display || p.a} & ${p.b_display || p.b}`,
           runs: p.runs,
           innings: p.innings,
           best: p.best,

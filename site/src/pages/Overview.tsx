@@ -1,12 +1,26 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Database, CalendarClock, Trophy, Users, CircleDot, Layers, Gavel } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { useAsync } from "@/lib/useAsync";
+import { getLeaderboard } from "@/lib/data";
+import { usePlayers } from "@/lib/usePlayers";
+import { METRIC_BY_SLUG, fmtMetric, primaryCol } from "@/lib/metrics";
+import { MetricInfo } from "@/components/MetricInfo";
 import { NAV, NAV_GROUPS } from "@/lib/nav";
 import { Card, StatTile, Badge } from "@/components/ui";
 import { cn, collectionLabel, fmt, prettyDate } from "@/lib/utils";
 
 export function Overview() {
   const { meta, collection, collections, setCollection } = useStore();
+  const ngi = useAsync(() => getLeaderboard(collection, "ngi").catch(() => []), [collection]);
+  const { nameOf } = usePlayers(collection);
+  const ngiDef = METRIC_BY_SLUG.ngi;
+  const ngiCol = primaryCol(ngiDef);
+  // the biggest match-winners among active regulars: win chance added per match, 25+ matches
+  const winners = (ngi.data ?? [])
+    .filter((r) => Number(r.matches ?? 0) >= 25 && (r as Record<string, unknown>).active !== false && Number.isFinite(Number(r.ngi_per_match)))
+    .sort((a, b) => Number(b.ngi_per_match) - Number(a.ngi_per_match))
+    .slice(0, 5);
 
   return (
     <div>
@@ -61,6 +75,36 @@ export function Overview() {
           icon={<CalendarClock className="h-3.5 w-3.5" />}
         />
       </div>
+
+      {/* match-winners, in human units */}
+      {winners.length > 0 && (
+        <Card className="mb-8 px-5 py-4">
+          <div className="mb-1 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-fg">Biggest match-winners right now</h2>
+            <MetricInfo m={ngiDef} />
+          </div>
+          <p className="mb-3 text-xs text-muted">
+            Win chance added per match — active players with 25+ matches. +5% means he adds five percentage points to
+            his side's chance of winning in a typical game.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+            {winners.map((r, i) => (
+              <Link
+                key={String(r.name)}
+                to={`/player?name=${encodeURIComponent(String(r.name))}`}
+                className="rounded-lg border border-border bg-surface/50 px-3 py-2 hover:border-accent/40"
+              >
+                <div className="text-[11px] text-muted">#{i + 1}</div>
+                <div className="truncate text-sm font-semibold text-fg">{nameOf(String(r.name))}</div>
+                <div className="stat-num text-base font-bold text-accent-glow">{fmtMetric(r.ngi_per_match, ngiCol)}</div>
+                <div className="text-[11px] text-muted">
+                  {fmtMetric(r.ngi_total, { digits: 1 })} wins added · {String(r.matches)} matches
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* every league at a glance */}
       {collections.length > 1 && (

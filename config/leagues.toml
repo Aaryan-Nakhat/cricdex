@@ -135,9 +135,9 @@ auction_target = true
 # franchise always stays). `auction_nationalities` is the allow-list: nations whose players
 # actually feature in an IPL auction; associate sides are left out because their value is
 # inflated against minnows. `auction_excluded_nationalities` always wins over the allow-list:
-# Pakistan (no IPL since 2008). Both spellings of a few codes appear in the taxonomy
-# (RSA/ZAF, SRI/LKA, WIN/WI), so both are listed. An empty allow-list means "every nation
-# except the excluded ones".
+# Pakistan (no IPL since 2008). Codes are compared after normalisation
+# (cricdex.scout.identity.countries: RSA = ZAF, SRI = LKA, WI = WIN, IRE = IRL), so either
+# spelling works here. An empty allow-list means "every nation except the excluded ones".
 auction_nationalities = [
   "IND", "AUS", "ENG", "RSA", "ZAF", "NZL", "SRI", "LKA", "BAN", "AFG", "WIN", "WI", "IRE",
 ]

@@ -174,6 +174,72 @@ def career_totals(con: duckdb.DuckDBPyConnection, collection: str, name: str) ->
         "career_runs_conceded": int(bowl[1] or 0),
         "career_legal_balls_bowled": int(bowl[2] or 0),
         "career_matches_bowled": int(bowl[3] or 0),
+        **career_standard(con, collection, name),
+    }
+
+
+_BOWLER_WICKET_SQL = (
+    "wicket_kind IS NOT NULL AND wicket_kind NOT IN "
+    "('run out','retired hurt','retired out','obstructing the field')"
+)
+
+
+def career_standard(con: duckdb.DuckDBPyConnection, collection: str, name: str) -> dict:
+    """The standard stat line on top of the totals (main innings only, legal balls): 50s / 100s,
+    highest score (and whether not out), dismissals, dots faced / bowled, best bowling, 3-wicket
+    (exactly three) and 4+-wicket hauls."""
+    safe = table_suffix(collection)
+    inns = con.execute(
+        f"""
+        WITH b AS (SELECT * FROM balls_{safe} WHERE {MAIN_INNINGS}),
+        bat AS (
+            SELECT match_id, innings_idx, SUM(runs_batter) AS runs FROM b
+            WHERE batter = ? GROUP BY 1, 2
+        ),
+        outs AS (
+            SELECT DISTINCT match_id, innings_idx FROM b
+            WHERE player_out = ? AND COALESCE(wicket_kind, '') <> 'retired hurt'
+        )
+        SELECT bat.runs, outs.match_id IS NOT NULL AS out
+        FROM bat LEFT JOIN outs USING (match_id, innings_idx)
+        """,
+        [name, name],
+    ).fetchall()
+    dismissals, dots_faced, dots_bowled = con.execute(
+        f"""
+        SELECT
+            COUNT(*) FILTER (WHERE player_out = ? AND COALESCE(wicket_kind, '') <> 'retired hurt'),
+            COUNT(*) FILTER (WHERE batter = ? AND COALESCE(extras_type, '') <> 'wides'
+                             AND runs_batter = 0),
+            COUNT(*) FILTER (WHERE bowler = ? AND COALESCE(extras_type, '') NOT IN ('wides', 'noballs')
+                             AND runs_batter = 0)
+        FROM balls_{safe} WHERE {MAIN_INNINGS} AND (player_out = ? OR batter = ? OR bowler = ?)
+        """,
+        [name] * 6,
+    ).fetchone()
+    spells = con.execute(
+        f"""
+        SELECT SUM(CASE WHEN {_BOWLER_WICKET_SQL} THEN 1 ELSE 0 END) AS w, SUM({BOWLER_RUNS}) AS r
+        FROM balls_{safe} WHERE bowler = ? AND {MAIN_INNINGS}
+        GROUP BY match_id, innings_idx
+        """,
+        [name],
+    ).fetchall()
+    scores = [(int(r or 0), bool(o)) for r, o in inns]
+    top = max(scores, key=lambda s: (s[0], not s[1]), default=None)
+    best = min(((-int(w or 0), int(r or 0)) for w, r in spells), default=None)
+    return {
+        "career_fifties": sum(1 for r, _ in scores if 50 <= r < 100),
+        "career_hundreds": sum(1 for r, _ in scores if r >= 100),
+        "career_highest_score": top[0] if top else None,
+        "career_highest_score_not_out": (not top[1]) if top else None,
+        "career_dismissals": int(dismissals or 0),
+        "career_dots_faced": int(dots_faced or 0),
+        "career_dots_bowled": int(dots_bowled or 0),
+        "career_best_bowling_wickets": -best[0] if best else None,
+        "career_best_bowling_runs": best[1] if best else None,
+        "career_three_wkt_hauls": sum(1 for w, _ in spells if int(w or 0) == 3),
+        "career_four_wkt_hauls": sum(1 for w, _ in spells if int(w or 0) >= 4),
     }
 
 
@@ -271,12 +337,15 @@ class Sources:
                 self.twins[role] = None
 
 
+TWINS_K = 25  # enough look-alikes left after a country filter
+
+
 def _twins(sources: Sources, role: str, name: str) -> list[dict]:
     index = sources.twins.get(role)
     if index is None:
         return []
     try:
-        found = index.query(name, k=5)
+        found = index.query(name, k=TWINS_K)
     except Exception:  # noqa: BLE001 — not in this role's feature table
         return []
     return found.to_dicts() if not found.is_empty() else []

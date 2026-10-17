@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from cricdex import leagues
+from cricdex.common.display import league_label
 from cricdex.common.filters import (
     ACTIVITY_OPTS,
     BOWLING_OPTS,
@@ -28,7 +29,7 @@ from cricdex.common.filters import (
     countries_in,
     load_leaderboard,
 )
-from cricdex.common.metrics import METRICS, MetricDef
+from cricdex.common.metrics import DIRECTION_LABEL, METRICS, MetricDef
 from cricdex.dashboard._widgets import provenance_banner
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -79,9 +80,16 @@ def _column_config(m: MetricDef, df: pd.DataFrame) -> dict:
             hi = float(series.max()) if not series.empty else 1.0
             if hi <= lo:  # all-equal / single row → give the bar a finite span
                 hi = lo + 1.0
+            pct = col.fmt == "pct"  # shown as a signed percentage: the frame is pre-scaled ×100
             cfg[col.key] = st.column_config.ProgressColumn(
                 col.label,
-                format=f"%.{col.digits}f" if col.digits is not None else "%d",
+                format=(
+                    f"%+.{col.digits if col.digits is not None else 1}f%%"
+                    if pct
+                    else f"%.{col.digits}f"
+                    if col.digits is not None
+                    else "%d"
+                ),
                 min_value=lo,
                 max_value=hi,
             )
@@ -108,7 +116,7 @@ def render() -> None:
             "Collection",
             collections,
             index=collections.index("ipl") if "ipl" in collections else 0,
-            format_func=leagues.label,
+            format_func=league_label,
         )
         window = st.radio(
             "Time window",
@@ -145,14 +153,15 @@ def render() -> None:
     tabs = st.tabs([m.name for m in METRICS])
     for tab, m in zip(tabs, METRICS, strict=True):
         with tab:
-            head = st.columns([5, 1])
+            head = st.columns([4, 2])
             head[0].subheader(m.name)
-            if not m.higher_is_better:
-                head[1].markdown(
-                    "<span style='color:#a3e635;font-size:0.8rem'>▼ lower is better</span>",
-                    unsafe_allow_html=True,
-                )
+            head[1].markdown(
+                f"<span style='color:#a3e635;font-size:0.8rem'>{DIRECTION_LABEL[m.direction]}"
+                "</span>",
+                unsafe_allow_html=True,
+            )
             st.caption(m.what)
+            st.markdown(f"**How to read it.** {m.read}  \n**What's good.** {m.good}")
             with st.expander("How it's calculated"):
                 st.write(m.how)
 
@@ -176,6 +185,9 @@ def render() -> None:
                 continue
 
             df = pd.DataFrame(shown)
+            for c in m.columns:  # pct columns (NGI win chance) are displayed ×100 as +9.7%
+                if c.fmt == "pct" and c.key in df.columns:
+                    df[c.key] = pd.to_numeric(df[c.key], errors="coerce") * 100
             cols = [c.key for c in m.columns if c.key in df.columns]
             st.dataframe(
                 df[cols],

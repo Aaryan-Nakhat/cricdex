@@ -29,6 +29,19 @@ const BOWL_COLS: Col<Row>[] = [
   { key: "outs", label: "Wkts", align: "right", digits: 0 },
 ];
 
+/** The opponent column shows the fan name (rows carry the scorecard name). */
+function withNames(cols: Col<Row>[], key: string, nameOf: (n: string) => string): Col<Row>[] {
+  return cols.map((c) =>
+    c.key === key ? { ...c, render: (r: Row) => <span className="text-fg">{nameOf(String(r[key] ?? ""))}</span> } : c,
+  );
+}
+
+/** "once every 26 balls" — a dismissal rate a fan can picture. */
+function outEvery(side: { balls: number; outs: number }): string {
+  if (!side.outs) return "never out";
+  return `once every ${Math.round(side.balls / side.outs)} balls`;
+}
+
 function Splits({ splits }: { splits: MatchupsData["splits"] }) {
   if (!splits || (!splits.vs_seam && !splits.vs_spin)) return null;
   const seam = splits.vs_seam;
@@ -54,9 +67,9 @@ function Splits({ splits }: { splits: MatchupsData["splits"] }) {
           <>
             <StatTile label="vs Pace — SR" value={fmt(seam.sr, 1)} hint={`${seam.balls} balls`} />
             <StatTile
-              label="vs Pace — out rate"
-              value={`${fmt(seam.out_rate, 2)}%`}
-              hint={`${seam.outs} dismissals`}
+              label="vs Pace — gets out"
+              value={outEvery(seam)}
+              hint={`${seam.outs} dismissals · out on ${fmt(seam.out_rate, 2)}% of balls faced`}
             />
           </>
         )}
@@ -64,9 +77,9 @@ function Splits({ splits }: { splits: MatchupsData["splits"] }) {
           <>
             <StatTile label="vs Spin — SR" value={fmt(spin.sr, 1)} hint={`${spin.balls} balls`} />
             <StatTile
-              label="vs Spin — out rate"
-              value={`${fmt(spin.out_rate, 2)}%`}
-              hint={`${spin.outs} dismissals`}
+              label="vs Spin — gets out"
+              value={outEvery(spin)}
+              hint={`${spin.outs} dismissals · out on ${fmt(spin.out_rate, 2)}% of balls faced`}
             />
           </>
         )}
@@ -77,7 +90,9 @@ function Splits({ splits }: { splits: MatchupsData["splits"] }) {
 
 export function Matchups() {
   const { collection } = useStore();
-  const { options, players, byId, loading: playersLoading } = usePlayers(collection);
+  const { options, players, byId, nameOf, loading: playersLoading } = usePlayers(collection);
+  const batCols = useMemo(() => withNames(BAT_COLS, "bowler", nameOf), [nameOf]);
+  const bowlCols = useMemo(() => withNames(BOWL_COLS, "batter", nameOf), [nameOf]);
   // player + min-balls live in the URL (`?player=…&minballs=…`) so a link reproduces the view
   const [cid, setCid] = useUrlId("player", byId, players.length > 0);
   const [minBalls, setMinBalls] = useUrlNumber("minballs", 6, { min: 1 });
@@ -142,7 +157,7 @@ export function Matchups() {
               </div>
               <DataTable
                 rows={asBatter as unknown as Row[]}
-                cols={BAT_COLS}
+                cols={batCols}
                 initialSort={{ key: "balls", dir: "desc" }}
               />
             </div>
@@ -155,7 +170,7 @@ export function Matchups() {
               </div>
               <DataTable
                 rows={asBowler as unknown as Row[]}
-                cols={BOWL_COLS}
+                cols={bowlCols}
                 initialSort={{ key: "balls", dir: "desc" }}
               />
             </div>

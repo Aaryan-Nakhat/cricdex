@@ -39,9 +39,26 @@ from textual_autocomplete import AutoComplete, DropdownItem
 
 from cricdex import leagues
 from cricdex.cli import _copy, _render
-from cricdex.cli._shared import load_players, match_player, player_label, sort_missing_last
+from cricdex.cli._shared import (
+    catalog_view,
+    form_display,
+    form_note,
+    load_players,
+    match_player,
+    metric_headline,
+    out_every,
+    player_label,
+    sort_missing_last,
+)
 from cricdex.common import filters as cf
-from cricdex.common.metrics import METRIC_BY_SLUG, METRICS
+from cricdex.common.display import (
+    apply_display,
+    display_name,
+    league_label,
+    profile_collection,
+    stale_marker,
+)
+from cricdex.common.metrics import DIRECTION_LABEL, METRIC_BY_SLUG, METRICS
 from cricdex.config import DATA_DIR
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -106,6 +123,23 @@ COMPARE_ROWS: list[tuple[str, str, tuple[str, ...], int]] = [
 ]
 
 # Every Scout pool in the league registry (config/leagues.toml), keyed by its tier.
+# Scout batting slot: the pick's band by default (ignored when matching as a bowler).
+SCOUT_SLOT_OPTIONS = [
+    ("Same band as pick", "same"),
+    ("Any slot", ""),
+    ("Opener", "opener"),
+    ("No. 3", "no3"),
+    ("Middle (4–5)", "middle"),
+    ("Finisher (6–7)", "finisher"),
+    ("Lower (8)", "lower"),
+    ("Tailender (9–11)", "tailender"),
+]
+# Scout country filter: the pick's own country by default.
+SCOUT_COUNTRY_OPTIONS = [
+    ("Same as pick", "same"),
+    ("Overseas", "overseas"),
+    ("All countries", "all"),
+]
 SCOUT_TIER_OPTIONS = [(lg.scout_title or lg.short, lg.tier) for lg in leagues.scout_pools()]
 _GEM_LEAGUE = leagues.gem_pool()
 GEM_TIER = _GEM_LEAGUE.tier if _GEM_LEAGUE else None
@@ -222,14 +256,15 @@ def _unselected(v: Any) -> bool:
 
 
 def _player_candidates(collection: str = "ipl") -> list[DropdownItem]:
-    """Autocomplete candidates 'Full Name (Short)' from players.json — typing
-    either the full or scorecard name fuzzy-filters the dropdown (web-parity)."""
+    """Autocomplete candidates 'Display Name (Short)' from players.json — typing the display,
+    full or scorecard name fuzzy-filters the dropdown (web-parity). The scorecard name stays
+    last in brackets: `_name_from_label` resolves on it."""
     players = load_players(collection) or []  # missing / corrupt file → no suggestions
     items = []
-    for p in sorted(players, key=lambda x: x.get("name", "")):
+    for p in sorted(players, key=lambda x: (display_name(x) or x.get("name", "")).lower()):
         short = p.get("name", "")
-        full = p.get("full_name")
-        items.append(DropdownItem(f"{full} ({short})" if full and full != short else short))
+        disp = p.get("display_name") or p.get("full_name")
+        items.append(DropdownItem(f"{disp} ({short})" if disp and disp != short else short))
     return items
 
 
@@ -245,9 +280,9 @@ def _auction_pool_candidates(collection: str = "ipl") -> list[DropdownItem]:
         return []
     full = {p.get("cricsheet_id"): p.get("full_name") for p in load_players(collection) or []}
     items = []
-    for p in sorted(pool, key=lambda x: x.get("name", "")):
+    for p in sorted(pool, key=lambda x: (display_name(x) or x.get("name", "")).lower()):
         short = p.get("name", "")
-        f = full.get(p.get("cricsheet_id", ""))
+        f = p.get("display_name") or full.get(p.get("cricsheet_id", ""))
         items.append(DropdownItem(f"{f} ({short})" if f and f != short else short))
     return items
 
@@ -286,7 +321,7 @@ def _collection_options() -> list[tuple[str, str]]:
             cols = []
     if not cols and SITE_DATA.exists():
         cols = [k for k in leagues.exported_keys() if (SITE_DATA / k).is_dir()]
-    return [(leagues.label(c), c) for c in (cols or leagues.exported_keys()[:1])]
+    return [(league_label(c), c) for c in (cols or leagues.exported_keys()[:1])]
 
 
 # Record-board slug → label (same 9 boards as dashboard/pages/3_Records.py).
@@ -730,27 +765,25 @@ class CricDexApp(App):
         if sort_col:
             rows = sort_missing_last(rows, sort_col, higher)
         rows = rows[:top_n]
-        if rows and sort_col and primary_key:
-            extras = [k for k in rows[0].keys() if k not in {primary_key, sort_col}][:4]
-            cols = [primary_key, sort_col, *extras]
-            pruned = []
-            for r in rows:
-                row: dict[str, Any] = {}
-                for c in cols:
-                    v = r.get(c)
-                    # Intent-Curve: render the per-innings SR list as an inline
-                    # sparkline cell, exactly like the web's mini bar-chart.
-                    if c == "curve" and isinstance(v, list):
-                        v = _render.sparkline(v)
-                    row[c] = v
-                pruned.append(row)
+        if rows and sort_col and primary_key and m:
+            # The catalog's columns, labels and units (win chance as +9.7%), like the web.
+            pruned, _cols, headline = catalog_view(rows, m)
+            curve_label = next((c.label for c in m.columns if c.key == "curve"), None)
+            if curve_label:
+                # Intent-Curve: render the per-innings SR list as an inline
+                # sparkline cell, exactly like the web's mini bar-chart.
+                for row in pruned:
+                    v = row.get(curve_label)
+                    if isinstance(v, list):
+                        row[curve_label] = _render.sparkline(v)
             spark = _render.sparkline([r.get(sort_col) or 0 for r in rows])
-            arrow = "▲ higher better" if higher else "▼ lower better"
             hint.update(
-                f"{_copy.METRIC_HINTS.get(metric, '')}   ·   {arrow}   ·   "
-                f"{kept}/{total} after filters   ·   [{sort_col}] shape: {spark}"
+                f"{_copy.METRIC_HINTS.get(metric, '') or m.one_liner}   ·   "
+                f"{DIRECTION_LABEL.get(m.direction, '')}   ·   "
+                f"{kept}/{total} after filters   ·   [{headline}] shape: {spark}\n"
+                f"How to read it: {m.read}\nGood: {m.good}"
             )
-            _fill_datatable(table, pruned, accent_col=sort_col)
+            _fill_datatable(table, pruned, accent_col=headline)
         else:
             hint.update(f"{kept}/{total} after filters — none match, loosen the filters.")
             _fill_datatable(table, rows or [{"info": "no players match these filters"}])
@@ -830,7 +863,9 @@ class CricDexApp(App):
                 if (y := _num((r.get("match_date") or "")[:4])) is None or lo <= y <= hi
             ]
         # Records.tsx / 3_Records.py drop the match_id column from the display.
-        rows = [{k: v for k, v in r.items() if k != "match_id"} for r in rows][:top_n]
+        # fan-facing names (Chris Gayle, not CH Gayle); helper columns dropped
+        rows = [{k: v for k, v in r.items() if k != "match_id"} for r in apply_display(rows)]
+        rows = rows[:top_n]
         rows = [{COL_LABELS.get(k, k.replace("_", " ")): v for k, v in r.items()} for r in rows]
         _fill_datatable(table, rows or [{"info": f"no rows for board `{key}`"}], max_cols=10)
 
@@ -1005,8 +1040,10 @@ class CricDexApp(App):
 
         # Resolve the typed names the same way Profile/Compare do; with no
         # exported player list, pass them through and let head_to_head judge.
+        da, db = a, b  # fan-facing names for display
         if load_players(collection) is not None:
             resolved = []
+            shown: list[str] = []
             for nm in (a, b):
                 row, err = _resolve_player(collection, nm)
                 if row is None:
@@ -1014,7 +1051,9 @@ class CricDexApp(App):
                     chart.update("")
                     return
                 resolved.append(row["name"])
+                shown.append(display_name(row) or row["name"])
             a, b = resolved
+            da, db = shown
         res = head_to_head(a, b, collection=collection)
         if res.get("error"):
             _fill_datatable(table, [{"error": res["error"]}])
@@ -1026,18 +1065,19 @@ class CricDexApp(App):
             c = res["comparisons"].get(role)
             if c is None:
                 continue
+            verdict = str(c["verdict"]).replace(a, da).replace(b, db)
             rows.append(
                 {
                     "role": role,
-                    a: f"{c['mean_a']:+.3f}±{c['sd_a']:.2f}",
-                    b: f"{c['mean_b']:+.3f}±{c['sd_b']:.2f}",
-                    f"P({a}>)": f"{c['p_a_better']:.0%}",
-                    "verdict": c["verdict"],
+                    da: f"{c['mean_a']:+.3f}±{c['sd_a']:.2f}",
+                    db: f"{c['mean_b']:+.3f}±{c['sd_b']:.2f}",
+                    f"P({da}>)": f"{c['p_a_better']:.0%}",
+                    "verdict": verdict,
                 }
             )
-            gauge.append((role.replace("_", "-"), round(c["p_a_better"] * 100, 1), c["verdict"]))
+            gauge.append((role.replace("_", "-"), round(c["p_a_better"] * 100, 1), verdict))
         _fill_datatable(table, rows or [{"info": "no overlapping role to compare"}], max_cols=6)
-        chart.update(_h2h_gauge(a, b, gauge) if gauge else "")
+        chart.update(_h2h_gauge(da, db, gauge) if gauge else "")
 
     # ===== Venues =========================================================
 
@@ -1244,9 +1284,17 @@ class CricDexApp(App):
         metrics = p.get("metrics") or {}
 
         buf = Console(record=True, width=140, force_terminal=True, highlight=False)
-        buf.print(
-            f"[bold bright_cyan]{wd.get('label') or p.get('name') or name}[/bold bright_cyan]"
+        title = (
+            (p.get("identity") or {}).get("display_name")
+            or row.get("display_name")
+            or wd.get("label")
+            or p.get("name")
+            or name
         )
+        buf.print(f"[bold bright_cyan]{title}[/bold bright_cyan]")
+        stale = stale_marker(collection)
+        if stale:
+            buf.print(f"[yellow]{leagues.label(collection)}: {stale}[/yellow]")
 
         # identity chips — taxonomy + activity + value (mirror 8_Player_Profile.py)
         chips: list[str] = []
@@ -1304,14 +1352,14 @@ class CricDexApp(App):
                     )
 
         buf.print("\n[bold]Novel metrics[/bold]")
-        for slug, hint_txt in _copy.METRIC_HINTS.items():
+        for slug, m in METRIC_BY_SLUG.items():
             payload = metrics.get(slug)
             if payload is None:
                 continue
-            value = _summarise_metric(payload)
+            label, value = metric_headline(slug, payload)
             buf.print(
-                f"  [cyan]{slug.replace('_', ' ').title()}:[/cyan] [bold]{value}[/bold]  "
-                f"[dim italic]{hint_txt}[/dim italic]"
+                f"  [cyan]{m.name}:[/cyan] [bold]{value}[/bold] [dim]{label.lower()}[/dim]  "
+                f"[dim italic]{m.read} ({DIRECTION_LABEL.get(m.direction, '')})[/dim italic]"
             )
 
         buf.print("\n[bold]Bayesian scout-rating[/bold]")
@@ -1481,12 +1529,19 @@ class CricDexApp(App):
         if getattr(self, "_auction_cache", None) is None:
             from cricdex.web_parity import build_pool, load_auction_pool, load_retentions
 
-            pool = build_pool(load_auction_pool("ipl"))
+            raw = load_auction_pool("ipl")
+            pool = build_pool(raw)
             ret = load_retentions("ipl")
+            # fan-facing names (the priced pool keeps only the scorecard name)
+            display = {r["cricsheet_id"]: display_name(r) or r["name"] for r in raw}
+            name_to_cid = {p["name"]: p["cricsheet_id"] for p in pool}
+            for cid, d in display.items():
+                name_to_cid.setdefault(d, cid)
             self._auction_cache = {
                 "pool": pool,
                 "by_cid": {p["cricsheet_id"]: p for p in pool},
-                "name_to_cid": {p["name"]: p["cricsheet_id"] for p in pool},
+                "display": display,
+                "name_to_cid": name_to_cid,
                 "mega_ids": {
                     t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()
                 },
@@ -1495,6 +1550,10 @@ class CricDexApp(App):
                 },
             }
         return self._auction_cache
+
+    def _dn(self, p: dict) -> str:
+        """An auction player's fan-facing name (display_name from the pool export)."""
+        return self._auction_data()["display"].get(p.get("cricsheet_id", "")) or p.get("name", "")
 
     def _teams_cfg(self) -> list[dict]:
         from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
@@ -1524,7 +1583,10 @@ class CricDexApp(App):
     def _ret_map_line(self, team: str) -> str:
         d = self._auction_data()
         rets = (self._retentions or {}).get(team, [])
-        names = ", ".join(f"[bold]{d['by_cid'].get(c, {}).get('name', c)}[/bold]" for c in rets)
+        names = ", ".join(
+            f"[bold]{d['display'].get(c) or d['by_cid'].get(c, {}).get('name', c)}[/bold]"
+            for c in rets
+        )
         return f"{team} retentions ({len(rets)}): {names or '[dim](none)[/dim]'}"
 
     def _refresh_ret_map(self) -> None:
@@ -1581,7 +1643,7 @@ class CricDexApp(App):
 
         def _line(p: dict) -> str:
             plane = " ✈" if p.get("is_overseas") else ""
-            return f"  • {p['name']} [dim]{p['role'].replace('_', '-')}{plane}[/dim]"
+            return f"  • {self._dn(p)} [dim]{p['role'].replace('_', '-')}{plane}[/dim]"
 
         log.write(f"[bold]Retained ({len(s['retained'])})[/bold]")
         for p in s["retained"]:
@@ -1669,7 +1731,7 @@ class CricDexApp(App):
             self.query_one("#sim-marquee", DataTable),
             [
                 {
-                    "player": m["player"]["name"],
+                    "player": self._dn(m["player"]),
                     "role": m["player"]["role"].replace("_", "-"),
                     "value": round(m["player"]["projected_value"], 1),
                     "ipl_fit": self._ipl_fit(m["player"]["cricsheet_id"]),
@@ -1711,7 +1773,7 @@ class CricDexApp(App):
         if len(needle) < 2:
             _fill_datatable(out, [{"info": "type 2+ letters"}])
             return
-        hits = [o for o in outcomes if needle in o["name"].lower()]
+        hits = [o for o in outcomes if needle in o["name"].lower() or needle in self._dn(o).lower()]
         if not hits:
             _fill_datatable(out, [{"info": f"no player matches '{needle}'"}])
             return
@@ -1725,7 +1787,7 @@ class CricDexApp(App):
                 where = ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in o["winners"])
             rows.append(
                 {
-                    "player": o["name"],
+                    "player": self._dn(o),
                     "role": o["role"].replace("_", "-"),
                     "ipl_fit": self._ipl_fit(o["cricsheet_id"]),
                     "status": o["status"],
@@ -1755,6 +1817,17 @@ class CricDexApp(App):
                 yield Select(
                     options=SCOUT_ROLE_OPTIONS, value="", id="twins-role", allow_blank=False
                 )
+                yield Label("Slot:")
+                yield Select(
+                    options=SCOUT_SLOT_OPTIONS, value="same", id="twins-slot", allow_blank=False
+                )
+                yield Label("Country:")
+                yield Select(
+                    options=SCOUT_COUNTRY_OPTIONS,
+                    value="same",
+                    id="twins-country",
+                    allow_blank=False,
+                )
                 yield Label("Top K:")
                 yield Input(value="8", id="twins-k", classes="num")
                 yield Button("Scout ▸", id="twins-run", variant="primary")
@@ -1780,6 +1853,8 @@ class CricDexApp(App):
         name = _name_from_label(self.query_one("#twins-name", Input).value)
         tier = self.query_one("#twins-tier", Select).value
         role_sel = self.query_one("#twins-role", Select).value
+        slot_sel = self.query_one("#twins-slot", Select).value or ""
+        country = self.query_one("#twins-country", Select).value or "same"
         try:
             top_k = int(self.query_one("#twins-k", Input).value or "8")
         except ValueError:
@@ -1809,35 +1884,58 @@ class CricDexApp(App):
             return
 
         role = role_sel or sel["role"]
+        # a batting slot means nothing when matching as a bowler
+        pos = "" if role == "bowler" else slot_sel
         sel_price = est_value(sel["value"], sel["role"], "ipl")
         gem_pool = idx.get(GEM_TIER, []) if GEM_TIER else []
         gem_med = gem_threshold(gem_pool)
         rows = []
         draftables: list[tuple[str, str]] = []  # (label, cid) for the draft picker
-        for r in similar_to(sel, idx.get(tier, []), role, "")[:top_k]:
+        fb = sel.get("country") if tier == GEM_TIER else None
+        found = similar_to(
+            sel, idx.get(tier, []), role, pos, top_k, country=country, fallback_country=fb
+        )
+        for r in found:
             price = est_value(r["value"], r["role"], tier)
             saving = sel_price - price if price < sel_price else 0.0
             rows.append(
                 {
-                    "name": r["name"],
+                    "name": display_name(r),
                     "country": r.get("country") or "—",
                     "last": (r.get("last_match_date") or "")[:4],
                     "est_cr": round(price, 1),
                     "save_cr": round(saving, 1) if saving > 0 else None,
                     "sim%": round(r["sim"] * 100),
                     "gem": "💎" if (tier == GEM_TIER and is_gem(r, gem_med)) else "",
+                    # the league whose profile this player has (a SMAT prospect has no IPL one)
+                    "profile in": profile_collection(r),
                 }
             )
             if r.get("cricsheet_id"):
                 draftables.append(
-                    (f"{r['name']} ({leagues.by_tier(tier).short})", r["cricsheet_id"])
+                    (f"{display_name(r)} ({leagues.by_tier(tier).short})", r["cricsheet_id"])
                 )
         tier_label = {b: a for a, b in SCOUT_TIER_OPTIONS}[tier]
+        lg = leagues.by_tier(tier)
+        stale = stale_marker(lg.key) if lg else ""
+        gem_stale = stale_marker(leagues.by_tier(GEM_TIER).key) if GEM_TIER else ""
+        if stale:
+            tier_label = f"{tier_label} [yellow]({stale})[/yellow]"
+        kind = f" ({sel['bowling_category']})" if sel.get("bowling_category") else ""
+        cty = {"same": sel.get("country") or "any", "overseas": "overseas", "all": "all"}[country]
         meta.update(
-            f"[bold]{sel['name']}[/bold] · {role} · standing {sel['z']:.2f} · "
-            f"≈ {sel_price:.1f} cr   →   {tier_label}"
+            f"[bold]{display_name(sel)}[/bold] · {role}{kind} · country {cty} · "
+            f"standing {sel['z']:.2f} · ≈ {sel_price:.1f} cr   →   {tier_label}"
+            + (
+                f"   ·   💎 gems: [yellow]{gem_stale}[/yellow]"
+                if gem_stale and tier != GEM_TIER
+                else ""
+            )
         )
-        _fill_datatable(table, rows or [{"info": "no close match of this archetype"}])
+        empty_msg = "no close match of this type" + (
+            " — set Country to overseas or all" if country == "same" else ""
+        )
+        _fill_datatable(table, rows or [{"info": empty_msg}])
         # Pick-independent "next big things" — top uncapped gems.
         gems = sorted(
             (p for p in gem_pool if is_gem(p, gem_med)), key=lambda p: p["z"], reverse=True
@@ -1846,7 +1944,7 @@ class CricDexApp(App):
             self.query_one("#twins-gems", DataTable),
             [
                 {
-                    "player": g["name"],
+                    "player": display_name(g),
                     "country": g.get("country") or "—",
                     "standing": round(g["z"], 2),
                     "balls": g.get("balls", 0),
@@ -1940,9 +2038,9 @@ class CricDexApp(App):
         seam, spin = splits.get("vs_seam"), splits.get("vs_spin")
         bits = [f"[bold]{name}[/bold]"]
         if seam:
-            bits.append(f"vs pace SR {seam['sr']:.1f} (out {seam['out_rate']:.2f}%)")
+            bits.append(f"vs pace SR {seam['sr']:.1f} ({out_every(seam['balls'], seam['outs'])})")
         if spin:
-            bits.append(f"vs spin SR {spin['sr']:.1f} (out {spin['out_rate']:.2f}%)")
+            bits.append(f"vs spin SR {spin['sr']:.1f} ({out_every(spin['balls'], spin['outs'])})")
         if seam and spin:
             weaker = (
                 "pace" if seam["sr"] < spin["sr"] else "spin" if spin["sr"] < seam["sr"] else None
@@ -2186,12 +2284,13 @@ class CricDexApp(App):
                 continue
             cv, rv = float(cr[val]), float(rr[val])
             mv = (rv - cv) if metric.higher_is_better else (cv - rv)
+            nd = 4 if any(c.primary and c.fmt == "pct" for c in metric.columns) else 2
             rows.append(
                 {
                     "player": nm,
-                    "career": round(cv, 2),
-                    "recent": round(rv, 2),
-                    "form_Δ": round(mv, 2),
+                    "career": round(cv, nd),
+                    "recent": round(rv, nd),
+                    "form_Δ": round(mv, nd),
                 }
             )
         if not rows:
@@ -2200,12 +2299,12 @@ class CricDexApp(App):
             meta.update("")
             return
         rows.sort(key=lambda r: r["form_Δ"], reverse=True)
-        flip = "" if metric.higher_is_better else " · lower-is-better sign-flipped"
         meta.update(
-            f"[bold]{metric.name}[/bold] · {cf.WINDOW_LABELS[recent_win].lower()} vs career{flip}"
+            f"[bold]{metric.name}[/bold] · {cf.WINDOW_LABELS[recent_win].lower()} vs career"
+            f" · {form_note(metric)}"
         )
-        _fill_datatable(up, rows[:top_n])
-        _fill_datatable(down, list(reversed(rows))[:top_n])
+        _fill_datatable(up, form_display(rows[:top_n], metric))
+        _fill_datatable(down, form_display(list(reversed(rows))[:top_n], metric))
 
     # ===== Partnerships — batter-pair stands ==============================
 
@@ -2251,14 +2350,16 @@ class CricDexApp(App):
         if name:
             row, err = _resolve_player(collection, name)
             if row:
-                cid, name = row["cricsheet_id"], row["name"]
+                cid, name = row["cricsheet_id"], display_name(row) or row["name"]
         mine = [p for p in pairs if cid and cid in (p.get("a_cid"), p.get("b_cid"))]
         mine.sort(key=lambda p: p["runs"], reverse=True)
         _fill_datatable(
             partner,
             [
                 {
-                    "partner": p["b"] if p.get("a_cid") == cid else p["a"],
+                    "partner": display_name(p, "b")
+                    if p.get("a_cid") == cid
+                    else display_name(p, "a"),
                     "runs": p["runs"],
                     "inns": p["innings"],
                     "best": p["best"],
@@ -2279,7 +2380,7 @@ class CricDexApp(App):
             best,
             [
                 {
-                    "partnership": f"{p['a']} & {p['b']}",
+                    "partnership": f"{display_name(p, 'a')} & {display_name(p, 'b')}",
                     "runs": p["runs"],
                     "inns": p["innings"],
                     "best": p["best"],
@@ -2671,32 +2772,6 @@ def _load_profile(collection: str, cid: str | None) -> dict | None:
     if not path.exists():
         return None
     return _load_json(path)
-
-
-def _summarise_metric(payload) -> str:
-    if not payload:
-        return "—"
-    if isinstance(payload, dict):
-        for key in (
-            "ngi_per_match",
-            "pressure_sr_per_100_balls",
-            "sr",
-            "runs_per_6_after_dot",
-            "counter_attack_sr",
-            "bdr_pct",
-            "wicket_rate_pct",
-            "wicket_quality",
-            "longevity_index",
-            "slow_start_cost",
-        ):
-            v = payload.get(key)
-            if v is not None:
-                return f"{v:.2f}" if isinstance(v, float) else str(v)
-        for v in payload.values():
-            if isinstance(v, int | float):
-                return f"{v:.2f}" if isinstance(v, float) else str(v)
-        return "—"
-    return str(payload)
 
 
 def run_tui() -> None:

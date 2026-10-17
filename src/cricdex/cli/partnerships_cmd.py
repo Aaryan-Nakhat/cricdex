@@ -10,7 +10,15 @@ import json
 import typer
 
 from cricdex.cli import _render
-from cricdex.cli._shared import EXIT_MISSING_DATA, console, die, load_players, resolve_or_die
+from cricdex.cli._shared import (
+    EXIT_MISSING_DATA,
+    coll_subtitle,
+    console,
+    die,
+    load_players,
+    resolve_or_die,
+)
+from cricdex.common.display import display_name
 from cricdex.web_parity.loader import SITE_DATA
 
 
@@ -50,12 +58,14 @@ def partnerships(
             key=lambda p: p["runs"],
             reverse=True,
         )
-        _render.header(f"Partnerships — {name}", subtitle=f"collection: {collection}")
+        _render.header(f"Partnerships — {name}", subtitle=coll_subtitle(collection))
         if mine:
             _render.pretty_table(
                 [
                     {
-                        "partner": p["b"] if p.get("a_cid") == cid else p["a"],
+                        "partner": display_name(p, "b")
+                        if p.get("a_cid") == cid
+                        else display_name(p, "a"),
                         "runs": p["runs"],
                         "inns": p["innings"],
                         "best": p["best"],
@@ -72,11 +82,11 @@ def partnerships(
         else:
             console().print(f"[dim]No partnerships ≥ {min_runs} runs for {name}.[/dim]")
 
-    _render.header("Best partnerships (all-time)", subtitle=f"collection: {collection}")
+    _render.header("Best partnerships (all-time)", subtitle=coll_subtitle(collection))
     _render.pretty_table(
         [
             {
-                "partnership": f"{p['a']} & {p['b']}",
+                "partnership": f"{display_name(p, 'a')} & {display_name(p, 'b')}",
                 "runs": p["runs"],
                 "inns": p["innings"],
                 "best": p["best"],

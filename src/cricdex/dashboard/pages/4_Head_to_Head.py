@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from cricdex.common.display import display_name
 from cricdex.config import DATA_DIR
 from cricdex.dashboard._widgets import collection_picker, player_select, provenance_banner
 from cricdex.scout.ratings.head_to_head import head_to_head
@@ -55,6 +56,8 @@ if not (pa and pb):
     st.info("Pick two players to compare.")
     st.stop()
 a, b = pa["name"], pb["name"]
+# fan-facing names for display (the ratings are keyed by the scorecard name)
+da, db = display_name(pa) or a, display_name(pb) or b
 if a == b:
     st.warning("Pick two *different* players.")
     st.stop()
@@ -105,13 +108,14 @@ for role, label in ROLE_LABEL.items():
     st.subheader(label)
     cols = st.columns([3, 1])
     with cols[0]:
-        st.markdown(_gauge(res["name_a"], res["name_b"], pa), unsafe_allow_html=True)
+        st.markdown(_gauge(da, db, pa), unsafe_allow_html=True)
+        verdict = str(cmp["verdict"]).replace(res["name_a"], da).replace(res["name_b"], db)
         st.markdown(
-            f"<span style='color:{_verdict_color(pa)};font-size:0.85rem'>{cmp['verdict']}</span>",
+            f"<span style='color:{_verdict_color(pa)};font-size:0.85rem'>{verdict}</span>",
             unsafe_allow_html=True,
         )
     with cols[1]:
         st.metric("balls", f"{cmp.get('balls_a', 0)} v {cmp.get('balls_b', 0)}")
 
 if not shown:
-    st.info(f"No overlapping role with enough data to compare {a} and {b} in {collection}.")
+    st.info(f"No overlapping role with enough data to compare {da} and {db} in {collection}.")

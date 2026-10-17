@@ -17,6 +17,7 @@ import duckdb
 import streamlit as st
 
 from cricdex import leagues
+from cricdex.common.display import league_label, player_label, stale_marker
 from cricdex.config import DATA_DIR
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -62,7 +63,7 @@ def collection_picker(
         options=options,
         index=index,
         key=key,
-        format_func=leagues.label,
+        format_func=league_label,
         help=(
             "Pick a Cricsheet collection. New collections appear here once "
             "`cricdex data ingest cricsheet -c <name>` lands the duckdb table."
@@ -98,11 +99,9 @@ def read_json(path: Path, default: Any = None) -> Any:
 
 
 def _player_label(p: dict) -> str:
-    """'Full Name (Short)' — mirrors the web Combobox so typing either the full
-    or the scorecard name filters the dropdown to the player."""
-    full = p.get("full_name")
-    short = p.get("name", "")
-    return f"{full} ({short})" if full and full != short else short
+    """'Display Name (Short · aliases)' — mirrors the web Combobox so typing the display, full,
+    scorecard name or any alias filters the dropdown to the player."""
+    return player_label(p) or p.get("name", "")
 
 
 _NO_PLAYER = "— no player —"
@@ -121,7 +120,7 @@ def player_select(
     `default_name=None` makes the pick optional: a "no player" entry comes
     first and is selected by default (the web's `cid=null`). Returns the chosen
     player row, or None when nothing is picked / there are no players."""
-    players = sorted(load_players(collection), key=lambda p: p.get("name", ""))
+    players = sorted(load_players(collection), key=lambda p: _player_label(p).lower())
     if not players:
         return None
     by_cid = {p["cricsheet_id"]: p for p in players}
@@ -150,7 +149,7 @@ def player_multiselect(
     max_selections: int = 4,
 ) -> list[dict]:
     """Type-ahead multi-player picker (same full+short label) for Compare."""
-    players = sorted(load_players(collection), key=lambda p: p.get("name", ""))
+    players = sorted(load_players(collection), key=lambda p: _player_label(p).lower())
     by_cid = {p["cricsheet_id"]: p for p in players}
     labels = {p["cricsheet_id"]: _player_label(p) for p in players}
     cids = st.multiselect(
@@ -196,9 +195,25 @@ def provenance_banner(
     if note:
         bits.append(note)
     st.caption(" · ".join(bits))
+    # a league whose data stops early (SMAT, CSA T20 Challenge) says so wherever it's shown
+    if path.parent.parent == SITE_DATA:
+        mark = stale_marker(path.parent.name)
+        if mark:
+            st.warning(f"{leagues.label(path.parent.name)}: {mark}.")
     if st.button("⟳ Load latest data", key=f"refresh-{source}"):
         st.info(
             "Trigger a refresh from the CLI: `cricdex data ingest "
             f"{source if source in ('cricsheet', 'rules') else 'metrics'} --force`"
             " — Streamlit will pick up the new files automatically."
         )
+
+
+def out_every(balls: object, outs: object) -> str:
+    """A dismissal rate a fan can read: "out once every 26 balls" ("never out" with 0 outs)."""
+    try:
+        b, o = float(balls), float(outs)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "—"
+    if o <= 0:
+        return "never out"
+    return f"out once every {round(b / o):,} balls"

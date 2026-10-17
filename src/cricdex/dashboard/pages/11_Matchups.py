@@ -11,7 +11,8 @@ import json
 
 import streamlit as st
 
-from cricdex.dashboard._widgets import player_select, provenance_banner
+from cricdex.common.display import league_label
+from cricdex.dashboard._widgets import out_every, player_select, provenance_banner
 from cricdex.web_parity.loader import SITE_DATA
 
 st.set_page_config(page_title="CricDex Matchups", page_icon="🎯", layout="wide")
@@ -58,6 +59,7 @@ with st.sidebar:
         options=collections,
         index=collections.index("ipl") if "ipl" in collections else 0,
         key="matchups-collection",
+        format_func=league_label,
     )
     min_balls = st.slider(
         "Min balls", 1, 120, 6, step=1, help="Drops thin head-to-heads below this many balls."
@@ -89,12 +91,18 @@ if seam or spin:
     if seam:
         cols[0].metric("vs Pace — SR", f"{seam['sr']:.1f}", help=f"{seam['balls']} balls")
         cols[1].metric(
-            "vs Pace — out rate", f"{seam['out_rate']:.2f}%", help=f"{seam['outs']} dismissals"
+            "vs Pace — how often out",
+            out_every(seam["balls"], seam["outs"]),
+            help=f"{seam['outs']} dismissals in {seam['balls']} balls "
+            f"({seam['out_rate']:.2f}% of balls faced)",
         )
     if spin:
         cols[2].metric("vs Spin — SR", f"{spin['sr']:.1f}", help=f"{spin['balls']} balls")
         cols[3].metric(
-            "vs Spin — out rate", f"{spin['out_rate']:.2f}%", help=f"{spin['outs']} dismissals"
+            "vs Spin — how often out",
+            out_every(spin["balls"], spin["outs"]),
+            help=f"{spin['outs']} dismissals in {spin['balls']} balls "
+            f"({spin['out_rate']:.2f}% of balls faced)",
         )
 
 # --- as a batter ---------------------------------------------------------

@@ -87,12 +87,15 @@ class League:
     def auction_eligible(self, country: str | None) -> bool:
         """May a free agent from `country` enter this competition's auction pool? The deny-list
         always wins; an empty allow-list admits every other nation. An unknown country only passes
-        an empty allow-list."""
-        if country in self.auction_excluded_nationalities:
+        an empty allow-list. Every spelling is normalised first (RSA = ZAF, WI = WIN)."""
+        from cricdex.scout.identity.countries import normalise
+
+        code = normalise(country)
+        if code in {normalise(c) for c in self.auction_excluded_nationalities}:
             return False
         if not self.auction_nationalities:
             return True
-        return country in self.auction_nationalities
+        return code is not None and code in {normalise(c) for c in self.auction_nationalities}
 
 
 @dataclass(frozen=True)

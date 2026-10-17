@@ -10,7 +10,7 @@ import json
 import typer
 
 from cricdex.cli import _render
-from cricdex.cli._shared import EXIT_MISSING_DATA, console, die
+from cricdex.cli._shared import EXIT_MISSING_DATA, coll_subtitle, console, die
 from cricdex.web_parity.loader import SITE_DATA
 
 _VALID = {"batting": ("sr", "average"), "bowling": ("economy", "strike_rate")}
@@ -44,7 +44,7 @@ def aging(
 
     _render.header(
         f"Aging curve — {role} {mkey}",
-        subtitle=f"collection: {collection}  ·  per-age mean over player-seasons (≥60 balls)",
+        subtitle=f"{coll_subtitle(collection)}  ·  per-age mean over player-seasons (≥60 balls)",
     )
     spark = _render.sparkline([r.get(mkey) or 0 for r in curve])
     if spark:

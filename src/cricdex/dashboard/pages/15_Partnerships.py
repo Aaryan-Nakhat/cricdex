@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from cricdex.common.display import display_name, league_label
 from cricdex.dashboard._widgets import player_select, provenance_banner, read_json
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -50,6 +51,7 @@ with st.sidebar:
         options=collections,
         index=collections.index("ipl") if "ipl" in collections else 0,
         key="partnerships-collection",
+        format_func=league_label,
     )
     min_runs = st.slider("Min runs", 0, 500, 50, step=10, help="Aggregate runs for the pair.")
 
@@ -62,12 +64,14 @@ if sel:
     cid = sel["cricsheet_id"]
     mine = [p for p in pairs if cid in (p.get("a_cid"), p.get("b_cid"))]
     mine.sort(key=lambda p: p["runs"], reverse=True)
-    st.subheader(f"Most productive partners — {sel['name']}")
+    st.subheader(f"Most productive partners — {display_name(sel)}")
     if mine:
         st.dataframe(
             [
                 {
-                    "Partner": p["b"] if p.get("a_cid") == cid else p["a"],
+                    "Partner": display_name(p, "b")
+                    if p.get("a_cid") == cid
+                    else display_name(p, "a"),
                     "Runs": p["runs"],
                     "Inns": p["innings"],
                     "Best": p["best"],
@@ -82,13 +86,13 @@ if sel:
             width="stretch",
         )
     else:
-        st.info(f"No partnerships at ≥ {min_runs} runs for {sel['name']}.")
+        st.info(f"No partnerships at ≥ {min_runs} runs for {display_name(sel)}.")
 
 st.subheader("Best partnerships (all-time)")
 st.dataframe(
     [
         {
-            "Partnership": f"{p['a']} & {p['b']}",
+            "Partnership": f"{display_name(p, 'a')} & {display_name(p, 'b')}",
             "Runs": p["runs"],
             "Inns": p["innings"],
             "Best": p["best"],

@@ -1,23 +1,17 @@
 import { Fragment, useEffect, useMemo } from "react";
 import { GitCompareArrows, Plus, X } from "lucide-react";
-import {
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
 import { useStore } from "@/lib/store";
 import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
 import { getProfile, type Profile } from "@/lib/data";
+import { BAT_STATS, BOWL_STATS, standardStats, type StandardStats } from "@/lib/standard";
+import { METRIC_BY_SLUG, fmtMetric } from "@/lib/metrics";
+import { MetricInfo } from "@/components/MetricInfo";
 import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, Empty, InfoTip, ErrorBox } from "@/components/ui";
 import { useTheme } from "@/lib/theme";
 import { useClearOnChange, useUrlParams } from "@/lib/useUrlState";
-import { cn, fmt } from "@/lib/utils";
+import { cn, collectionLabel, fmt } from "@/lib/utils";
 
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -27,32 +21,182 @@ function num(v: unknown): number | null {
 
 interface Row {
   label: string;
-  get: (p: Profile) => number | null;
+  hint?: string;
+  get: (p: Profile, st: StandardStats) => number | string | null;
   digits: number;
-  better: "high" | "low";
+  better: "high" | "low" | "none";
   group: string;
+  /** Format a number for display (default: fmt with `digits`). */
+  show?: (v: number) => string;
+  /** An explainer next to the row label. */
+  info?: React.ReactNode;
 }
 
-const ROWS: Row[] = [
-  { group: "Bayesian skill", label: "Batting · scoring", digits: 3, better: "high", get: (p) => num((p.bayes?.bayes_batter as any)?.skill) },
-  { group: "Bayesian skill", label: "Batting · survival", digits: 3, better: "high", get: (p) => num((p.bayes?.bayes_batter as any)?.survival_skill) },
-  { group: "Bayesian skill", label: "Batting value", digits: 3, better: "high", get: (p) => num((p.bayes?.bayes_batter as any)?.value) },
-  { group: "Bayesian skill", label: "Bowling · economy", digits: 3, better: "high", get: (p) => num((p.bayes?.bayes_bowler as any)?.skill) },
-  { group: "Bayesian skill", label: "Bowling · strike", digits: 3, better: "high", get: (p) => num((p.bayes?.bayes_bowler as any)?.strike_skill) },
-  { group: "Career", label: "Runs", digits: 0, better: "high", get: (p) => num((p.career as any)?.career_runs) },
-  { group: "Career", label: "Balls faced", digits: 0, better: "high", get: (p) => num((p.career as any)?.career_balls_faced) },
-  { group: "Career", label: "Strike rate", digits: 1, better: "high", get: (p) => {
-    const r = num((p.career as any)?.career_runs); const b = num((p.career as any)?.career_balls_faced);
-    return r !== null && b ? (r / b) * 100 : null;
-  } },
-  { group: "Career", label: "Wickets", digits: 0, better: "high", get: (p) => num((p.career as any)?.career_wickets) },
-  { group: "Metrics", label: "Pressure SR", digits: 1, better: "high", get: (p) => num((p.metrics as any)?.pressure_runs?.pressure_sr_per_100_balls) },
-  { group: "Metrics", label: "Counter-attack SR", digits: 1, better: "high", get: (p) => num((p.metrics as any)?.counter_attack?.counter_attack_sr) },
-  { group: "Metrics", label: "Boundary %", digits: 1, better: "low", get: (p) => num((p.metrics as any)?.boundary_dependency?.bdr_pct) },
-  { group: "Metrics", label: "Dot recovery", digits: 2, better: "high", get: (p) => num((p.metrics as any)?.dot_ball_recovery?.runs_per_6_after_dot) },
+const bb = (p: Profile) => (p.bayes?.bayes_batter ?? null) as Record<string, unknown> | null;
+const bw = (p: Profile) => (p.bayes?.bayes_bowler ?? null) as Record<string, unknown> | null;
+const met = (p: Profile, slug: string, key: string) =>
+  num(((p.metrics ?? {}) as Record<string, Record<string, unknown> | null>)[slug]?.[key]);
+const NGI_PCT = METRIC_BY_SLUG.ngi.columns.find((c) => c.key === "ngi_per_match")!;
+
+const VALUE_INFO = (
+  <InfoTip title="Batting and bowling value" label="What batting and bowling value mean">
+    One number per role from the skill model, centred on the average player in this league: <b>0 = average</b>, +1 =
+    one typical player-to-player gap better, −1 = one gap worse; the best in the IPL sit near +3. <b>Batting value</b>{" "}
+    adds how fast he scores and how hard he is to get out, each judged against the bowlers he actually faced.{" "}
+    <b>Bowling value</b> adds how few runs he gives away and how often he takes wickets, judged against the batters he
+    bowled to. Higher is better for both.
+  </InfoTip>
+);
+
+const pctShow = (digits: number, suffix?: string) =>
+  suffix ? (v: number) => `${fmt(v, digits)}${suffix}` : undefined;
+
+const CONTEXT: [string, string, string, number][] = [
+  ["pressure_runs", "pressure_sr_per_100_balls", "Pressure SR", 1],
+  ["counter_attack", "counter_attack_sr", "Counter-attack SR", 1],
+  ["dot_ball_recovery", "runs_per_6_after_dot", "Dot-ball recovery", 2],
+  ["boundary_dependency", "bdr_pct", "Boundary dependency %", 1],
+  ["crease_longevity", "longevity_index", "Crease longevity", 2],
+  ["slow_start_cost", "slow_start_cost", "Slow-start cost", 1],
+  ["wicket_quality", "wicket_quality", "Wicket quality", 3],
+  ["pressure_conversion", "wicket_rate_pct", "Pressure conversion %", 1],
 ];
 
-const GROUPS = ["Bayesian skill", "Career", "Metrics"];
+const ROWS: Row[] = [
+  { group: "Overall", label: "Batting value", hint: "0 = average batter", digits: 2, better: "high", info: VALUE_INFO, get: (p) => num(bb(p)?.value) },
+  {
+    group: "Overall",
+    label: "Bowling value",
+    hint: "0 = average bowler",
+    digits: 2,
+    better: "high",
+    info: VALUE_INFO,
+    get: (p) => ((num(bw(p)?.balls) ?? 0) > 60 ? num(bw(p)?.value) : null),
+  },
+  {
+    group: "Overall",
+    label: "Win chance added / match",
+    hint: "+5% = five points of win chance a game",
+    digits: 1,
+    better: "high",
+    show: (v) => fmtMetric(v, NGI_PCT),
+    info: <MetricInfo m={METRIC_BY_SLUG.ngi} />,
+    get: (p) => met(p, "ngi", "ngi_per_match"),
+  },
+  {
+    group: "Overall",
+    label: "Wins added (career)",
+    hint: "a career total — grows with matches",
+    digits: 1,
+    better: "high",
+    get: (p) => met(p, "ngi", "ngi_total"),
+  },
+  { group: "Batting", label: "Runs", digits: 0, better: "high", get: (_p, st) => st.runs },
+  { group: "Batting", label: "Innings", digits: 0, better: "none", get: (_p, st) => st.innings },
+  ...BAT_STATS.map(
+    (r): Row => ({
+      group: "Batting",
+      label: r.label,
+      hint: r.hint,
+      digits: r.digits,
+      better: r.better,
+      show: pctShow(r.digits, r.suffix),
+      get: (_p, st) => st[r.key],
+    }),
+  ),
+  { group: "Bowling", label: "Wickets", digits: 0, better: "high", get: (_p, st) => ((st.ballsBowled ?? 0) > 0 ? st.wickets : null) },
+  ...BOWL_STATS.map(
+    (r): Row => ({
+      group: "Bowling",
+      label: r.label,
+      hint: r.hint,
+      digits: r.digits,
+      better: r.better,
+      show: pctShow(r.digits, r.suffix),
+      get: (_p, st) => ((st.ballsBowled ?? 0) >= 60 ? st[r.key] : null),
+    }),
+  ),
+  ...CONTEXT.map(([slug, key, label, digits]): Row => {
+    const m = METRIC_BY_SLUG[slug];
+    return {
+      group: "Context metrics",
+      label,
+      hint: m.direction === "descriptive" ? "a style — no better side" : undefined,
+      digits,
+      better: m.direction === "higher" ? "high" : m.direction === "lower" ? "low" : "none",
+      info: <MetricInfo m={m} />,
+      get: (p) => met(p, slug, key),
+    };
+  }),
+];
+
+const GROUPS = ["Overall", "Batting", "Bowling", "Context metrics"];
+
+// The four skills, in plain words. Each is centred on the average player in the league (0).
+const AXES: { label: string; side: "batting" | "bowling"; get: (p: Profile) => number | null; none: string }[] = [
+  { label: "Scoring speed", side: "batting", get: (p) => num(bb(p)?.skill), none: "no batting rating" },
+  { label: "Staying in (hard to dismiss)", side: "batting", get: (p) => num(bb(p)?.survival_skill), none: "no batting rating" },
+  { label: "Economy (keeping runs down)", side: "bowling", get: (p) => num(bw(p)?.skill), none: "doesn't bowl enough to rate" },
+  { label: "Wicket-taking", side: "bowling", get: (p) => num(bw(p)?.strike_skill), none: "doesn't bowl enough to rate" },
+];
+
+/** One skill as bars growing from the "average player" line: right = better than average, left = worse. */
+function SkillBars({
+  axis,
+  players,
+  colors,
+  names,
+}: {
+  axis: (typeof AXES)[number];
+  players: Profile[];
+  colors: string[];
+  names: string[];
+}) {
+  const vals = players.map((p) =>
+    axis.side !== "bowling" || (num(bw(p)?.balls) ?? 0) > 60 ? axis.get(p) : null,
+  );
+  const finite = vals.filter((v): v is number => v !== null);
+  const span = Math.max(0.3, ...finite.map((v) => Math.abs(v))) * 1.1;
+  return (
+    <div>
+      <div className="mb-1.5 text-sm font-medium text-fg">{axis.label}</div>
+      <div className="space-y-1.5">
+        {players.map((_p, i) => {
+          const v = vals[i];
+          const w = v === null ? 0 : (Math.abs(v) / span) * 50;
+          return (
+            <div
+              key={i}
+              className="grid grid-cols-[minmax(0,6.5rem)_1fr_3.5rem] items-center gap-2 text-xs sm:grid-cols-[minmax(0,9rem)_1fr_4rem]"
+            >
+              <span className="truncate font-medium" style={{ color: colors[i] }} title={names[i]}>
+                {names[i]}
+              </span>
+              <div className="relative h-4 rounded bg-border/30">
+                <div className="absolute -top-0.5 left-1/2 h-5 w-0.5 -translate-x-1/2 rounded bg-fg/70" aria-hidden />
+                {v !== null && (
+                  <div
+                    className="absolute top-0.5 h-3 rounded-sm"
+                    style={{ background: colors[i], left: v >= 0 ? "50%" : `${50 - w}%`, width: `${Math.max(0.8, w)}%` }}
+                  />
+                )}
+              </div>
+              <span className={cn("stat-num text-right", v === null ? "text-faint" : v >= 0 ? "text-accent-glow" : "text-ball")}>
+                {v === null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1 flex justify-between pl-[7rem] pr-[4rem] text-[10px] uppercase tracking-wider text-faint sm:pl-[9.5rem] sm:pr-[4.5rem]">
+        <span>worse</span>
+        <span className="font-semibold text-muted">average</span>
+        <span>better</span>
+      </div>
+      {vals.some((v) => v === null) && <div className="mt-1 text-[11px] text-faint">— = {axis.none}</div>}
+    </div>
+  );
+}
 
 export function Compare() {
   const { collection } = useStore();
@@ -93,36 +237,12 @@ export function Compare() {
   }, [collection, picked.join(",")]);
 
   const loaded = (profiles.data?.ok ?? []) as Profile[];
-
-  // radar over the 4 bayes axes, min-max normalised across the loaded set
-  const radarData = (() => {
-    const axes: { key: string; label: string }[] = [
-      { key: "bat_skill", label: "Score" },
-      { key: "bat_survival", label: "Survive" },
-      { key: "bowl_skill", label: "Economy" },
-      { key: "bowl_strike", label: "Strike" },
-    ];
-    const valOf = (p: Profile, k: string): number | null => {
-      const b = p.bayes?.bayes_batter as any, w = p.bayes?.bayes_bowler as any;
-      if (k === "bat_skill") return num(b?.skill);
-      if (k === "bat_survival") return num(b?.survival_skill);
-      if (k === "bowl_skill") return num(w?.skill);
-      if (k === "bowl_strike") return num(w?.strike_skill);
-      return null;
-    };
-    return axes.map((ax) => {
-      const vals = loaded.map((p) => valOf(p, ax.key));
-      const finite = vals.filter((v): v is number => v !== null);
-      // best of the selected players → rim (100), worst → centre (0); a tie puts everyone mid-way
-      const min = Math.min(...finite), max = Math.max(...finite);
-      const row: Record<string, number | string> = { axis: ax.label };
-      loaded.forEach((p, i) => {
-        const v = valOf(p, ax.key);
-        row[`p${i}`] = v === null ? 0 : max > min ? ((v - min) / (max - min)) * 100 : 50;
-      });
-      return row;
-    });
-  })();
+  const stats = loaded.map((p) => standardStats(p));
+  const names = loaded.map((p) => {
+    const row = byId.get(p.cricsheet_id);
+    return (p.identity?.display_name ?? row?.display_name ?? "").trim() || p.name;
+  });
+  const lg = collectionLabel(collection);
 
   function setAt(i: number, v: string | null) {
     setCids(cids.map((x, j) => (j === i ? v : x)));
@@ -133,7 +253,7 @@ export function Compare() {
       <PageTitle
         title="Compare players"
         icon={<GitCompareArrows className="h-6 w-6" />}
-        desc="Put two to four players side by side across every number — Bayesian skill axes, career totals, and the novel metrics. Greener cell wins each row."
+        desc="Put two to four players side by side: their skills against an average player, the standard scorecard numbers, and the context metrics. The best value in each row is highlighted."
       />
 
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -172,67 +292,44 @@ export function Compare() {
         </Empty>
       ) : (
         <div className="space-y-5 animate-fade-up">
-          {/* radar */}
+          {/* skills as bars from the average-player line */}
           <Card>
             <CardHeader
               title={
                 <span className="flex items-center gap-2">
-                  Skill shape
+                  Skills vs an average {lg} player
                   <InfoTip title="How to read this">
-                    Four Bayesian skill axes — <b>Score</b> &amp; <b>Survive</b> (batting),{" "}
-                    <b>Economy</b> &amp; <b>Strike</b> (bowling). Values are{" "}
-                    <b>relative, not absolute</b>: for each axis the best of the selected players is
-                    pushed to the rim (100) and the worst to the centre (0), so the chart only
-                    compares <i>these</i> players to each other. A bigger, more filled shape = better
-                    across more skills. A player with no rating on an axis (a batter who doesn't bowl)
-                    sits at the centre on it — that's expected, not a weakness. If everyone is level on
-                    an axis they all sit half-way.
+                    Each block is one skill from the rating model. The dark centre line is an{" "}
+                    <b>average {lg} player</b>. A bar to the <b>right</b> means better than average, to the{" "}
+                    <b>left</b> worse; the longer the bar, the bigger the gap. The numbers are on the model's own
+                    scale (0 = average), and every skill is judged against the opponents the player actually faced. A
+                    pure batter shows “—” on the bowling skills: he doesn't bowl enough to rate.
                   </InfoTip>
                 </span>
               }
-              subtitle="Four Bayesian axes, scaled 0–100 across the selected players (relative, not absolute)"
+              subtitle="Centre line = average player · bar to the right = better · to the left = worse"
             />
-            <div className="h-80 p-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={radarData} outerRadius="72%">
-                  <PolarGrid stroke={colors.grid} />
-                  <PolarAngleAxis dataKey="axis" tick={{ fill: colors.muted, fontSize: 12 }} />
-                  <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-                  {loaded.map((p, i) => (
-                    <Radar
-                      key={i}
-                      name={p.name}
-                      dataKey={`p${i}`}
-                      stroke={SERIES_COLORS[i]}
-                      fill={SERIES_COLORS[i]}
-                      fillOpacity={0.18}
-                      strokeWidth={2}
-                    />
-                  ))}
-                  <Legend wrapperStyle={{ fontSize: 12, color: colors.fg }} />
-                </RadarChart>
-              </ResponsiveContainer>
+            <div className="grid grid-cols-1 gap-6 p-5 md:grid-cols-2">
+              {AXES.map((ax) => (
+                <SkillBars key={ax.label} axis={ax} players={loaded} colors={SERIES_COLORS} names={names} />
+              ))}
             </div>
-            <p className="border-t border-border px-5 py-3 text-xs leading-relaxed text-muted">
-              Reading it: each spoke is one skill. A player's point sits at the rim if they're the
-              best of the selected group on that skill, at the centre if they're the worst — it's a{" "}
-              <b>head-to-head shape</b>, not an absolute rating. Wider, fuller polygon = stronger
-              all-round. A spike toward one corner = a specialist. Don't read a small bowling-axis
-              value on a pure batter as bad — they simply don't bowl.
-            </p>
           </Card>
 
           {/* comparison table */}
           <Card className="overflow-hidden">
-            <CardHeader title="Side by side" subtitle="Best value in each row is highlighted" />
+            <CardHeader
+              title="Side by side"
+              subtitle="The best value in each row is highlighted. “—” = not available for that player or not in this export yet."
+            />
             <div className="overflow-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th className="th">Metric</th>
-                    {loaded.map((p, i) => (
+                    <th className="th">Stat</th>
+                    {loaded.map((_p, i) => (
                       <th key={i} className="th text-right" style={{ color: SERIES_COLORS[i] }}>
-                        {p.name}
+                        {names[i]}
                       </th>
                     ))}
                   </tr>
@@ -241,32 +338,41 @@ export function Compare() {
                   {GROUPS.map((g) => (
                     <Fragment key={g}>
                       <tr>
-                        <td colSpan={loaded.length + 1} className="border-t border-border bg-surface/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                        <td
+                          colSpan={loaded.length + 1}
+                          className="border-t border-border bg-surface/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted"
+                        >
                           {g}
                         </td>
                       </tr>
                       {ROWS.filter((r) => r.group === g).map((row) => {
-                        const vals = loaded.map((p) => row.get(p));
-                        const finite = vals.filter((v): v is number => v !== null);
-                        const best = finite.length
-                          ? row.better === "high"
-                            ? Math.max(...finite)
-                            : Math.min(...finite)
-                          : null;
+                        const vals = loaded.map((p, i) => row.get(p, stats[i]));
+                        if (vals.every((v) => v === null)) return null;
+                        const finite = vals.filter((v): v is number => typeof v === "number");
+                        const best =
+                          finite.length > 1 && row.better !== "none"
+                            ? row.better === "high"
+                              ? Math.max(...finite)
+                              : Math.min(...finite)
+                            : null;
                         return (
                           <tr key={row.label} className="hover:bg-surface/40">
-                            <td className="td text-muted">{row.label}</td>
+                            <td className="td">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="text-fg">{row.label}</span>
+                                {row.info}
+                              </span>
+                              {row.hint && <div className="text-[11px] text-faint">{row.hint}</div>}
+                            </td>
                             {vals.map((v, i) => (
                               <td
                                 key={i}
                                 className={cn(
                                   "td stat-num text-right",
-                                  v !== null && best !== null && v === best
-                                    ? "font-bold text-accent-glow"
-                                    : "text-fg",
+                                  typeof v === "number" && best !== null && v === best ? "font-bold text-accent-glow" : "text-fg",
                                 )}
                               >
-                                {fmt(v, row.digits)}
+                                {typeof v === "number" ? (row.show ? row.show(v) : fmt(v, row.digits)) : (v ?? "—")}
                               </td>
                             ))}
                           </tr>

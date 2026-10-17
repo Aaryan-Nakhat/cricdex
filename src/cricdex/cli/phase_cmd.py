@@ -10,7 +10,7 @@ import json
 import typer
 
 from cricdex.cli import _render
-from cricdex.cli._shared import EXIT_MISSING_DATA, die
+from cricdex.cli._shared import EXIT_MISSING_DATA, coll_subtitle, die
 from cricdex.common.filters import Filters, apply_filters
 from cricdex.web_parity.loader import SITE_DATA
 
@@ -53,7 +53,7 @@ def phase(
         activity=activity,
         country=country.strip(),
     )
-    _render.header(f"Phase specialists — {which}", subtitle=f"collection: {collection}")
+    _render.header(f"Phase specialists — {which}", subtitle=coll_subtitle(collection))
     batters = apply_filters(board.get("batters") or [], filters)[:top]
     bowlers = apply_filters(board.get("bowlers") or [], filters)[:top]
     if batters:

@@ -31,8 +31,8 @@ WIKIDATA_NOT_PULLED = (
 
 BAYES_SCALE = (
     "Skill is on the natural-log scale of the NumPyro / JAX "
-    "hierarchical Negative-Binomial fit. 0 = league average. +0.30 ≈ "
-    "marquee; -0.30 ≈ replacement-level."
+    "hierarchical Negative-Binomial fit. 0 = an average player in this league "
+    "(not a replacement player). +0.30 ≈ marquee; -0.30 ≈ well below average."
 )
 
 # Per-metric one-liner — mirrors Streamlit's METRIC_HINTS dict.
@@ -50,7 +50,8 @@ METRIC_HINTS: dict[str, str] = {
         "aggressive after partnership-breaking dismissals."
     ),
     "boundary_dependency": (
-        "Share of runs from 4s + 6s. Higher = boundary-reliant; lower = strong strike-rotator."
+        "Share of runs from 4s + 6s. High = boundary-reliant; low = strike-rotator. "
+        "A style, not a level — neither is better."
     ),
     "pressure_conversion": (
         "Wicket rate on the next ball after a 4+ consecutive dot streak "
@@ -62,8 +63,9 @@ METRIC_HINTS: dict[str, str] = {
         "innings strike-rate curve (0-5 … 51+) as the sparkline column."
     ),
     "ngi": (
-        "Net Game Impact — WPA-style win-probability delta credited "
-        "per ball. Per-match average. Calibrated XGBoost WP model."
+        "Net Game Impact — how much a player adds to his team's chance of winning. "
+        "Win chance added / match is the per-game average (+5% = five percentage points); "
+        "wins added is the career total, which grows with matches played."
     ),
     "wicket_quality": (
         "Σ(opponent Bayes skill) ÷ wickets taken. Wickets of marquee "
