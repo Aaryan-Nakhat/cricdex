@@ -259,6 +259,8 @@ auction_eligible = leagues.auction_target().auction_eligible
 AUCTION_RECENCY_DAYS = 1100  # ~3 years of activity in ANY of those comps
 AUCTION_POOL_CAP = 600  # top-N by value (keeps the sim snappy + relevant)
 AUCTION_MIN_BALLS = 150  # drop tiny-sample players whose Bayes value is inflated
+AUCTION_TARGET = "ipl"  # the league the auction is for (competition-rules config, later sprint)
+AUCTION_TRUST_BALLS = 300  # a role record this big in the target league stands on its own
 # Value removed from a player with zero IPL relevance (league-only veteran). In
 # value units (population sds, see bayesian._value_draws): 2.7 ≈ the old 0.42
 # log-scale units × 6.4, the measured sd ratio of new to old IPL values.
@@ -278,25 +280,42 @@ def _export_auction_pool(
     import datetime as _dt
 
     # Value isn't comparable across tiers (a number vs weak SMAT attacks ≠ vs
-    # IPL), so penalise lower tiers and take each player's best PENALISED value.
-    # One table for export + Scout pricing: each league's tier discount in
-    # config/leagues.toml (web_parity/pricing ⇄ lib/auction.ts read the same).
-    best: dict[str, dict] = {}
+    # IPL), so each league's rating is first discounted by its tier (config/leagues.toml;
+    # web_parity/pricing ⇄ lib/auction.ts read the same table). A player's leagues are then
+    # BLENDED, per role, weighted by 1 / (rating sd² + the tier's translation_sd²): IPL evidence
+    # dominates whenever it exists, and one hot spell in a weaker or provisional league can't
+    # outrank a real IPL record (taking the best league did exactly that). Best role wins.
+    acc: dict[tuple[str, str], list[float]] = {}  # (cid, role) -> [Σw, Σw·value]
+    target_rows: dict[tuple[str, str], tuple[float, int]] = {}  # target-league (value, balls)
+    names: dict[str, str | None] = {}
     max_balls: dict[str, int] = {}
     for col in AUCTION_POOL_COLLECTIONS:
         f = METRIC_DIR / f"scout_ratings_{col}.json"
         if not f.exists():
             continue
         pen = leagues.discount(col)
+        tsd = leagues.translation_sd(col)
         for r in json.loads(f.read_text()):
             cid, v = r.get("cricsheet_id"), r.get("value")
             if cid is None or v is None:
                 continue
             max_balls[cid] = max(max_balls.get(cid, 0), int(r.get("balls") or 0))
-            eff = v - pen
-            cur = best.get(cid)
-            if cur is None or eff > cur["value"]:
-                best[cid] = {"value": eff, "name": r.get("unique_name")}
+            names.setdefault(cid, r.get("unique_name"))  # registry order: the IPL name first
+            sd = float(r.get("value_sd") or 1.0)
+            w = 1.0 / (sd * sd + tsd * tsd)
+            a = acc.setdefault((cid, r.get("role") or ""), [0.0, 0.0])
+            a[0] += w
+            a[1] += w * (v - pen)
+            if col == AUCTION_TARGET:
+                target_rows[(cid, r.get("role") or "")] = (v, int(r.get("balls") or 0))
+    best: dict[str, dict] = {}
+    for (cid, role), (sw, swx) in acc.items():
+        # A big enough record in the target league stands on its own: a flat tier discount is too
+        # harsh on stars, so other leagues only fill in when that sample is thin.
+        own = target_rows.get((cid, role))
+        val = own[0] if own and own[1] >= AUCTION_TRUST_BALLS else swx / sw
+        if cid not in best or val > best[cid]["value"]:
+            best[cid] = {"value": val, "name": names.get(cid)}
     # drop tiny-sample players (inflated value)
     best = {cid: b for cid, b in best.items() if max_balls.get(cid, 0) >= AUCTION_MIN_BALLS}
     name_to_cid = {b["name"]: cid for cid, b in best.items() if b["name"]}

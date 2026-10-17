@@ -75,7 +75,12 @@ With guardrails so it stays realistic:
 - **Excludes** men's-T20I associate noise and non-IPL nations (e.g. PAK).
 - **Tier penalty** — runs against weaker attacks aren't worth as much as runs
   in the IPL, so cross-tier values are discounted before pricing (**BBL −0.45**,
-  **SA20 −0.45**, **CPL −0.64**, **T20 Blast −0.64**, **SMAT −1.28**; IPL 0).
+  **SA20 −0.45**, **CPL −0.64**, **T20 Blast −0.64**, **SMAT −1.28**; IPL 0; the newer
+  leagues borrow these values and are marked provisional).
+- **Several leagues, one value** — 300+ balls in the IPL in that role and the IPL rating stands
+  on its own; otherwise the leagues are blended, weighted by how much evidence each has and how
+  sure its translation is (`translation_sd` in `config/leagues.toml`), so a hot spell in a
+  weaker league can't outrank a real IPL record.
 
 ---
 

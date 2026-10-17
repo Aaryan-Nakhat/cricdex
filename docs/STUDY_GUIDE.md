@@ -867,8 +867,9 @@ Guardrails: active only (last ~3 yrs), ≥150 balls of evidence,
 associate/non-IPL-nation free agents excluded, the top 600 by value,
 and a **tier penalty** applied to cross-tier value before pricing (in
 value units: BBL −0.45, SA20 −0.45, CPL −0.64, T20 Blast −0.64, SMAT
-−1.28; IPL 0). A player in several leagues keeps his best penalised
-value.
+−1.28; IPL 0). A player in several leagues gets one value per role: his
+IPL rating if he has 300+ IPL balls in that role, otherwise a blend of
+his leagues weighted by 1 ÷ (rating sd² + tier `translation_sd`²).
 
 ### 8.3 Retentions, then bidding
 

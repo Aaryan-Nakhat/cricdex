@@ -15,6 +15,9 @@ schema = 1
 # taken off a player's rating in that competition before it is compared with IPL value — the
 # Auction pool and Scout prices both use it. `calibrated = false` marks a discount borrowed by
 # analogy from a similar league and not yet checked against data (the site says so).
+# `translation_sd` (optional) is how uncertain that translation is; the auction pool blends a
+# player's leagues weighted by 1 / (rating sd² + translation_sd²), so IPL evidence dominates.
+# Default: 0 for a zero-discount tier, 0.5 for a calibrated discount, 0.8 for a borrowed one.
 # ---------------------------------------------------------------------------------------------
 
 [tiers.ipl]

@@ -107,7 +107,7 @@ data sources and the modelling literature. Every item is listed; tick it off whe
 - [ ] 15. Bowler economy ignores extras (wides-heavy bowlers flattered). Add extras or a wides sub-model.
 - [ ] 16. One population prior for every batter, so tail-enders shrink to "average batter". Use a role or
   batting-slot prior mean.
-- [ ] 17. Cross-league valuation takes the max over leagues with hand-set tier penalties (Yash Thakur 1.65
+- [x] 17. Cross-league valuation takes the max over leagues with hand-set tier penalties (Yash Thakur 1.65
   from SMAT vs −0.33 IPL; Unadkat 1.37 vs −0.14). Pool by precision so IPL evidence dominates; later fit
   league effects jointly.
 - [ ] 18. The price curve isn't fitted to any sale data, and one curve serves batting and bowling. Fit to
@@ -201,7 +201,7 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   role. Check the official 2027 retention rules first.
 - [ ] 8. "True" strike rate and economy (S–M): runs against the same-match, same-phase baseline, on boards
   and profiles.
-- [ ] 9. Cross-league pooling (S–M): precision-weighted with IPL evidence dominating, instead of the max.
+- [x] 9. Cross-league pooling (S–M): precision-weighted with IPL evidence dominating, instead of the max.
 - [ ] 10. Exports and link previews (S–M): CSV/XLSX for every table, Open Graph / Twitter meta tags.
 - [ ] 11. Uncertainty everywhere (M): sample-size badges, minimum-sample defaults per window,
   Empirical-Bayes shrunk values, an n-balls badge and shrunk estimate on head-to-heads.

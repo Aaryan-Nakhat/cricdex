@@ -352,8 +352,12 @@ franchise, so he can be retained) plus free agents from every `auction_pool` lea
 (the overseas leagues and SMAT; men's T20Is are left out). Only
 players active in the last three years with at least 150 balls in one of those leagues; free agents must
 come from a nation whose players feature in IPL auctions (so not Pakistan or associate sides — the
-`auction_nationalities` / `auction_excluded_nationalities` lists in the registry). Priced as
-in section 6; the top 600 by value make the pool.
+`auction_nationalities` / `auction_excluded_nationalities` lists in the registry). A player in several
+leagues gets one value per role: if he has 300+ balls in that role in the IPL, his IPL rating stands on
+its own; otherwise his leagues are blended, each first discounted by its tier and weighted by
+1 ÷ (rating sd² + the tier's `translation_sd`²), so thin IPL evidence still counts most and a hot spell
+in a weaker or provisional league can't outrank it. His better role is kept. Priced as in section 6;
+the top 600 by value make the pool.
 
 **Retentions.** Editable per team.
 - **Mega auction**: each franchise keeps its real 2025 retention list (about five players), paid at the

@@ -50,6 +50,10 @@ class Tier:
     discount: float
     calibrated: bool
     note: str = ""
+    # How uncertain it is to translate a rating from this tier into IPL terms (population-sd units).
+    # Cross-league pooling weights each league by 1 / (rating sd² + translation_sd²), so IPL
+    # evidence (0) dominates whenever a player has it and provisional discounts count least.
+    translation_sd: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -202,11 +206,15 @@ def parse(text: str, path: Path | str = "<string>") -> Registry:
     for key, t in (raw.get("tiers") or {}).items():
         if not isinstance(t, dict) or "discount" not in t or "calibrated" not in t:
             raise RegistryError(f"{path}: [tiers.{key}] needs `discount` and `calibrated`")
+        discount_v, calibrated_v = float(t["discount"]), bool(t["calibrated"])
+        # default: none for the reference tier, more for a borrowed (uncalibrated) discount
+        default_tsd = 0.0 if discount_v == 0 else (0.5 if calibrated_v else 0.8)
         tiers[key] = Tier(
             key=key,
-            discount=float(t["discount"]),
-            calibrated=bool(t["calibrated"]),
+            discount=discount_v,
+            calibrated=calibrated_v,
             note=str(t.get("note", "")),
+            translation_sd=float(t.get("translation_sd", default_tsd)),
         )
     leagues = [
         _league(lg, f"{path}: [[league]] #{i + 1}") for i, lg in enumerate(raw.get("league") or [])
@@ -301,6 +309,14 @@ def discount(key: str) -> float:
     if lg.tier is None:
         raise KeyError(f"league {key!r} has no strength tier")
     return load().tiers[lg.tier].discount
+
+
+def translation_sd(key: str) -> float:
+    """How uncertain a league's ratings are once translated to IPL terms (by collection key)."""
+    lg = get(key)
+    if lg.tier is None:
+        raise KeyError(f"league {key!r} has no strength tier")
+    return load().tiers[lg.tier].translation_sd
 
 
 def by_tier(tier: str) -> League:

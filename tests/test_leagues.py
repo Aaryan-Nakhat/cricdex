@@ -318,3 +318,16 @@ def test_every_registry_zip_exists(url):
 
     r = httpx.head(url, follow_redirects=True, timeout=30)
     assert r.status_code == 200, f"{url} → {r.status_code}"
+
+
+def test_translation_sd_defaults_follow_calibration():
+    """IPL evidence needs no translation; borrowed discounts are the least certain."""
+    from cricdex import leagues
+
+    tiers = leagues.tiers()
+    assert tiers["ipl"].translation_sd == 0.0
+    for t in tiers.values():
+        if t.discount > 0:
+            assert t.translation_sd == (0.5 if t.calibrated else 0.8), t.key
+    assert leagues.translation_sd("ipl") == 0.0
+    assert leagues.translation_sd("psl") > leagues.translation_sd("bbl")
