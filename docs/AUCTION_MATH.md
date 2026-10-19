@@ -25,7 +25,11 @@ inventing a fair price from skill, calibrated to recent real auctions.
 Think Zillow estimating a house price from its features. Our one feature
 is the player's **skill score** — the Bayesian model's complete value, in
 "typical spreads above average": average ≈ 0, stars ~+3, weak players
-negative (see `scout/ratings/README.md`).
+negative (see `scout/ratings/README.md`). Since the context-adjusted fit
+(season, phase, innings and ground terms; a bowler's economy now counts his
+wides and no-balls), the skill is judged against each player's own era and
+role, on the same sd scale, so the price curve below is unchanged; it is
+still hand-set, not fitted to sale data.
 
 1. **Amplify exponentially.** `1.1 × e^(0.95 × skill)`, times a small role
    weight (all-rounders / keepers are rarer → weighted up). The `0.95`

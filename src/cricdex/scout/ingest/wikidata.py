@@ -40,7 +40,7 @@ import duckdb
 import httpx
 from loguru import logger
 
-from cricdex.common.sql import WINDOW_SUFFIXES, player_ids
+from cricdex.common.sql import is_window, player_ids
 from cricdex.config import CURATED_DIR, DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -328,9 +328,7 @@ def _load_register_players(
             return [_player_dict(r) for r in rows]
 
         collections = sorted(
-            t.removeprefix("balls_")
-            for t in tables
-            if t.startswith("balls_") and not t.endswith(WINDOW_SUFFIXES)
+            t.removeprefix("balls_") for t in tables if t.startswith("balls_") and not is_window(t)
         )
         if not collections:
             raise RuntimeError("no balls_<collection> tables yet — ingest cricsheet first")

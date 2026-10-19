@@ -17,6 +17,62 @@ parity test. As part of that consolidation, three legacy subsystems were
 at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 **MILP auction solver + war-room advisor + GRPO RL**.
 
+### Model fixes: identity, NGI hygiene, context-adjusted ratings, eras
+
+- **Every number is keyed by the registry id, resolved per match** (roadmap F1).
+  `common/sql.py::keyed_balls` / `keyed_wickets` swap each player column for the id from that
+  match's `players_<col>` registry and keep the scorecard spelling alongside; metrics, NGI, ratings,
+  records, phase boards, matchups, partnerships, aging, cohorts, style twins, profiles and the
+  exporter's players / match counts / activity / teams all group by it, and `relabel` adds `name`,
+  `cricsheet_id` and `display_name` back for display. Two different players who share a scorecard
+  name in one league (among players who batted or bowled: 38 names in men's T20Is, 7 in the BPL, 7 in SMAT, 3 in the PSL, 1 each in the IPL and The Hundred) are no longer merged
+  (`tests/test_namesakes.py`). Profiles, cohorts and style twins are built by id; the site links rows
+  by id first.
+- **NGI** (roadmap 6–11, Tier A #5): every ball scored **out of fold** (5 folds by match; the 70/15/15
+  split still reports accuracy, Brier, log loss and now ECE); **beta calibration** instead of isotonic
+  (balls with ΔWP exactly 0: 70% → 23% on the IPL); **monotone constraints** (wicket balls raising
+  batting WP: 3.9% → 0.01%); **ties labelled 0.5**; ΔWP split into play / wicket / extras and
+  **credited** to the striker, the batter who is out (non-striker run outs debit him), the bowler
+  (wides and no-balls are his, byes and leg-byes nobody's) and the **fielders** (20% of a catch or
+  stumping, all of a run out) — new `ngi_fielding` column; NGI per match divides by **appearances in
+  the playing XI** (`match_players_<col>`). Three era-relative features (current rate, target and
+  required rate against the league's recent scoring level) cut the log loss on a held-out 2026 IPL
+  season from 0.607 to 0.530. `compute_metrics.py ngi-diagnostics` prints all of these checks.
+  Window and era boards reuse the league's cached out-of-fold scores (`data/metrics/.ngi_cache/`).
+- **Ratings** (roadmap 12, 13, 15, 16, Tier A #4, #6): cells by season, phase, innings and venue with
+  a **season random walk**, phase / innings fixed effects and a hierarchical **venue** term in both
+  the runs and the dismissal models; **NegBin concentration = alpha × balls**; **batting-slot and
+  frontline / part-time prior means**; a **wides + no-balls sub-model** folded into bowler economy.
+  `value` is centred on the role's average and scaled by its full population spread.
+  `variant="legacy"` keeps the old model for comparison; `scout_rate.py` writes the fitted context
+  to `scout_context_<col>.json`; `bayesian.heldout_loglik` scores a later season ball by ball.
+- **Eras in the registry**: `[[league.era]]` (the IPL's `impact`, "Impact Player era", since
+  2023-03-31). The exporter builds an `era_<key>` window next to last1y / last3y, lists it in
+  `meta.windows` / `meta.window_labels`, and the period selectors offer it (site Leaderboards,
+  Streamlit Leaderboards via `common.filters.windows_for` / `window_label`, the TUI's LEADERS tab,
+  which follows the chosen league).
+- **Venues**: par for the last three seasons up front, all-time beside it, and a season-by-season
+  par table (`innings_totals_recent`, `innings_by_season` in venues.json).
+- **Backtests fixed, and the headline corrected** (roadmap 33–36, 37 in part): `backtest_newcomers.py`
+  pools a player's leagues by precision (not the best league, which was biased upward), gives the
+  baseline the same league centring and tier discount as the model (it used to compare the
+  tier-discounted model with unadjusted raw numbers), reports all six role × axis tests with a
+  bootstrap one-sided p and its Holm adjustment, runs 3 ADVI seeds, a 30 / 120-ball playing-time
+  sensitivity check, caches fits keyed by `bayesian.MODEL_VERSION` (an older model's fits are never
+  reused) and runs them in parallel (`--jobs`). `backtest_ratings.py` runs 3 seeds and adds the
+  held-out log-likelihood per ball, with `--compare legacy`.
+  **Corrected conclusion:** the old headline, a survival edge for newcomer batters "solid in 97% of
+  re-draws", does not survive the fair baseline; it was mostly the league discount itself. Now the
+  model ranks newcomer batters better *overall* (0.22 vs 0.10 with all 13 other leagues, ahead in 96%
+  of resamples; 0.25 vs 0.09 with the original five, 98%), but nothing is significant after the Holm
+  correction (best adjusted p = 0.15); bowlers show no edge. Established IPL players: a tie with career
+  averages for batters (0.14 vs 0.15), an edge for bowlers (0.12 vs 0.07), and the new model predicts
+  held-out balls better than the old one in every season 2021–26 (runs −0.6212 vs −0.6255,
+  dismissals −0.1467 vs −0.1480 nats per ball). New tables in METHODOLOGY §8, the README, the site's
+  About page and `docs/media/backtest.png`; the hero video's backtest scene says the same.
+- **`scripts/rebuild_all.sh --from ratings|metrics|export`** restarts a rebuild at that stage without
+  re-downloading.
+
 ### Player master (names, capped, roles, squads)
 
 - **`scripts/build_player_master.py`** (`make player-master`) builds one identity record per player

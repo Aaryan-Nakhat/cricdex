@@ -41,12 +41,57 @@ def list_venues(
         return con.execute(sql).pl()
 
 
-def innings_totals(
+def recent_seasons(
+    collection: str = "ipl", db_path: Path | str = DEFAULT_DB_PATH, n: int = 3
+) -> list[str]:
+    """The league's last `n` seasons (Cricsheet `season`, e.g. "2024" or "2024/25"), newest last."""
+    safe = table_suffix(collection)
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        rows = con.execute(
+            f"SELECT season FROM matches_{safe} WHERE season IS NOT NULL "
+            f"GROUP BY season ORDER BY MAX(match_date) DESC LIMIT {int(n)}"
+        ).fetchall()
+    return [r[0] for r in reversed(rows)]
+
+
+def innings_by_season(
     venue: str,
     collection: str = "ipl",
     db_path: Path | str = DEFAULT_DB_PATH,
 ) -> pl.DataFrame:
+    """Average first- and second-innings totals at a ground, season by season (limited-overs main
+    innings) — the par moves with the era, so an all-time average undersells a modern ground."""
     safe = table_suffix(collection)
+    sql = f"""
+    SELECT season, innings_idx, match_type,
+           COUNT(*) AS innings_count, AVG(total_runs) AS avg_runs
+    FROM (
+        SELECT b.match_id, b.innings_idx, m.match_type, m.season, SUM(b.runs_total) AS total_runs
+        FROM balls_{safe} b JOIN matches_{safe} m USING (match_id)
+        WHERE b.venue = ? AND b.innings_idx <= 1 AND m.match_type NOT IN ('Test', 'MDM')
+          AND m.season IS NOT NULL
+        GROUP BY b.match_id, b.innings_idx, m.match_type, m.season
+    )
+    GROUP BY season, innings_idx, match_type
+    ORDER BY season, innings_idx
+    """
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        return con.execute(sql, [venue]).pl()
+
+
+def innings_totals(
+    venue: str,
+    collection: str = "ipl",
+    db_path: Path | str = DEFAULT_DB_PATH,
+    seasons: list[str] | None = None,
+) -> pl.DataFrame:
+    """Innings totals at a ground (all-time, or only the given seasons)."""
+    safe = table_suffix(collection)
+    in_seasons = ""
+    params: list = [venue]
+    if seasons:
+        in_seasons = f"AND m.season IN ({', '.join('?' for _ in seasons)})"
+        params += list(seasons)
     sql = f"""
     SELECT
         innings_idx,
@@ -64,14 +109,14 @@ def innings_totals(
             MAX(b.over) + 1 AS overs_used
         FROM balls_{safe} b
         JOIN matches_{safe} m USING (match_id)
-        WHERE b.venue = ? AND (b.innings_idx <= 1 OR m.match_type IN ('Test', 'MDM'))
+        WHERE b.venue = ? AND (b.innings_idx <= 1 OR m.match_type IN ('Test', 'MDM')) {in_seasons}
         GROUP BY b.match_id, b.innings_idx, m.match_type
     )
     GROUP BY innings_idx, match_type
     ORDER BY match_type, innings_idx
     """
     with duckdb.connect(str(db_path), read_only=True) as con:
-        return con.execute(sql, [venue]).pl()
+        return con.execute(sql, params).pl()
 
 
 def chase_vs_set_winrate(

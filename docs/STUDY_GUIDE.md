@@ -19,8 +19,8 @@ results, read [`METHODOLOGY.md`](METHODOLOGY.md) first.
 2. Architecture — module layout, data flow, how pieces fit
 3. Data layer — Cricsheet, People Register, Wikidata
 4. The 10 novel cricket metrics — formula + intuition each
-5. Bayesian scout ratings — hierarchical NegBin + dismissal Binomial, NumPyro, ADVI vs NUTS
-6. NGI / Net Game Impact — XGBoost win-prob + isotonic calibration + ΔWP
+5. Bayesian scout ratings — hierarchical NegBin + dismissal Binomial + context terms, NumPyro, ADVI vs NUTS
+6. NGI / Net Game Impact — XGBoost win-prob (monotone, beta-calibrated, out-of-fold) + ΔWP credit
 7. Scout — cross-competition look-alikes + cosine style twins
 8. Auction room — real-rules Monte-Carlo, shared with the web via web_parity
 9. Wikidata bridge — P2697 statsguru ID + Entity API workaround
@@ -389,9 +389,15 @@ chapter.
 
 This is the heart of the player-quality estimate. Pure statistics:
 no neural network. You give the model every `(batter, bowler)` matchup
-in a league (about 31,000 for the IPL, built from ~296,000 deliveries)
-with its balls, runs and dismissals, and it returns a posterior
-distribution over each player's *skill* parameters.
+in a league, split by season, phase, innings and ground (about 73,000
+cells for the IPL, built from ~296,000 deliveries), with its balls, runs
+and dismissals, and it returns a posterior distribution over each
+player's *skill* parameters. Players are registry ids resolved per match
+(`common/sql.py::keyed_balls`), so two namesakes are two players.
+
+§5.2 and §5.7 build the model up from its simplest form; §5.8 adds the context
+terms, the dispersion fix, the role-level priors and the extras model
+that the shipped fit uses.
 
 ### 5.1 What is Bayesian inference, exactly?
 
@@ -464,9 +470,9 @@ for facing a hard attack the way raw average would.
 `numpyro` is a probabilistic programming language that sits on top of
 JAX (autodiff + XLA-compiled numerical computing). It was
 chosen over the older PyMC for a 10-50× speed-up on this exact
-class of hierarchical GLM. The dismissal-aware fit on the IPL
-collection (~31k batter–bowler edges) takes about 1.5–3 minutes on CPU
-with ADVI; all eight refresh collections take about 22 minutes.
+class of hierarchical GLM. The full fit on the IPL collection (~73k
+context cells) takes about 2–3 minutes on CPU with ADVI, most of it JAX
+compiling the model for that league's shapes.
 
 ### 5.4 ADVI vs NUTS
 
@@ -475,14 +481,15 @@ posterior, but they get there differently:
 
 **ADVI (Automatic Differentiation Variational Inference).** Fits a
 *surrogate* normal distribution to the posterior by minimising
-KL-divergence via gradient descent. Fast (1.5–3 minutes for IPL). The
+KL-divergence via gradient descent. Fast (2–3 minutes for IPL). The
 variational family is mean-field normal (no correlations between
-parameters), which in general under-states uncertainty, so it was
-checked against NUTS on the IPL (2026-10): ADVI's per-player sds were
-95–99% of NUTS's on every axis, `value_sd` about 99%, and head-to-head
-P(A>B) differed by a median 1–2 points (95th percentile ~6). A
-low-rank guide (rank 20) gave the same sds, slower. ADVI is the default
-for every refresh.
+parameters), which in general under-states uncertainty, so it is
+checked against NUTS on the IPL. After the context terms went in
+(2026-10-18): for players with 100+ balls ADVI's sds were a median 98%
+of NUTS's for batters and 92–95% for bowlers, `value_sd` 101% / 96%,
+point estimates correlated ≥ 0.994, and head-to-head P(A>B) differed by
+a median 2–2.5 points (95th percentile ~7). ADVI is the default for
+every refresh.
 
 ```python
 guide = AutoNormal(model)
@@ -494,10 +501,9 @@ for _ in range(12000):
 
 **NUTS (No-U-Turn Sampler).** Runs Hamiltonian Monte Carlo with
 adaptive trajectory length — the gold standard for posterior
-sampling. Much slower: about 15 minutes for the IPL at 500 warmup +
-500 draws per chain (worst r-hat 1.03, min ESS 101, 0 divergences), so
-all eight collections would take 2–3 hours, past the 120-minute refresh
-budget. The defaults are 2 chains × 1000 draws + 500 warmup, and the run
+sampling. Much slower: with the context terms, about two hours for the
+IPL at 500 warmup + 500 draws per chain on a busy laptop (worst r-hat
+1.02, min ESS 187, 0 divergences), so it is opt-in. The defaults are 2 chains × 1000 draws + 500 warmup, and the run
 logs r-hat, ESS and divergences.
 
 ```python
@@ -548,13 +554,14 @@ composite `value` (the two axes, each in population-sd units, summed;
 ```json
 [
   {"cricsheet_id": "ba607b88", "unique_name": "V Kohli", "role": "batter",
-   "skill": 0.160, "skill_sd": 0.023,
-   "survival_skill": 0.575, "survival_skill_sd": 0.063,
-   "value": 2.683, "value_sd": 0.240, "balls": 6930, "runs": 9346},
+   "skill": 0.262, "skill_sd": 0.017, "slot": 2.0,
+   "survival_skill": 0.429, "survival_skill_sd": 0.067,
+   "value": 2.974, "value_sd": 0.304, "balls": 6926, "runs": 9336},
   {"cricsheet_id": "ba607b88", "unique_name": "V Kohli", "role": "bowler",
-   "skill": -0.047, "skill_sd": 0.057,
-   "strike_skill": -0.067, "strike_skill_sd": 0.082,
-   "value": -1.350, "value_sd": 1.150, "balls": 257, "runs": 354},
+   "skill": -0.090, "skill_sd": 0.048,
+   "extras_skill": -0.116, "extras_skill_sd": 0.263,
+   "strike_skill": -0.137, "strike_skill_sd": 0.069,
+   "value": -2.660, "value_sd": 0.987, "balls": 257, "runs": 354},
   ...
 ]
 ```
@@ -613,10 +620,9 @@ intercept prior is `Normal(−3, 2)` (log-odds of ~1/25).
 
 | Player | score | survive | complete value |
 |---|---|---|---|
-| AB de Villiers | +0.29 | +0.47 | **+2.95** (elite on both) |
-| V Kohli | +0.16 | +0.58 | +2.68 (anchor) |
-| AD Russell | +0.38 | +0.02 | +1.86 (fast, average survival) |
-| SP Narine | +0.30 | **−0.41** | **+0.08** (slogger) |
+| AB de Villiers | +0.36 | +0.44 | **+3.43** (elite on both) |
+| V Kohli | +0.26 | +0.43 | +2.97 (anchor) |
+| SP Narine | +0.45 | **−0.41** | **−0.05** (slogger) |
 
 Narine scores faster than Kohli, but his poor survival pulls his
 **complete batting value** down to about average, while De Villiers
@@ -627,15 +633,82 @@ single-skill model couldn't tell apart.
 
 **Complete value.** The two axes are in different units: scoring /
 economy is a log runs-per-ball effect, survival / strike a log-odds
-dismissal effect. So each is divided by its fitted population sd
-(`sigma_b` / `sigma_surv` for batters, `sigma_k` / `sigma_strike` for
-bowlers) and then added, per posterior draw:
-`value = skill/σ_rate + second/σ_odds`. 1.0 = one typical
-player-to-player spread better; 0 = the average player. Doing it per draw
-keeps `value_sd` honest. On the current IPL fit σ_rate ≈ 0.21 and
-σ_odds ≈ 0.30 for batters, so Kohli's value is 0.16/0.21 + 0.575/0.30 ≈
-0.76 + 1.92 ≈ 2.68. This is what the Head-to-Head page (`ratings/head_to_head.py`), the scout
-z-scores (§7) and the auction prices (§8) are built on.
+dismissal effect. So each is centred on the role's average player, divided
+by the role's population sd (within and between batting slots, see §5.8)
+and then added, per posterior draw: `value = skill/σ_rate + second/σ_odds`.
+1.0 = one typical player-to-player spread better; 0 = the average player.
+Doing it per draw keeps `value_sd` honest. On the current IPL fit σ_rate ≈
+0.25 and σ_odds ≈ 0.22 for batters, so Kohli's value is 0.26/0.25 +
+0.43/0.22 ≈ 1.05 + 1.92 ≈ 2.97. This is what the Head-to-Head page
+(`ratings/head_to_head.py`), the scout z-scores (§7) and the auction prices
+(§8) are built on.
+
+### 5.8 Context, dispersion, role priors and extras (the shipped model)
+
+Four changes turn the model above into the one `fit()` runs by default
+(`variant="v2"`; `variant="legacy"` is §5.2, kept to measure the changes):
+
+```
+cell = (batter i, bowler j, season s, phase p, innings c, venue v)
+
+runs ~ NegBin(mean = exp(r0 + ctx_r + b_skill[i] − k_skill[j]) · balls,
+              concentration = alpha · balls)                     # (2)
+outs ~ Binomial(trials, sigmoid(w0 + ctx_w + bowl_strike[j] − bat_survive[i]))
+ctx  = season[s] + phase[p] + innings[c] + venue[v]              # (1)
+season[s] = season[s−1] + tau · z_s,   season[first] = 0          # random walk
+venue[v]  = sigma_v · z_v                                          # hierarchical
+
+b_skill[i] = mu_slot[slot(i)] + sigma_b · z_i                     # (3)
+k_skill[j] = mu_role[role(j)] + sigma_k · z_j
+
+extras_js ~ NegBin(exp(x0 + x_season[s] − bowl_extras[j]) · deliveries_js,
+                   alpha_x · deliveries_js)                        # (4)
+```
+
+1. **Context.** A season level per league (a random walk, so the model
+   learns how fast scoring drifts; the IPL's 2026 runs-per-ball level sits
+   ~20% above 2008), phase (death overs score ~50% more per ball than the
+   powerplay and lose wickets about twice as often), innings and ground.
+   Each player is judged against his own context.
+2. **Dispersion ∝ balls.** With one `alpha`, a cell's variance grew with
+   balls², so a 150-ball cell looked as noisy as 150 one-ball cells and the
+   best evidence was under-weighted. `concentration = alpha · balls` makes
+   variance = mean · (1 + rate/alpha): linear in balls, as a sum of balls
+   should be.
+3. **Role-level prior means.** Batters shrink toward their batting slot's
+   mean (1–3, 4–5, 6–7, 8–11, from the median position in the data;
+   the tail sits 0.50 below the top order on the log scale), bowlers toward
+   frontline or part-timer (15+ deliveries per match bowled). A thin-sample
+   tail-ender is no longer an "average batter".
+4. **Extras.** Wides and no-ball runs per delivery get their own bowler
+   skill; the reported economy `skill` is the log of total runs conceded per
+   ball (off the bat + extras) against the average bowler's, and its
+   population sd combines both parts.
+
+`scripts/scout_rate.py` writes the fitted context to
+`scout_context_<col>.json`; `bayesian.heldout_loglik` scores a later season
+ball by ball, which `scripts/backtest_ratings.py --compare legacy` uses to
+compare the two variants.
+
+### 5.9 Does it predict? (the backtest, in brief)
+
+Walk-forward: fit on matches before a season, rank players, compare with
+the season (Spearman). 3 ADVI seeds; the newcomer baseline gets the same
+league centring and tier discount as the model; leagues pooled by
+precision; 2,000 bootstrap resamples with Holm-adjusted p over six tests.
+
+- Established IPL players, 2021–26: batters 0.14 vs 0.15 (career
+  average), bowlers 0.12 vs 0.07. Held-out log-likelihood per ball beats
+  the legacy model in every season (runs −0.6212 vs −0.6255, dismissals
+  −0.1467 vs −0.1480).
+- IPL newcomers rated from other leagues, 2014–26: batters overall 0.22 vs
+  0.10 (all 13 leagues, model ahead in 96% of resamples) and 0.25 vs 0.09
+  (original five, 98%); best Holm p = 0.15, so not significant. Bowlers:
+  no edge.
+
+The old "survival edge for newcomer batters, 97% of re-draws" was mostly
+the league discount and is gone under the fair baseline. A lean, not
+proof. Full tables in [METHODOLOGY §8](METHODOLOGY.md#8-does-it-predict-the-backtest).
 
 ---
 
@@ -659,105 +732,112 @@ normalised per match.
 
 ### 6.2 The WP model
 
-The model is a binary XGBoost classifier — given the game state at
-ball `t`, predict `P(batting team wins eventually)`.
+The model is a binary XGBoost booster — given the game state at
+ball `t`, predict `P(batting team wins eventually)`. A tie is labelled 0.5
+(the cross-entropy objective takes fractional labels); no-results are dropped.
 
-**Features (9).** All numeric, all known *before* the delivery
+**Features (12).** All numeric, all known *before* the delivery
 (T20 only; innings 0 = first, 1 = chase; super overs dropped):
 - `innings_idx` (0 or 1)
 - `balls_remaining` — scheduled legal balls minus legal balls bowled
-  (never how many the innings actually lasted)
+  (the DLS-revised ball count in a rain-hit chase)
 - `wickets_left` (retired hurt isn't a wicket)
 - `score_before` this ball
-- `target` (first-innings total + 1 in the chase; 0 in the first innings)
+- `target` (the recorded chase target; 0 in the first innings)
 - `runs_needed` (target − score; 0 in the first innings)
 - `required_rr` (runs/over needed to chase)
 - `current_rr` (runs per legal over so far)
 - `current_rr_minus_venue` — how far above/below the ground's average
   first-innings run rate, from the training matches only
+- `rr_vs_league`, `target_vs_par`, `rrr_vs_league` — the current rate,
+  the target and the required rate against the league's recent scoring
+  level (first-innings run rate over the previous 60 matches). Relative
+  numbers carry over to a new high-scoring season; a raw scoring level
+  doesn't (trees can't extrapolate past the highest value they saw).
 
-**Holdout split — match-id, not ball-id.** Critical methodological
-choice. If you split balls randomly, the model sees balls 1-99 of a
-match in training and ball 100 in validation — trivial leakage. We
-split *matches* 70/15/15: train, calibration (early stopping +
-isotonic) and test — accuracy, Brier and reliability are reported on
-the test matches only, which nothing was fitted on.
+**Monotone constraints.** `balls_remaining`, `wickets_left`, `score_before`,
+`current_rr`, `current_rr_minus_venue`, `rr_vs_league` can only raise the
+batting side's WP; `target`, `runs_needed`, `required_rr`, `target_vs_par`,
+`rrr_vs_league` can only lower it. Unconstrained, 3.9% of IPL wicket balls
+(no run scored) *raised* batting WP; constrained, 0.01%.
 
-**Hyperparameters.**
+**Holdout split — match-id, not ball-id.** If you split balls randomly,
+the model sees balls 1-99 of a match in training and ball 100 in
+validation — trivial leakage. The *reporting* model splits matches
+70/15/15: train, calibration (early stopping + calibration) and test —
+accuracy, Brier, log loss, ECE and reliability are reported on the test
+matches only.
 
-```python
-xgb.XGBClassifier(
-    n_estimators=600, max_depth=6, learning_rate=0.05,
-    subsample=0.9, colsample_bytree=0.9,
-    early_stopping_rounds=30, eval_metric="logloss",
-    tree_method="hist",
-)
-```
-
-XGBoost is the right tool: tree-based ensembles handle the
-non-linear interactions (`balls_remaining × wickets_left ×
-required_rr` jointly decide WP in ways linear models can't capture)
-without needing manual feature engineering.
-
-### 6.3 Isotonic calibration
-
-The raw XGBoost probabilities are *good rankings* but *bad
-probabilities* — when the model says "70% chance to win" the batting
-team actually wins 75% of the time (or whatever the bias is).
-Isotonic regression fits a monotonic step function from raw → true
-probability:
+**Out-of-fold scoring.** The NGI numbers don't come from that model.
+Matches are dealt into 5 folds; each fold is scored by a model trained
+on the other four (early-stopped and calibrated on an inner 15% of
+their matches). So every ball's ΔWP comes from a model that never saw
+its match. The scored balls are cached per league
+(`data/metrics/.ngi_cache/`) and the time-window / era boards reuse them.
 
 ```python
-calibrator = IsotonicRegression(out_of_bounds="clip")
-calibrator.fit(base.predict_proba(X[ca])[:, 1], y[ca])   # calibration matches
-test_cal = calibrator.transform(base.predict_proba(X[te])[:, 1])  # unseen test matches
+params = {"objective": "binary:logistic", "max_depth": 6, "eta": 0.05,
+          "subsample": 0.9, "colsample_bytree": 0.9, "tree_method": "hist",
+          "monotone_constraints": "(0,1,1,1,-1,-1,-1,1,1,1,-1,-1)"}
+xgb.train(params, dtrain, num_boost_round=600, evals=[(dcal, "cal")],
+          early_stopping_rounds=30)
 ```
 
-The reliability table is measured on the test matches: bin by
-predicted probability and compare with the actual win rate in each
-bin (IPL: within about 0.03 on average). This matters because we're going to *subtract* WP values
-to get ΔWP — if the scale is non-linear in true probability, the
-subtractions become meaningless.
+### 6.3 Smooth (beta) calibration
 
-### 6.4 ΔWP attribution
+The raw probabilities are good rankings but not exact probabilities.
+CricDex calibrates them with **beta calibration** (Kull et al. 2017):
+`logit(p_cal) = a·ln p − b·ln(1 − p) + c`, fitted by Newton's method on
+the calibration matches, with `a, b ≥ 0` so it stays monotone. It used to
+be isotonic regression, a step function: two states on one step get the
+same probability, so ΔWP reads exactly 0, and swings jump at step edges.
+Every NGI number is a difference of two probabilities, so this matters:
+on the IPL, balls with ΔWP exactly 0 fell from 70% to 23% (the rest are
+the trees' own steps), with log loss 0.542 vs 0.548 and ECE 0.024 vs 0.024.
 
-For each ball:
+### 6.4 ΔWP and its credit
+
+For each ball the model predicts four states: before; after the runs off
+the bat and the legal ball used; after the wicket too; after everything.
+
 ```
-delta_wp = wp_after − wp_before
+play   = WP(bat)   − WP(before)
+wicket = WP(mid)   − WP(bat)
+extras = WP(after) − WP(mid)
 ```
 
-Terminal correction: at the last ball of the **chase**,
-`wp_after = 1.0` if the chasing team won, `0.0` if not. At the last
-ball of the **first innings**, `wp_after = 1 − WP` of the chase's
-opening state, so the bowler and batter of that ball aren't credited
-with the whole second innings.
+Terminal correction: at the last ball of the **chase**, `wp_after` is the
+result (1, 0, 0.5 for a tie). At the last ball of the **first innings**,
+`wp_after = 1 − WP` of the chase's opening state. The correction joins the
+part with the largest magnitude on that ball.
 
-Per-ball credit:
-- batter gets `+delta_wp` for the strike ball
-- bowler gets `-delta_wp` for the same ball
+Credit (batting side's view; the fielding side gets the opposite sign):
+- striker: `play` (a wide's play part is 0 — not a ball faced)
+- the batter who is out (`player_out`, the non-striker in a run out at his
+  end): `wicket`
+- bowler: `−play − extras × (wides + no-ball runs) / all extras − w · wicket`
+- each named fielder: `−f · wicket / n_fielders`
+
+with `(w, f)` = (1, 0) for bowled / lbw / hit wicket / caught and bowled,
+(0.8, 0.2) for caught / stumped, (0, 1) for a run out, (0, 0) for retired
+out / obstructing. Byes, leg-byes and penalty runs go to nobody.
 
 ### 6.5 Career aggregation
 
-```python
-batter_match = df.group_by(["match_id","batter"]) \
-    .agg(pl.col("delta_wp").sum().alias("ngi_batting"))
-bowler_match = df.group_by(["match_id","bowler"]) \
-    .agg((-pl.col("delta_wp")).sum().alias("ngi_bowling"))
-career = batter_match.join(bowler_match, on="match_id", how="full") \
-    .group_by("player").agg([
-        pl.col("ngi_batting").sum(),
-        pl.col("ngi_bowling").sum(),
-        pl.col("match_id").n_unique().alias("matches"),
-    ]).with_columns(
-        ngi_total = pl.col("ngi_batting") + pl.col("ngi_bowling"),
-        ngi_per_match = (pl.col("ngi_batting") + pl.col("ngi_bowling"))
-                        / pl.col("matches"),
-    )
+Every credit row is `(match, player id, bat, bowl, field)`; a career sums
+them into `ngi_batting`, `ngi_bowling`, `ngi_fielding` and `ngi_total`.
+`matches` is **appearances**: places in the playing XI
+(`match_players_<col>`) in the matches scored, plus any match the player
+took part in without being listed (a substitute fielder), and
+
+```
+ngi_per_match = ngi_total / matches
 ```
 
-`ngi_per_match` is the headline — a value of `+0.05` means the
-player adds an average of 5 percentage points to their team's win
-probability per match they play.
+`ngi_per_match` is the headline — `+0.05` means the player adds an
+average of 5 percentage points to his team's win probability per match
+he plays. `scripts/compute_metrics.py ngi-diagnostics -c ipl` prints the
+before/after checks quoted above.
 
 ---
 
@@ -1059,9 +1139,10 @@ DuckDB, metrics and Bayes JSONs can always be rebuilt from Cricsheet
 What's shipped, next, later and out of scope lives in one place:
 [`ROADMAP.md`](ROADMAP.md). In short: CricDex is deliberately
 **Cricsheet-only** (scrapes, live feeds and the LLM-written features
-built on them were removed, not deferred); near-term work is fielder
-credit in NGI, venue / phase effects in the ratings and women's
-collections; grassroots data,
+built on them were removed, not deferred); fielder credit in NGI and
+season / phase / innings / venue effects in the ratings have shipped;
+near-term work is a joint multi-league fit, a runs-currency value and
+women's collections; grassroots data,
 auction self-play and the video / voice modules are year-2.
 
 ---

@@ -54,18 +54,22 @@ behaves, not the exact crore of a real sale. → [How the auction works](docs/AU
 
 **Net Game Impact (NGI)** credits every ball by how much it moved the win. A calibrated win-probability
 model reads the match before each delivery (score, wickets and balls left, target, required rate, run
-rate against the ground's average). The change after the ball is that ball's value: plus to the batter,
-minus to the bowler. So a 30* that wins a tight chase counts for more than a hundred in a lost cause.
+rate against the ground's average and against the league's recent scoring level). The change after the
+ball is that ball's value, credited to whoever caused it: runs off the bat to the striker and against the
+bowler, wides and no-balls to the bowler alone, a wicket against the batter who is out, and a share of
+catches, stumpings and run outs to the fielders. So a 30* that wins a tight chase counts for more than a
+hundred in a lost cause.
 
-The model is trained on one set of matches and checked on others it never saw. Fielders aren't credited
-yet. → [NGI in detail](docs/METHODOLOGY.md#2-net-game-impact-ngi)
+Every ball is scored by a model that never saw that match, and per-match numbers count the matches a
+player was in the XI. → [NGI in detail](docs/METHODOLOGY.md#2-net-game-impact-ngi)
 
 ## 🎯 Skill, judged by who it came against
 
 <p align="center"><img src="docs/media/ratings.png" alt="Bayesian batting skill for two players with very different sample sizes, head-to-head odds, and the top active IPL batters and bowlers with their ranges" width="100%"></p>
 
 Raw averages flatter a batter who feasted on weak attacks. The Bayesian model fits every player at once,
-so runs against a great attack count for more. Batters get a **scoring** and a **survival** rating,
+so runs against a great attack count for more, and every ball is judged against its own season, phase,
+innings and ground, so a 2026 strike rate isn't compared with a 2009 one. Batters get a **scoring** and a **survival** rating,
 bowlers an **economy** and a **strike** rating, and every rating comes with **how sure it is**. A player
 with 400 balls gets a wide range; one with 7,000 gets a narrow one. Head-to-heads ("how likely is A
 better than B?") use both ranges, so a thin record can't win the argument on its own.
@@ -99,21 +103,25 @@ specialists, form, partnerships, aging curves, records and venues. → [Metric f
 
 We checked, out of sample. For each season the model is fitted only on matches **before** it, then its
 ranking of players is compared with how the season went (Spearman rank correlation: 1 = same order,
-0 = no link):
+0 = no link). The baselines get the same league adjustment as the model, every fit is run with 3 seeds,
+and the newcomer gaps are bootstrapped 2,000 times with a correction for running six tests:
 
 | | CricDex | Plain baseline |
 |---|---|---|
 | Established IPL batters, next season (2021–26) | 0.14 | 0.15 (career average) |
-| Established IPL bowlers, next season (2021–26) | 0.09 | 0.07 (career average) |
-| IPL newcomer batters, rated from other leagues (2014–26, 96 players) | **0.18** | 0.12 (raw numbers there) |
-| IPL newcomer bowlers, rated from other leagues (2014–26, 110 players) | 0.20 | **0.25** (raw numbers there) |
+| Established IPL bowlers, next season (2021–26) | **0.12** | 0.07 (career average) |
+| IPL newcomer batters, rated from other leagues (2014–26, 103 players) | **0.22** | 0.10 (league-adjusted numbers there) |
+| IPL newcomer bowlers, rated from other leagues (2014–26, 132 players) | 0.18 | **0.24** (league-adjusted numbers there) |
 
-**The honest read:** for players the IPL already knows, the ratings predict next season about as well as
-career averages. A single T20 season is mostly noise, and weighting recent seasons didn't help. Where
-they earn their keep is **judging newcomer batters from other leagues**: across 2,000 resamples of the
-players, the model judged how long a newcomer batter lasts better in 97% of them. The overall batter edge
-held in 79%, a lean rather than proof, and for bowlers there is no edge. Re-run it yourself with
-`scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`.
+**The honest read:** an earlier version of this page claimed a survival edge for newcomer batters that held
+in 97% of re-draws. That doesn't survive a fair, league-adjusted baseline: the edge was mostly the league
+discount itself. With the fixes, the model ranks newcomer batters better **overall** (ahead in 96% of
+resamples with all 13 other leagues, 98% with the original five), but nothing is significant after
+correcting for six tests (best adjusted p = 0.15), and bowlers show no edge. For players the IPL already
+knows, it ties career averages for batters and edges them for bowlers, and the new model predicts held-out
+balls better than the old one in every season. A single T20 season is mostly noise, so read the newcomer
+result as **a lean, not proof**. Re-run it yourself with `scripts/backtest_ratings.py` and
+`scripts/backtest_newcomers.py`.
 → [The backtest in detail](docs/METHODOLOGY.md#8-does-it-predict-the-backtest)
 
 ## 🧠 How it works

@@ -24,7 +24,15 @@ from pathlib import Path
 
 import duckdb
 
-from cricdex.common.sql import MAIN_INNINGS, table_suffix
+from cricdex.common.sql import (
+    MAIN_INNINGS,
+    cid_of,
+    keyed_balls,
+    label_map,
+    name_of_key,
+    resolve_key,
+    table_suffix,
+)
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -33,16 +41,18 @@ DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 def ball_volumes(
     con: duckdb.DuckDBPyConnection, collection: str = "ipl"
 ) -> dict[str, tuple[int, int]]:
-    """{player_name: (balls_faced, balls_bowled)} for the collection — computed
-    once and reused across every player's cohort to pick the batter/bowler axis."""
-    safe = table_suffix(collection)
+    """{player key: (balls_faced, balls_bowled)} for the collection — computed
+    once and reused across every player's cohort to pick the batter/bowler axis. A key is the
+    player's registry id (`unresolved:<name>` if the registry doesn't know him)."""
+    table_suffix(collection)  # rejects an unsafe collection name
+    kb = keyed_balls(con, collection)
     rows = con.execute(
         f"""
         SELECT player, SUM(faced) AS bf, SUM(bowled) AS bb FROM (
-            SELECT batter AS player, 1 AS faced, 0 AS bowled FROM balls_{safe}
+            SELECT batter AS player, 1 AS faced, 0 AS bowled FROM {kb}
             WHERE batter IS NOT NULL AND extras_type IS DISTINCT FROM 'wides' AND {MAIN_INNINGS}
             UNION ALL
-            SELECT bowler AS player, 0, 1 FROM balls_{safe} WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
+            SELECT bowler AS player, 0, 1 FROM {kb} WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
         ) GROUP BY player
         """
     ).fetchall()
@@ -58,17 +68,19 @@ def co_faced(
     db_path: Path | str = DEFAULT_DB_PATH,
     top_k: int = 12,
 ) -> list[dict]:
-    """Top-`top_k` cohort for `name`. Pass a shared `con` + precomputed `vol`
-    when building many players in one export pass; otherwise it opens its own
-    read-only connection."""
+    """Top-`top_k` cohort for a player (`name` = his registry id, or a scorecard name). Pass a
+    shared `con` + precomputed `vol` when building many players in one export pass; otherwise it
+    opens its own read-only connection. Rows carry `name` (scorecard) and `cricsheet_id`."""
     own = con is None
     if own:
         con = duckdb.connect(str(db_path), read_only=True)
     try:
-        safe = table_suffix(collection)
+        table_suffix(collection)  # rejects an unsafe collection name
+        kb = keyed_balls(con, collection)
+        key = name if name in (vol or {}) else resolve_key(con, collection, name)
         if vol is None:
             vol = ball_volumes(con, collection)
-        bf, bb = vol.get(name, (0, 0))
+        bf, bb = vol.get(key, (0, 0))
         if bf == 0 and bb == 0:
             return []
         target_is_bowler = bb > bf
@@ -78,15 +90,15 @@ def co_faced(
             rows = con.execute(
                 f"""
                 SELECT bowler AS q, COUNT(DISTINCT batter) AS shared
-                FROM balls_{safe}
+                FROM {kb}
                 WHERE batter IN (
-                        SELECT DISTINCT batter FROM balls_{safe}
+                        SELECT DISTINCT batter FROM {kb}
                         WHERE bowler = ? AND batter IS NOT NULL AND {MAIN_INNINGS}
                       )
                   AND bowler IS NOT NULL AND bowler <> ? AND {MAIN_INNINGS}
-                GROUP BY bowler ORDER BY shared DESC LIMIT 300
+                GROUP BY bowler ORDER BY shared DESC, q LIMIT 300
                 """,
-                [name, name],
+                [key, key],
             ).fetchall()
             field = "shared_batters"
         else:
@@ -94,25 +106,29 @@ def co_faced(
             rows = con.execute(
                 f"""
                 SELECT batter AS q, COUNT(DISTINCT bowler) AS shared
-                FROM balls_{safe}
+                FROM {kb}
                 WHERE bowler IN (
-                        SELECT DISTINCT bowler FROM balls_{safe}
+                        SELECT DISTINCT bowler FROM {kb}
                         WHERE batter = ? AND bowler IS NOT NULL AND {MAIN_INNINGS}
                       )
                   AND batter IS NOT NULL AND batter <> ? AND {MAIN_INNINGS}
-                GROUP BY batter ORDER BY shared DESC LIMIT 300
+                GROUP BY batter ORDER BY shared DESC, q LIMIT 300
                 """,
-                [name, name],
+                [key, key],
             ).fetchall()
             field = "shared_bowlers"
 
         out: list[dict] = []
+        labels: dict[str, str] | None = None
         for q, shared in rows:
             q_bf, q_bb = vol.get(q, (0, 0))
             # keep candidates on the same axis as the target (bowler vs batter)
             on_axis = (q_bb > q_bf) if target_is_bowler else (q_bf >= q_bb)
             if on_axis:
-                out.append({"name": q, field: int(shared)})
+                labels = labels if labels is not None else label_map(con, collection)
+                out.append(
+                    {"name": name_of_key(q, labels), "cricsheet_id": cid_of(q), field: int(shared)}
+                )
                 if len(out) >= top_k:
                     break
         return out

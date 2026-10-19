@@ -124,7 +124,7 @@ export function Leaderboards() {
               label: c.label,
               align: "left" as const,
               render: (row: Record<string, unknown>) => (
-                <span className="font-medium text-fg">{nameOf(String(row[c.key] ?? ""))}</span>
+                <span className="font-medium text-fg">{nameOf(String(row[c.key] ?? ""), row.cricsheet_id)}</span>
               ),
             }
           : {
@@ -218,7 +218,7 @@ export function Leaderboards() {
             label="Period"
             value={activePeriod}
             onChange={setPeriod}
-            options={periods.map((p) => ({ value: p, label: PERIOD_LABEL[p] ?? p }))}
+            options={periods.map((p) => ({ value: p, label: PERIOD_LABEL[p] ?? meta?.window_labels?.[p] ?? p }))}
           />
         </div>
       )}
@@ -247,7 +247,7 @@ export function Leaderboards() {
           rows={filtered}
           cols={cols}
           higherIsBetter={metric.higherIsBetter}
-          rowLabel={(row) => `Open ${nameOf(String(row[metric.nameCol]))}'s profile`}
+          rowLabel={(row) => `Open ${nameOf(String(row[metric.nameCol]), row.cricsheet_id)}'s profile`}
           onRowClick={(row) => {
             const name = row[metric.nameCol];
             if (typeof name === "string")

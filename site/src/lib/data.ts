@@ -59,7 +59,8 @@ export interface CollectionMeta {
   n_balls: number;
   n_players: number;
   n_active?: number;
-  windows?: string[]; // recomputed time windows available, e.g. ["last3y","last1y"]
+  windows?: string[]; // recomputed time windows available, e.g. ["last3y","last1y","era_impact"]
+  window_labels?: Record<string, string>; // window → label, incl. the league's eras ("Impact Player era")
 }
 
 /** Identity fields the player-data pass adds (players.json rows, profiles' `identity`). All optional:

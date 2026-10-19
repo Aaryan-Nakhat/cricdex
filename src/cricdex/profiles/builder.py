@@ -21,7 +21,16 @@ from pathlib import Path
 import duckdb
 
 from cricdex.common.metrics import METRICS
-from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, player_ids, table_suffix
+from cricdex.common.sql import (
+    BOWLER_RUNS,
+    MAIN_INNINGS,
+    cid_of,
+    keyed_balls,
+    label_map,
+    name_of_key,
+    resolve_key,
+    table_suffix,
+)
 from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.metrics import dismissal_fingerprint as df
 from cricdex.scout.search import style_twin as twin
@@ -97,17 +106,13 @@ def _taxonomy_cache() -> dict[str, dict]:
     return out
 
 
-def _people_row(con: duckdb.DuckDBPyConnection, name: str, collection: str) -> dict | None:
-    """The player's ids, found through the collection's match registry (scorecard name → Cricsheet id), then
-    the People Register for the cross-site keys. Falls back to the register's name when there's no registry."""
+def _people_row(con: duckdb.DuckDBPyConnection, key: str, name: str) -> dict | None:
+    """The player's ids: his Cricsheet id (the key, resolved per match through the collection's
+    registry) and the People Register's cross-site keys for it."""
+    cid = cid_of(key)
     tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
     if "people" not in tables:
-        return None
-    ids = player_ids(con, collection)
-    cid = None
-    if ids:
-        hit = con.execute(f"SELECT identifier FROM {ids} WHERE name = ? LIMIT 1", [name]).fetchone()
-        cid = hit[0] if hit else None
+        return {"cricsheet_id": cid, "unique_name": name} if cid else None
     row = con.execute(
         """
         SELECT identifier AS cricsheet_id, unique_name,
@@ -132,9 +137,12 @@ def _wikidata_row(cricsheet_id: str | None) -> dict | None:
 
 
 def career_totals(con: duckdb.DuckDBPyConnection, collection: str, name: str) -> dict:
-    """Raw career totals for one player from the ball table (main innings only).
-    Shared with `comparator.compare`, which renames a few keys."""
-    safe = table_suffix(collection)
+    """Raw career totals for one player from the ball table (main innings only). `name` is his
+    registry id or scorecard name (see `common.sql.resolve_key`). Shared with `comparator.compare`,
+    which renames a few keys."""
+    table_suffix(collection)  # rejects an unsafe collection name
+    key = resolve_key(con, collection, name)
+    kb = keyed_balls(con, collection)
     bat = con.execute(
         f"""
         SELECT
@@ -144,10 +152,10 @@ def career_totals(con: duckdb.DuckDBPyConnection, collection: str, name: str) ->
             SUM(CASE WHEN runs_batter = 4 THEN 1 ELSE 0 END) AS fours,
             COUNT(DISTINCT (match_id, innings_idx)) AS innings,
             COUNT(DISTINCT match_id) AS matches
-        FROM balls_{safe}
+        FROM {kb}
         WHERE batter = ? AND {MAIN_INNINGS}
         """,
-        [name],
+        [key],
     ).fetchone()
     bowl = con.execute(
         f"""
@@ -158,10 +166,10 @@ def career_totals(con: duckdb.DuckDBPyConnection, collection: str, name: str) ->
             SUM({BOWLER_RUNS}) AS runs_conceded,
             COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides','noballs')) AS legal_balls,
             COUNT(DISTINCT match_id) AS matches_bowled
-        FROM balls_{safe}
+        FROM {kb}
         WHERE bowler = ? AND {MAIN_INNINGS}
         """,
-        [name],
+        [key],
     ).fetchone()
     return {
         "career_runs": int(bat[0] or 0),
@@ -174,7 +182,7 @@ def career_totals(con: duckdb.DuckDBPyConnection, collection: str, name: str) ->
         "career_runs_conceded": int(bowl[1] or 0),
         "career_legal_balls_bowled": int(bowl[2] or 0),
         "career_matches_bowled": int(bowl[3] or 0),
-        **career_standard(con, collection, name),
+        **career_standard(con, collection, key),
     }
 
 
@@ -187,11 +195,13 @@ _BOWLER_WICKET_SQL = (
 def career_standard(con: duckdb.DuckDBPyConnection, collection: str, name: str) -> dict:
     """The standard stat line on top of the totals (main innings only, legal balls): 50s / 100s,
     highest score (and whether not out), dismissals, dots faced / bowled, best bowling, 3-wicket
-    (exactly three) and 4+-wicket hauls."""
-    safe = table_suffix(collection)
+    (exactly three) and 4+-wicket hauls. `name` is a registry id or scorecard name."""
+    table_suffix(collection)  # rejects an unsafe collection name
+    name = resolve_key(con, collection, name)
+    kb = keyed_balls(con, collection)
     inns = con.execute(
         f"""
-        WITH b AS (SELECT * FROM balls_{safe} WHERE {MAIN_INNINGS}),
+        WITH b AS (SELECT * FROM {kb} WHERE {MAIN_INNINGS}),
         bat AS (
             SELECT match_id, innings_idx, SUM(runs_batter) AS runs FROM b
             WHERE batter = ? GROUP BY 1, 2
@@ -213,14 +223,14 @@ def career_standard(con: duckdb.DuckDBPyConnection, collection: str, name: str) 
                              AND runs_batter = 0),
             COUNT(*) FILTER (WHERE bowler = ? AND COALESCE(extras_type, '') NOT IN ('wides', 'noballs')
                              AND runs_batter = 0)
-        FROM balls_{safe} WHERE {MAIN_INNINGS} AND (player_out = ? OR batter = ? OR bowler = ?)
+        FROM {kb} WHERE {MAIN_INNINGS} AND (player_out = ? OR batter = ? OR bowler = ?)
         """,
         [name] * 6,
     ).fetchone()
     spells = con.execute(
         f"""
         SELECT SUM(CASE WHEN {_BOWLER_WICKET_SQL} THEN 1 ELSE 0 END) AS w, SUM({BOWLER_RUNS}) AS r
-        FROM balls_{safe} WHERE bowler = ? AND {MAIN_INNINGS}
+        FROM {kb} WHERE bowler = ? AND {MAIN_INNINGS}
         GROUP BY match_id, innings_idx
         """,
         [name],
@@ -253,9 +263,10 @@ def _intent_rows(rows: list[dict]) -> dict[str, dict]:
     by_batter: dict[str, dict[str, dict]] = {}
     for r in rows:
         if r.get("batter") is not None:
-            by_batter.setdefault(r["batter"], {})[r.get("ball_bucket")] = r
+            by_batter.setdefault(_row_key(r, "batter"), {})[r.get("ball_bucket")] = r
     out: dict[str, dict] = {}
-    for batter, buckets in by_batter.items():
+    for key, buckets in by_batter.items():
+        batter = next(iter(buckets.values()))["batter"]
         curve = [
             round(float(buckets[b]["sr"]), 1)
             if b in buckets and buckets[b].get("sr") is not None
@@ -266,14 +277,21 @@ def _intent_rows(rows: list[dict]) -> dict[str, dict]:
         e_balls = sum(int(r.get("balls") or 0) for r in early)
         e_runs = sum(int(r.get("runs") or 0) for r in early)
         present = [c for c in curve if c is not None]
-        out[batter] = {
+        out[key] = {
             "batter": batter,
+            "cricsheet_id": cid_of(key),
             "early_sr": round(100.0 * e_runs / e_balls, 1) if e_balls else None,
             "peak_sr": max(present) if present else None,
             "balls": sum(int(r.get("balls") or 0) for r in buckets.values()),
             "curve": curve,
         }
     return out
+
+
+def _row_key(row: dict, name_col: str) -> str:
+    """A metric row's player key: its `cricsheet_id`, else (an unresolved player, or a file written
+    before rows carried ids) `unresolved:<scorecard name>`."""
+    return row.get("cricsheet_id") or f"unresolved:{row.get(name_col)}"
 
 
 def _read_rows(path: Path) -> list[dict]:
@@ -285,14 +303,16 @@ def _read_rows(path: Path) -> list[dict]:
 
 def load_metric_tables(collection: str) -> dict[str, dict[str, dict]]:
     """Every catalog metric (all 12 leaderboards) for a collection, indexed
-    slug -> player name -> row. Read once and reused for every profile."""
+    slug -> player key (registry id) -> row. Read once and reused for every profile."""
     tables: dict[str, dict[str, dict]] = {}
     for m in METRICS:
         rows = _read_rows(METRIC_DIR / f"{m.slug}_{collection}.json")
         if m.slug == "intent_curve":
             tables[m.slug] = _intent_rows(rows)
         else:
-            tables[m.slug] = {r[m.name_col]: r for r in rows if r.get(m.name_col) is not None}
+            tables[m.slug] = {
+                _row_key(r, m.name_col): r for r in rows if r.get(m.name_col) is not None
+            }
     return tables
 
 
@@ -329,6 +349,7 @@ class Sources:
         self.collection = collection
         self.metrics = load_metric_tables(collection)
         self.bayes = load_bayes_table(collection)
+        self.labels: dict[str, str] | None = None  # player key -> scorecard name, on first use
         self.twins: dict[str, twin.TwinIndex | None] = {}
         for role in ("batter", "bowler"):
             try:
@@ -340,12 +361,12 @@ class Sources:
 TWINS_K = 25  # enough look-alikes left after a country filter
 
 
-def _twins(sources: Sources, role: str, name: str) -> list[dict]:
+def _twins(sources: Sources, role: str, key: str) -> list[dict]:
     index = sources.twins.get(role)
     if index is None:
         return []
     try:
-        found = index.query(name, k=TWINS_K)
+        found = index.query(key, k=TWINS_K)
     except Exception:  # noqa: BLE001 — not in this role's feature table
         return []
     return found.to_dicts() if not found.is_empty() else []
@@ -358,8 +379,9 @@ def build(
     con: duckdb.DuckDBPyConnection | None = None,
     sources: Sources | None = None,
 ) -> dict:
-    """One player's profile. Pass an open read-only `con` and the collection's
-    `Sources` to reuse them across players; otherwise both are made here."""
+    """One player's profile. `name` is his registry id (exact) or a scorecard name (a name two
+    players share resolves to the one with more matches here). Pass an open read-only `con` and the
+    collection's `Sources` to reuse them across players; otherwise both are made here."""
     profile: dict = {"name": name, "collection": collection}
     if con is None and not DUCKDB_PATH.exists():
         return profile
@@ -368,26 +390,31 @@ def build(
     if own:
         con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
     try:
-        people = _people_row(con, name, collection)
+        key = resolve_key(con, collection, name)
+        if sources.labels is None:
+            sources.labels = label_map(con, collection)
+        scorecard = name_of_key(key, sources.labels) or name
+        profile["name"] = scorecard
+        people = _people_row(con, key, scorecard)
         profile["ids"] = people or {}
-        cid = people.get("cricsheet_id") if people else None
+        cid = cid_of(key)
         profile["cricsheet_id"] = cid
         profile["wikidata"] = _wikidata_row(cid) or {}
         profile["taxonomy"] = (_taxonomy_cache().get(cid) if cid else None) or {}
         profile["bayes"] = (sources.bayes.get(cid) if cid else None) or {}
-        profile["career"] = career_totals(con, collection, name)
+        profile["career"] = career_totals(con, collection, key)
 
         # Every catalog metric, keyed by slug; None where the player isn't on that board.
-        profile["metrics"] = {m.slug: sources.metrics.get(m.slug, {}).get(name) for m in METRICS}
-        profile["style_twins_batter"] = _twins(sources, "batter", name)
-        profile["style_twins_bowler"] = _twins(sources, "bowler", name)
+        profile["metrics"] = {m.slug: sources.metrics.get(m.slug, {}).get(key) for m in METRICS}
+        profile["style_twins_batter"] = _twins(sources, "batter", key)
+        profile["style_twins_bowler"] = _twins(sources, "bowler", key)
 
         # Dismissal fingerprint — *how* this player gets out / takes wickets
         # (scouting metadata, separate from the Bayesian skill numbers).
         try:
             profile["dismissal_fingerprint"] = {
-                "batter": df.batter_modes(name, collection, con=con),
-                "bowler": df.bowler_modes(name, collection, con=con),
+                "batter": df.batter_modes(key, collection, con=con),
+                "bowler": df.bowler_modes(key, collection, con=con),
             }
         except Exception:  # noqa: BLE001
             profile["dismissal_fingerprint"] = {}

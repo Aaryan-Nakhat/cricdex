@@ -117,3 +117,6 @@ site/dist/
 # site/public/data is committed: it's the pre-cooked snapshot the static
 # build and GitHub Pages deploy read. The nightly refresh workflow
 # re-cooks it to the latest match date and redeploys.
+
+# Git Bash crash dumps
+*.stackdump

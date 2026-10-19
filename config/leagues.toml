@@ -108,6 +108,9 @@ note = "Borrowed from CPL / Blast; not yet fitted."
 #     draftable     its players can be drafted into the Auction room
 #     gem_pool      the uncapped-gem (moneyball) board is drawn from this pool
 #   auction_pool  feeds the cross-league auction pool
+#   [[league.era]]  optional, repeatable: key (lowercase letters / digits), name, since (ISO
+#                 date). Each era is exported as a recomputed leaderboard window `era_<key>`
+#                 (matches on or after `since`), next to last1y / last3y.
 #   auction_target  the competition the auction pool is priced for (exactly one); its
 #                   `auction_nationalities` (allow) and `auction_excluded_nationalities` (deny)
 #                   lists say who may enter that pool as a free agent
@@ -142,6 +145,14 @@ auction_nationalities = [
   "IND", "AUS", "ENG", "RSA", "ZAF", "NZL", "SRI", "LKA", "BAN", "AFG", "WIN", "WI", "IRE",
 ]
 auction_excluded_nationalities = ["PAK"]
+
+# Eras: a rule change that moved the scoring level. Each becomes its own recomputed window on the
+# leaderboards (next to "last year" / "last 3 years"), so numbers from one era aren't ranked
+# against another's. The Impact Player rule (a twelfth batter or bowler) started with the 2023 IPL.
+[[league.era]]
+key = "impact"
+name = "Impact Player era"
+since = "2023-03-31"
 
 [[league]]
 key = "indian_domestic_male"   # kept for existing data and links; the data is SMAT only

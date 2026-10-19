@@ -169,12 +169,21 @@ emptied; pass a number to fix it (30 was the old IPL floor).
 
 - **NGI (Net Game Impact)** ✅ — WPA-style player impact. XGBoost
   win-probability model trained on Cricsheet T20 ball-by-ball (only
-  information known before each delivery), early-stopped and isotonically
-  calibrated on one set of matches and scored on another it never saw;
-  per-ball ΔWP credited to batter (+) and bowler (−). Time-window boards
-  reuse the whole league's model; leaderboards keep a matches floor
-  (25 all-time, 6 for 3 years, 3 for 1 year). Career table at `data/metrics/ngi_<collection>.json`,
-  dashboard tab "NGI (Net Game Impact)".
+  information known before each delivery, including three features relative to the league's
+  recent scoring level), with monotone constraints and smooth beta calibration; ties are labelled
+  0.5. Every ball is scored **out of fold** (5 folds by match: a model that never saw that match);
+  a separate 70 / 15 / 15 split reports accuracy, Brier, log loss and ECE. Each ball's ΔWP is split
+  into play (runs off the bat + the ball used), wicket and extras, then credited:
+  `striker += play`, `player_out += wicket`, `bowler −= play + extras × (wides+no-ball runs ÷ all
+  extras) + wicket × w`, `fielder −= wicket × f ÷ n_fielders`, with `(w, f)` = (1, 0) for bowled /
+  lbw / hit wicket / caught and bowled, (0.8, 0.2) for caught / stumped, (0, 1) for a run out and
+  (0, 0) for retired out / obstructing; byes, leg-byes and penalty runs go to nobody. Columns:
+  `ngi_batting`, `ngi_bowling`, `ngi_fielding`, `ngi_total` (their sum), `matches` (appearances in
+  the playing XI, `match_players_<col>`, plus any match played unlisted), `ngi_per_match` =
+  `ngi_total ÷ matches`. Time-window and era boards reuse the whole league's out-of-fold scores;
+  leaderboards keep a matches floor (25 all-time, 6 for 3 years and eras, 3 for 1 year). Career
+  table at `data/metrics/ngi_<collection>.json`, dashboard tab "NGI (Net Game Impact)";
+  `scripts/compute_metrics.py ngi-diagnostics` prints the model checks.
 - **Wicket Quality** ✅ — the mean Bayes batting skill of the batters a
   bowler dismissed (run outs, retirements and obstructing the field
   excluded); higher = harder wickets. It uses the batter's scoring
@@ -193,8 +202,9 @@ emptied; pass a number to fix it (30 was the old IPL floor).
   ~0 or negative = aggressive from ball one. Filters: 200 career balls,
   50 balls inside the first 20. Lives in `cricdex.metrics.batter`.
 - **Wicketkeeping** ✅ — dismissals a keeper is credited with: catches +
-  stumpings + run-out involvements, from the ball-by-ball `fielders` field.
-  A fielder is a keeper if the taxonomy says so or they have any stumping.
+  stumpings + run-out involvements, from every wicket's `fielders` (a second
+  wicket off one delivery counts too). A fielder is a keeper if the player
+  master (by registry id) says so or they have any stumping.
   Lives in `cricdex.metrics.fielding.keeping`.
 - **Fielding** ✅ — outfield dismissals: catches + run-out involvements
   (caught-and-bowled is a bowling wicket, excluded; every fielder in a
@@ -224,6 +234,11 @@ re-run `scripts/export_site.py` (or `cricdex data ingest metrics`, which
 exports for you) after recomputing.
 
 ## Common rules (all metrics, records and boards)
+
+- Every player is keyed by his Cricsheet registry id, resolved per match (`common/sql.py::keyed_balls`:
+  each match's `players_<col>` registry maps that match's scorecard names to ids). Two different players
+  who share a scorecard name in one league (among players who batted or bowled: 38 names in men's T20Is, 7 in the BPL, 7 in SMAT, 3 in the PSL, 1 each in the IPL and The Hundred) are two rows. Each row
+  carries `cricsheet_id`, the scorecard name (`batter` / `bowler` / `fielder` / `name`) and `display_name`.
 
 - Super overs decide a tie and aren't part of anyone's batting or bowling record, so they're left out
   everywhere: NGI, records, venue profiles, phase boards, profiles, every metric here, the fielding boards,

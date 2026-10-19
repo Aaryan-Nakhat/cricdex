@@ -89,6 +89,29 @@ Scout, the auction pool, `GET /v1/leagues` and the refresh workflow's default li
 | `auction_target` | The competition the auction pool is priced for (exactly one when any pool exists; the IPL). |
 | `auction_nationalities` | On the target only: the allow-list of free-agent nationalities (empty = every nation not excluded). |
 | `auction_excluded_nationalities` | On the target only: the deny-list, which always wins (Pakistan for the IPL). |
+| `[[league.era]]` | Optional, repeatable: `key` (lowercase letters and digits), `name`, `since` (ISO date). Each era is a stretch with its own scoring level, exported as one more recomputed leaderboard window (`era_<key>`, every match on or after `since`) next to "last year" and "last 3 years". The IPL has `impact` ("Impact Player era", since 2023-03-31). |
+
+## Add an era
+
+A rule change that moved scoring (the IPL's Impact Player, a new powerplay rule, a ball change) is
+one table under its league:
+
+```toml
+[[league]]
+key = "ipl"
+# …
+[[league.era]]
+key = "impact"
+name = "Impact Player era"
+since = "2023-03-31"
+```
+
+Then re-export (`scripts/export_site.py -c <key>`): the exporter builds `balls_<key>_era_<era>` /
+`matches_<key>_era_<era>`, runs every metric over it like the time windows, and lists it in that
+league's `meta.json` (`windows`, `window_labels`), so the period selector on the site's Leaderboards,
+the Streamlit Leaderboards page and the TUI's LEADERS tab offers it.
+`python -m cricdex.leagues check` validates the entry; the eras are also in `leagues.json`. Eras
+are display windows: the rating model doesn't need them, since it already fits a level per season.
 
 ## Tiers and discounts
 

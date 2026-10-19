@@ -49,22 +49,27 @@ METRICS: list[MetricDef] = [
         slug="ngi",
         name="Net Game Impact",
         one_liner=(
-            "How much a player adds to his team's chance of winning, per match — batting and bowling "
-            "together."
+            "How much a player adds to his team's chance of winning, per match — batting, bowling"
+            " and fielding together."
         ),
         what=(
-            "NGI scores every ball by how much it changed the batting side's chance of winning, "
-            "credits that to the batter (and the opposite to the bowler), and averages it per match —"
+            "NGI scores every ball by how much it changed the batting side's chance of winning "
+            "and credits it to whoever caused it — the batter for his runs, the bowler for runs, "
+            "extras and wickets, the fielder for a catch or run out — then averages it per match,"
             " so a 30* that wins a tight chase counts for more than a hundred in a lost cause."
         ),
         how=(
-            "A win-probability model (gradient-boosted trees, calibrated) trained on every T20 ball "
-            "in the league reads the state before each delivery: innings, balls and wickets left, "
-            "score, target and required rate, and the run rate against the ground's average. The "
-            "change in win chance from before to after the ball is that ball's value: + to the "
-            "batter, − to the bowler. Win chance added per match = the career sum divided by matches "
-            "played, shown as a percentage. Wins added = the career sum itself: every 1.0 is one "
-            "whole win's worth of win chance."
+            "A win-probability model (gradient-boosted trees with a smooth calibration) reads the"
+            " state before each delivery: innings, balls and wickets left, score, target and "
+            "required rate, the run rate against the ground's average and the league's recent "
+            "scoring level. Every ball is scored by a model that never saw that match. The change"
+            " in win chance is split: runs off the bat go to the striker (+) and the bowler (−); "
+            "wides and no-balls to the bowler only; byes and leg-byes to nobody; a wicket debits "
+            "the batter who is out (the non-striker in a run out at his end) and credits the "
+            "bowler, with 20% of a catch or stumping to the fielder and all of a run out to the "
+            "fielders. Win chance added per match = the career sum divided by matches in the "
+            "playing XI, shown as a percentage. Wins added = the career sum itself: every 1.0 is "
+            "one whole win's worth of win chance."
         ),
         read=(
             "Win chance added per match: +5% means that in a typical game he adds five percentage "
@@ -74,9 +79,9 @@ METRICS: list[MetricDef] = [
             "every match he plays."
         ),
         good=(
-            "In the IPL most regulars sit between −4% and +3% per match; +3.5% or more is top-10%, "
-            "and +8% or more is elite. Compare wins added only between players with similar numbers "
-            "of matches — a long career piles it up."
+            "In the IPL most regulars sit between −4% and +3% per match; +3% or more is top-10%, "
+            "and +5% or more is elite. Compare wins added only between players with similar "
+            "numbers of matches — a long career piles it up."
         ),
         direction="higher",
         name_col="name",
@@ -89,6 +94,7 @@ METRICS: list[MetricDef] = [
             Column("ngi_total", "Wins added (career)", 1),
             Column("ngi_batting", "…from batting", 1),
             Column("ngi_bowling", "…from bowling", 1),
+            Column("ngi_fielding", "…from fielding", 1),
             Column("matches", "Matches", 0),
         ],
     ),

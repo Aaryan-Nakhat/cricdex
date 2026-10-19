@@ -501,14 +501,14 @@ export function PlayerProfile() {
                 />
               </div>
               <div className="p-3">
-                <TwinList twins={profile.style_twins_batter} byName={byName} onPick={(c) => navigate(`/player?cid=${c}`)} role="batter" country={playerCountry} mode={playerCountry ? twinCountry : "all"} />
-                <TwinList twins={profile.style_twins_bowler} byName={byName} onPick={(c) => navigate(`/player?cid=${c}`)} role="bowler" country={playerCountry} mode={playerCountry ? twinCountry : "all"} />
+                <TwinList twins={profile.style_twins_batter} byName={byName} byId={byId} onPick={(c) => navigate(`/player?cid=${c}`)} role="batter" country={playerCountry} mode={playerCountry ? twinCountry : "all"} />
+                <TwinList twins={profile.style_twins_bowler} byName={byName} byId={byId} onPick={(c) => navigate(`/player?cid=${c}`)} role="bowler" country={playerCountry} mode={playerCountry ? twinCountry : "all"} />
               </div>
             </Card>
             <Card>
               <CardHeader title="Graph cohort" subtitle="Players who faced the same bowlers / shared a side" />
               <div className="p-3">
-                <CohortList rows={cohorts?.co_faced ?? []} label="Faced the same bowlers" keyField="shared_bowlers" byName={byName} onPick={(c) => navigate(`/player?cid=${c}`)} />
+                <CohortList rows={cohorts?.co_faced ?? []} label="Faced the same bowlers" keyField="shared_bowlers" byName={byName} byId={byId} onPick={(c) => navigate(`/player?cid=${c}`)} />
               </div>
             </Card>
           </div>
@@ -524,6 +524,7 @@ function TwinList({
   twins,
   role,
   byName,
+  byId,
   onPick,
   country,
   mode,
@@ -531,6 +532,7 @@ function TwinList({
   twins: Record<string, unknown>[] | null;
   role: string;
   byName: Map<string, PlayerRow>;
+  byId: Map<string, PlayerRow>;
   onPick: (cid: string) => void;
   /** The profiled player's country (null = unknown: no country filter). */
   country: string | null;
@@ -542,7 +544,7 @@ function TwinList({
   const closest = dists.length ? Math.min(...dists) : NaN;
   const kept = twins.filter((t) => {
     if (mode === "all" || !home) return true;
-    const row = byName.get(String(t.name));
+    const row = (typeof t.cricsheet_id === "string" ? byId.get(t.cricsheet_id) : undefined) ?? byName.get(String(t.name));
     const c = normCountry((t.country as string | null | undefined) ?? row?.country ?? null);
     if (!c) return false;
     return mode === "same" ? c === home : c !== home;
@@ -558,8 +560,8 @@ function TwinList({
       )}
       {kept.slice(0, 6).map((t, i) => {
         const name = String(t.name);
-        const row = byName.get(name);
-        const cid = row?.cricsheet_id;
+        const row = (typeof t.cricsheet_id === "string" ? byId.get(t.cricsheet_id) : undefined) ?? byName.get(name);
+        const cid = (typeof t.cricsheet_id === "string" ? t.cricsheet_id : undefined) ?? row?.cricsheet_id;
         const dist = Number(t.distance);
         // 1 = as close as the closest twin, falling with distance
         const rel = Number.isFinite(dist) && dist > 0 ? Math.min(1, closest / dist) : Number.isFinite(dist) ? 1 : null;
@@ -660,12 +662,14 @@ function CohortList({
   label,
   keyField,
   byName,
+  byId,
   onPick,
 }: {
   rows: Record<string, unknown>[];
   label: string;
   keyField: string;
   byName: Map<string, PlayerRow>;
+  byId: Map<string, PlayerRow>;
   onPick: (cid: string) => void;
 }) {
   if (!rows.length) return <div className="px-2 py-3 text-sm text-muted">No graph cohort available.</div>;
@@ -674,7 +678,8 @@ function CohortList({
       <div className="px-2 pb-1 text-[11px] uppercase tracking-wider text-muted">{label}</div>
       {rows.slice(0, 10).map((r, i) => {
         const name = String(r.name);
-        const cid = byName.get(name)?.cricsheet_id;
+        const row = (typeof r.cricsheet_id === "string" ? byId.get(r.cricsheet_id) : undefined) ?? byName.get(name);
+        const cid = (typeof r.cricsheet_id === "string" ? r.cricsheet_id : undefined) ?? row?.cricsheet_id;
         return (
           <button
             key={i}
@@ -682,7 +687,7 @@ function CohortList({
             onClick={() => cid && onPick(cid)}
             className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-surface disabled:opacity-60"
           >
-            <span className="text-fg">{displayName(byName.get(name) ?? { name })}</span>
+            <span className="text-fg">{displayName(row ?? { name })}</span>
             <span className="stat-num text-xs text-muted">{String(r[keyField] ?? r.shared_bowlers ?? r.shared_batters ?? "")} shared</span>
           </button>
         );

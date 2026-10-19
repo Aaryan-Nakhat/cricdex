@@ -42,7 +42,18 @@ import typer
 from loguru import logger
 
 from cricdex import leagues
-from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, WINDOWS, player_ids, table_suffix
+from cricdex.common.sql import (
+    BOWLER_RUNS,
+    MAIN_INNINGS,
+    UNRESOLVED,
+    WINDOWS,
+    keyed_balls,
+    label_map,
+    materialize_keyed,
+    name_of_key,
+    player_ids,
+    table_suffix,
+)
 from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.config import SITE_DATA as _DEFAULT_SITE_DATA
 from cricdex.scout.identity import countries
@@ -120,23 +131,27 @@ _ROW_IDENTITY = (
 def _name_identity(
     con: duckdb.DuckDBPyConnection, collection: str, taxonomy: dict[str, dict]
 ) -> dict[str, dict]:
-    """scorecard name (as it appears in this collection's ball data) -> identity fields. Keyed per
-    collection through the match registry, so two players sharing a short name in different
-    leagues can't swap tags."""
-    ids = player_ids(con, collection)
-    if ids is None:
-        return {}
+    """player key -> identity fields, for every player of this collection. A key is the registry id
+    (`unresolved:<name>` for the rare name no registry knows), resolved per match, so two players
+    sharing a scorecard name each get their own identity. Rows are tagged by their `cricsheet_id`."""
     out: dict[str, dict] = {}
-    for name, cid in con.execute(f"SELECT name, identifier FROM {ids}").fetchall():
-        if not name or not cid:
-            continue
-        rec = taxonomy.get(cid) or {}
-        row = {"cricsheet_id": cid}
+    for key in label_map(con, collection):
+        cid = None if key.startswith(UNRESOLVED) else key
+        rec = taxonomy.get(cid or "") or {}
+        row: dict = {"cricsheet_id": cid}
         for k in _ROW_IDENTITY[1:]:
             if rec.get(k) is not None:
                 row[k] = rec[k]
-        out[name] = row
+        out[key] = row
     return out
+
+
+def _row_key(r: dict) -> str | None:
+    """The player key of an exported row: its `cricsheet_id`, else `unresolved:<scorecard name>`."""
+    if r.get("cricsheet_id"):
+        return r["cricsheet_id"]
+    who = r.get("name") or r.get("batter") or r.get("bowler") or r.get("fielder")
+    return f"{UNRESOLVED}{who}" if who else None
 
 
 METRIC_SLUGS = [
@@ -178,8 +193,9 @@ def _is_text_key(key: str) -> bool:
     register keys, seasons like "2020", dates)."""
     k = key.lower()
     return (
-        k in {"id", "season", "name", "batter", "bowler", "fielder", "a", "b"}
+        k in {"id", "season", "name", "batter", "bowler", "fielder", "a", "b", "key"}
         or k.endswith("_id")
+        or k.endswith("_key")
         or k.startswith("key_")
         or "date" in k
         or k.endswith("_qid")
@@ -546,17 +562,18 @@ def _export_auction_pool(
         if f"balls_{safe}" not in have:
             logger.warning(f"auction_pool: {col} isn't ingested yet — left out of the pool")
             continue
-        # by Cricsheet id through each league's match registry: a player's scorecard name can
-        # differ between leagues ("Navdeep Saini" here, "NA Saini" there)
-        ids = player_ids(con, col)
-        if ids is None:
-            continue
+        # by Cricsheet id through each match's registry: a player's scorecard name can differ
+        # between leagues ("Navdeep Saini" here, "NA Saini" there), and two players can share one
+        materialize_keyed(
+            con, col
+        )  # temp table: a keyed relation used twice in one query trips DuckDB
+        kb = keyed_balls(con, col)
         for cid, d in con.execute(
             f"""
-            SELECT i.identifier, MAX(x.match_date) FROM (
-                SELECT batter AS nm, match_date FROM balls_{safe}
-                UNION ALL SELECT bowler, match_date FROM balls_{safe}
-            ) x JOIN {ids} i ON i.name = x.nm GROUP BY 1
+            SELECT k, MAX(match_date) FROM (
+                SELECT batter AS k, match_date FROM {kb}
+                UNION ALL SELECT bowler, match_date FROM {kb}
+            ) WHERE k IS NOT NULL GROUP BY 1
             """
         ).fetchall():
             if cid in best and d:
@@ -646,7 +663,7 @@ def _export_auction_pool(
             continue  # retired from the IPL (or from cricket): not in any auction
         country = tax.get("country")
         # IPL franchise (the 2026 squads in the player master), else None (free agent)
-        team = tax.get("team") if tax.get("display_name") else teams.get(name)
+        team = tax.get("team") if tax.get("display_name") else teams.get(cid)
         if not team and not auction_eligible(country):
             continue
         age = _age(cid)
@@ -780,13 +797,16 @@ def _export_scout_index(
             balls[cid] = max(balls.get(cid, 0), int(r.get("balls") or 0))
             (bowl if r.get("role") == "bowler" else bat)[cid] = v
             names[cid] = names.get(cid) or r.get("unique_name")
-        # recency in this tier
-        safe = _safe(col)
+        # recency in this tier, by player key (registry id, resolved per match)
+        materialize_keyed(
+            con, col
+        )  # temp table: a keyed relation used twice in one query trips DuckDB
+        kb = keyed_balls(con, col)
         last = {
-            nm: str(d)[:10]
-            for nm, d in con.execute(
-                f"SELECT nm, MAX(match_date) FROM (SELECT batter nm, match_date FROM balls_{safe} "
-                f"UNION ALL SELECT bowler, match_date FROM balls_{safe}) WHERE nm IS NOT NULL GROUP BY 1"
+            k: str(d)[:10]
+            for k, d in con.execute(
+                f"SELECT k, MAX(match_date) FROM (SELECT batter k, match_date FROM {kb} "
+                f"UNION ALL SELECT bowler, match_date FROM {kb}) WHERE k IS NOT NULL GROUP BY 1"
             ).fetchall()
             if d
         }
@@ -801,7 +821,7 @@ def _export_scout_index(
         scores: list[float] = []
         for cid in sorted(set(bat) | set(bowl)):
             nm = names.get(cid)
-            ld = last.get(nm) if nm else None
+            ld = last.get(cid) or (last.get(f"{UNRESOLVED}{nm}") if nm else None)
             if not nm or balls.get(cid, 0) < 150 or not ld or (cutoff and ld < cutoff):
                 continue
             tax = taxonomy.get(cid, {})
@@ -891,7 +911,7 @@ def _export_retentions(players: list[dict], out_dir: Path) -> None:
 
 
 def _current_teams(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, str]:
-    """unique_name -> current franchise code, from the team in each
+    """player key -> current franchise code, from the team in each
     player's most-recent match — only for players who appeared in the
     latest season (a retired player's last franchise isn't their team).
     Only meaningful for IPL (the 10 franchises); other collections return
@@ -899,16 +919,23 @@ def _current_teams(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str,
     if collection != "ipl":
         return {}
     safe = _safe(collection)
+    materialize_keyed(con, collection)
+    kb = keyed_balls(con, collection)
     rows = con.execute(
         f"""
-        WITH app AS (
-            SELECT batter AS name, batting_team AS team, match_date FROM balls_{safe}
+        -- scan the keyed balls ONCE (inlining the keyed relation three times in a UNION trips a
+        -- DuckDB internal error), then fan out batter / non-striker / bowler from that
+        WITH k AS MATERIALIZED (
+            SELECT batter, non_striker, bowler, batting_team, bowling_team, match_date FROM {kb}
+        ),
+        app AS (
+            SELECT batter AS name, batting_team AS team, match_date FROM k
                 WHERE batting_team IS NOT NULL
             UNION ALL
-            SELECT non_striker, batting_team, match_date FROM balls_{safe}
+            SELECT non_striker, batting_team, match_date FROM k
                 WHERE batting_team IS NOT NULL AND non_striker IS NOT NULL
             UNION ALL
-            SELECT bowler, bowling_team, match_date FROM balls_{safe}
+            SELECT bowler, bowling_team, match_date FROM k
                 WHERE bowling_team IS NOT NULL
         ),
         ranked AS (
@@ -934,54 +961,45 @@ def _players(
 ) -> list[dict]:
     """Every player of the league (cleared `min_balls` faced + bowled; 0 = everyone, the default),
     with the cross-source ids needed for profile / cohort file lookups and the identity block."""
-    safe = _safe(collection)
     teams = _current_teams(con, collection)
-    # scorecard name -> Cricsheet id, from each match's own registry (falls back to the People Register)
-    ids = player_ids(con, collection)
-    if ids is None:
+    if player_ids(con, collection) is None and not _has_registry(con, collection):
         return []
+    # every player key (registry id, resolved per match), with the scorecard name he bats or bowls
+    # under most often: two players who share a name are two rows
+    materialize_keyed(con, collection)
+    kb = keyed_balls(con, collection)
+    names = label_map(con, collection)
     rows = con.execute(
         f"""
         WITH bats AS (
-            SELECT p.identifier AS cid, MODE(b.batter) AS name,
-                   COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides')) AS bf
-            FROM balls_{safe} b JOIN {ids} p ON p.name = b.batter
-            WHERE {MAIN_INNINGS}
+            SELECT batter AS cid,
+                   COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides')) AS bf
+            FROM {kb} WHERE batter IS NOT NULL AND {MAIN_INNINGS}
             GROUP BY 1
         ),
         bowls AS (
-            SELECT p.identifier AS cid, MODE(b.bowler) AS name,
-                   COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides')) AS bb
-            FROM balls_{safe} b JOIN {ids} p ON p.name = b.bowler
-            WHERE {MAIN_INNINGS}
+            SELECT bowler AS cid,
+                   COUNT(*) FILTER (WHERE COALESCE(extras_type,'') NOT IN ('wides')) AS bb
+            FROM {kb} WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
             GROUP BY 1
-        ),
-        -- matches a player appeared in, whether batting or bowling
-        appeared AS (
-            SELECT p.identifier AS cid, b.match_id FROM balls_{safe} b
-                JOIN {ids} p ON p.name = b.batter WHERE {MAIN_INNINGS}
-            UNION
-            SELECT p.identifier AS cid, b.match_id FROM balls_{safe} b
-                JOIN {ids} p ON p.name = b.bowler WHERE {MAIN_INNINGS}
-        ),
-        mt AS (
-            SELECT cid, COUNT(DISTINCT match_id) AS matches FROM appeared GROUP BY 1
         )
         SELECT COALESCE(bats.cid, bowls.cid) AS cid,
-               COALESCE(bats.name, bowls.name) AS name,
                COALESCE(bats.bf, 0) AS balls_faced,
-               COALESCE(bowls.bb, 0) AS balls_bowled,
-               COALESCE(mt.matches, 0) AS matches
+               COALESCE(bowls.bb, 0) AS balls_bowled
         FROM bats FULL OUTER JOIN bowls ON bats.cid = bowls.cid
-             LEFT JOIN mt ON mt.cid = COALESCE(bats.cid, bowls.cid)
         """
     ).fetchall()
+    counts = _match_counts(con, collection)
     # Full display names (Wikidata label) so search matches "Manish"
     # not just the Cricsheet short form "MK Pandey" (used only without a player master).
     from cricdex.profiles import builder
 
     wiki = builder._wikidata_cache()
-    stats = {cid: (name, bf, bb, matches) for cid, name, bf, bb, matches in rows if cid and name}
+    stats = {
+        cid: (name_of_key(cid, names), bf, bb, counts.get(cid, 0))
+        for cid, bf, bb in rows
+        if cid and not cid.startswith(UNRESOLVED)
+    }
     # everyone in an XI of this league, even if he never batted or bowled (a fielding sub-in, a
     # washed-out debut): every player gets a profile, so every link resolves
     for cid, rec in taxonomy.items():
@@ -995,24 +1013,23 @@ def _players(
         if (bf or 0) + (bb or 0) < min_balls:
             continue
         tax = taxonomy.get(cid, {})
-        act = activity.get(name, {})
+        act = activity.get(cid, {})
         ident = player_master.identity_block(tax, fallback_name=name)
         if not tax.get("display_name"):
             # no master yet: the Wikidata label is the best full name we have
             ident["full_name"] = (wiki.get(cid) or {}).get("label") or name
-            ident["team"] = teams.get(name)
+            ident["team"] = teams.get(cid)
             ident["active"] = act.get("active", False)
         if name not in ident["aliases"]:
             ident["aliases"] = [*ident["aliases"], name]  # the scorecard name stays searchable
-        xi = ((tax.get("leagues") or {}).get(collection) or {}).get("matches") or 0
         out.append(
             {
                 "cricsheet_id": cid,
                 "name": name,  # the scorecard name: leaderboard rows key on it
                 "balls_faced": int(bf or 0),
                 "balls_bowled": int(bb or 0),
-                # matches in the XI (Cricsheet info.players); batting/bowling appearances if absent
-                "matches": int(max(xi, matches or 0)),
+                # appearances in the XI (Cricsheet info.players; batting/bowling if absent)
+                "matches": int(matches or 0),
                 "role": "bowler" if (bb or 0) > (bf or 0) else "batter",
                 "batting_position": tax.get("batting_position"),
                 # data-driven activity in THIS league (the identity's `active` is across leagues)
@@ -1029,39 +1046,39 @@ def _players(
     return out
 
 
+def _has_registry(con: duckdb.DuckDBPyConnection, collection: str) -> bool:
+    from cricdex.common.sql import match_name_map
+
+    return match_name_map(con, collection) is not None
+
+
 def _match_counts(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, int]:
-    """unique_name -> matches played (batting or bowling), ALL players (no
-    ball cutoff) so leaderboard rows can be filtered by a min-matches gate."""
-    safe = _safe(collection)
-    rows = con.execute(
-        f"""
-        WITH appeared AS (
-            SELECT batter AS name, match_id FROM balls_{safe} WHERE {MAIN_INNINGS}
-            UNION
-            SELECT bowler AS name, match_id FROM balls_{safe} WHERE {MAIN_INNINGS}
-        )
-        SELECT name, COUNT(DISTINCT match_id) AS m FROM appeared
-        WHERE name IS NOT NULL GROUP BY 1
-        """
-    ).fetchall()
-    return {r[0]: int(r[1]) for r in rows}
+    """player key -> matches played, ALL players (no ball cutoff) so leaderboard rows can be filtered
+    by a min-matches gate. An appearance is a place in the XI (Cricsheet `info.players`, the
+    `match_players_<col>` table, counted in this collection's — or time window's — matches), so a
+    batter who never got in or a bowler who didn't bowl still played; matches batted or bowled in
+    are added for anyone the XI tables miss (a DB ingested before them)."""
+    from cricdex.metrics.ngi import appearances
+
+    return appearances(con, collection)
 
 
 def _activity_map(
     con: duckdb.DuckDBPyConnection, collection: str, as_of: str | None
 ) -> dict[str, dict]:
-    """unique_name -> {first_match_date, last_match_date, active}. 'active'
+    """player key -> {first_match_date, last_match_date, active}. 'active'
     = appeared within 18 months of the collection's latest match (so it's
     per-collection = per-format; a player retired from internationals can
     still be active in IPL). Data-driven, no model needed."""
     import datetime as _dt
 
-    safe = _safe(collection)
+    materialize_keyed(con, collection)
+    kb = keyed_balls(con, collection)
     rows = con.execute(
         f"""
         SELECT name, MIN(match_date) AS first_d, MAX(match_date) AS last_d FROM (
-            SELECT batter AS name, match_date FROM balls_{safe}
-            UNION ALL SELECT bowler AS name, match_date FROM balls_{safe}
+            SELECT batter AS name, match_date FROM {kb}
+            UNION ALL SELECT bowler AS name, match_date FROM {kb}
         ) WHERE name IS NOT NULL GROUP BY 1
         """
     ).fetchall()
@@ -1108,9 +1125,10 @@ def _pivot_intent_curve(rows: list[dict]) -> list[dict]:
     """
     by_batter: dict[str, dict[str, dict]] = {}
     for r in rows:
-        by_batter.setdefault(r["batter"], {})[r["ball_bucket"]] = r
+        by_batter.setdefault(_row_key(r) or r["batter"], {})[r["ball_bucket"]] = r
     out: list[dict] = []
-    for batter, buckets in by_batter.items():
+    for _key, buckets in by_batter.items():
+        first = next(iter(buckets.values()))
         curve = [round(buckets[b]["sr"], 1) if b in buckets else None for b in _INTENT_BUCKETS]
         # Early intent = SR over the first 10 balls (buckets 0-5 + 6-10),
         # weighted by balls so it's not a naive mean of two bucket SRs.
@@ -1121,7 +1139,9 @@ def _pivot_intent_curve(rows: list[dict]) -> list[dict]:
         present = [c for c in curve if c is not None]
         out.append(
             {
-                "batter": batter,
+                "batter": first["batter"],
+                "cricsheet_id": first.get("cricsheet_id"),
+                "display_name": first.get("display_name"),
                 "early_sr": round(100.0 * e_runs / e_balls, 1),
                 "peak_sr": max(present) if present else None,
                 "balls": sum(int(v["balls"]) for v in buckets.values()),
@@ -1162,11 +1182,12 @@ def _export_leaderboards(
         # windowed board) and the player's identity (cricsheet_id, display name, role, bowling
         # type, country, capped...) so the UI filter bar works per-row without a ball cutoff.
         for r in rows:
-            who = r.get("name") or r.get("batter") or r.get("bowler") or r.get("fielder")
-            r["matches"] = matches.get(who, 0)
-            for k, v in (name_tax.get(who) or {}).items():
-                r.setdefault(k, v)
-            for k, v in (activity.get(who) or {}).items():
+            key = _row_key(r)
+            r["matches"] = matches.get(key, 0)
+            for k, v in (name_tax.get(key) or {}).items():
+                if r.get(k) is None:
+                    r[k] = v
+            for k, v in (activity.get(key) or {}).items():
                 r.setdefault(k, v)
         _assert_rows(rows, f"{collection} {slug}{suffix}")
         # Trim each leaderboard to a sane top-N for the browser.
@@ -1178,8 +1199,8 @@ def _export_leaderboards(
 def _build_window_tables(
     con: duckdb.DuckDBPyConnection, collection: str, as_of: str | None
 ) -> list[str]:
-    """Create date-filtered balls_<col>_<win> tables so the existing metric
-    functions (which query balls_<safe> by name) recompute over each window.
+    """Create date-filtered balls_<col>_<win> tables (the last-1y / last-3y windows and every era
+    of the league in config/leagues.toml) so the existing metric functions recompute over each.
     `con` must be a read-write connection (call before the read-only export)."""
     import datetime as _dt
 
@@ -1187,11 +1208,18 @@ def _build_window_tables(
         return []
     safe = _safe(collection)
     built: list[str] = []
+    cutoffs: dict[str, str] = {}
     for win, days in WINDOWS.items():
         try:
-            cutoff = (_dt.date.fromisoformat(as_of[:10]) - _dt.timedelta(days=days)).isoformat()
+            cutoffs[win] = (
+                _dt.date.fromisoformat(as_of[:10]) - _dt.timedelta(days=days)
+            ).isoformat()
         except ValueError:
             continue
+    # the league's eras (config/leagues.toml [[league.era]]): every match since the era began
+    for era in leagues.eras(collection):
+        cutoffs[era.window] = era.since
+    for win, cutoff in cutoffs.items():
         wsafe = f"{safe}_{win}"
         con.execute(
             f"CREATE OR REPLACE TABLE balls_{wsafe} AS "
@@ -1243,13 +1271,14 @@ def _export_ratings(collection: str, out_dir: Path, taxonomy: dict[str, dict] | 
 def _with_display(row: dict, name_ident: dict[str, dict]) -> dict:
     """`<key>_display` (and `display_name` for the row's main player) next to every player-name
     column of a records row."""
-    for key in ("batter", "bowler", "name", "fielder"):
+    main = row.get("cricsheet_id")
+    for key in ("batter", "bowler", "name", "fielder", "player"):
         nm = row.get(key)
         if isinstance(nm, str):
-            disp = (name_ident.get(nm) or {}).get("display_name") or nm
+            ident = name_ident.get(main or f"{UNRESOLVED}{nm}") or {}
+            disp = row.get("display_name") or ident.get("display_name") or nm
             row[f"{key}_display"] = disp
-            row.setdefault("display_name", disp)
-            row.setdefault("cricsheet_id", (name_ident.get(nm) or {}).get("cricsheet_id"))
+            row["display_name"] = disp
     return row
 
 
@@ -1284,10 +1313,17 @@ def _export_records_venues(
         with duckdb.connect(str(vp.DEFAULT_DB_PATH), read_only=True) as con:
             aliases = aliases_for(con)
         venues_out = {}
+        # pars move with the era: the last three seasons are the default view, by-season the trend
+        recent = vp.recent_seasons(collection, n=3)
         for v in names[:60]:
             try:
                 venues_out[v] = {
                     "innings_totals": vp.innings_totals(v, collection).to_dicts(),
+                    "innings_totals_recent": vp.innings_totals(
+                        v, collection, seasons=recent
+                    ).to_dicts(),
+                    "recent_seasons": recent,
+                    "innings_by_season": vp.innings_by_season(v, collection).to_dicts(),
                     "phase_run_rates": vp.phase_run_rates(v, collection).to_dicts(),
                     "chase_vs_set": vp.chase_vs_set_winrate(v, collection).to_dicts(),
                     # other names the ground has had (spellings, former names) — the venue search matches these
@@ -1333,9 +1369,10 @@ def _export_profiles_and_cohorts(
     # builder shares that connection and reads the metric / ratings JSON and
     # fits the style-twin indexes once per collection (`builder.Sources`).
     sources = builder.Sources(collection)
-    name_to_cid = {p["name"]: p["cricsheet_id"] for p in players if p.get("name")}
     try:
         con = duckdb.connect(str(cohort.DEFAULT_DB_PATH), read_only=True)
+        # the id-keyed balls once per league, so every per-player query reads a temp table
+        materialize_keyed(con, collection)
         vol = cohort.ball_volumes(con, collection)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"cohort connection failed for {collection}: {e}")
@@ -1349,7 +1386,7 @@ def _export_profiles_and_cohorts(
         try:
             # builder.build already merges Wikidata identity (dob / photo
             # / socials) from the JSON cache by cricsheet_id.
-            prof = builder.build(name, collection, con=con, sources=sources)
+            prof = builder.build(cid, collection, con=con, sources=sources)
             tax = taxonomy.get(cid)
             if tax:
                 prof["taxonomy"] = {k: tax.get(k) for k in _TAX_KEEP if tax.get(k) is not None}
@@ -1357,8 +1394,9 @@ def _export_profiles_and_cohorts(
             # style twins: who each one is, and his country (the profile's country filter)
             for key in ("style_twins_batter", "style_twins_bowler"):
                 for t in prof.get(key) or []:
-                    ident = (name_ident or {}).get(t.get("name")) or {}
-                    t["cricsheet_id"] = ident.get("cricsheet_id")
+                    tk = t.get("cricsheet_id") or f"{UNRESOLVED}{t.get('name')}"
+                    ident = (name_ident or {}).get(tk) or {}
+                    t["cricsheet_id"] = t.get("cricsheet_id") or ident.get("cricsheet_id")
                     t["display_name"] = ident.get("display_name") or t.get("name")
                     t["country"] = ident.get("country")
             prof["identity"] = player_master.identity_block(tax, fallback_name=name)
@@ -1382,7 +1420,7 @@ def _export_profiles_and_cohorts(
                 # the profile page reads age from here
                 prof.setdefault("wikidata", {})
                 prof["wikidata"] = {**(prof["wikidata"] or {}), "dob": tax["dob"]}
-            act = activity.get(name)
+            act = activity.get(cid)
             if act:
                 prof["activity"] = act
             _write(out_dir / "profiles" / f"{cid}.json", prof)
@@ -1395,9 +1433,7 @@ def _export_profiles_and_cohorts(
         # only signal any surface renders (the web Player Profile card).
         if con is not None:
             try:
-                rows = cohort.co_faced(name, collection, con=con, vol=vol, top_k=12)
-                for r in rows:
-                    r["cricsheet_id"] = name_to_cid.get(r["name"])
+                rows = cohort.co_faced(cid, collection, con=con, vol=vol, top_k=12)
                 # Drop any member we can't resolve to a cricsheet_id — the UI
                 # links cohort rows by id, so a null-id row is dead weight.
                 rows = _tag([r for r in rows if r.get("cricsheet_id")], taxonomy)
@@ -1418,44 +1454,30 @@ def _export_matchups(
     from cricdex.metrics import matchups as mm
 
     pairs = mm.pairwise(collection, min_balls=6)
-    name_to_cid = {p["name"]: p["cricsheet_id"] for p in players if p.get("name")}
-    cid_to_name = {c: n for n, c in name_to_cid.items()}
+    # bowler type by registry id (the player master / taxonomy are keyed by id)
     bowler_cat = {
-        cid_to_name[c]: t.get("bowling_category")
+        c: t.get("bowling_category")
         for c, t in taxonomy.items()
-        if c in cid_to_name and (t or {}).get("bowling_category") in ("seam", "spin")
+        if (t or {}).get("bowling_category") in ("seam", "spin")
     }
     splits = mm.pace_spin_splits(collection, bowler_cat)
 
     by_batter: dict[str, list[dict]] = {}
     by_bowler: dict[str, list[dict]] = {}
     for r in pairs:
-        by_batter.setdefault(r["batter"], []).append(
-            {
-                "bowler": r["bowler"],
-                "balls": r["balls"],
-                "runs": r["runs"],
-                "sr": r["sr"],
-                "dot_pct": r["dot_pct"],
-                "outs": r["outs"],
-            }
+        stats = {k: r[k] for k in ("balls", "runs", "sr", "dot_pct", "outs")}
+        by_batter.setdefault(r["batter_key"], []).append(
+            {"bowler": r["bowler"], "bowler_id": r["bowler_id"], **stats}
         )
-        by_bowler.setdefault(r["bowler"], []).append(
-            {
-                "batter": r["batter"],
-                "balls": r["balls"],
-                "runs": r["runs"],
-                "sr": r["sr"],
-                "dot_pct": r["dot_pct"],
-                "outs": r["outs"],
-            }
+        by_bowler.setdefault(r["bowler_key"], []).append(
+            {"batter": r["batter"], "batter_id": r["batter_id"], **stats}
         )
     n = 0
     for p in players:
-        name, cid = p.get("name"), p.get("cricsheet_id")
-        ab = sorted(by_batter.get(name, []), key=lambda x: x["balls"], reverse=True)[:40]
-        aw = sorted(by_bowler.get(name, []), key=lambda x: x["balls"], reverse=True)[:40]
-        sp = splits.get(name)
+        cid = p.get("cricsheet_id")
+        ab = sorted(by_batter.get(cid, []), key=lambda x: x["balls"], reverse=True)[:40]
+        aw = sorted(by_bowler.get(cid, []), key=lambda x: x["balls"], reverse=True)[:40]
+        sp = splits.get(cid)
         if not (ab or aw or sp):
             continue
         _write(
@@ -1484,11 +1506,12 @@ def _export_phase(
         boards = ph.phase_leaders(collection, top=150)
         for board in boards.values():
             for r in (*board.get("batters", []), *board.get("bowlers", [])):
-                who = r.get("name")
-                r["matches"] = matches.get(who, 0)
-                for k, v in (name_tax.get(who) or {}).items():
-                    r.setdefault(k, v)
-                for k, v in (activity.get(who) or {}).items():
+                key = r.pop("key", None) or _row_key(r)
+                r["matches"] = matches.get(key, 0)
+                for k, v in (name_tax.get(key) or {}).items():
+                    if r.get(k) is None:
+                        r[k] = v
+                for k, v in (activity.get(key) or {}).items():
                     r.setdefault(k, v)
             _assert_rows(
                 [*board.get("batters", []), *board.get("bowlers", [])], f"{collection} phase"
@@ -1507,7 +1530,10 @@ def _export_partnerships(
     across innings: innings, runs (incl. extras while both at the crease), legal
     balls, SR, best single-innings stand, average, fifty/hundred stands. The
     per-player view is derived client-side by filtering pairs containing them."""
-    safe = _safe(collection)
+    # pairs of player keys (registry ids, resolved per match): namesakes never merge
+    materialize_keyed(con, collection)
+    kb = keyed_balls(con, collection)
+    labels = label_map(con, collection)
     rows = con.execute(
         f"""
         WITH p AS (
@@ -1515,7 +1541,7 @@ def _export_partnerships(
                    LEAST(batter, non_striker) AS a, GREATEST(batter, non_striker) AS b,
                    SUM(runs_total) AS runs,
                    SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides' THEN 1 ELSE 0 END) AS balls
-            FROM balls_{safe}
+            FROM {kb}
             WHERE non_striker IS NOT NULL AND batter IS NOT NULL AND {MAIN_INNINGS}
             GROUP BY 1, 2, 3, 4
         )
@@ -1529,19 +1555,22 @@ def _export_partnerships(
         FROM p
         GROUP BY a, b
         HAVING SUM(runs) >= 50
-        ORDER BY runs DESC
+        ORDER BY runs DESC, a, b
         """
     ).fetchall()
-    name_to_cid = {p["name"]: p["cricsheet_id"] for p in players if p.get("name")}
-    disp = {p["name"]: p.get("display_name") or p["name"] for p in players if p.get("name")}
+    disp = {p["cricsheet_id"]: p.get("display_name") for p in players if p.get("cricsheet_id")}
+
+    def _cid(k: str) -> str | None:
+        return None if k.startswith(UNRESOLVED) else k
+
     pairs = [
         {
-            "a": a,
-            "b": b,
-            "a_cid": name_to_cid.get(a),
-            "b_cid": name_to_cid.get(b),
-            "a_display": disp.get(a, a),
-            "b_display": disp.get(b, b),
+            "a": name_of_key(a, labels),
+            "b": name_of_key(b, labels),
+            "a_cid": _cid(a),
+            "b_cid": _cid(b),
+            "a_display": disp.get(a) or name_of_key(a, labels),
+            "b_display": disp.get(b) or name_of_key(b, labels),
             "innings": int(inns),
             "runs": int(runs),
             "balls": int(balls),
@@ -1578,17 +1607,13 @@ def _export_aging(
     averaged by integer age into a curve (one line per discipline). Dob covers only
     ~a third of players, so the curve is indicative + elite-skewed (flagged in UI).
     Also emits a per-player trajectory (dob-known players) for an optional overlay."""
-    safe = _safe(collection)
     dob_by_cid = _dob_by_cid(taxonomy or {})
-    # scorecard name -> cid through this league's match registry
-    ids = player_ids(con, collection)
-    name_tax_cid = (
-        dict(con.execute(f"SELECT name, identifier FROM {ids}").fetchall()) if ids else {}
-    )
+    # player columns are registry ids, resolved per match (namesakes are two players)
+    materialize_keyed(con, collection)
+    kb = keyed_balls(con, collection)
 
     def _age(nm: str, yr: int) -> int | None:
-        cid = name_tax_cid.get(nm)
-        dob = dob_by_cid.get(cid) if cid else None
+        dob = dob_by_cid.get(nm)
         if not dob:
             return None
         try:
@@ -1602,7 +1627,7 @@ def _export_aging(
                SUM(runs_batter) AS runs,
                SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides' THEN 1 ELSE 0 END) AS balls,
                SUM(CASE WHEN player_out = batter THEN 1 ELSE 0 END) AS outs
-        FROM balls_{safe}
+        FROM {kb}
         WHERE batter IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY 1, 2
         HAVING balls >= 60
@@ -1617,7 +1642,7 @@ def _export_aging(
                          AND extras_type IS DISTINCT FROM 'noballs' THEN 1 ELSE 0 END) AS balls,
                SUM(CASE WHEN player_out IS NOT NULL AND wicket_kind IN ('{kinds}')
                         THEN 1 ELSE 0 END) AS wkts
-        FROM balls_{safe}
+        FROM {kb}
         WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY 1, 2
         HAVING balls >= 60
@@ -1635,7 +1660,7 @@ def _export_aging(
         sr = 100.0 * float(runs) / float(balls)
         avg = float(runs) / outs if outs else None
         bat_age.setdefault(age, []).append((sr, avg))
-        cid = name_tax_cid.get(nm)
+        cid = nm
         if cid:
             players.setdefault(cid, {"batting": [], "bowling": []})["batting"].append(
                 {"age": age, "sr": round(sr, 1)}
@@ -1647,7 +1672,7 @@ def _export_aging(
         econ = 6.0 * float(runs) / float(balls)
         srate = float(balls) / wkts if wkts else None
         bowl_age.setdefault(age, []).append((econ, srate))
-        cid = name_tax_cid.get(nm)
+        cid = nm
         if cid:
             players.setdefault(cid, {"batting": [], "bowling": []})["bowling"].append(
                 {"age": age, "economy": round(econ, 2)}
@@ -1696,7 +1721,7 @@ def _existing_windows(con: duckdb.DuckDBPyConnection, collection: str) -> list[s
     safe = _safe(collection)
     return [
         w
-        for w in WINDOWS
+        for w in [*WINDOWS, *(e.window for e in leagues.eras(collection))]
         if f"balls_{safe}_{w}" in have and any(METRIC_DIR.glob(f"*_{collection}_{w}.json"))
     ]
 
@@ -1710,10 +1735,7 @@ def _linked_players(
     extra: dict[str, str] = {}
 
     def see(name: str | None, cid: str | None = None) -> None:
-        if not name:
-            return
-        cid = cid or (name_ident.get(name) or {}).get("cricsheet_id")
-        if cid and cid not in have:
+        if name and cid and cid not in have:
             extra.setdefault(cid, name)
 
     for f in sorted((out_dir / "leaderboards").glob("*.json")):
@@ -1727,7 +1749,7 @@ def _linked_players(
                 see(r.get("name"), r.get("cricsheet_id"))
     rows = []
     for cid, name in sorted(extra.items()):
-        ident = name_ident.get(name) or {}
+        ident = name_ident.get(cid) or {}
         rows.append(
             {
                 "cricsheet_id": cid,
@@ -1817,10 +1839,18 @@ def export(
                 logger.warning(f"no balls table for {col} — skipping")
                 continue
             out_dir = SITE_DATA / col
+            # keyed (registry-id) balls/wickets as temp tables once per league: every query below
+            # reads them, and inlining the keyed relation several times in one statement trips a
+            # DuckDB internal error
+            materialize_keyed(con, col)
             name_tax = _name_identity(con, col, taxonomy)
             activity = _activity_map(con, col, meta.get("data_as_of"))
             players = _players(con, col, min_balls, taxonomy, activity)
             meta["windows"] = windows_by_col.get(col, [])
+            # labels for the period selector: the time windows plus the league's eras
+            meta["window_labels"] = {
+                w: lbl for w, lbl in leagues.window_labels(col).items() if w in meta["windows"]
+            }
             # the league's data stops long before the newest data anywhere (SMAT): flag it
             meta["stale"] = _is_stale(meta.get("data_as_of"), newest)
             meta["newest_data_anywhere"] = newest

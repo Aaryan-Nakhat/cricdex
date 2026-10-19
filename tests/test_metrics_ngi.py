@@ -26,8 +26,13 @@ def test_features_list_keys():
         "required_rr",
         "current_rr",
         "current_rr_minus_venue",
+        "rr_vs_league",
+        "target_vs_par",
+        "rrr_vs_league",
     }
     assert set(ngi.FEATURES) == expected
+    # every constrained direction names a real feature
+    assert set(ngi.MONOTONE) <= expected
 
 
 def test_train_wp_returns_calibrated_model():
@@ -74,12 +79,21 @@ def test_compute_ipl_returns_sane_table():
         "ngi_per_match",
         "ngi_batting",
         "ngi_bowling",
+        "ngi_fielding",
         "cricsheet_id",
+        "display_name",
     ):
         assert col in df.columns
-    # ngi_total should approximately equal ngi_batting + ngi_bowling.
+    # ngi_total = batting + bowling + fielding.
     sub = df.with_columns(
-        (pl.col("ngi_batting") + pl.col("ngi_bowling") - pl.col("ngi_total")).abs().alias("diff")
+        (
+            pl.col("ngi_batting")
+            + pl.col("ngi_bowling")
+            + pl.col("ngi_fielding")
+            - pl.col("ngi_total")
+        )
+        .abs()
+        .alias("diff")
     )
     assert sub["diff"].max() < 1e-4
     # Top player by ngi_per_match (≥ 30 matches floor to filter noise)
@@ -137,4 +151,68 @@ def test_first_innings_last_ball_hands_over_to_the_chase():
     # Strictly between 0 and 1 (a result would be exactly 0 or 1).
     assert ((end_first["wp_after"] > 0) & (end_first["wp_after"] < 1)).mean() > 0.95
     end_chase = scored.filter(pl.col("is_last_ball") & (pl.col("innings_idx") == 1))
-    assert set(end_chase["wp_after"].unique().to_list()) <= {0.0, 1.0}
+    assert set(end_chase["wp_after"].unique().to_list()) <= {0.0, 0.5, 1.0}  # a tie is 0.5
+
+
+def test_beta_calibration_is_smooth_and_monotone():
+    rng = np.random.default_rng(1)
+    p = rng.uniform(0.01, 0.99, 5000)
+    y = (rng.uniform(size=5000) < p**1.3).astype(float)
+    cal = ngi._BetaCalibrator().fit(p, y)
+    grid = np.linspace(0.02, 0.98, 400)
+    out = cal.transform(grid)
+    assert (np.diff(out) > 0).all(), "calibration must be strictly increasing (no flat steps)"
+    # ties (0.5 labels) are allowed
+    ngi._BetaCalibrator().fit(p, np.where(y == 1, 1.0, 0.5))
+
+
+def test_credit_rules_split_a_ball_between_players():
+    """A caught wicket off a no-ball with a bye: striker gets the bat part, the batter out the
+    wicket, the bowler the rest bar the team's byes, the catcher 20% of the wicket."""
+    scored = pl.DataFrame(
+        {
+            "match_id": ["m"],
+            "batter": ["s"],
+            "bowler": ["b"],
+            "player_out": ["s"],
+            "fielders": [["f"]],
+            "wicket_kind": ["caught"],
+            "is_wicket": [1],
+            "extras_bowler": [1],
+            "extras_team": [1],
+            "d_play": [0.02],
+            "d_wicket": [-0.10],
+            "d_extras": [0.04],
+        }
+    )
+    c = ngi._credit(scored).group_by("player").agg(pl.col("bat", "bowl", "field").sum())
+    got = {r["player"]: r for r in c.to_dicts()}
+    assert got["s"]["bat"] == pytest.approx(0.02 - 0.10)
+    # bowler: −play − half the extras (his no-ball run, not the bye) − 80% of the wicket
+    assert got["b"]["bowl"] == pytest.approx(-0.02 - 0.5 * 0.04 + 0.8 * 0.10)
+    assert got["f"]["field"] == pytest.approx(0.2 * 0.10)
+
+
+def test_non_striker_run_out_debits_the_batter_out_and_credits_fielders():
+    scored = pl.DataFrame(
+        {
+            "match_id": ["m"],
+            "batter": ["s"],
+            "bowler": ["b"],
+            "player_out": ["ns"],
+            "fielders": [["f1", "f2"]],
+            "wicket_kind": ["run out"],
+            "is_wicket": [1],
+            "extras_bowler": [0],
+            "extras_team": [0],
+            "d_play": [0.01],
+            "d_wicket": [-0.08],
+            "d_extras": [0.0],
+        }
+    )
+    c = ngi._credit(scored).group_by("player").agg(pl.col("bat", "bowl", "field").sum())
+    got = {r["player"]: r for r in c.to_dicts()}
+    assert got["s"]["bat"] == pytest.approx(0.01)
+    assert got["ns"]["bat"] == pytest.approx(-0.08)
+    assert got["b"]["bowl"] == pytest.approx(-0.01)  # a run out isn't the bowler's
+    assert got["f1"]["field"] == pytest.approx(0.04) and got["f2"]["field"] == pytest.approx(0.04)

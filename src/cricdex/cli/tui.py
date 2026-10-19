@@ -69,6 +69,14 @@ METRIC_OPTIONS: list[tuple[str, str]] = [(m.name, m.slug) for m in METRICS]
 # Time window + filter dropdowns — Textual Select wants (label, value) pairs;
 # the shared OPTS lists are (value, label), so flip them.
 WINDOW_OPTIONS = [(cf.WINDOW_LABELS[w], w) for w in cf.WINDOWS]
+
+
+def _window_options(collection: str) -> list[tuple[str, str]]:
+    """All-time, the time windows and the league's eras (e.g. the IPL's Impact Player era) that
+    this collection's leaderboards were exported for."""
+    return [(cf.window_label(w, collection), w) for w in cf.windows_for(collection)]
+
+
 ROLE_FILTER_OPTIONS = [(lbl, val) for val, lbl in cf.ROLE_OPTS]
 BOWLING_FILTER_OPTIONS = [(lbl, val) for val, lbl in cf.BOWLING_OPTS]
 POSITION_FILTER_OPTIONS = [(lbl, val) for val, lbl in cf.POSITION_OPTS]
@@ -680,7 +688,10 @@ class CricDexApp(App):
                 )
                 yield Label("Window:")
                 yield Select(
-                    options=WINDOW_OPTIONS, value="all", id="metric-window", allow_blank=False
+                    options=_window_options("ipl"),
+                    value="all",
+                    id="metric-window",
+                    allow_blank=False,
                 )
                 yield Label("Coll:")
                 yield Select(
@@ -2604,6 +2615,16 @@ class CricDexApp(App):
             self._refresh_ret_map()
         elif sid == "sim-squad-team" and not _unselected(event.value):
             self._render_squad(event.value)
+        elif sid == "metric-collection" and not _unselected(event.value):
+            # the period picker follows the league: its eras come from its export
+            try:
+                win = self.query_one("#metric-window", Select)
+            except Exception:  # noqa: BLE001
+                return
+            keep = win.value
+            opts = _window_options(event.value)
+            win.set_options(opts)
+            win.value = keep if keep in {v for _, v in opts} else "all"
 
     # Where each button's tab shows its output — a failure message goes there too.
     _OUTPUTS = {

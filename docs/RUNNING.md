@@ -112,6 +112,7 @@ cp .env.example .env
 make refresh COLLECTION=ipl   # download → ratings → metrics → site data, one collection
 make refresh-all              # every exported league, one export at the end (hours)
 make rebuild-all              # same, resumable: re-run to continue after a failure or reboot
+bash scripts/rebuild_all.sh --from ratings   # keep the ingested data: refit ratings, metrics, export
 make auction-check            # sanity-check the IPL auction on the exported data
 
 # or step by step:

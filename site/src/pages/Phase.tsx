@@ -41,7 +41,7 @@ export function Phase() {
   const { data, loading, error } = useAsync(() => getPhase(collection), [collection]);
   const { nameOf } = usePlayers(collection);
   const named = (cols: Col<Row>[]) =>
-    cols.map((c) => (c.key === "name" ? { ...c, render: (r: Row) => <span className="text-fg">{nameOf(String(r.name ?? ""))}</span> } : c));
+    cols.map((c) => (c.key === "name" ? { ...c, render: (r: Row) => <span className="text-fg">{nameOf(String(r.name ?? ""), r.cricsheet_id)}</span> } : c));
   const [phase, setPhase] = useUrlState<PhaseKey>("phase", "powerplay", {
     valid: PHASES.map((p) => p.key),
     replace: false,

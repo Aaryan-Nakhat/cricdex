@@ -30,15 +30,20 @@ const SECTIONS: Section[] = [
     body: (
       <>
         The flagship number: how much a player moves their team's <strong>chance of winning</strong>.
-        A win-probability model (gradient-boosted trees, calibrated) reads the match state before every
-        ball — score, wickets and balls left, target and required rate, run rate against the ground's
-        average — and the change in win chance after the ball is that ball's value: plus to the batter,
-        minus to the bowler. Summed per match, a 30* that wins a tight chase counts for more than a
-        hundred in a lost cause. It is shown two ways: <strong>win chance added per match</strong> (+5% means he
-        adds five percentage points to his side's chance of winning in a typical game; 0% is break-even) and{" "}
-        <strong>wins added</strong>, the career total — every 1.0 is one whole win's worth, and like career runs
-        it grows with every match played. The model is trained on one set of matches and checked on others it
-        never saw, and the all-time board needs at least 25 matches. Fielders aren't credited yet.
+        A win-probability model (gradient-boosted trees with common-sense constraints — a wicket can never
+        help the batting side — and a smooth calibration) reads the match state before every ball: score,
+        wickets and balls left, target and required rate, run rate against the ground's average and
+        against the league's recent scoring level. Every ball is scored by a model that{" "}
+        <strong>never saw that match</strong>. The change in win chance is credited to whoever caused it:
+        runs off the bat to the striker (and against the bowler), wides and no-balls to the bowler alone,
+        a wicket against the batter who is out (the non-striker in a run out at his end) and to the bowler,
+        with 20% of a catch or stumping to the fielder and a run out to the fielders who made it. Summed per
+        match, a 30* that wins a tight chase counts for more than a hundred in a lost cause. It is shown
+        two ways: <strong>win chance added per match</strong> (+5% means he adds five percentage points to
+        his side's chance of winning in a typical game; 0% is break-even), counted over his matches in
+        the playing XI, and <strong>wins added</strong>, the career total — every 1.0 is one whole win's
+        worth, and like career runs it grows with every match played. The all-time board needs at least
+        25 matches.
       </>
     ),
   },
@@ -49,7 +54,12 @@ const SECTIONS: Section[] = [
       <>
         Raw averages punish a batter who faced great bowlers and flatter one who feasted on weak attacks.
         The Bayesian model fixes this by learning a <strong>latent skill</strong> for every player at once,
-        so each number is judged in the context of who it came against. The model is{" "}
+        so each number is judged in the context of who it came against — and <strong>when and where</strong>:
+        it learns each season's scoring level, the powerplay / middle / death split, setting vs chasing
+        and the ground, so a 2026 strike rate is judged against 2026 and a death bowler against the death
+        overs. A bowler's economy counts his wides and no-balls, and a player with few balls is pulled
+        toward the average for his role (a tail-ender toward tail-enders), not toward the average player.
+        The model is{" "}
         <strong>dismissal-aware</strong>: it fits four axes per player — for batters, a{" "}
         <em>scoring</em> rate and a <em>survival</em> (don’t-get-out) rate; for bowlers, an{" "}
         <em>economy</em> and a <em>strike</em> (take-wickets) rate. Crucially it reports not just a point
@@ -119,17 +129,22 @@ const SECTIONS: Section[] = [
       <>
         We checked, out of sample: for each IPL season the model is fitted on matches{" "}
         <strong>before</strong> it only, then its ranking of players is compared with how the season
-        actually went (rank correlation: 1 = same order, 0 = no link). The honest result has two parts.{" "}
-        <strong>Established IPL players</strong> (2021–26): the ratings predict next season about as well
-        as plain career averages — around 0.15 overall for batters, 0.07 for bowlers — and weighting
-        recent seasons more didn't change that. A single T20 season is mostly noise, for any method.{" "}
-        <strong>IPL newcomers</strong> (2014–26, rated only from the BBL, SA20, CPL, Blast and SMAT):
-        here the opponent- and league-adjusted ratings ranked <em>batters</em> better than their raw
-        numbers from those leagues on every measure (overall 0.18 vs 0.12, staying in 0.34 vs 0.22); for{" "}
-        <em>bowlers</em> there was no clear edge (overall 0.20 vs 0.25). How sure is that? Re-drawing the
-        ~100 newcomers 2,000 times, the model judged how long a newcomer batter lasts better in 97% of
-        redraws — the one solid result; its batter overall edge held in 79%, a lean rather than proof.
-        Both backtests are scripts in the repo, so you can re-run them.
+        actually went (rank correlation: 1 = same order, 0 = no link). The plain baselines get the same
+        league adjustment as the model, and every fit is run with three seeds.{" "}
+        <strong>Established IPL players</strong> (2021–26): for batters the ratings tie plain career
+        averages (0.14 vs 0.15 overall); for bowlers they edge them (0.12 vs 0.07). Weighting recent
+        seasons more didn't help. A single T20 season is mostly noise, for any method, but on a sharper
+        test, predicting every ball of the next season, the current model beats the old one in every
+        season.{" "}
+        <strong>IPL newcomers</strong> (2014–26, rated only from other leagues): the ratings ranked{" "}
+        <em>batters</em> better overall than their league-adjusted numbers from those leagues (0.22 vs
+        0.10 with all 13 other leagues, 0.25 vs 0.09 with the original five); for <em>bowlers</em> there
+        was no edge (0.18 vs 0.24). How sure is that? Re-drawing the ~100 newcomers 2,000 times, the
+        batter overall edge held in 96–98% of redraws, but after correcting for running six tests at once
+        none of the results is significant. So it is a lean, not proof. An earlier version of this page
+        claimed a clear "staying in" edge for newcomer batters; that turned out to be mostly the league
+        discount itself and doesn't survive a fair baseline. Both backtests are scripts in the repo, so
+        you can re-run them.
       </>
     ),
   },

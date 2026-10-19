@@ -22,6 +22,7 @@ import polars as pl
 import typer
 from loguru import logger
 
+from cricdex.common.sql import is_window
 from cricdex.config import DATA_DIR
 from cricdex.metrics import batter as batter_metrics
 from cricdex.metrics import bowler as bowler_metrics
@@ -209,10 +210,30 @@ def ngi_cmd(
     _emit(df, "ngi", collection, out_json)
     typer.echo(
         f"WP model — val_acc={res['val_acc']:.3f}  brier={res['brier']:.4f}  "
-        f"log_loss={res['log_loss']:.4f}  on {res['n_val_balls']:,} balls "
+        f"log_loss={res['log_loss']:.4f}  ece={res['ece']:.4f}  on {res['n_val_balls']:,} balls "
         f"from {res['n_val_matches']} held-out matches "
-        f"({res['n_train_matches']} train matches, {res['n_balls']:,} total balls)"
+        f"({res['n_train_matches']} train matches, {res['n_balls']:,} balls scored out of fold)"
     )
+
+
+@app.command("ngi-diagnostics")
+def ngi_diagnostics_cmd(
+    collection: str = typer.Option("ipl", "--collection", "-c"),
+    out_json: Path | None = typer.Option(None, "--json"),
+) -> None:
+    """Before / after numbers for the win-probability model: isotonic vs smooth calibration, with
+    vs without monotone constraints, with vs without the era feature (latest season held out) and
+    in-sample vs out-of-fold NGI."""
+    import json
+
+    from cricdex.metrics import ngi
+
+    res = ngi.diagnose(collection)
+    text = json.dumps(res, indent=2)
+    typer.echo(text)
+    path = out_json or (DATA_DIR / "metrics" / f"ngi_diagnostics_{collection}.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
 
 
 @app.command("pressure-conversion")
@@ -236,6 +257,17 @@ def pressure_conversion_cmd(
     _emit(df, "pressure_conversion", collection, out_json)
 
 
+def _window_value(collection: str, by_window: dict[str, int], default: int) -> int:
+    """A threshold for a windowed collection: last1y / last3y have their own, an era window (a few
+    seasons, `<col>_era_<key>`) uses the last-3-years one, the whole collection the default."""
+    for suf, v in by_window.items():
+        if collection.endswith(f"_{suf}"):
+            return v
+    if is_window(collection):
+        return by_window.get("last3y", default)
+    return default
+
+
 @app.command("all")
 def all_cmd(
     collection: str = typer.Option("recently_played_30_male", "--collection", "-c"),
@@ -252,10 +284,7 @@ def all_cmd(
     # intent_curve.last1y empty. Scale the threshold down for the windowed
     # collections (the all-time board keeps 200, so the web base is unchanged).
     _window_bucket_min = {"last1y": 25, "last3y": 80}
-    intent_bucket_min = next(
-        (v for suf, v in _window_bucket_min.items() if collection.endswith(f"_{suf}")),
-        200,
-    )
+    intent_bucket_min = _window_value(collection, _window_bucket_min, 200)
     _emit(
         batter_metrics.pressure_runs(collection=collection, top_n=top_n),
         "pressure_runs",
@@ -299,10 +328,7 @@ def all_cmd(
     # NGI is per-match, so a player with one great game would top the board — keep a matches floor
     # (lower for the time windows, which hold far fewer games).
     _ngi_min_matches = {"last1y": 3, "last3y": 6}
-    ngi_min = next(
-        (v for suf, v in _ngi_min_matches.items() if collection.endswith(f"_{suf}")),
-        25,
-    )
+    ngi_min = _window_value(collection, _ngi_min_matches, 25)
     _ngi_career = _ngi.compute(collection=collection)["career"]
     if not _ngi_career.is_empty():
         _ngi_career = _ngi_career.filter(pl.col("matches") >= ngi_min)

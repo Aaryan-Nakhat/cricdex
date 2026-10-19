@@ -9,6 +9,9 @@
 #
 #   bash scripts/rebuild_all.sh            # resume (or start)
 #   bash scripts/rebuild_all.sh --fresh    # clear markers and rebuild from scratch
+#   bash scripts/rebuild_all.sh --from ratings   # keep the ingested data + People Register: refit
+#                                          # ratings, recompute metrics, export (no re-download)
+#   bash scripts/rebuild_all.sh --from metrics   # only metrics + export
 #   LEAGUES="ipl psl" bash scripts/rebuild_all.sh   # only these (still exports everything at the end)
 set -u
 cd "$(dirname "$0")/.." || exit 1
@@ -20,8 +23,23 @@ else PY="uv run python"; fi
 
 STATE="${CRICDEX_REBUILD_STATE:-data/.rebuild_state}"
 LOG="${CRICDEX_REBUILD_LOG:-data/rebuild.log}"
-[ "${1:-}" = "--fresh" ] && rm -rf "$STATE"
+FROM=""
+case "${1:-}" in
+  --fresh) rm -rf "$STATE" ;;
+  --from)
+    FROM="${2:-}"
+    case "$FROM" in ratings|metrics|export) ;; *) echo "usage: $0 [--fresh | --from ratings|metrics|export]"; exit 2 ;; esac ;;
+esac
 mkdir -p "$STATE" "$(dirname "$LOG")"
+# --from <stage>: mark everything before it done and clear its markers (and later ones), so the
+# run starts there; ingest + People Register are kept as they are
+if [ -n "$FROM" ]; then
+  touch "$STATE/people"
+  for C in ${LEAGUES:-$($PY -m cricdex.leagues list --exported --sep " ")}; do touch "$STATE/ingest_$C"; done
+  rm -f "$STATE/export_all" "$STATE/READY"
+  [ "$FROM" != export ] && rm -f "$STATE"/metrics_*
+  [ "$FROM" = ratings ] && rm -f "$STATE"/ratings_*
+fi
 
 say() { echo "=== $(date '+%F %H:%M:%S') $*" | tee -a "$LOG"; }
 step() {  # step <marker> <label> <command...>

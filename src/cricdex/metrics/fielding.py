@@ -15,8 +15,8 @@ Players are split into two boards because keepers also assist run-outs:
   • Fielding      — everyone else (outfield)
 
 This is a dismissal *count* (no diving/range/positioning — that needs video).
-Keyed by `fielder` (short name), tagged with matches/taxonomy/activity at
-export time like every other leaderboard.
+Keyed by the fielder's registry id (`cricsheet_id`; `fielder` is his scorecard name), tagged with
+matches/taxonomy/activity at export time like every other leaderboard.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-from cricdex.common.sql import MAIN_INNINGS, table_suffix
+from cricdex.common.sql import MAIN_INNINGS, keyed_query, table_suffix
 from cricdex.config import CURATED_DIR, DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -38,25 +38,29 @@ def _connect(db_path: Path | str) -> duckdb.DuckDBPyConnection:
     return duckdb.connect(str(db_path), read_only=True)
 
 
-def _keeper_names() -> set[str]:
-    """Short-names the LLM taxonomy classifies as wicket-keepers."""
-    if not TAXONOMY_PATH.exists():
-        return set()
-    raw = json.loads(TAXONOMY_PATH.read_text())
+def _keeper_ids() -> set[str]:
+    """Cricsheet ids of the players classified as wicket-keepers: the player master when it is built,
+    else the LLM taxonomy (both keyed by id, so a namesake of a keeper isn't one)."""
+    from cricdex.scout.identity import master
+
+    ident = master.load()
+    if not ident and TAXONOMY_PATH.exists():
+        ident = json.loads(TAXONOMY_PATH.read_text())
     return {
-        rec["name"]
-        for rec in raw.values()
-        if isinstance(rec, dict) and rec.get("name") and rec.get("primary_role") == "wk_batter"
+        cid
+        for cid, rec in ident.items()
+        if isinstance(rec, dict) and rec.get("primary_role") == "wk_batter"
     }
 
 
 def _tally(collection: str, db_path: Path | str) -> pl.DataFrame:
     """Per-fielder {catches, stumpings, runouts, dismissals} + is_keeper."""
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
+    # every wicket on a delivery (a second one off the same ball is lost from balls_), fielders as ids
     sql = f"""
     WITH dis AS (
         SELECT unnest(fielders) AS fielder, wicket_kind
-        FROM balls_{safe}
+        FROM __WICKETS__
         WHERE wicket_kind IN ('caught', 'stumped', 'run out') AND len(fielders) > 0 AND {MAIN_INNINGS}
     )
     SELECT
@@ -70,13 +74,17 @@ def _tally(collection: str, db_path: Path | str) -> pl.DataFrame:
     GROUP BY fielder
     """
     with _connect(db_path) as con:
-        df = con.execute(sql).pl()
-    keepers = _keeper_names()
+        df = keyed_query(con, collection, sql, ("fielder",))
+    if df.is_empty():
+        return df.with_columns(pl.lit(False).alias("is_keeper"))
+    keepers = _keeper_ids()
     return df.with_columns(
         pl.col("catches").cast(pl.Int64),
         pl.col("stumpings").cast(pl.Int64),
         pl.col("runouts").cast(pl.Int64),
-        ((pl.col("fielder").is_in(keepers)) | (pl.col("stumpings") > 0)).alias("is_keeper"),
+        ((pl.col("cricsheet_id").is_in(list(keepers))) | (pl.col("stumpings") > 0)).alias(
+            "is_keeper"
+        ),
     )
 
 
@@ -88,9 +96,9 @@ def keeping(
     """Wicketkeeping board — keepers, by total dismissals behind the stumps
     (catches + stumpings + run-out involvements)."""
     df = _tally(collection, db_path).filter(pl.col("is_keeper"))
-    df = df.select("fielder", "dismissals", "catches", "stumpings", "runouts").sort(
-        "dismissals", descending=True
-    )
+    df = df.select(
+        "fielder", "cricsheet_id", "display_name", "dismissals", "catches", "stumpings", "runouts"
+    ).sort("dismissals", descending=True)
     return df.head(top_n) if top_n is not None else df
 
 
@@ -101,9 +109,9 @@ def fielding(
 ) -> pl.DataFrame:
     """Fielding board — outfielders, by total dismissals (catches + run-outs)."""
     df = _tally(collection, db_path).filter(~pl.col("is_keeper"))
-    df = df.select("fielder", "dismissals", "catches", "runouts").sort(
-        "dismissals", descending=True
-    )
+    df = df.select(
+        "fielder", "cricsheet_id", "display_name", "dismissals", "catches", "runouts"
+    ).sort("dismissals", descending=True)
     return df.head(top_n) if top_n is not None else df
 
 

@@ -331,3 +331,81 @@ def test_translation_sd_defaults_follow_calibration():
             assert t.translation_sd == (0.5 if t.calibrated else 0.8), t.key
     assert leagues.translation_sd("ipl") == 0.0
     assert leagues.translation_sd("psl") > leagues.translation_sd("bbl")
+
+
+def test_ipl_impact_era_is_a_window():
+    (era,) = leagues.eras("ipl")
+    assert (era.key, era.since, era.window) == ("impact", "2023-03-31", "era_impact")
+    assert leagues.window_labels("ipl")["era_impact"] == "Impact Player era"
+    # an era window reads as its league everywhere a time window does
+    assert leagues.base_key("ipl_era_impact") == "ipl"
+    assert leagues.label("ipl_era_impact") == "IPL"
+    ipl = next(lg for lg in leagues.site_payload()["leagues"] if lg["key"] == "ipl")
+    assert ipl["eras"] == [
+        {
+            "key": "impact",
+            "window": "era_impact",
+            "name": "Impact Player era",
+            "since": "2023-03-31",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("era", "message"),
+    [
+        ('key = "Impact"\nname = "x"\nsince = "2023-03-31"', "lowercase"),
+        ('key = "impact"\nname = "x"\nsince = "March 2023"', "ISO date"),
+        ('key = "impact"\nname = "x"', "exactly"),
+    ],
+)
+def test_registry_rejects_bad_eras(era, message):
+    text = MINIMAL + "\n[[league.era]]\n" + era + "\n"  # an era of the last league (beta)
+    with pytest.raises(RegistryError, match=message):
+        parse(text)
+
+
+def test_era_windows_are_built_from_the_registry(tmp_path):
+    import importlib.util
+    from pathlib import Path
+
+    import duckdb
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "export_site", root / "scripts" / "export_site.py"
+    )
+    es = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(es)
+    con = duckdb.connect(str(tmp_path / "w.duckdb"))
+    con.execute("CREATE TABLE balls_ipl (match_id TEXT, match_date TEXT)")
+    con.execute("CREATE TABLE matches_ipl (match_id TEXT, match_date TEXT)")
+    for mid, d in (("old", "2019-04-01"), ("new", "2024-04-01"), ("newest", "2026-04-01")):
+        con.execute("INSERT INTO balls_ipl VALUES (?, ?)", [mid, d])
+        con.execute("INSERT INTO matches_ipl VALUES (?, ?)", [mid, d])
+    built = es._build_window_tables(con, "ipl", "2026-04-01")
+    assert set(built) == {"last1y", "last3y", "era_impact"}
+    got = {r[0] for r in con.execute("SELECT match_id FROM balls_ipl_era_impact").fetchall()}
+    assert got == {"new", "newest"}
+
+
+def test_python_window_pickers_list_the_exported_eras(tmp_path):
+    """The Streamlit / TUI period pickers read the eras a league was exported with from meta.json."""
+    import json
+
+    from cricdex.common import filters as cf
+
+    (tmp_path / "ipl").mkdir()
+    (tmp_path / "ipl" / "meta.json").write_text(
+        json.dumps(
+            {
+                "windows": ["last3y", "last1y", "era_impact"],
+                "window_labels": {"era_impact": "Impact Player era"},
+            }
+        )
+    )
+    assert cf.windows_for("ipl", tmp_path) == ["all", "last3y", "last1y", "era_impact"]
+    assert cf.window_label("era_impact", "ipl", tmp_path) == "Impact Player era"
+    assert cf.window_label("last1y") == "Last 1 yr"
+    # an older export (or a league without eras) keeps the fixed list
+    assert cf.windows_for("bbl", tmp_path) == ["all", "last3y", "last1y"]

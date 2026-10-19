@@ -115,6 +115,33 @@ WINDOWS = ["all", "last3y", "last1y"]
 WINDOW_LABELS = {"all": "All-time", "last3y": "Last 3 yrs", "last1y": "Last 1 yr"}
 
 
+def _meta(collection: str, base: Path | str | None) -> dict:
+    try:
+        return _read(_base(base) / collection / "meta.json") or {}
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def windows_for(collection: str, base: Path | str | None = None) -> list[str]:
+    """The periods a collection's leaderboards were cooked for: all-time, the time windows and any
+    era of the league (`meta.json` `windows`, e.g. "era_impact"); the fixed list for an older export."""
+    meta = _meta(collection, base)
+    cooked = [w for w in meta.get("windows") or [] if w not in WINDOWS]
+    return [*WINDOWS, *cooked]
+
+
+def window_label(window: str, collection: str | None = None, base: Path | str | None = None) -> str:
+    """ "All-time" / "Last 3 yrs" / an era's name ("Impact Player era", from `meta.window_labels`)."""
+    if window in WINDOW_LABELS:
+        return WINDOW_LABELS[window]
+    if collection:
+        meta = _meta(collection, base)
+        label = (meta.get("window_labels") or {}).get(window)
+        if label:
+            return label
+    return window
+
+
 def window_suffix(window: str) -> str:
     """`.last1y` / `.last3y`, or "" for all-time — mirrors getLeaderboard()."""
     return f".{window}" if window and window != "all" else ""
@@ -156,5 +183,7 @@ __all__ = [
     "countries_in",
     "load_cohorts",
     "load_leaderboard",
+    "window_label",
     "window_suffix",
+    "windows_for",
 ]

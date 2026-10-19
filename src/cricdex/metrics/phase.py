@@ -11,7 +11,15 @@ from pathlib import Path
 
 import duckdb
 
-from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, table_suffix
+from cricdex.common.sql import (
+    BOWLER_RUNS,
+    MAIN_INNINGS,
+    cid_of,
+    keyed_balls,
+    label_map,
+    name_of_key,
+    table_suffix,
+)
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -30,21 +38,25 @@ def phase_leaders(
     top: int = 25,
 ) -> dict[str, dict]:
     """{phase: {"batters": [{name,balls,runs,sr}], "bowlers": [{name,balls,
-    runs,wickets,econ}]}} for powerplay / middle / death."""
-    safe = table_suffix(collection)
+    runs,wickets,econ}]}} for powerplay / middle / death. Grouped by registry id (two players who
+    share a scorecard name stay two rows); each row carries `name` (scorecard), `cricsheet_id` and
+    `key` (the id, or `unresolved:<name>`)."""
+    table_suffix(collection)  # rejects an unsafe collection name
     out: dict[str, dict] = {}
     with _connect(db_path) as con:
+        kb = keyed_balls(con, collection)
+        labels = label_map(con, collection)
         for ph in PHASES:
             bat = con.execute(
                 f"""
                 SELECT batter AS name,
                        SUM(CASE WHEN extras_type IS DISTINCT FROM 'wides' THEN 1 ELSE 0 END) AS balls,
                        SUM(runs_batter) AS runs
-                FROM balls_{safe}
+                FROM {kb}
                 WHERE phase = ? AND batter IS NOT NULL AND {MAIN_INNINGS}
                 GROUP BY batter
                 HAVING balls >= {min_bat_balls}
-                ORDER BY 100.0 * runs / NULLIF(balls, 0) DESC
+                ORDER BY 100.0 * runs / NULLIF(balls, 0) DESC, name
                 LIMIT {top}
                 """,
                 [ph],
@@ -60,11 +72,11 @@ def phase_leaders(
                                  AND wicket_kind NOT IN ('run out', 'retired hurt',
                                      'retired out', 'obstructing the field')
                                 THEN 1 ELSE 0 END) AS wickets
-                FROM balls_{safe}
+                FROM {kb}
                 WHERE phase = ? AND bowler IS NOT NULL AND {MAIN_INNINGS}
                 GROUP BY bowler
                 HAVING balls >= {min_bowl_balls}
-                ORDER BY 6.0 * runs / NULLIF(balls, 0) ASC
+                ORDER BY 6.0 * runs / NULLIF(balls, 0) ASC, name
                 LIMIT {top}
                 """,
                 [ph],
@@ -72,7 +84,9 @@ def phase_leaders(
             out[ph] = {
                 "batters": [
                     {
-                        "name": n,
+                        "name": name_of_key(n, labels),
+                        "cricsheet_id": cid_of(n),
+                        "key": n,
                         "balls": int(b),
                         "runs": int(r or 0),
                         "sr": round(100.0 * (r or 0) / b, 1) if b else 0.0,
@@ -81,7 +95,9 @@ def phase_leaders(
                 ],
                 "bowlers": [
                     {
-                        "name": n,
+                        "name": name_of_key(n, labels),
+                        "cricsheet_id": cid_of(n),
+                        "key": n,
                         "balls": int(b),
                         "runs": int(r or 0),
                         "wickets": int(w or 0),

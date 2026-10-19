@@ -32,7 +32,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-from cricdex.common.sql import player_ids, table_suffix
+from cricdex.common.sql import keyed_balls, relabel, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -60,18 +60,15 @@ def wicket_quality(
         return pl.DataFrame()
     with duckdb.connect(str(db_path), read_only=True) as con:
         tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
-        ids = player_ids(con, collection)
-        if f"balls_{safe}" not in tables or ids is None:
+        if f"balls_{safe}" not in tables:
             return pl.DataFrame()
+        # player columns are registry ids, resolved per match (two namesakes stay two players)
         rows = con.execute(
             f"""
             SELECT
                 b.bowler,
-                COALESCE(b.player_out, b.batter) AS dismissed_name,
-                p.identifier AS dismissed_cricsheet_id
-            FROM balls_{safe} b
-            LEFT JOIN {ids} p
-                ON p.name = COALESCE(b.player_out, b.batter)
+                COALESCE(b.player_out, b.batter) AS dismissed_cricsheet_id
+            FROM {keyed_balls(con, collection)} b
             WHERE b.wicket_kind IS NOT NULL
               AND b.wicket_kind NOT IN (
                   'run out', 'retired hurt', 'retired out',
@@ -81,9 +78,15 @@ def wicket_quality(
               AND (b.innings_idx <= 1 OR b.match_type IN ('Test', 'MDM'))
             """
         ).pl()
-    if rows.is_empty():
-        return pl.DataFrame()
+        if rows.is_empty():
+            return pl.DataFrame()
+        agg = _aggregate(rows, skills, min_wickets, top_n)
+        return relabel(agg, con, collection, ("bowler",))
 
+
+def _aggregate(
+    rows: pl.DataFrame, skills: dict[str, float], min_wickets: int, top_n: int | None
+) -> pl.DataFrame:
     df = rows.with_columns(
         pl.col("dismissed_cricsheet_id")
         .map_elements(lambda x: skills.get(x), return_dtype=pl.Float64)

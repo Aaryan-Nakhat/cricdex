@@ -16,20 +16,45 @@ from cricdex.profiles import builder
 def metric_dir(tmp_path, monkeypatch):
     d = tmp_path / "metrics"
     d.mkdir()
-    (d / "ngi_test.json").write_text(json.dumps([{"name": "A", "ngi_per_match": 0.05}]))
+    (d / "ngi_test.json").write_text(
+        json.dumps([{"name": "A", "cricsheet_id": "id-a", "ngi_per_match": 0.05}])
+    )
     # some metric files wrap their rows in {"rows": [...]}
     (d / "keeping_test.json").write_text(
-        json.dumps({"rows": [{"fielder": "A", "dismissals": 7, "catches": 5}]})
+        json.dumps(
+            {"rows": [{"fielder": "A", "cricsheet_id": "id-a", "dismissals": 7, "catches": 5}]}
+        )
     )
     (d / "pressure_conversion_test.json").write_text(
-        json.dumps([{"bowler": "B", "wicket_rate_pct": 12.5}])
+        json.dumps([{"bowler": "B", "cricsheet_id": "id-b", "wicket_rate_pct": 12.5}])
     )
     (d / "intent_curve_test.json").write_text(
         json.dumps(
             [
-                {"batter": "A", "ball_bucket": "01_0-5", "balls": 10, "runs": 10, "sr": 100.0},
-                {"batter": "A", "ball_bucket": "02_6-10", "balls": 10, "runs": 20, "sr": 200.0},
-                {"batter": "A", "ball_bucket": "04_21-30", "balls": 5, "runs": 9, "sr": 180.0},
+                {
+                    "batter": "A",
+                    "cricsheet_id": "id-a",
+                    "ball_bucket": "01_0-5",
+                    "balls": 10,
+                    "runs": 10,
+                    "sr": 100.0,
+                },
+                {
+                    "batter": "A",
+                    "cricsheet_id": "id-a",
+                    "ball_bucket": "02_6-10",
+                    "balls": 10,
+                    "runs": 20,
+                    "sr": 200.0,
+                },
+                {
+                    "batter": "A",
+                    "cricsheet_id": "id-a",
+                    "ball_bucket": "04_21-30",
+                    "balls": 5,
+                    "runs": 9,
+                    "sr": 180.0,
+                },
             ]
         )
     )
@@ -75,9 +100,10 @@ def mini_db(tmp_path, monkeypatch):
 def test_metric_tables_cover_every_catalog_metric(metric_dir):
     tables = builder.load_metric_tables("test")
     assert set(tables) == {m.slug for m in METRICS}
-    assert tables["keeping"]["A"]["dismissals"] == 7
-    assert tables["pressure_conversion"]["B"]["wicket_rate_pct"] == 12.5
-    intent = tables["intent_curve"]["A"]
+    # rows are keyed by the player's registry id (two players can share a scorecard name)
+    assert tables["keeping"]["id-a"]["dismissals"] == 7
+    assert tables["pressure_conversion"]["id-b"]["wicket_rate_pct"] == 12.5
+    intent = tables["intent_curve"]["id-a"]
     assert intent["curve"] == [100.0, 200.0, None, 180.0, None, None]
     assert intent["early_sr"] == 150.0  # 30 runs off the first 20 balls
     assert intent["balls"] == 25

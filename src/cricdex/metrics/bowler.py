@@ -11,7 +11,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-from cricdex.common.sql import BOWLER_WICKET, MAIN_INNINGS, table_suffix
+from cricdex.common.sql import BOWLER_WICKET, MAIN_INNINGS, keyed_query, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -45,7 +45,7 @@ def pressure_conversion(
       filtered to 0 rows by a hard-coded 30-ball floor.
     - Else default to 30 (the v1 IPL-tuned floor).
     """
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
     # Aggregated table (before applying min_pressure_balls).
     agg_sql = f"""
     WITH numbered AS (
@@ -55,7 +55,7 @@ def pressure_conversion(
             {BOWLER_WICKET} AS is_wicket,  -- a run out isn't the bowler's squeeze paying off
             ROW_NUMBER() OVER (PARTITION BY match_id, innings_idx, bowler, over
                                ORDER BY ball_in_over) AS ball_in_over_seq
-        FROM balls_{safe}
+        FROM __BALLS__
         WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
     ),
     dot_streaks AS (
@@ -89,7 +89,7 @@ def pressure_conversion(
     GROUP BY 1
     """
     with _connect(db_path) as con:
-        agg = con.execute(agg_sql).pl()
+        agg = keyed_query(con, collection, agg_sql, ("bowler",))
 
     if agg.is_empty():
         return agg

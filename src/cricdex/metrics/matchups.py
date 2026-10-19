@@ -5,7 +5,11 @@
   `matchups/<cid>.json` (`as_batter` = rows where batter==P, `as_bowler` = rows
   where bowler==P).
 - `pace_spin_splits(collection, bowler_category)` → per batter, SR + dismissal
-  rate vs seam vs spin (bowler type from the LLM taxonomy, joined by name).
+  rate vs seam vs spin (bowler type from the player master / taxonomy, by id).
+
+Players are keyed by their registry id, resolved per match (`common.sql.keyed_balls`), so
+two players sharing a scorecard name are never merged; rows carry the scorecard names for
+display and `batter_key` / `bowler_key` (the id, or `unresolved:<name>`) for lookups.
 
 No new columns — `balls_<collection>` already carries batter/bowler/runs/
 extras_type/wicket_kind/player_out.
@@ -17,7 +21,7 @@ from pathlib import Path
 
 import duckdb
 
-from cricdex.common.sql import MAIN_INNINGS, table_suffix
+from cricdex.common.sql import MAIN_INNINGS, UNRESOLVED, keyed_query, keyed_sql, table_suffix
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -36,7 +40,7 @@ def pairwise(
     min_balls: int = 6,
 ) -> list[dict]:
     """One row per (batter, bowler) meeting `min_balls` legal deliveries."""
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
     outs = " OR ".join(f"wicket_kind = '{k}'" for k in _BOWLER_OUTS)
     sql = f"""
     WITH agg AS (
@@ -47,20 +51,25 @@ def pairwise(
             SUM(CASE WHEN runs_total = 0 AND extras_type IS DISTINCT FROM 'wides'
                      THEN 1 ELSE 0 END) AS dots,
             SUM(CASE WHEN player_out = batter AND ({outs}) THEN 1 ELSE 0 END) AS outs
-        FROM balls_{safe}
+        FROM __BALLS__
         WHERE batter IS NOT NULL AND bowler IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY batter, bowler
     )
-    SELECT batter, bowler, balls, runs, outs,
+    SELECT batter, bowler, batter AS batter_key, bowler AS bowler_key, balls, runs, outs,
            CAST(ROUND(100.0 * runs / NULLIF(balls, 0), 1) AS DOUBLE) AS sr,
            CAST(ROUND(100.0 * dots / NULLIF(balls, 0), 1) AS DOUBLE) AS dot_pct
     FROM agg
     WHERE balls >= {min_balls}
-    ORDER BY balls DESC
+    ORDER BY balls DESC, batter_key, bowler_key
     """
     with _connect(db_path) as con:
-        cols = ["batter", "bowler", "balls", "runs", "outs", "sr", "dot_pct"]
-        return [dict(zip(cols, r, strict=True)) for r in con.execute(sql).fetchall()]
+        df = keyed_query(con, collection, sql, ("batter", "bowler"))
+    if df.is_empty():
+        return []
+    df = df.rename({"cricsheet_id": "batter_id"}).drop("display_name")
+    cols = ["batter", "bowler", "batter_id", "bowler_id", "batter_key", "bowler_key", "balls"]
+    cols += ["runs", "outs", "sr", "dot_pct"]
+    return df.select(cols).to_dicts()
 
 
 def pace_spin_splits(
@@ -69,14 +78,15 @@ def pace_spin_splits(
     db_path: Path | str = DEFAULT_DB_PATH,
     min_balls: int = 60,
 ) -> dict[str, dict]:
-    """{batter -> {vs_seam:{balls,runs,sr,outs,out_rate}, vs_spin:{…}}}.
+    """{batter key -> {vs_seam:{balls,runs,sr,outs,out_rate}, vs_spin:{…}}}.
 
-    `bowler_category` maps bowler scorecard-name → 'seam' | 'spin' (from the
-    taxonomy); deliveries by uncategorised bowlers are ignored.
+    `bowler_category` maps a bowler's registry id (or, for an unresolved player, his scorecard
+    name) → 'seam' | 'spin'; deliveries by uncategorised bowlers are ignored. The result is keyed
+    by the batter's key (his registry id, or `unresolved:<name>`).
     """
     if not bowler_category:
         return {}
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
     outs = " OR ".join(f"wicket_kind = '{k}'" for k in _BOWLER_OUTS)
     pairs = [{"bowler": n, "cat": c} for n, c in bowler_category.items() if c in ("seam", "spin")]
     if not pairs:
@@ -86,16 +96,21 @@ def pace_spin_splits(
 
         con.register("bcat", pl.DataFrame(pairs))
         rows = con.execute(
-            f"""
+            keyed_sql(
+                con,
+                collection,
+                f"""
             SELECT b.batter AS batter, bc.cat AS cat,
                    SUM(CASE WHEN b.extras_type IS DISTINCT FROM 'wides' THEN 1 ELSE 0 END) AS balls,
                    SUM(b.runs_batter) AS runs,
                    SUM(CASE WHEN b.player_out = b.batter AND ({outs}) THEN 1 ELSE 0 END) AS outs
-            FROM balls_{safe} b
-            JOIN bcat bc ON b.bowler = bc.bowler
+            FROM __BALLS__ b
+            JOIN bcat bc ON bc.bowler = b.bowler
+                OR (b.bowler LIKE '{UNRESOLVED}%' AND bc.bowler = b.bowler_name)
             WHERE b.batter IS NOT NULL AND {MAIN_INNINGS}
             GROUP BY b.batter, bc.cat
-            """
+            """,
+            )
         ).fetchall()
     out: dict[str, dict] = {}
     for batter, cat, balls, runs, dis in rows:

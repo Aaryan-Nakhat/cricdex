@@ -29,10 +29,12 @@ const BOWL_COLS: Col<Row>[] = [
   { key: "outs", label: "Wkts", align: "right", digits: 0 },
 ];
 
-/** The opponent column shows the fan name (rows carry the scorecard name). */
-function withNames(cols: Col<Row>[], key: string, nameOf: (n: string) => string): Col<Row>[] {
+/** The opponent column shows the fan name (rows carry the scorecard name and the registry id). */
+function withNames(cols: Col<Row>[], key: string, nameOf: (n: string, cid?: unknown) => string): Col<Row>[] {
   return cols.map((c) =>
-    c.key === key ? { ...c, render: (r: Row) => <span className="text-fg">{nameOf(String(r[key] ?? ""))}</span> } : c,
+    c.key === key
+      ? { ...c, render: (r: Row) => <span className="text-fg">{nameOf(String(r[key] ?? ""), r[`${key}_id`])}</span> }
+      : c,
   );
 }
 

@@ -20,11 +20,12 @@ import re
 import sys
 import tomllib
 from dataclasses import dataclass
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from cricdex.common.sql import WINDOW_SUFFIXES, WINDOWS, base_suffix
+from cricdex.common.sql import ERA_PREFIX, WINDOW_SUFFIXES, WINDOWS, base_suffix, is_window
 
 CRICSHEET_BASE = "https://cricsheet.org/downloads"
 SCHEMA = 1
@@ -35,6 +36,7 @@ SCOUT_GROUPS = frozenset({"peers", "uncapped", "overseas"})
 # A Cricsheet download name: lowercase words, digits and `_`, ending in `_json.zip`.
 ZIP_NAME = re.compile(r"^[a-z0-9_()\-]+_json\.zip$")
 KEY_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
+ERA_KEY = re.compile(r"^[a-z][a-z0-9]*$")
 
 _PKG_COPY = Path(__file__).resolve().parent / "leagues.toml"
 _REPO_COPY = Path(__file__).resolve().parents[2] / "config" / "leagues.toml"
@@ -54,6 +56,20 @@ class Tier:
     # Cross-league pooling weights each league by 1 / (rating sd² + translation_sd²), so IPL
     # evidence (0) dominates whenever a player has it and provisional discounts count least.
     translation_sd: float = 0.0
+
+
+@dataclass(frozen=True)
+class Era:
+    """A stretch of a league's history with its own scoring level (e.g. the IPL's Impact Player era),
+    exported as the recomputed window `era_<key>` (matches on or after `since`)."""
+
+    key: str
+    name: str
+    since: str  # ISO date
+
+    @property
+    def window(self) -> str:
+        return f"{ERA_PREFIX}{self.key}"
 
 
 @dataclass(frozen=True)
@@ -79,6 +95,7 @@ class League:
     auction_target: bool = False
     auction_nationalities: tuple[str, ...] = ()
     auction_excluded_nationalities: tuple[str, ...] = ()
+    era: tuple[Era, ...] = ()
 
     @property
     def urls(self) -> tuple[str, ...]:
@@ -141,6 +158,23 @@ def _league(raw: dict[str, Any], where: str) -> League:
         if isinstance(v, str):
             raise RegistryError(f"{where}: `{f}` must be a list of country codes")
         data[f] = tuple(v)
+    eras = data.get("era") or []
+    if not isinstance(eras, list):
+        raise RegistryError(f"{where}: `era` must be a list of [[league.era]] tables")
+    parsed = []
+    for i, e in enumerate(eras):
+        if not isinstance(e, dict) or set(e) != {"key", "name", "since"}:
+            raise RegistryError(f"{where}: era #{i + 1} needs exactly `key`, `name` and `since`")
+        if not ERA_KEY.match(str(e["key"])):
+            raise RegistryError(f"{where}: era key {e['key']!r} must be lowercase letters / digits")
+        try:
+            since = date.fromisoformat(str(e["since"])).isoformat()
+        except ValueError:
+            raise RegistryError(f"{where}: era {e['key']!r} `since` isn't an ISO date") from None
+        parsed.append(Era(key=str(e["key"]), name=str(e["name"]), since=since))
+    if len({e.key for e in parsed}) != len(parsed):
+        raise RegistryError(f"{where}: duplicate era keys")
+    data["era"] = tuple(parsed)
     return League(**data)
 
 
@@ -154,8 +188,10 @@ def validate(tiers: dict[str, Tier], leagues: list[League]) -> None:
         if lg.key in seen:
             raise RegistryError(f"{w}: duplicate key")
         seen.add(lg.key)
-        if lg.key.endswith(WINDOW_SUFFIXES):
-            raise RegistryError(f"{w}: a key can't end in a time-window suffix {WINDOW_SUFFIXES}")
+        if lg.key.endswith(WINDOW_SUFFIXES) or is_window(lg.key) or "_era_" in lg.key:
+            raise RegistryError(
+                f"{w}: a key can't end in a time-window suffix {WINDOW_SUFFIXES} or contain `_era_`"
+            )
         for z in lg.zips:
             if not ZIP_NAME.match(z):
                 raise RegistryError(f"{w}: {z!r} isn't a Cricsheet `<name>_json.zip` file name")
@@ -349,6 +385,21 @@ def auction_pool_summary(sep: str = " / ") -> dict[str, str]:
     }
 
 
+def eras(key: str) -> tuple[Era, ...]:
+    """A league's eras (by collection key), oldest first."""
+    try:
+        return tuple(sorted(get(key).era, key=lambda e: e.since))
+    except (KeyError, ValueError):
+        return ()
+
+
+def window_labels(key: str) -> dict[str, str]:
+    """window key → label for a league's recomputed windows (the time windows and its eras)."""
+    out = {"last3y": "Last 3 yrs", "last1y": "Last 1 yr"}
+    out.update({e.window: e.name for e in eras(key)})
+    return out
+
+
 def label(key: str) -> str:
     """Display name for a collection key (unknown keys come back unchanged)."""
     try:
@@ -414,6 +465,10 @@ def site_payload() -> dict[str, Any]:
                 "gem_pool": lg.gem_pool,
                 "auction_pool": lg.auction_pool,
                 "auction_target": lg.auction_target,
+                "eras": [
+                    {"key": e.key, "window": e.window, "name": e.name, "since": e.since}
+                    for e in lg.era
+                ],
             }
             for lg in reg.leagues
         ],

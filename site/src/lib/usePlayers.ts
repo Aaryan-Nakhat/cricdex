@@ -42,8 +42,13 @@ export function usePlayers(collection: string) {
     return m;
   }, [players]);
 
-  /** Fan-facing name for a scorecard name (leaderboard rows carry the scorecard name). */
-  const nameOf = useCallback((scorecard: string) => displayName(byName.get(scorecard) ?? { name: scorecard }), [byName]);
+  /** Fan-facing name for a row's player: by his registry id when the row carries one (two players
+   * can share a scorecard name), else by the scorecard name. */
+  const nameOf = useCallback(
+    (scorecard: string, cid?: unknown) =>
+      displayName((typeof cid === "string" && byId.get(cid)) || byName.get(scorecard) || { name: scorecard }),
+    [byName, byId],
+  );
 
   return { players, options, byName, byId, nameOf, loading, error };
 }

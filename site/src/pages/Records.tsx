@@ -70,7 +70,7 @@ export function Records() {
   const cellText = (r: Record<string, unknown>, c: string): string => {
     const disp = r[`${c}_display`];
     if (typeof disp === "string" && disp.trim()) return disp;
-    if ((c === "batter" || c === "bowler") && typeof r[c] === "string") return nameOf(String(r[c]));
+    if ((c === "batter" || c === "bowler") && typeof r[c] === "string") return nameOf(String(r[c]), r.cricsheet_id);
     return prettyCell(r[c]);
   };
   const hasDate = rawRows.some((r) => yearOf(r.match_date) !== null);

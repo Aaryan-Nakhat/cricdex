@@ -90,28 +90,28 @@ disagreements left for a human are in `data/curated/player_master_review.json`.
   `player_of_match`.
 
 **Win probability and NGI (`metrics/ngi.py`)**
-- [ ] 6. NGI is scored mostly in-sample (train on 70% of matches, score all). Use 5-fold out-of-fold
-  predictions for scoring; keep the test split for reporting.
-- [ ] 7. ΔWP is quantised by isotonic calibration steps (small swings read exactly 0). Use smooth
-  calibration (Platt, beta or spline) for differences; count how many balls read 0 before and after.
-- [ ] 8. No monotone constraints: a wicket could raise the batting side's WP in sparse states. Add
-  `monotone_constraints` and log the share of wrong-sign balls.
-- [ ] 9. Credit for extras and non-striker run-outs goes to the striker; the bowler gets run-out credit and
-  fielders nothing. Give extras to the bowler/team only, debit `player_out`, credit named fielders.
-- [ ] 10. Ties are dropped instead of labelled 0.5.
-- [ ] 11. NGI per match divides by matches batted or bowled (Kohli 276 vs ~282 appearances). Count
-  appearances from the XI (`info.players`).
+- [x] 6. NGI is scored mostly in-sample (train on 70% of matches, score all). Use 5-fold out-of-fold
+  predictions for scoring; keep the test split for reporting. *Done 2026-10-17: 5-fold out-of-fold scoring; the 70/15/15 test split still reports (IPL OOF NGI correlates 0.94 with the old in-sample).*
+- [x] 7. ΔWP is quantised by isotonic calibration steps (small swings read exactly 0). Use smooth
+  calibration (Platt, beta or spline) for differences; count how many balls read 0 before and after. *Done 2026-10-17: beta calibration; balls with ΔWP exactly 0 on the IPL 70% → 23%, ECE 0.024.*
+- [x] 8. No monotone constraints: a wicket could raise the batting side's WP in sparse states. Add
+  `monotone_constraints` and log the share of wrong-sign balls. *Done 2026-10-17: wicket balls raising batting WP 3.9% → 0.01% (IPL).*
+- [x] 9. Credit for extras and non-striker run-outs goes to the striker; the bowler gets run-out credit and
+  fielders nothing. Give extras to the bowler/team only, debit `player_out`, credit named fielders. *Done 2026-10-17: play / wicket / extras split; rule in METHODOLOGY §2; `ngi_fielding`.*
+- [x] 10. Ties are dropped instead of labelled 0.5.
+- [x] 11. NGI per match divides by matches batted or bowled (Kohli 276 vs ~282 appearances). Count
+  appearances from the XI (`info.players`). *Done 2026-10-17: appearances from `match_players_<col>` (Kohli 279).*
 
 **Ratings and valuation (`scout/ratings/bayesian.py`, `web_parity/pricing.py`)**
-- [ ] 12. No era or season effect (IPL first-innings average ~155 in 2009–13 → 193 in 2026). Add season,
-  phase, venue and innings effects with hierarchical priors.
-- [ ] 13. NegBin dispersion doesn't scale with balls (variance grows with balls², high-volume edges are
-  under-weighted). Use `concentration = alpha * balls` or a per-outcome multinomial; compare held-out fit.
+- [x] 12. No era or season effect (IPL first-innings average ~155 in 2009–13 → 193 in 2026). Add season,
+  phase, venue and innings effects with hierarchical priors. *Done 2026-10-17: season random walk, phase, innings and hierarchical venue terms in both sub-models.*
+- [x] 13. NegBin dispersion doesn't scale with balls (variance grows with balls², high-volume edges are
+  under-weighted). Use `concentration = alpha * balls` or a per-outcome multinomial; compare held-out fit. *Done 2026-10-17: `concentration = alpha × balls`; held-out fit in METHODOLOGY §4/§8.*
 - [ ] 14. `value` is an equal-weight sum of two z-scores (survival means little for a finisher). Move to a
   runs-currency value: runs per ball minus a phase-dependent wicket cost.
-- [ ] 15. Bowler economy ignores extras (wides-heavy bowlers flattered). Add extras or a wides sub-model.
-- [ ] 16. One population prior for every batter, so tail-enders shrink to "average batter". Use a role or
-  batting-slot prior mean.
+- [x] 15. Bowler economy ignores extras (wides-heavy bowlers flattered). Add extras or a wides sub-model. *Done 2026-10-17: wides + no-balls sub-model folded into economy.*
+- [x] 16. One population prior for every batter, so tail-enders shrink to "average batter". Use a role or
+  batting-slot prior mean. *Done 2026-10-17: batting-slot and frontline / part-time prior means.*
 - [x] 17. Cross-league valuation takes the max over leagues with hand-set tier penalties (Yash Thakur 1.65
   from SMAT vs −0.33 IPL; Unadkat 1.37 vs −0.14). Pool by precision so IPL evidence dominates; later fit
   league effects jointly.
@@ -156,15 +156,22 @@ disagreements left for a human are in `data/curated/player_master_review.json`.
   types and add a schema test.
 
 **Backtest and evaluation (`scripts/backtest_*.py`)**
-- [ ] 33. Newcomer comparison not like-for-like: the model value is tier-penalised, the raw baseline pools
-  leagues unadjusted. Give the baseline the same league centring.
-- [ ] 34. `_other_league_view` keeps each player's best league rating (biased upward). Use a
-  precision-weighted average.
-- [ ] 35. Selection on playing time (newcomers need 60+ IPL balls; poor starters get dropped). Note it and
-  run a sensitivity check.
-- [ ] 36. Multiple comparisons: the "97% of resamples" result (one-sided p ≈ 0.03) is one of six tests and
-  isn't significant after correction. Report all six with Holm-adjusted p.
+- [x] 33. Newcomer comparison not like-for-like: the model value is tier-penalised, the raw baseline pools
+  leagues unadjusted. Give the baseline the same league centring. *Done 2026-10-19: the baseline is each league's
+  numbers relative to its average, minus the same tier discount. The old batter-survival edge didn't survive
+  it (METHODOLOGY §8).*
+- [x] 34. `_other_league_view` keeps each player's best league rating (biased upward). Use a
+  precision-weighted average. *Done 2026-10-19: pooled by 1 / (value sd² + tier translation sd²), the auction
+  pool's rule.*
+- [x] 35. Selection on playing time (newcomers need 60+ IPL balls; poor starters get dropped). Note it and
+  run a sensitivity check. *Done 2026-10-19: the script re-scores at 30 and 120 balls; noted in METHODOLOGY §8
+  (at 120 balls batters flip, n = 44).*
+- [x] 36. Multiple comparisons: the old "97% of resamples" result (one-sided p ≈ 0.03) was one of six tests
+  and wasn't significant after correction. Report all six with Holm-adjusted p. *Done 2026-10-19: all six reported;
+  best Holm p = 0.15 (newcomer batters overall, original five leagues), so nothing is significant.*
 - [ ] 37. Weak target: Spearman on noisy season totals, one ADVI seed, no noise ceiling (roadmap 27).
+  *In part 2026-10-19: 3 ADVI seeds and the held-out log-likelihood per ball are done; the split-half noise ceiling
+  is still open.*
 
 **Engineering**
 - [ ] 38. The CI job named `lint-test` doesn't run ruff or mypy. Add both.
@@ -177,7 +184,7 @@ disagreements left for a human are in `data/curated/player_master_review.json`.
 - [ ] Legal balls vs all deliveries: add one explicit test that every rate uses the right denominator.
 - [ ] Effect sizes: re-run the backtests after each of the DLS, isotonic, monotone and NegBin fixes and
   report how much each moved the numbers.
-- [ ] Mean-field ADVI: re-check against NUTS after adding context effects (roadmap 4).
+- [x] Mean-field ADVI: re-check against NUTS after adding context effects (roadmap 4). *Done 2026-10-18 on the IPL: ADVI sds a median 98% (batters) / 92–95% (bowlers) of NUTS's, P(A>B) within a median 2–2.5 points; NUTS r-hat 1.02, 0 divergences.*
 - [ ] Impact Player coding is resolved (`reason: "impact_player"`, 557 IPL, 168 ILT20, 43 LPL events); use
   it.
 - [ ] Lead the backtest story with the newcomer case; keep the honest established-player tie.
@@ -196,11 +203,14 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
 - [ ] 3. Remove the mockable items (S): fix or hide Pressure Conversion, z-score style twins, retire "clearly
   better", relabel Boundary Dependency and replacement→average, refresh the README image, Scout
   eligibility (no Pakistani players in IPL pools, capped players out of the uncapped pool).
-- [ ] 4. Era and season adjustment (M–L): season, phase, venue and innings terms in the Bayesian model; an
-  era feature in the WP model; venue par by season; an Impact-era toggle on boards.
-- [ ] 5. WP/NGI hygiene (S–M): out-of-fold scoring, smooth calibration, monotone constraints, ties at 0.5,
-  correct credit for extras and run-outs.
-- [ ] 6. NegBin dispersion fix plus a role-level prior mean, then re-run both backtests (S).
+- [x] 4. Era and season adjustment (M–L): season, phase, venue and innings terms in the Bayesian model; an
+  era feature in the WP model; venue par by season; an Impact-era toggle on boards. *Done 2026-10-19: season
+  random walk, phase / innings / venue terms; era-relative WP features; venue par by season; `era_impact`
+  window on the boards.*
+- [x] 5. WP/NGI hygiene (S–M): out-of-fold scoring, smooth calibration, monotone constraints, ties at 0.5,
+  correct credit for extras and run-outs. *Done 2026-10-19: correctness 6–11, plus fielder credit.*
+- [x] 6. NegBin dispersion fix plus a role-level prior mean, then re-run both backtests (S). *Done 2026-10-19:
+  both backtests re-run (METHODOLOGY §8).*
 - [ ] 7. Current squads, salaries and purses JSON plus a retention calculator (M): hand-built from the
   Wikipedia 2026 personnel-changes page; retain/release value minus cost, purse left, replacement cost per
   role. Check the official 2027 retention rules first.
@@ -313,6 +323,14 @@ Scout:
 - [ ] P17. Country filter: same country as the pick by default, overseas or all on demand.
 - [x] P18. Fix "The next big things" (uncapped gems) listing capped stars (needs P2).
 
+### Found while shipping (2026-10-17)
+
+- [x] F1. Metrics are computed by scorecard name, so two different players who share a name in one league
+  are merged (43 such names in men's T20Is, 8 in the BPL, 1 in The Hundred; none in the IPL). Key every
+  metric, rating and board by the registry id (`players_<col>`) instead of the name. *Done 2026-10-17: `common/sql.py::keyed_balls` (per-match registry ids) everywhere; tests/test_namesakes.py. Re-counted on the current data, among players who batted or bowled: 38 names in men's T20Is, 7 in the BPL, 7 in SMAT, 3 in the PSL, 1 each in the IPL and The Hundred.*
+- [ ] F2. Site data is now 217 MB (a profile for every player). Do roadmap item 39 soon: move the data
+  snapshot out of `main` into a data branch the deploy reads, overwritten on each refresh.
+
 ### Guardrails
 
 - Don't overclaim: no "clearly better" at 75%, no "Crores cheaper", don't call the newcomer result
@@ -337,9 +355,9 @@ Scout:
 
 Work that needs no new data source.
 
-- **Fielder and non-striker credit in NGI**: share a catch's or run-out's swing with the fielder, and book
-  a non-striker run-out to the batter who was out.
-- **Venue, phase and era effects in the ratings**: one skill set per career today.
+- ~~Fielder and non-striker credit in NGI~~ and ~~venue, phase and era effects in the ratings~~: shipped
+  2026-10-17 (review items 9 and 12). Next on that line: a player's own form drifting over time
+  (Tier D #34) and a joint multi-league fit (Tier B #17).
 - **Women's collections**: the ingester already knows the WPL, WBBL and women's T20I archives; nothing
   downstream has been built or checked on them yet.
 - **Replacement Delta**: NGI against a replacement-level player ("cricket WAR"). Needs a sub-IPL baseline

@@ -22,12 +22,12 @@ from cricdex.common.filters import (
     FILTER_HELP,
     POSITION_OPTS,
     ROLE_OPTS,
-    WINDOW_LABELS,
-    WINDOWS,
     Filters,
     apply_filters,
     countries_in,
     load_leaderboard,
+    window_label,
+    windows_for,
 )
 from cricdex.common.metrics import DIRECTION_LABEL, METRICS, MetricDef
 from cricdex.dashboard._widgets import provenance_banner
@@ -120,10 +120,11 @@ def render() -> None:
         )
         window = st.radio(
             "Time window",
-            WINDOWS,
-            format_func=lambda w: WINDOW_LABELS[w],
+            windows_for(collection),
+            format_func=lambda w: window_label(w, collection),
             horizontal=True,
-            help="All-time, or metrics recomputed over the last 3 / 1 year(s).",
+            help="All-time, or metrics recomputed over the last 3 / 1 year(s) or the league's eras "
+            "(the IPL's Impact Player era).",
         )
         st.divider()
         min_matches = st.slider("Min matches", 0, 100, 20, step=5, help=FILTER_HELP["min_matches"])
@@ -168,7 +169,7 @@ def render() -> None:
             rows = load_metric(m.slug, collection, window)
             if not rows or m.sort_col not in rows[0]:
                 st.info(
-                    f"No `{m.slug}` data for `{collection}` ({WINDOW_LABELS[window]}) — run "
+                    f"No `{m.slug}` data for `{collection}` ({window_label(window, collection)}) — run "
                     f"`cricdex data ingest metrics -c {collection}` then re-export."
                 )
                 continue

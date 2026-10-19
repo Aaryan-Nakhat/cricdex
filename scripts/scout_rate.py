@@ -6,6 +6,7 @@ Example:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import duckdb
@@ -46,9 +47,12 @@ def fit(
     nuts_draws: int = typer.Option(1000, "--nuts-draws"),
     nuts_chains: int = typer.Option(2, "--nuts-chains"),
     nuts_tune: int = typer.Option(500, "--nuts-tune"),
+    variant: str = typer.Option(
+        "v2", "--variant", help="v2 (context-adjusted, default) | legacy (the earlier model)"
+    ),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
-    df = bayesian.fit(
+    df, res, _ = bayesian.fit(
         collection=collection,
         min_balls=min_balls,
         advi_steps=advi_steps,
@@ -57,6 +61,8 @@ def fit(
         nuts_draws=nuts_draws,
         nuts_chains=nuts_chains,
         nuts_tune=nuts_tune,
+        variant=variant,
+        return_fit=True,
     )
     if df.is_empty():
         logger.warning("no matchups to fit")
@@ -66,6 +72,10 @@ def fit(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.write_json(str(out_path))
     logger.info(f"wrote {out_path} ({df.height} rows)")
+    # the fitted context: season / phase / innings levels, venue spread, batting-slot means
+    ctx_path = out_path.with_name(f"scout_context_{collection}.json")
+    ctx_path.write_text(json.dumps({"variant": variant, **res.context}, indent=1))
+    logger.info(f"wrote {ctx_path}")
     rank_by = "value" if "value" in df.columns else "skill"
     top_batters = (
         df.filter((pl.col("role") == "batter") & (pl.col("balls") >= 200))

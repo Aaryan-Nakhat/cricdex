@@ -27,8 +27,8 @@ from cricdex.common.sql import (
     MAIN_INNINGS,
     balls_per_over,
     chase_targets,
+    keyed_query,
     table_suffix,
-    wickets_rel,
 )
 from cricdex.config import DATA_DIR
 
@@ -63,7 +63,7 @@ def pressure_runs(
     ),
     first_innings AS (
         SELECT match_id, SUM(runs_total) AS first_innings_total
-        FROM balls_{safe}
+        FROM __BALLS__
         WHERE innings_idx = 0
         GROUP BY 1
     ),
@@ -92,7 +92,7 @@ def pressure_runs(
                 ),
                 0
             ) AS runs_before
-        FROM balls_{safe} b
+        FROM __BALLS__ b
         JOIN first_innings fi USING (match_id)
         JOIN match_meta mm USING (match_id)
         LEFT JOIN {targets} t ON t.match_id = b.match_id AND t.innings_idx = 1
@@ -150,7 +150,7 @@ def pressure_runs(
     if top_n is not None:
         sql += f"\nLIMIT {top_n}"
     with _connect(db_path) as con:
-        return con.execute(sql).pl()
+        return keyed_query(con, collection, sql, ("batter",))
 
 
 def intent_curve(
@@ -165,7 +165,7 @@ def intent_curve(
     Reveals whether a batter is a slow-starter who heats up, or an
     immediate-aggressor whose intent is high from ball one.
     """
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
     sql = f"""
     WITH ordered AS (
         SELECT
@@ -174,7 +174,7 @@ def intent_curve(
             SUM(CASE WHEN extras_type IN ('wides') THEN 0 ELSE 1 END)
                 OVER (PARTITION BY match_id, innings_idx, batter
                       ORDER BY over, ball_in_over) AS balls_faced_to_date
-        FROM balls_{safe}
+        FROM __BALLS__
         WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     ),
     bucketed AS (
@@ -209,7 +209,7 @@ def intent_curve(
     if top_n is not None:
         sql += f"\nLIMIT {top_n * 6}"
     with _connect(db_path) as con:
-        return con.execute(sql).pl()
+        return keyed_query(con, collection, sql, ("batter",))
 
 
 def dot_ball_recovery(
@@ -223,7 +223,7 @@ def dot_ball_recovery(
     Aggregated as runs_per_6_after_dot. High = quick re-engagement after
     pressure; low = batter who lets dots compound.
     """
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
     sql = f"""
     WITH numbered AS (
         SELECT
@@ -231,7 +231,7 @@ def dot_ball_recovery(
             (runs_batter = 0 AND COALESCE(extras_type, '') NOT IN ('wides','noballs')) AS is_dot,
             ROW_NUMBER() OVER (PARTITION BY match_id, innings_idx, batter
                                ORDER BY over, ball_in_over) AS ball_seq
-        FROM balls_{safe}
+        FROM __BALLS__
         WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     ),
     dots AS (
@@ -267,7 +267,7 @@ def dot_ball_recovery(
     if top_n is not None:
         sql += f"\nLIMIT {top_n}"
     with _connect(db_path) as con:
-        return con.execute(sql).pl()
+        return keyed_query(con, collection, sql, ("batter",))
 
 
 def counter_attack_coefficient(
@@ -284,7 +284,7 @@ def counter_attack_coefficient(
     wickets fall close together, and only batters who've seen at least
     `min_partner_wickets` partners go.
     """
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
     sql = f"""
     WITH numbered AS (
         SELECT
@@ -294,7 +294,7 @@ def counter_attack_coefficient(
             player_out,
             ROW_NUMBER() OVER (PARTITION BY match_id, innings_idx
                                ORDER BY over, ball_in_over) AS ball_seq
-        FROM balls_{safe}
+        FROM __BALLS__
         WHERE {MAIN_INNINGS}
     ),
     -- the first ball each batter was involved in (striker or non-striker) = when they came in
@@ -353,7 +353,7 @@ def counter_attack_coefficient(
     if top_n is not None:
         sql += f"\nLIMIT {top_n}"
     with _connect(db_path) as con:
-        return con.execute(sql).pl()
+        return keyed_query(con, collection, sql, ("batter",))
 
 
 def crease_longevity(
@@ -370,15 +370,15 @@ def crease_longevity(
     than the typical qualifying batter; `< 1` means shorter,
     higher-tempo innings (or just thinner accumulation).
     """
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
     with _connect(db_path) as con:
-        wickets = wickets_rel(con, collection)
+        wickets = "__WICKETS__"
     sql = f"""
     WITH faced AS (
         SELECT
             batter, match_id, innings_idx,
             COUNT(*) FILTER (WHERE COALESCE(extras_type, '') NOT IN ('wides')) AS balls
-        FROM balls_{safe}
+        FROM __BALLS__
         WHERE batter IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY 1, 2, 3
     ),
@@ -426,7 +426,7 @@ def crease_longevity(
     if top_n is not None:
         sql += f"\nLIMIT {top_n}"
     with _connect(db_path) as con:
-        return con.execute(sql).pl()
+        return keyed_query(con, collection, sql, ("batter",))
 
 
 def slow_start_cost(
@@ -443,7 +443,7 @@ def slow_start_cost(
     their career as a whole, i.e. their slow starts cost runs.
     Negative → they're already aggressive from ball one.
     """
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
     sql = f"""
     WITH numbered AS (
         SELECT
@@ -453,7 +453,7 @@ def slow_start_cost(
                 PARTITION BY match_id, innings_idx, batter
                 ORDER BY over, ball_in_over
             ) AS balls_faced_to_date
-        FROM balls_{safe}
+        FROM __BALLS__
         WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     ),
     career AS (
@@ -498,7 +498,7 @@ def slow_start_cost(
     if top_n is not None:
         sql += f"\nLIMIT {top_n}"
     with _connect(db_path) as con:
-        return con.execute(sql).pl()
+        return keyed_query(con, collection, sql, ("batter",))
 
 
 def boundary_dependency(
@@ -513,7 +513,7 @@ def boundary_dependency(
     isn't there. Low BDR = strike-rotator who keeps the strike turning. Both
     profiles win matches; the metric exists to distinguish them.
     """
-    safe = table_suffix(collection)
+    table_suffix(collection)  # rejects an unsafe collection name
     sql = f"""
     SELECT
         batter,
@@ -524,7 +524,7 @@ def boundary_dependency(
         CAST(ROUND(100.0 *
             SUM(CASE WHEN runs_batter IN (4, 6) THEN runs_batter ELSE 0 END)
             / NULLIF(SUM(runs_batter), 0), 2) AS DOUBLE) AS bdr_pct
-    FROM balls_{safe}
+    FROM __BALLS__
     WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY batter
     HAVING total_runs >= {min_runs}
@@ -533,4 +533,4 @@ def boundary_dependency(
     if top_n is not None:
         sql += f"\nLIMIT {top_n}"
     with _connect(db_path) as con:
-        return con.execute(sql).pl()
+        return keyed_query(con, collection, sql, ("batter",))

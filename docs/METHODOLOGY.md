@@ -15,7 +15,7 @@ metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [
 |---|---|
 | [1. Data and identity](#1-data-and-identity) | Where the balls come from, one id per player, merged venues, super overs, the one AI step |
 | [2. Net Game Impact (NGI)](#2-net-game-impact-ngi) | Win probability added, ball by ball |
-| [3. The nine context metrics + fielding](#3-the-nine-context-metrics--fielding) | Pressure Runs, Intent Curve, Dot-Ball Recovery and the rest |
+| [3. The nine context metrics + fielding](#3-the-nine-context-metrics--fielding) | Pressure Runs, Intent Curve, Dot-Ball Recovery and the rest; time windows and eras |
 | [4. Bayesian skill ratings](#4-bayesian-skill-ratings) | Four skills per player, adjusted for the opposition, with honest uncertainty |
 | [5. Scout look-alikes](#5-scout-look-alikes) | Who plays like X in another league, and what he'd cost |
 | [6. From skill to crore](#6-from-skill-to-crore) | Turning a rating into an auction price |
@@ -50,6 +50,15 @@ falling back to the People Register's `unique_name` (`src/cricdex/common/sql.py:
 also understands the Register's ~7,500 name variants, so "Jasprit Bumrah" finds "JJ Bumrah". Details:
 [IDENTITY.md](IDENTITY.md).
 
+**Every number is keyed by that id, match by match.** The name→id lookup is done per match, not per name:
+the ball table is read through `keyed_balls` (`src/cricdex/common/sql.py`), which swaps every player
+column (batter, non-striker, bowler, the batter who is out, the fielders) for the id that *that match's*
+registry gives, and keeps the scorecard spelling next to it. Every metric, rating, board, NGI total,
+record, profile, matchup, partnership, phase board, aging curve, cohort and style twin groups by the id;
+the name is only for display. So two different players who share a scorecard name in one league stay
+two players: among players who batted or bowled, 38 such names in men's T20Is, 7 in the BPL, 7 in the SMAT,
+3 in the PSL, one each in the IPL ("Harmeet Singh") and The Hundred.
+
 **One name per ground.** Cricsheet records the same ground several ways: with or without the city
 ("Wankhede Stadium" / "Wankhede Stadium, Mumbai"), with punctuation ("M.Chinnaswamy Stadium"), or under a
 former name ("Feroz Shah Kotla"). After every ingest, `src/cricdex/common/venue_names.py` rewrites every
@@ -79,32 +88,66 @@ found), used for player profiles and the aging curves.
 ## 2. Net Game Impact (NGI)
 
 **What it does.** NGI asks one question of every ball: *how much did this change the batting side's chance
-of winning?* It credits that change to the batter and the opposite to the bowler, then averages it per
-match. A 30 not out that wins a tight chase scores more than a hundred in a lost cause, and a wicket at
-200/3 chasing 220 counts for more than one at 50/3 chasing 250. Code: `src/cricdex/metrics/ngi.py`.
+of winning?* It credits that change to whoever caused it (the batter for his runs, the bowler for runs,
+extras and wickets, the fielder for a catch or a run out) and averages it per match. A 30 not out that wins
+a tight chase scores more than a hundred in a lost cause, and a wicket at 200/3 chasing 220 counts for more
+than one at 50/3 chasing 250. Code: `src/cricdex/metrics/ngi.py`.
 
 **How.**
 
 1. **A win-probability model.** For every ball of every decided T20 match in a league, CricDex records the
    state *before* the ball: which innings, balls left (scheduled overs minus legal balls bowled), wickets
-   left, the score, the target and runs still needed, the required rate, the current rate, and how the
-   current rate compares with that ground's usual first-innings rate. A gradient-boosted tree model
-   (XGBoost) learns how often the batting side went on to win from each kind of state. Ties and no-results
-   are dropped; super overs are not used.
-2. **Honest training.** Matches, not balls, are split 70 / 15 / 15. The model learns on the first 70%,
-   stops early and is *calibrated* on the next 15% (isotonic regression, so "70%" really means the side
-   wins about 70% of the time), and its accuracy is reported only on the last 15% it never saw. Splitting
-   by match matters: if balls were split at random, the model would see ball 99 of a match in training
-   and be "tested" on ball 100.
-3. **Score every ball.** The model reads the state before the ball and the state after it (runs added,
-   wicket fallen, one ball fewer). The difference is that ball's value, ΔWP. The last ball of the chase
-   resolves to the actual result (1 or 0). The last ball of the first innings hands over to the chase's
-   opening position, so nobody is credited with the other team's innings.
-4. **Credit and average.** The striker gets +ΔWP, the bowler −ΔWP. Summed over a match, then over a
-   career, and divided by matches played, that's **NGI per match**. The all-time board needs 25 matches
-   (6 for the last-3-years board, 3 for the last year), because one great game shouldn't top a career
-   table. Time-window boards reuse the whole league's model, since a single year is too few matches to
-   train one.
+   left, the score, the target and runs still needed, the required rate, the current rate, how the current
+   rate compares with that ground's usual first-innings rate, and three **era** features: the current rate,
+   the target and the required rate each measured against the league's recent scoring level (the average
+   first-innings run rate of the 60 matches before this one). A gradient-boosted tree model (XGBoost) learns
+   how often the batting side went on to win from each kind of state. A tie counts as half a win (label 0.5);
+   no-results are dropped; super overs are not used.
+2. **Common sense built in.** The trees carry *monotone constraints*: more balls left, more wickets in hand,
+   more runs or a higher run rate can never lower the batting side's chance, and a higher target, more runs
+   needed or a higher required rate can never raise it. Without them, 3.9% of IPL wicket balls (with no run
+   scored) *raised* the batting side's chance in sparse states; with them, 0.01%.
+3. **Smooth calibration.** The raw tree output is calibrated so "70%" really means the side wins about 70% of
+   the time, with *beta calibration* (a smooth three-number curve) rather than isotonic regression. Isotonic
+   calibration is a staircase: two states on the same step get exactly the same probability, so a small but
+   real swing scores exactly 0. Every NGI number is a *difference* of two probabilities, so this matters:
+   on the IPL the share of balls with a ΔWP of exactly 0 fell from 70% to 23%. (The rest are tree steps:
+   a dot ball early in an innings often doesn't cross any split.) Calibration stays good: expected
+   calibration error 0.024 on unseen matches.
+4. **Honest training, out-of-fold scoring.** Matches, not balls, are split. A *reporting* model learns on 70%
+   of matches, stops early and is calibrated on the next 15%, and its accuracy is reported only on the last
+   15% it never saw. For the NGI numbers themselves, **every ball is scored by a model that never saw its
+   match**: matches are dealt into 5 folds, and each fold is scored by a model trained on the other four.
+   (Before, one model trained on 70% of matches scored every match, so most NGI came from a model that had
+   partly memorised those results. On the IPL the out-of-fold NGI per match correlates 0.94 with the old
+   in-sample one; a typical player moved by 0.8 points of win chance per match.)
+5. **Score every ball.** The model reads the state before the ball and after it. The difference is that
+   ball's value, ΔWP. Two intermediate states split it into parts: **play** (the runs off the bat and the
+   legal ball used), **wicket**, and **extras**. The last ball of the chase resolves to the actual result (1,
+   0, or 0.5 for a tie); the last ball of the first innings hands over to the chase's opening position, so
+   nobody is credited with the other team's innings. That end-of-innings resolution joins whichever part
+   moved the needle most on that ball.
+6. **Credit** (the fielding side always gets the opposite sign of what the batting side gets):
+
+   | Part | Batting side | Fielding side |
+   |---|---|---|
+   | play (runs off the bat, the ball used) | the striker | the bowler |
+   | wides and no-ball runs | nobody (the batter didn't earn them) | the bowler |
+   | byes, leg-byes, penalty runs | nobody | nobody (the team's) |
+   | wicket: bowled, lbw, hit wicket, caught and bowled | the batter who is out | the bowler |
+   | wicket: caught, stumped | the batter who is out | bowler 80%, catcher / keeper 20% |
+   | wicket: run out | the batter who is out (the non-striker in a run out at his end) | the named fielders, split equally |
+   | wicket: retired out, obstructing | the batter who is out | nobody |
+
+   A wide isn't a ball faced, so its play part is zero by construction. The 20% fielder share
+   (`FIELDER_SHARE`) is a convention: ball-by-ball data can't tell a sitter from a screamer. Because the
+   team's parts go to nobody, the credits on a ball don't always sum to zero.
+7. **Average.** Summed over a match, then over a career, and divided by **appearances**, that's **NGI per
+   match**. An appearance is a place in the playing XI (Cricsheet's `info.players`, which in the Impact
+   Player era lists the twelfth man who came in), plus any match a player took part in without being listed
+   (a fielding substitute). So a lower-order batter who didn't get in still counts the game. The all-time
+   board needs 25 matches (6 for the last-3-years and era boards, 3 for the last year). Time-window boards
+   reuse the whole league's out-of-fold scores, since a single year is too few matches to train a model.
 
 **Worked example (illustrative numbers).** A side needs 12 off the last 6 balls with 5 wickets in hand;
 the model gives them a 40% chance. The batter hits a six: now 6 off 5, and the model says 68%.
@@ -114,14 +157,22 @@ the model gives them a 40% chance. The batter hits a six: now 6 off 5, and the m
 ```
 
 The same six in the second over of a first innings might move the needle from 50% to 52%: +0.02. Same
-six, fourteen times the credit, because it mattered fourteen times as much.
+six, fourteen times the credit, because it mattered fourteen times as much. If that last-over ball had been
+a wide instead, the +0.03 or so it was worth would be booked to the bowler alone.
 
 **Reading it.** An NGI per match of +0.05 means the player adds, on average, five percentage points to his
 side's chance of winning each game he plays.
 
-**Limits.** Fielders get no credit yet (a stunning catch shows up as the bowler's wicket), and a run-out at
-the non-striker's end is booked to the striker of that ball. Byes, leg-byes and wides move win probability
-too, and that swing goes to the striker and bowler of the ball. NGI is T20-only.
+**How good is the model?** IPL, unseen matches: accuracy 0.71, Brier score 0.185, log loss 0.542,
+expected calibration error 0.024. The era features matter most out of time: trained on every season before
+2026 and tested on 2026 (the highest-scoring IPL season), the log loss is 0.530 with them and 0.607
+without; on 2025 0.541 against 0.542, on 2024 0.544 against 0.532. On a random split of matches they cost
+a little (log loss 0.542 against 0.536 with a raw scoring-level feature), which we accept for a model that
+holds up in a new season. All of these come from `scripts/compute_metrics.py ngi-diagnostics -c ipl`.
+
+**Limits.** NGI is T20-only. Leverage is part of the number: finishers and death bowlers play more balls
+that matter, so NGI rewards opportunity as well as skill. The fielding credit is a fixed share, not a catch
+difficulty.
 
 **Rain-reduced chases.** Cricsheet does flag Duckworth-Lewis-Stern results (`outcome.method = "D/L"`) and
 records the target each chase actually faced (`innings[].target`: runs and overs). Both are ingested
@@ -135,8 +186,10 @@ first-innings total + 1 and the scheduled overs. Pressure Runs uses the same tar
 ## 3. The nine context metrics + fielding
 
 Standard averages and strike rates are context-blind. Each of these nine isolates one skill a scorecard
-hides. They're all on the Leaderboards page (all-time, last 3 years, last year), with the same
-explanations as below. Exact formulas and column names: [METRICS.md](METRICS.md); code in
+hides. They're all on the Leaderboards page (all-time, last 3 years, last year, and any **era** the
+league registry defines: the IPL's "Impact Player era", every match since 2023-03-31, so Impact-era
+numbers aren't ranked against pre-2023 ones), with the same explanations as below. Each period
+recomputes the metric over only those matches. Exact formulas and column names: [METRICS.md](METRICS.md); code in
 `src/cricdex/metrics/`. Every board has a minimum sample so a single freak innings can't top it.
 
 **Pressure Runs** — *how fast does a batter score when a chase gets hard?* For every ball of a T20 or ODI
@@ -187,8 +240,9 @@ first 20 balls of each innings. Positive = he starts slower than he finishes; ze
 from ball one. Lower is better. Needs 200 career balls and 50 early balls.
 *Example:* career SR 140, first-20-balls SR 115 → a cost of 25.
 
-**Wicketkeeping and Fielding boards.** From each dismissal's list of fielders: a catch, a stumping, or a
-run-out involvement (every fielder named in a run-out gets one). A player is a keeper if the taxonomy says
+**Wicketkeeping and Fielding boards.** From each dismissal's list of fielders (every wicket on a delivery,
+including the rare second one): a catch, a stumping, or a run-out involvement (every fielder named in a
+run-out gets one). A player is a keeper if the taxonomy says
 so or he has any stumping; keepers get their own board so their catches don't swamp the outfield list.
 Caught-and-bowled is a bowling wicket and isn't counted. These are *counts* of dismissals, not a
 success rate or diving range; ball-by-ball data can't see dropped catches.
@@ -198,48 +252,68 @@ success rate or diving range; ball-by-ball data can't see dropped catches.
 ## 4. Bayesian skill ratings
 
 **What it does.** A raw average treats a fifty against a great attack and a fifty against a weak one as
-the same fifty. The rating model learns a skill for every batter and every bowler *at the same time*, so
-each run is judged against who it came off. It is **dismissal-aware**: each player gets two skills per
-role, and every skill comes with a measure of how sure the model is. Code:
-`src/cricdex/scout/ratings/bayesian.py`; model spec: [ratings README](../src/cricdex/scout/ratings/README.md).
+the same fifty, and a 2009 strike rate like a 2026 one. The rating model learns a skill for every batter
+and every bowler *at the same time*, so each run is judged against who it came off **and the context it
+came in**: the season's scoring level, the phase of the innings, setting or chasing, and the ground. It is
+**dismissal-aware**: each player gets two skills per role, and every skill comes with a measure of how sure
+the model is. Code: `src/cricdex/scout/ratings/bayesian.py`; model spec:
+[ratings README](../src/cricdex/scout/ratings/README.md).
 
 | Role | Skill | Plain meaning (higher = better) |
 |---|---|---|
-| Batter | **scoring** (`skill`) | scores faster than an average batter would against the same bowlers |
+| Batter | **scoring** (`skill`) | scores faster than an average batter would against the same bowlers, in the same context |
 | Batter | **survival** (`survival_skill`) | harder to get out |
-| Bowler | **economy** (`skill`) | concedes less than an average bowler would to the same batters |
+| Bowler | **economy** (`skill`) | concedes fewer runs, wides and no-balls included, than an average bowler would to the same batters |
 | Bowler | **strike** (`strike_skill`) | takes wickets more often |
 
 **How.**
 
-1. **Every matchup.** For each batter–bowler pair in a league, count the legal balls, the runs off the bat
-   and the dismissals the bowler was credited with (bowled, caught, lbw, stumped, hit wicket; run-outs
-   don't test the duel). Every pairing is kept, even a single ball.
-2. **Two linked models on those matchups.** Expected runs per ball rise with the batter's scoring skill
-   and fall with the bowler's economy skill (a Negative-Binomial count, which allows for cricket's lumpy
+1. **Every matchup, in context.** For each batter–bowler pair in a league, the balls are grouped by season,
+   phase (powerplay / middle / death), innings and ground, and for each group CricDex counts the legal
+   balls, the runs off the bat and the dismissals the bowler was credited with (bowled, caught, lbw,
+   stumped, hit wicket; run-outs don't test the duel). Every pairing is kept, even a single ball.
+2. **Two linked models on those groups.** Expected runs per ball rise with the batter's scoring skill and
+   fall with the bowler's economy skill (a Negative-Binomial count, which allows for cricket's lumpy
    scoring of dots and sixes). The chance of a dismissal on each ball rises with the bowler's strike skill
-   and falls with the batter's survival skill (a Binomial on the balls, through a logistic link).
-3. **Shrinkage.** Each skill is assumed to come from a population with a spread the model also learns.
-   A player with 30 balls is pulled strongly toward average; one with 3,000 is barely moved. That's what
-   stops a debutant who hit 35 off 10 from being rated the best batter in the league, and it's why no
-   matchup needs to be thrown away.
-4. **Opponent bridging.** Because each skill is learned from every opponent at once, a batter who scored
+   and falls with the batter's survival skill (a Binomial on the balls, through a logistic link). A third,
+   small model counts each bowler's wides and no-ball runs per delivery, season by season, so his economy
+   includes them.
+3. **Context terms.** Both models add a **season** level (a random walk: each season's scoring level starts
+   from the one before, so the model learns how fast the game changes), a **phase** level, an **innings**
+   level and a **ground** level (shrunk to the league's average when a ground has few matches). Players are
+   then rated *against their own context*: a death bowler isn't penalised for bowling the hardest overs, an
+   opener isn't flattered by the powerplay, and a 2026 batter isn't flattered by 2026. On the IPL the
+   fitted season level puts 2026 runs per ball about 20% above 2008, with most of the rise since 2023; the
+   death overs score about 50% more per ball than the powerplay and lose wickets about twice as often.
+4. **Counting noise properly.** The variance of a sum of n balls grows like n, so the Negative-Binomial's
+   dispersion scales with the balls in each group (`concentration = alpha × balls`). Before, one dispersion
+   served a 1-ball group and a 150-ball group alike, which treated the big, informative groups as far
+   noisier than they are.
+5. **Shrinkage, toward the right average.** Each skill is assumed to come from a population with a spread
+   the model also learns. A player with 30 balls is pulled strongly toward that average; one with 3,000 is
+   barely moved. The average depends on the role: batters shrink toward their **batting slot's** mean (top
+   order 1–3, middle 4–5, lower middle 6–7, tail 8–11, from his median position in the data), bowlers toward
+   frontline bowlers' or part-timers' mean (frontline = 15+ deliveries per match bowled). So a tail-ender with
+   30 balls is rated like a tail-ender, not like an average batter (on the IPL the tail's scoring mean sits
+   0.50 below the top order's on the log scale, about 40% fewer runs per ball).
+6. **Opponent bridging.** Because each skill is learned from every opponent at once, a batter who scored
    freely off strong bowlers gains more than one who scored the same off part-timers. Strength flows
    through the whole network of matchups.
 
 **One number per role: `value`.** Scoring is measured in log runs per ball and survival in log-odds of
-getting out, so they can't just be added. Each is first divided by its population spread (the fitted
-σ for that skill), then summed. So `value` is in **"typical spreads above average"**: 0 is an average
-player, +1 is one typical player-to-player spread better, the best in the IPL sit near +3.
+getting out, so they can't just be added. Each is first centred on the role's average player and divided by
+the role's population spread (within and between slots), then summed. So `value` is in **"typical spreads
+above average"**: 0 is an average player, +1 is one typical player-to-player spread better, the best in the
+IPL sit near +3.
 
-*Worked example (current IPL fit).* The scoring spread is about 0.21 and the survival spread about 0.30.
+*Worked example (current IPL fit).* The scoring spread is about 0.25 and the survival spread about 0.22.
 
 ```
-V Kohli     scoring +0.16 ÷ 0.21 ≈ +0.76    survival +0.575 ÷ 0.30 ≈ +1.92    value ≈ +2.68
-SP Narine   scoring +0.30 ÷ 0.21 ≈ +1.44    survival −0.405 ÷ 0.30 ≈ −1.36    value ≈ +0.08
+V Kohli     scoring +0.26 ÷ 0.25 ≈ +1.05    survival +0.43 ÷ 0.22 ≈ +1.92    value ≈ +2.97
+SP Narine   scoring +0.45 ÷ 0.25 ≈ +1.78    survival −0.41 ÷ 0.22 ≈ −1.83    value ≈ −0.05
 ```
 
-Narine (batting) scores faster than Kohli but gets out far more often, so his complete batting value is
+Narine (batting) scores much faster than Kohli but gets out far more often, so his complete batting value is
 about average. A runs-only model would have rated him the better batter. The same split separates
 bowlers: Chahal's economy is ordinary but his strike skill is high; Ashwin is the reverse.
 
@@ -249,17 +323,22 @@ uses it directly: treating two players' values as bell curves, the chance that A
 with close values and wide uncertainty come out near 50/50, as they should.
 
 **How it's fitted, and how we checked the shortcut.** The fit runs in NumPyro (JAX). The default is
-**ADVI**, a fast approximation (12,000 optimisation steps, about 1.5–3 minutes for the IPL). The exact
-method, **NUTS** (Hamiltonian Monte Carlo), takes about 15 minutes for the IPL and two to three hours for
-all eight leagues, so it's opt-in (`scripts/scout_rate.py --sampler nuts`). We ran both on the IPL: ADVI's
-uncertainties were 95–99% of NUTS's on every skill, `value` uncertainty about 99%, and head-to-head
-probabilities differed by a median of 1–2 points. NUTS converged cleanly (worst r-hat 1.03, no
-divergences).
+**ADVI**, a fast approximation (12,000 optimisation steps, about 2–3 minutes for the IPL). The exact
+method, **NUTS** (Hamiltonian Monte Carlo), is opt-in (`scripts/scout_rate.py --sampler nuts`). With the
+context terms in, we ran both on the IPL again (2 chains × 500 + 500 NUTS draws, about two hours on a busy laptop; worst r-hat 1.02, smallest effective sample 187, no divergences). For players with 100+ balls, ADVI's uncertainties are 98% of NUTS's for batters (scoring and survival) and 92–95% for bowlers (strike and economy), `value` uncertainty 101% (batters) and 96% (bowlers); the point estimates correlate 0.994 or better; and head-to-head probabilities differ by a median of 2–2.5 points (95th percentile 7). So the shortcut holds, a touch over-confident for bowlers.
+
+**Does it fit better?** On every IPL season 2021–26, fitted only on the matches before it, the new model's
+held-out log-likelihood per ball is higher than the old model's in **every season, for both runs and
+dismissals**: −0.621 against −0.626 nats per ball for runs and −0.147 against −0.148 for dismissals
+(averaged over the six seasons, ~100,000 balls). That's a proper scoring rule over every ball, so it's
+a sharper test than a rank correlation of season totals: the context terms, the dispersion fix and the
+role priors predict the next season's balls better. (`scripts/backtest_ratings.py --compare legacy`.)
 
 **Limits.** Each league is fitted separately, so an IPL +2 and a BBL +2 aren't the same thing; the scout
-and the auction correct for that with a tier discount (sections 5 and 6). Economy counts runs off the bat
-only, so wides and no-ball extras don't count against a bowler here. There's one skill set per role for a
-player's whole career in that league: no separate rating per venue, phase or era yet.
+and the auction correct for that with a tier discount (sections 5 and 6). There's one skill set per role
+for a player's whole career in that league (the context is adjusted for, but a player's own form isn't
+allowed to drift); batting slot comes from the data, so a player who moved up the order is grouped by his
+median slot.
 
 ---
 
@@ -431,36 +510,99 @@ of players is compared with how that season actually went. Agreement is a Spearm
 1 means the same order, 0 means no link. Both scripts are in the repo (`scripts/backtest_ratings.py`,
 `scripts/backtest_newcomers.py`), so anyone can re-run them.
 
+**How the test is run.**
+
+- **Three ADVI seeds.** Every fit is repeated with seeds 42, 43 and 44. Each seed's correlation is kept;
+  the seed-averaged prediction is what gets scored and resampled, so one lucky optimisation can't make
+  the headline.
+- **Seasons pooled fairly.** Every prediction and outcome is z-scored within its season before pooling,
+  so a high-scoring year doesn't skew the ranking.
+- **A fair baseline.** The baseline is what a scout could work out by hand from the same matches,
+  *given the same league adjustment as the model*: each league's raw numbers relative to that league's
+  average (runs per ball divided by the league's runs per ball, outs per ball divided by the league's
+  rate), the overall axis as a z-score within the league minus the same tier discount the model gets,
+  pooled across leagues by balls. The first version compared the tier-discounted model with raw numbers
+  that had no league adjustment at all, so part of the "model edge" was just the discount.
+- **One number per player, pooled by precision.** A newcomer with several leagues gets one value per axis:
+  each league's value minus its discount, weighted by 1 / (value sd² + the tier's translation sd²), the
+  same rule the auction pool uses. The first version took a player's *best* league, which is biased
+  upward (the maximum of noisy estimates).
+- **How sure, honestly.** The players are re-drawn 2,000 times (a bootstrap). For each of the six tests
+  (batters: scoring, survival, overall; bowlers: economy, strike, overall) we report the 95% range of the
+  gap (model minus baseline), the share of re-draws where the model came out ahead, a one-sided p (the
+  model is no better than the baseline) and that p after a **Holm correction** for running six tests at
+  once.
+- **Selection on playing time.** A newcomer only counts if he got 60+ IPL balls in the role, and players
+  who start badly get dropped, so that sample is chosen partly on early form. The script re-scores with
+  30 and 120 balls as the bar to see whether the answer moves.
+- **No stale fits.** Fits are cached by model version, so an older model's fits are never reused after a
+  change.
+
 **Established IPL players (2021–26).** Ratings fitted before each season versus each player's raw career
 numbers before that season:
 
 | | Model | Career average |
 |---|---|---|
 | Batters, overall | 0.14 | 0.15 |
-| Bowlers, overall | 0.09 | 0.07 |
+| Batters, scoring | 0.13 | 0.13 |
+| Batters, survival (staying in) | 0.30 | 0.34 |
+| Bowlers, overall | 0.12 | 0.07 |
+| Bowlers, economy | 0.31 | 0.30 |
+| Bowlers, strike (wicket-taking) | 0.05 | 0.05 |
 
-A tie. For players with a long IPL record, the opponent adjustment adds nothing a career average doesn't
-already know. We also tried weighting recent seasons more (half-lives of 1, 2 and 4 years); none helped,
-so recency weighting is **off by default** (`fit(half_life=...)` is there to experiment with). Correlations
-this low are the honest state of things: a single T20 season is mostly noise, for any method.
+A tie for batters and a small edge for bowlers overall (0.12 against 0.07). For players with a long IPL
+record, the opponent and context adjustment adds little that a career average doesn't already know. We
+also tried weighting recent seasons more (half-lives of 1, 2 and 4 years); none helped, so recency
+weighting is **off by default** (`fit(half_life=...)` is there to experiment with). Correlations this low
+are the honest state of things: a single T20 season is mostly noise, for any method.
 
-**IPL newcomers (2014–26).** The harder and more useful test: players new to the IPL, rated **only** from
-the BBL, SA20, CPL, T20 Blast and SMAT (with the auction's tier discount), versus their raw numbers from
-those same leagues, scored on their first real IPL season.
+A sharper yardstick is the **held-out log-likelihood per ball** (section 4): the current model scores
+−0.6212 nats per ball for runs against the old model's −0.6255, and −0.1467 against −0.1480 for
+dismissals, and it is better in **every season 2021–26 on both**. So the model change predicts the next
+season's balls better, even though season-total rankings barely move.
 
-| | Model | Raw numbers | Players |
-|---|---|---|---|
-| Batters, overall | 0.18 | 0.12 | 96 |
-| Batters, survival (staying in) | 0.34 | 0.22 | 96 |
-| Bowlers, overall | 0.20 | 0.25 | 110 |
+**IPL newcomers (2014–26).** The harder and more useful test: players new to the IPL (fewer than 60 IPL
+balls in the role before the season), rated **only** from other leagues, scored on their first real IPL
+season. We ran it twice: with all 13 non-IPL auction-pool leagues (the current default), and with the
+original five (BBL, SA20, CPL, T20 Blast and SMAT) that the first published run used.
 
-How sure is that? Re-drawing the players 2,000 times (a bootstrap):
+All 13 leagues (103 batters, 132 bowlers):
 
-- **Batter survival:** the model did better in **97%** of re-draws (95% range of the gap −0.00 to +0.26).
-  This is the one solid result: opponent-adjusted ratings from other leagues tell you how long a new
-  batter will last in the IPL better than his raw numbers do.
-- **Batter overall:** model better in 79% of re-draws. A lean, not proof.
-- **Bowlers overall:** model better in only 28%. No edge; if anything, raw numbers did slightly better.
+| | Model | Baseline | Gap, 95% range | Model ahead in | p | Holm p |
+|---|---|---|---|---|---|---|
+| Batters, overall | 0.22 | 0.10 | +0.12 [−0.02, +0.25] | 96% | 0.042 | 0.25 |
+| Batters, scoring | 0.13 | 0.19 | −0.06 [−0.23, +0.11] | 22% | 0.78 | 1.00 |
+| Batters, survival | 0.29 | 0.27 | +0.01 [−0.16, +0.18] | 56% | 0.44 | 1.00 |
+| Bowlers, overall | 0.18 | 0.24 | −0.06 [−0.20, +0.09] | 20% | 0.80 | 1.00 |
+| Bowlers, economy | 0.25 | 0.26 | −0.01 [−0.11, +0.10] | 44% | 0.56 | 1.00 |
+| Bowlers, strike | 0.08 | 0.07 | +0.02 [−0.16, +0.20] | 58% | 0.42 | 1.00 |
+
+The original five leagues (96 batters, 110 bowlers):
+
+| | Model | Baseline | Gap, 95% range | Model ahead in | p | Holm p |
+|---|---|---|---|---|---|---|
+| Batters, overall | 0.25 | 0.09 | +0.16 [0.00, +0.33] | 98% | 0.025 | 0.15 |
+| Batters, scoring | 0.11 | 0.18 | −0.07 [−0.26, +0.11] | 24% | 0.76 | 1.00 |
+| Batters, survival | 0.31 | 0.23 | +0.08 [−0.10, +0.25] | 82% | 0.19 | 0.93 |
+| Bowlers, overall | 0.18 | 0.22 | −0.04 [−0.20, +0.10] | 27% | 0.73 | 1.00 |
+| Bowlers, economy | 0.21 | 0.20 | +0.01 [−0.11, +0.13] | 54% | 0.46 | 1.00 |
+| Bowlers, strike | 0.21 | 0.13 | +0.08 [−0.10, +0.27] | 80% | 0.20 | 0.93 |
+
+**Playing-time sensitivity (all 13 leagues, overall axis).** With a 30-ball bar the model leads for both
+roles (batters 0.12 vs 0.05, n = 183; bowlers 0.16 vs 0.10, n = 187). With a 120-ball bar, batters flip
+(−0.19 vs −0.12, n = 44) and bowlers lead slightly (0.24 vs 0.20, n = 70). Samples that small move a lot
+either way.
+
+**The honest read.** The first published headline, a survival edge for newcomer batters that held in 97%
+of re-draws, **does not survive a fair, league-adjusted baseline**: that edge was mostly the league
+discount itself. With the fixes, the model ranks newcomer batters better **overall** in both runs (ahead in
+96–98% of re-draws), but no result is significant once you correct for running six tests (the best Holm
+p is 0.15). Bowlers show no edge. For established players the ratings tie career averages for batters and
+edge them for bowlers (0.12 vs 0.07), and the new model predicts held-out balls better in every season.
+Single T20 seasons are mostly noise, so the newcomer-batter result is **a lean, not proof**.
+
+**Not done yet.** There is no split-half noise ceiling, so we can't yet say how close any of these numbers
+are to the best correlation a season this noisy allows (roadmap 37 and 27).
 
 ---
 
@@ -469,9 +611,11 @@ How sure is that? Re-drawing the players 2,000 times (a bootstrap):
 What the models can't see, and where they approximate. Most of these are on the
 [roadmap](ROADMAP.md).
 
-- **No fielding in NGI.** Win-probability credit goes to the striker and the bowler only. A great catch
-  is the bowler's wicket; a run-out at the non-striker's end is booked to the striker. Byes, leg-byes and
-  wides swing win probability and that swing lands on the striker and bowler too.
+- **Fielding in NGI is a convention.** A catch or stumping earns the fielder a fixed 20% of the wicket's
+  swing and a run out all of it, split between the fielders named; ball-by-ball data can't tell a sitter
+  from a screamer, or show a dropped catch. Byes, leg-byes and penalty runs are credited to nobody.
+- **NGI rewards opportunity.** Finishers and death bowlers face more balls that matter, so a high NGI is
+  partly the role.
 - **Fielding boards are counts.** Catches, stumpings and run-out involvements, not catch success rates,
   dropped catches or ground covered; ball-by-ball data doesn't record those.
 - **Indian domestic data ends in December 2024.** Cricsheet's SMAT coverage currently stops at
@@ -480,12 +624,13 @@ What the models can't see, and where they approximate. Most of these are on the
 - **Prices are invented from skill**, calibrated to recent auctions but not fitted to actual sale data.
 - **A single season is noisy.** The backtest's correlations are low for every method, model or not. Treat
   any one-season ranking with care.
-- **The ratings don't beat career averages for established players.** Their edge is in rating players from
-  other leagues, and even there only batter survival is clear.
+- **The ratings barely beat career averages for established players** (a tie for batters, a small edge for
+  bowlers). For newcomers rated from other leagues they lean ahead for batters overall, but nothing is
+  significant after correcting for six tests, and bowlers show no edge.
 - **Each league is fitted on its own.** Cross-league comparison rests on one hand-set tier discount per
   league.
-- **Economy ignores extras.** The rating model counts runs off the bat; wides and no-ball runs aren't held
-  against the bowler there (the bowling figures in records and phase boards do count them).
+- **Context is adjusted, form isn't.** The rating model judges every ball against its season, phase,
+  innings and ground, but each player has one skill set per league for his whole career.
 - **Wicket Quality uses the dismissed batter's scoring skill only**, not his full value. (In a refresh the
   ratings are fitted before the metrics, so it always reads the current fit.)
 - **Roles, bowling types and countries are AI-classified** and can be wrong; a player without a tag

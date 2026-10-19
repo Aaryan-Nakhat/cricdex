@@ -91,11 +91,11 @@ export function Overview() {
             {winners.map((r, i) => (
               <Link
                 key={String(r.name)}
-                to={`/player?name=${encodeURIComponent(String(r.name))}`}
+                to={r.cricsheet_id ? `/player?cid=${String(r.cricsheet_id)}` : `/player?name=${encodeURIComponent(String(r.name))}`}
                 className="rounded-lg border border-border bg-surface/50 px-3 py-2 hover:border-accent/40"
               >
                 <div className="text-[11px] text-muted">#{i + 1}</div>
-                <div className="truncate text-sm font-semibold text-fg">{nameOf(String(r.name))}</div>
+                <div className="truncate text-sm font-semibold text-fg">{nameOf(String(r.name), r.cricsheet_id)}</div>
                 <div className="stat-num text-base font-bold text-accent-glow">{fmtMetric(r.ngi_per_match, ngiCol)}</div>
                 <div className="text-[11px] text-muted">
                   {fmtMetric(r.ngi_total, { digits: 1 })} wins added · {String(r.matches)} matches

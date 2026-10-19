@@ -67,6 +67,30 @@ export function Venues() {
   // look innings up by number, never by position in the list
   const first = totals.find((r) => Number(r.innings_idx) === 0);
   const second = totals.find((r) => Number(r.innings_idx) === 1);
+  // the par moves with the era: the last three seasons here, and the season-by-season series
+  const recentSeasons = (selected?.recent_seasons as string[] | undefined) ?? [];
+  const recentTotals = ((selected?.innings_totals_recent as Record<string, unknown>[] | undefined) ?? []).filter(
+    (r) => String(r.match_type ?? "") === mainType && Number(r.innings_idx) <= 1 && Number(r.innings_count) >= 3,
+  );
+  const recentFirst = recentTotals.find((r) => Number(r.innings_idx) === 0);
+  const recentSecond = recentTotals.find((r) => Number(r.innings_idx) === 1);
+  const bySeason = useMemo(() => {
+    const rows = ((selected?.innings_by_season as Record<string, unknown>[] | undefined) ?? []).filter(
+      (r) => String(r.match_type ?? "") === mainType,
+    );
+    const out = new Map<string, { season: string; first?: number; second?: number; n: number }>();
+    for (const r of rows) {
+      const k = String(r.season);
+      const e = out.get(k) ?? { season: k, n: 0 };
+      if (Number(r.innings_idx) === 0) {
+        e.first = Number(r.avg_runs);
+        e.n = Number(r.innings_count);
+      } else e.second = Number(r.avg_runs);
+      out.set(k, e);
+    }
+    return [...out.values()].sort((a, b) => b.season.localeCompare(a.season));
+  }, [selected, mainType]);
+  const seasonSpan = recentSeasons.length ? `${recentSeasons[0]}–${recentSeasons[recentSeasons.length - 1]}` : "";
   const chase = (selected?.chase_vs_set as Record<string, unknown>[])?.[0];
   const firstWinPct =
     chase && Number(chase.decided_matches)
@@ -95,13 +119,32 @@ export function Venues() {
         <Empty>No data for this venue.</Empty>
       ) : (
         <div className="space-y-5 animate-fade-up">
-          {/* headline tiles */}
+          {/* recent par first: scoring levels change with the era, so the last three seasons lead */}
+          {(recentFirst || recentSecond) && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {recentFirst && (
+                <StatTile
+                  label={`1st innings par, ${seasonSpan}`}
+                  value={fmt(Number(recentFirst.avg_runs), 0)}
+                  hint={`last ${recentSeasons.length} seasons · ${recentFirst.innings_count} innings`}
+                />
+              )}
+              {recentSecond && (
+                <StatTile
+                  label={`2nd innings avg, ${seasonSpan}`}
+                  value={fmt(Number(recentSecond.avg_runs), 0)}
+                  hint={`last ${recentSeasons.length} seasons · ${recentSecond.innings_count} innings`}
+                />
+              )}
+            </div>
+          )}
+          {/* all-time headline tiles */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {first && (
-              <StatTile label="1st innings avg" value={fmt(Number(first.avg_runs), 0)} hint={`${first.innings_count} innings`} />
+              <StatTile label="1st innings avg (all-time)" value={fmt(Number(first.avg_runs), 0)} hint={`${first.innings_count} innings`} />
             )}
             {second && (
-              <StatTile label="2nd innings avg" value={fmt(Number(second.avg_runs), 0)} hint={`${second.innings_count} innings`} />
+              <StatTile label="2nd innings avg (all-time)" value={fmt(Number(second.avg_runs), 0)} hint={`${second.innings_count} innings`} />
             )}
             {firstWinPct !== null && (
               <StatTile label="Bat-first win %" value={`${firstWinPct.toFixed(0)}%`} hint={`${chase!.decided_matches} decided`} />
@@ -156,7 +199,7 @@ export function Venues() {
           {/* innings totals table */}
           {totals.length > 0 && (
             <Card className="overflow-hidden">
-              <CardHeader title="Innings totals" subtitle="Average and median by batting position" />
+              <CardHeader title="Innings totals (all-time)" subtitle="Average and median by batting position, every season" />
               <div className="overflow-auto">
                 <table className="w-full border-collapse">
                   <thead>
@@ -176,6 +219,35 @@ export function Venues() {
                         <td className="td stat-num text-right">{fmt(Number(r.avg_runs), 1)}</td>
                         <td className="td stat-num text-right">{fmt(Number(r.median_runs), 0)}</td>
                         <td className="td stat-num text-right">{fmt(Number(r.avg_wickets), 1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* par by season */}
+          {bySeason.length > 1 && (
+            <Card className="overflow-hidden">
+              <CardHeader title="Par by season" subtitle="Average first- and second-innings totals here, season by season" />
+              <div className="max-h-80 overflow-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="th">Season</th>
+                      <th className="th text-right">Matches</th>
+                      <th className="th text-right">1st innings</th>
+                      <th className="th text-right">2nd innings</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bySeason.map((r) => (
+                      <tr key={r.season} className="hover:bg-surface/50">
+                        <td className="td font-medium text-fg">{r.season}</td>
+                        <td className="td stat-num text-right text-muted">{r.n}</td>
+                        <td className="td stat-num text-right">{r.first != null ? fmt(r.first, 0) : "—"}</td>
+                        <td className="td stat-num text-right">{r.second != null ? fmt(r.second, 0) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -71,7 +71,11 @@ the Makefile and the refresh workflow all read it; the exporter writes it to
 `site/public/data/leagues.json` and the web app reads labels, Scout pools,
 discounts and pool membership from there (`site/src/lib/leagues.ts`). The
 time-window suffixes (`_last1y`, `_last3y`) are defined once, in
-`common/sql.py`. Adding a league: [LEAGUES.md](LEAGUES.md).
+`common/sql.py`. A league can also list **eras** (`[[league.era]]`, e.g. the
+IPL's Impact Player era since 2023-03-31): each becomes one more recomputed
+window, `<col>_era_<key>`, built and exported next to the time windows
+(`meta.windows` / `meta.window_labels`, so the Leaderboards period selector
+offers "Impact Player era"). Adding a league or an era: [LEAGUES.md](LEAGUES.md).
 
 ## Layers
 
@@ -89,7 +93,16 @@ time-window suffixes (`_last1y`, `_last3y`) are defined once, in
 2. **Identity** — one canonical `cricsheet_id` per player: scorecard names
    resolve through each match's own registry (`players_<col>`), then the
    People Register, which also carries the cross-source IDs; see
-   [`IDENTITY.md`](IDENTITY.md). Venue spellings are merged to one
+   [`IDENTITY.md`](IDENTITY.md). The resolution is **per match**, and every
+   derived number is keyed by the id, never by the name:
+   `common/sql.py::keyed_balls` / `keyed_wickets` are the ball and wicket
+   tables with every player column (batter, non-striker, bowler, player out,
+   fielders) swapped for the id and the scorecard spelling kept alongside;
+   metrics, ratings, NGI, boards, records, profiles, matchups, partnerships,
+   phase boards, aging, cohorts and style twins all group by those ids, and
+   `relabel` turns them back into `name` / `cricsheet_id` / `display_name` for
+   display. So two different players sharing a scorecard name in one league
+   stay two players. Venue spellings are merged to one
    `"<ground>, <city>"` per ground after every ingest
    (`common/venue_names.py`, old names kept in `venue_aliases`).
 3. **Storage** — file-driven: no vector DB, no graph DB.
@@ -99,8 +112,13 @@ time-window suffixes (`_last1y`, `_last3y`) are defined once, in
      every surface reads.
 4. **Modeling**
    - Dismissal-aware Bayesian hierarchical ratings (NumPyro / JAX, ADVI
-     default, NUTS available) — opponent-adjusted, four latent skills.
-   - XGBoost win-probability model behind NGI.
+     default, NUTS available) — opponent- and context-adjusted (season random
+     walk, phase, innings, ground), dispersion scaled by balls, batting-slot /
+     bowler-role prior means, a wides + no-balls sub-model; four latent skills.
+   - XGBoost win-probability model behind NGI (monotone constraints, beta
+     calibration, era-relative features), every ball scored out of fold; the
+     out-of-fold scores are cached per league in `data/metrics/.ngi_cache/`
+     so the time-window and era boards reuse them.
    - Scout look-alikes + auction Monte-Carlo run through
      `cricdex.web_parity`, a Python port of the web's TypeScript logic
      locked by `test_scripts/test_web_parity.py`.
@@ -125,7 +143,10 @@ time-window suffixes (`_last1y`, `_last3y`) are defined once, in
   latest match date" path for the live site (browsers can't run JAX /
   XGBoost); locally, `make refresh COLLECTION=<c>` does the same for one
   collection and `make refresh-all` for every exported league (one export at
-  the end, after every league is refit). Manual (not cron) so the ~70 MB snapshot isn't re-committed
+  the end, after every league is refit). `bash scripts/rebuild_all.sh` does
+  the same resumably; `--from ratings` keeps the ingested data and People
+  Register and only refits ratings, recomputes metrics and exports
+  (`--from metrics`, `--from export` start later still). Manual (not cron) so the ~70 MB snapshot isn't re-committed
   on a schedule.
 - People Register / Wikidata / taxonomy → one-time, refreshed on demand.
 

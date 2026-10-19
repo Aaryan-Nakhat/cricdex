@@ -27,7 +27,11 @@ A missing (or non-finite) axis is filled with that axis's mean across
 players before scaling, so after z-scoring it sits at 0 — neutral, not an
 extreme low. An axis nobody has is dropped.
 
-Output: `style_twin(name, role, k=10)` returns top-k closest rows.
+Players are keyed by registry id (`pid`: the `cricsheet_id` the metric rows carry, else
+`unresolved:<name>`), so two players sharing a scorecard name are two vectors.
+
+Output: `style_twin(name, role, k=10)` returns top-k closest rows (`name`, `cricsheet_id`,
+`distance`).
 """
 
 from __future__ import annotations
@@ -77,19 +81,27 @@ def _people_index(db_path: Path | str) -> pl.DataFrame:
         con.close()
 
 
+def _pid(df: pl.DataFrame, name_col: str) -> pl.Expr:
+    """A row's player key: `cricsheet_id`, else `unresolved:<scorecard name>` (older files)."""
+    unresolved = pl.lit("unresolved:") + pl.col(name_col).cast(pl.String)
+    if "cricsheet_id" not in df.columns:
+        return unresolved.alias("pid")
+    return pl.coalesce(pl.col("cricsheet_id"), unresolved).alias("pid")
+
+
 def _batter_intent_curve(intent: pl.DataFrame) -> pl.DataFrame:
     """Spread the long-format batter intent_curve into one SR column per bucket."""
     if intent.is_empty():
         return pl.DataFrame()
     return (
-        intent.pivot(
+        intent.with_columns(_pid(intent, "batter"))
+        .pivot(
             on="ball_bucket",
-            index="batter",
+            index="pid",
             values="sr",
             aggregate_function="first",
         )
         .rename({c: f"intent_sr_{c}" for c in intent["ball_bucket"].unique().to_list()})
-        .rename({"batter": "name"})
     )
 
 
@@ -115,6 +127,7 @@ def build_batter_features(collection: str, db_path: Path | str) -> pl.DataFrame:
             (pl.col("pressure_runs") / pl.col("chase_balls_faced")).alias("pressure_density"),
         )
         .select(
+            _pid(pr, "batter"),
             pl.col("batter").alias("name"),
             "pressure_density",
             "pressure_sr_per_100_balls",
@@ -125,30 +138,30 @@ def build_batter_features(collection: str, db_path: Path | str) -> pl.DataFrame:
 
     if not rec.is_empty():
         df = df.join(
-            rec.select(pl.col("batter").alias("name"), "runs_per_6_after_dot"),
-            on="name",
+            rec.select(_pid(rec, "batter"), "runs_per_6_after_dot"),
+            on="pid",
             how="left",
         )
     if not ca.is_empty():
         df = df.join(
-            ca.select(pl.col("batter").alias("name"), "counter_attack_sr"),
-            on="name",
+            ca.select(_pid(ca, "batter"), "counter_attack_sr"),
+            on="pid",
             how="left",
         )
     if not bdr.is_empty():
         df = df.join(
-            bdr.select(pl.col("batter").alias("name"), "bdr_pct"),
-            on="name",
+            bdr.select(_pid(bdr, "batter"), "bdr_pct"),
+            on="pid",
             how="left",
         )
     if not intent.is_empty():
         wide = _batter_intent_curve(intent)
         if not wide.is_empty():
-            df = df.join(wide, on="name", how="left")
+            df = df.join(wide, on="pid", how="left")
     if not ratings.is_empty():
         r_batter = _rated(ratings, "batter", db_path)
         if r_batter is not None:
-            df = df.join(r_batter, on="name", how="left")
+            df = df.join(r_batter, on="pid", how="left")
     return df.with_columns(pl.lit("batter").alias("role"))
 
 
@@ -158,28 +171,25 @@ MIN_ROLE_BALLS = 120
 
 
 def _role_volume(ratings: pl.DataFrame, role: str) -> pl.DataFrame | None:
-    """(name, balls) for one role from the ratings, or None when the file can't say."""
-    if ratings.is_empty() or "unique_name" not in ratings.columns or "balls" not in ratings.columns:
+    """(pid, balls) for one role from the ratings, or None when the file can't say."""
+    if (
+        ratings.is_empty()
+        or "cricsheet_id" not in ratings.columns
+        or "balls" not in ratings.columns
+    ):
         return None
     return ratings.filter(pl.col("role") == role).select(
-        pl.col("unique_name").alias("name"), pl.col("balls").cast(pl.Float64, strict=False)
+        pl.col("cricsheet_id").alias("pid"), pl.col("balls").cast(pl.Float64, strict=False)
     )
 
 
 def _rated(ratings: pl.DataFrame, role: str, db_path: Path | str) -> pl.DataFrame | None:
-    """(name, bayes_skill) for one role. The ratings JSON carries each player's scorecard name (the name the
-    metric tables use); older files without it are bridged through the People Register."""
+    """(pid, bayes_skill) for one role. Ratings are keyed by the player key (`cricsheet_id`: the
+    registry id, or `unresolved:<name>`) — the same key the metric rows carry."""
     r = ratings.filter(pl.col("role") == role)
-    if "unique_name" in r.columns:
-        return r.select(pl.col("unique_name").alias("name"), pl.col("skill").alias("bayes_skill"))
-    people = _people_index(db_path)
-    if people.is_empty():
+    if "cricsheet_id" not in r.columns:
         return None
-    return (
-        r.select("cricsheet_id", pl.col("skill").alias("bayes_skill"))
-        .join(people, on="cricsheet_id", how="left")
-        .select(pl.col("unique_name").alias("name"), "bayes_skill")
-    )
+    return r.select(pl.col("cricsheet_id").alias("pid"), pl.col("skill").alias("bayes_skill"))
 
 
 def build_bowler_features(collection: str, db_path: Path | str) -> pl.DataFrame:
@@ -189,6 +199,7 @@ def build_bowler_features(collection: str, db_path: Path | str) -> pl.DataFrame:
         return pl.DataFrame()
     df = (
         sticky.select(
+            _pid(sticky, "bowler"),
             pl.col("bowler").alias("name"),
             "wicket_rate_pct",
             "pressure_balls",
@@ -199,7 +210,7 @@ def build_bowler_features(collection: str, db_path: Path | str) -> pl.DataFrame:
     if not ratings.is_empty():
         r_bowler = _rated(ratings, "bowler", db_path)
         if r_bowler is not None:
-            df = df.join(r_bowler, on="name", how="left") if not df.is_empty() else r_bowler
+            df = df.join(r_bowler, on="pid", how="left") if not df.is_empty() else r_bowler
     return df.with_columns(pl.lit("bowler").alias("role"))
 
 
@@ -209,8 +220,8 @@ def build_bowler_features(collection: str, db_path: Path | str) -> pl.DataFrame:
 def _vectorise(df: pl.DataFrame) -> tuple[np.ndarray, list[str], list[str]]:
     if df.is_empty():
         return np.empty((0, 0)), [], []
-    names = df["name"].to_list()
-    feature_cols = [c for c in df.columns if c not in ("name", "role")]
+    names = df["pid" if "pid" in df.columns else "name"].to_list()
+    feature_cols = [c for c in df.columns if c not in ("pid", "name", "role")]
     X = df.select(pl.col(c).cast(pl.Float64, strict=False) for c in feature_cols).to_numpy()
     X = np.where(np.isfinite(X), X, np.nan)  # nulls and x/0 alike are "missing"
     keep = ~np.isnan(X).all(axis=0)
@@ -238,17 +249,28 @@ class TwinIndex:
         else:
             raise ValueError(f"role must be 'batter' or 'bowler', got {role!r}")
         self.role = role
-        self.names: list[str] = []
+        self.names: list[str] = []  # player keys (pid), one per vector
+        self.labels: dict[str, str] = {}  # pid -> scorecard name
         self._nn: NearestNeighbors | None = None
         if df.is_empty():
             return
         # per-role pool: only players with real volume in this role
-        vol = _role_volume(_load_json(f"scout_ratings_{collection}.json"), role)
+        ratings = _load_json(f"scout_ratings_{collection}.json")
+        vol = _role_volume(ratings, role)
         if vol is not None and not vol.is_empty():
-            keep = set(vol.filter(pl.col("balls") >= MIN_ROLE_BALLS)["name"].to_list())
-            df = df.filter(pl.col("name").is_in(list(keep)))
+            keep = set(vol.filter(pl.col("balls") >= MIN_ROLE_BALLS)["pid"].to_list())
+            df = df.filter(pl.col("pid").is_in(list(keep)))
             if df.is_empty():
                 return
+        # pid -> scorecard name: the metric rows' names, else the ratings' (a rated-only bowler)
+        if {"cricsheet_id", "unique_name"} <= set(ratings.columns):
+            for k, n in ratings.select("cricsheet_id", "unique_name").iter_rows():
+                if k and n:
+                    self.labels.setdefault(k, n)
+        if "name" in df.columns:
+            for k, n in zip(df["pid"].to_list(), df["name"].to_list(), strict=True):
+                if n:
+                    self.labels[k] = n
         X, self.names, _ = _vectorise(df)
         # every axis z-scored first (StandardScaler), then cosine distance (0 = same shape; the
         # CLI / TUI / web read 1 - distance as "% alike")
@@ -256,12 +278,20 @@ class TwinIndex:
         self._nn = NearestNeighbors(metric="cosine").fit(self._X)
         self._idx = {n: i for i, n in enumerate(self.names)}
 
+    def _find(self, who: str) -> int:
+        """A vector by player key, else by scorecard name (the first player with that name)."""
+        if who in self._idx:
+            return self._idx[who]
+        for key, nm in self.labels.items():
+            if nm == who and key in self._idx:
+                return self._idx[key]
+        raise KeyError(f"{who!r} not in {self.role} feature table; sample: {self.names[:5]}")
+
     def query(self, name: str, k: int = 10) -> pl.DataFrame:
+        """The `k` nearest players to one (by registry id, or scorecard name)."""
         if self._nn is None:
             return pl.DataFrame()
-        if name not in self._idx:
-            raise KeyError(f"{name!r} not in {self.role} feature table; sample: {self.names[:5]}")
-        idx = self._idx[name]
+        idx = self._find(name)
         dists, ids = self._nn.kneighbors(
             self._X[idx : idx + 1], n_neighbors=min(k + 1, len(self.names))
         )
@@ -269,7 +299,14 @@ class TwinIndex:
         for d, j in zip(dists[0], ids[0], strict=True):
             if j == idx:
                 continue
-            out_rows.append({"name": self.names[j], "distance": float(d)})
+            key = self.names[j]
+            out_rows.append(
+                {
+                    "name": self.labels.get(key) or key.removeprefix("unresolved:"),
+                    "cricsheet_id": None if key.startswith("unresolved:") else key,
+                    "distance": float(d),
+                }
+            )
         return pl.DataFrame(out_rows).head(k)
 
 

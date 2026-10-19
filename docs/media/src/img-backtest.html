@@ -4,7 +4,7 @@
   .row4 .q { font: 700 17px/1.3 Inter; } .row4 .q small { display: block; font: 500 14px/1.35 Inter; color: var(--muted); margin-top: 3px; }
   .pair { display: grid; grid-template-columns: 1fr 44px; gap: 4px 10px; align-items: center; font: 800 15px/1 Inter; font-variant-numeric: tabular-nums; }
   .pair .bar { height: 12px; }
-  .boot { display: grid; grid-template-columns: 230px 1fr 64px; gap: 16px; align-items: center; height: 64px; }
+  .boot { display: grid; grid-template-columns: 300px 1fr 64px; gap: 16px; align-items: center; height: 64px; }
   .boot .nm { font: 700 16px/1.3 Inter; } .boot .nm small { display: block; font: 500 13.5px Inter; color: var(--muted); margin-top: 2px; }
   .trk { position: relative; height: 40px; }
   .trk .zero { position: absolute; left: 50%; top: -6px; bottom: -6px; border-left: 2px solid #b8c3cc; }
@@ -20,7 +20,7 @@
   <div class="gridbg"></div>
   <div class="kicker">🧪 The honest backtest</div>
   <h1>Do the ratings predict anything? <span class="grad">We checked, out of sample.</span></h1>
-  <p class="lede">Each season, the model is fitted only on matches before it. Its ranking of players is then compared with how the season actually went, next to a plain baseline.</p>
+  <p class="lede">Each season, the model is fitted only on matches before it. Its ranking of players is then compared with how the season actually went, next to a plain baseline given the same league adjustment.</p>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:30px">
     <div class="card">
@@ -29,11 +29,11 @@
         <div class="row4"><div class="q">Established IPL batters<small>next season, 2021 to 2026 · vs career average</small></div>
           <div class="pair"><div class="bar"><i style="width:35%;background:var(--green)"></i></div><span class="ok">0.14</span><div class="bar"><i style="width:37.5%;background:#b8c3cc"></i></div><span class="muted">0.15</span></div></div>
         <div class="row4"><div class="q">Established IPL bowlers<small>next season, 2021 to 2026 · vs career average</small></div>
-          <div class="pair"><div class="bar"><i style="width:22.5%;background:var(--green)"></i></div><span class="ok">0.09</span><div class="bar"><i style="width:17.5%;background:#b8c3cc"></i></div><span class="muted">0.07</span></div></div>
-        <div class="row4" style="background:linear-gradient(90deg,var(--green-lo),transparent);margin:0 -14px;padding-left:14px;padding-right:14px;border-radius:12px"><div class="q">IPL newcomer batters <span class="tag tg" style="margin-left:6px;vertical-align:2px">EDGE</span><small>rated from other leagues, 2014 to 2026, 96 players · vs their raw numbers there</small></div>
-          <div class="pair"><div class="bar"><i style="width:45%;background:var(--green)"></i></div><span class="ok">0.18</span><div class="bar"><i style="width:30%;background:#b8c3cc"></i></div><span class="muted">0.12</span></div></div>
-        <div class="row4"><div class="q">IPL newcomer bowlers<small>rated from other leagues, 2014 to 2026, 110 players · vs raw numbers</small></div>
-          <div class="pair"><div class="bar"><i style="width:50%;background:var(--green)"></i></div><span class="ok">0.20</span><div class="bar"><i style="width:62.5%;background:#b8c3cc"></i></div><span class="muted">0.25</span></div></div>
+          <div class="pair"><div class="bar"><i style="width:30%;background:var(--green)"></i></div><span class="ok">0.12</span><div class="bar"><i style="width:17.5%;background:#b8c3cc"></i></div><span class="muted">0.07</span></div></div>
+        <div class="row4" style="background:linear-gradient(90deg,var(--teal-lo),transparent);margin:0 -14px;padding-left:14px;padding-right:14px;border-radius:12px"><div class="q">IPL newcomer batters <span class="tag" style="margin-left:6px;vertical-align:2px;background:var(--teal-lo);color:var(--teal)">LEAN</span><small>rated from 13 other leagues, 2014 to 2026, 103 players · vs their league-adjusted numbers there</small></div>
+          <div class="pair"><div class="bar"><i style="width:55%;background:var(--green)"></i></div><span class="ok">0.22</span><div class="bar"><i style="width:25%;background:#b8c3cc"></i></div><span class="muted">0.10</span></div></div>
+        <div class="row4"><div class="q">IPL newcomer bowlers<small>rated from 13 other leagues, 2014 to 2026, 132 players · vs league-adjusted numbers</small></div>
+          <div class="pair"><div class="bar"><i style="width:45%;background:var(--green)"></i></div><span class="ok">0.18</span><div class="bar"><i style="width:60%;background:#b8c3cc"></i></div><span class="muted">0.24</span></div></div>
       </div>
       <div style="display:flex;gap:18px;margin-top:14px;font:600 14px Inter" class="muted">
         <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--green);vertical-align:-1px"></i> CricDex ratings</span>
@@ -45,18 +45,20 @@
     <div class="card">
       <h3>How sure? Model minus baseline · 95% range over 2,000 resamples</h3>
       <div style="margin-top:22px">
-        <div class="boot"><div class="nm">Batters: how long they last<small>0.34 vs 0.22 · gap +0.12</small></div>
-          <div class="trk"><i class="zero"></i><i class="ci" style="left:50%;width:32.5%;background:var(--green);opacity:.3"></i><i class="pt" style="left:65%;background:var(--green)"></i></div><span class="pc ok">97%</span></div>
-        <div class="boot"><div class="nm">Batters: overall<small>0.18 vs 0.12 · gap +0.06</small></div>
-          <div class="trk"><i class="zero"></i><i class="ci" style="left:41.25%;width:35%;background:var(--teal);opacity:.3"></i><i class="pt" style="left:57.5%;background:var(--teal)"></i></div><span class="pc" style="color:var(--teal)">79%</span></div>
-        <div class="boot"><div class="nm">Bowlers: overall<small>0.20 vs 0.25 · gap −0.05</small></div>
-          <div class="trk"><i class="zero"></i><i class="ci" style="left:21.25%;width:45%;background:#8996a6;opacity:.3"></i><i class="pt" style="left:43.75%;background:#8996a6"></i></div><span class="pc muted">28%</span></div>
-        <div style="display:grid;grid-template-columns:230px 1fr 64px;gap:16px;font:600 13px Inter;color:var(--faint);margin-top:6px">
+        <div class="boot"><div class="nm">Batters: overall<small>13 leagues · 0.22 vs 0.10 · Holm p 0.25</small></div>
+          <div class="trk"><i class="zero"></i><i class="ci" style="left:47.88%;width:33.50%;background:var(--teal);opacity:.3"></i><i class="pt" style="left:65.00%;background:var(--teal)"></i></div><span class="pc " style="color:var(--teal)">96%</span></div>
+        <div class="boot"><div class="nm">Batters: overall<small>original 5 · 0.25 vs 0.09 · Holm p 0.15</small></div>
+          <div class="trk"><i class="zero"></i><i class="ci" style="left:50.12%;width:41.00%;background:var(--teal);opacity:.3"></i><i class="pt" style="left:70.00%;background:var(--teal)"></i></div><span class="pc " style="color:var(--teal)">98%</span></div>
+        <div class="boot"><div class="nm">Batters: how long they last<small>13 leagues · 0.29 vs 0.27 · the old headline</small></div>
+          <div class="trk"><i class="zero"></i><i class="ci" style="left:30.12%;width:42.88%;background:#8996a6;opacity:.3"></i><i class="pt" style="left:51.25%;background:#8996a6"></i></div><span class="pc muted">56%</span></div>
+        <div class="boot"><div class="nm">Bowlers: overall<small>13 leagues · 0.18 vs 0.24</small></div>
+          <div class="trk"><i class="zero"></i><i class="ci" style="left:24.50%;width:36.25%;background:#8996a6;opacity:.3"></i><i class="pt" style="left:42.50%;background:#8996a6"></i></div><span class="pc muted">20%</span></div>
+        <div style="display:grid;grid-template-columns:300px 1fr 64px;gap:16px;font:600 13px Inter;color:var(--faint);margin-top:6px">
           <span></span><div style="position:relative;height:34px"><span style="position:absolute;left:0">−0.4</span><span style="position:absolute;left:50%;transform:translateX(-50%)">0</span><span style="position:absolute;right:0">+0.4</span>
             <span style="position:absolute;left:0;top:18px">← baseline better</span><span style="position:absolute;right:0;top:18px">model better →</span></div><span></span></div>
         <div class="muted" style="font:600 14px/1.4 Inter;margin-top:8px">Bar = 95% range of the gap · % = share of the 2,000 resamples where the model came out ahead</div>
       </div>
-      <div style="margin-top:22px;padding:14px 16px;border-radius:14px;background:var(--green-lo);font:700 16px/1.45 Inter;color:var(--green)">Only the staying-in edge for newcomer batters is solid. The overall batter edge is a lean, not proof.</div>
+      <div style="margin-top:18px;padding:14px 16px;border-radius:14px;background:var(--teal-lo);font:700 16px/1.45 Inter;color:var(--teal)">A lean, not proof: newcomer batters rank better overall in both runs, but no result is significant after correcting for six tests. The old "how long they last" edge was mostly the league discount.</div>
     </div>
   </div>
 
@@ -64,7 +66,7 @@
     <div class="step"><b>1</b>Fit on matches before the season</div><span class="faint" style="font:700 22px Inter">→</span>
     <div class="step"><b>2</b>Rank the players</div><span class="faint" style="font:700 22px Inter">→</span>
     <div class="step"><b>3</b>Compare with the season that happened</div><span class="faint" style="font:700 22px Inter">→</span>
-    <div class="step"><b>4</b>Same test for a plain baseline</div>
+    <div class="step"><b>4</b>Same test for a league-adjusted baseline</div>
   </div>
-  <div class="foot"><span>For players the IPL already knows, the ratings match career averages: one T20 season is mostly noise. Weighting recent seasons didn't help.</span><span>Re-run: scripts/backtest_*.py</span></div>
+  <div class="foot"><span>Baselines get the same league adjustment as the model · 3 seeds · held-out balls: the new model beats the old in every season · one T20 season is mostly noise.</span><span>Re-run: scripts/backtest_*.py</span></div>
 </div></body></html>

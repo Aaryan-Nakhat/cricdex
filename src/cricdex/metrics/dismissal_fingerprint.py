@@ -33,7 +33,14 @@ from pathlib import Path
 
 import duckdb
 
-from cricdex.common.sql import DISMISSAL, MAIN_INNINGS, table_suffix, wickets_rel
+from cricdex.common.sql import (
+    DISMISSAL,
+    MAIN_INNINGS,
+    keyed_balls,
+    keyed_wickets,
+    resolve_key,
+    table_suffix,
+)
 from cricdex.config import DATA_DIR
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -70,7 +77,9 @@ def batter_modes(
     db_path: Path | str = DEFAULT_DB_PATH,
     con: duckdb.DuckDBPyConnection | None = None,
 ) -> dict:
-    """How `name` gets out. Returns {total, rows:[{kind,count,pct}], read}."""
+    """How a player gets out. `name` is his registry id or scorecard name (a name two players share
+    resolves to the one with more matches; pass the id to be exact). Returns {total, rows:[{kind,count,
+    pct}], read}."""
     safe = _safe(collection)
     with _connect(db_path, con) as con:
         if not _table_exists(con, f"balls_{safe}"):
@@ -79,11 +88,11 @@ def batter_modes(
         rows = con.execute(
             f"""
             SELECT wicket_kind AS kind, COUNT(*) AS count
-            FROM {wickets_rel(con, collection)}
+            FROM {keyed_wickets(con, collection)}
             WHERE player_out = ? AND {DISMISSAL} AND {MAIN_INNINGS}
             GROUP BY 1 ORDER BY 2 DESC, 1
             """,
-            [name],
+            [resolve_key(con, collection, name)],
         ).fetchall()
     return _assemble(rows, role="batter")
 
@@ -94,7 +103,7 @@ def bowler_modes(
     db_path: Path | str = DEFAULT_DB_PATH,
     con: duckdb.DuckDBPyConnection | None = None,
 ) -> dict:
-    """How `name` takes wickets (bowler-credited kinds only)."""
+    """How a player (registry id or scorecard name) takes wickets (bowler-credited kinds only)."""
     safe = _safe(collection)
     kinds_sql = ", ".join(f"'{k}'" for k in BOWLER_CREDITED)
     with _connect(db_path, con) as con:
@@ -103,12 +112,12 @@ def bowler_modes(
         rows = con.execute(
             f"""
             SELECT wicket_kind AS kind, COUNT(*) AS count
-            FROM balls_{safe}
+            FROM {keyed_balls(con, collection)}
             WHERE bowler = ? AND player_out IS NOT NULL AND {MAIN_INNINGS}
               AND wicket_kind IN ({kinds_sql})
             GROUP BY 1 ORDER BY 2 DESC, 1
             """,
-            [name],
+            [resolve_key(con, collection, name)],
         ).fetchall()
     return _assemble(rows, role="bowler")
 
@@ -126,23 +135,25 @@ def matchup_log(
     with duckdb.connect(str(db_path), read_only=True) as con:
         if not _table_exists(con, f"balls_{safe}"):
             return {"batter": batter, "bowler": bowler, "total": 0, "rows": [], "balls": 0}
+        kb = keyed_balls(con, collection)
+        bat, bowl = resolve_key(con, collection, batter), resolve_key(con, collection, bowler)
         rows = con.execute(
             f"""
             SELECT wicket_kind AS kind, COUNT(*) AS count
-            FROM balls_{safe}
+            FROM {kb}
             WHERE batter = ? AND bowler = ? AND player_out = ? AND {MAIN_INNINGS}
               AND wicket_kind IN ({kinds_sql})
             GROUP BY 1 ORDER BY 2 DESC, 1
             """,
-            [batter, bowler, batter],
+            [bat, bowl, bat],
         ).fetchall()
         balls = con.execute(
             f"""
-            SELECT COUNT(*) FROM balls_{safe}
+            SELECT COUNT(*) FROM {kb}
             WHERE batter = ? AND bowler = ? AND {MAIN_INNINGS}
               AND COALESCE(extras_type,'') NOT IN ('wides')
             """,
-            [batter, bowler],
+            [bat, bowl],
         ).fetchone()[0]
     total = sum(c for _, c in rows)
     return {
