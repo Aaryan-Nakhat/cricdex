@@ -214,9 +214,9 @@ with info_col:
     if tax.get("country"):
         chips.append(str(tax["country"]))
     if _num(bat.get("value")) is not None:
-        chips.append(f"batting value {_fmt(_num(bat.get('value')), 3)}")
+        chips.append(f"batting value {_fmt(_num(bat.get('value')), 1)}")
     if _num(bowl.get("value")) is not None and (_num(bowl.get("balls")) or 0) > 60:
-        chips.append(f"bowling value {_fmt(_num(bowl.get('value')), 3)}")
+        chips.append(f"bowling value {_fmt(_num(bowl.get('value')), 1)}")
     chips.append(f"id {cid}")
     st.markdown(" · ".join(chips))
 

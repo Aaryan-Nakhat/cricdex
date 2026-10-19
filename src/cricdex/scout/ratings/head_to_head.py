@@ -12,8 +12,8 @@ No re-fit, no stored samples — we read the already-saved
 
 Complete value per role (`_complete_axis`):
 - current files: the fit's `value` / `value_sd` — scoring + survival
-  (batter) or economy + strike (bowler), each axis in population-sd
-  units (see `bayesian._value_draws`);
+  (batter) or economy + strike (bowler) in runs per 100 balls above the
+  league's average ball, a wicket priced in runs (see `runs_value.py`);
 - older dismissal-aware files without `value_sd`: raw sum of the two
   axes, variances added;
 - legacy runs-only files: the scoring / economy axis alone.

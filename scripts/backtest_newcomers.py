@@ -17,8 +17,12 @@ the max of noisy estimates.)
 Baseline: what a scout could work out by hand from the same matches, given the
 same league adjustment — each league's raw numbers relative to that league's
 average (runs per ball ÷ league runs per ball, outs per ball ÷ league rate),
-the overall axis as z-scores within the league minus the same tier discount,
-pooled across leagues by balls. So a model win isn't just the tier discount.
+the overall axis in the same runs currency as `value` (runs per 100 balls above
+the league's average ball, each dismissal above or below the league's rate
+priced at the player's wicket cost; `runs_value.observed_value`) minus the same
+tier discount, pooled across leagues by balls. So a model win isn't just the
+tier discount. The season's outcome on the overall axis is the same runs
+currency, from the IPL season itself.
 
 Seasons are pooled (each predictor and outcome is z-scored within its season
 so a high-scoring year doesn't skew the ranking). Agreement is a Spearman rank
@@ -47,14 +51,16 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 import typer
-from backtest_ratings import AXES, LABEL, _spearman, _totals, _z, holm
+from backtest_ratings import LABEL, _spearman, _totals, _z, holm
 from loguru import logger
 
 from cricdex import leagues
 from cricdex.config import DATA_DIR
-from cricdex.scout.ratings import bayesian
+from cricdex.scout.ratings import bayesian, runs_value
 
 app = typer.Typer(add_completion=False)
+
+AXES = ("rate", "odds", "all")  # the overall axis in the runs currency of `value`
 
 # other auction-pool leagues (the registry the auction pool uses). The first published run used the
 # five leagues of the time; pass `--leagues` to repeat it.
@@ -120,12 +126,17 @@ def _pool_model(rated: list[tuple[str, pl.DataFrame]], role: str) -> pl.DataFram
 
 
 def _pool_raw(
-    edges: list[tuple[str, pl.DataFrame]], key: str, rate_sign: float, odds_sign: float
+    edges: list[tuple[str, pl.DataFrame, runs_value.LeagueTables]],
+    key: str,
+    rate_sign: float,
+    odds_sign: float,
 ) -> pl.DataFrame:
     """Per player: each league's raw numbers relative to that league's average, the overall axis
-    as within-league z-scores minus the league's discount, pooled across leagues by balls."""
+    in runs per 100 balls above the league's average ball minus the league's discount, pooled
+    across leagues by balls."""
+    role = "batter" if key == "batter_id" else "bowler"
     parts = []
-    for col, e in edges:
+    for col, e, tab in edges:
         t = _totals(e, key)
         rate_l = float(t["balls"].sum()) and float(t["runs"].sum()) / float(t["balls"].sum())
         odds_l = float(t["trials"].sum()) and float(t["outs"].sum()) / float(t["trials"].sum())
@@ -137,20 +148,16 @@ def _pool_raw(
                 "odds"
             ),
         )
-        # z within the league among players with a real sample, then the same tier discount
-        ref = t.filter(pl.col("balls") >= 60)
-        if ref.height < 5:
-            ref = t
-        zr = (pl.col("rate") - ref["rate"].mean()) / (ref["rate"].std() or 1.0)
-        zo = (pl.col("odds") - ref["odds"].mean()) / (ref["odds"].std() or 1.0)
+        # the runs currency from his raw numbers in this league, then the same tier discount
+        obs = runs_value.observed_value(tab, role, t["cricsheet_id"].to_list())
         parts.append(
-            t.select(
+            t.with_columns(pl.Series("obs", np.nan_to_num(obs))).select(
                 "cricsheet_id",
                 "balls",
                 "trials",
                 "rate",
                 "odds",
-                (zr + zo - leagues.discount(col)).alias("all"),
+                (pl.col("obs") - leagues.discount(col)).alias("all"),
             )
         )
     allr = pl.concat(parts, how="vertical_relaxed")
@@ -191,6 +198,7 @@ def run(
 
     # ---- 1. every (league, season, seed) fit, in parallel, cached ----
     prior_edges: dict[tuple[str, int], pl.DataFrame] = {}
+    prior_tabs: dict[tuple[str, int], runs_value.LeagueTables] = {}
     tasks = []
     for s in range(first, last + 1):
         for col in cols:
@@ -202,6 +210,7 @@ def run(
             if e.is_empty():
                 continue
             prior_edges[(col, s)] = e
+            prior_tabs[(col, s)] = runs_value.league_tables(db, col, before=f"{s}-01-01")
             tasks += [(variant, col, s, sd, advi_steps) for sd in seed_list]
     todo = [t for t in tasks if not _cache_path(*t).exists()]
     logger.info(f"{len(tasks)} fits ({len(tasks) - len(todo)} cached)")
@@ -238,6 +247,7 @@ def run(
                 continue
             ipl_prior = bayesian._load_edges(db, "ipl", before=start)
             ipl_season = bayesian._load_edges(db, "ipl", since=start, before=end)
+            ipl_tab = runs_value.league_tables(db, "ipl", since=start, before=end)
             for role, key, rate_sign, odds_sign, _ in ROLES:
                 per_seed = []
                 for sd in seed_list:
@@ -246,7 +256,12 @@ def run(
                         for c in have
                     ]
                     per_seed.append(_pool_model(rated, role))
-                raw = _pool_raw([(c, prior_edges[(c, s)]) for c in have], key, rate_sign, odds_sign)
+                raw = _pool_raw(
+                    [(c, prior_edges[(c, s)], prior_tabs[(c, s)]) for c in have],
+                    key,
+                    rate_sign,
+                    odds_sign,
+                )
                 prior_ipl = _totals(ipl_prior, key, "p_").select("cricsheet_id", "p_balls")
                 df = (
                     _totals(ipl_season, key)
@@ -266,7 +281,8 @@ def run(
                     continue
                 act_rate = rate_sign * (df["runs"] / df["balls"]).to_numpy()
                 act_odds = odds_sign * (df["outs"] / df["trials"].clip(1)).to_numpy()
-                act = {"rate": act_rate, "odds": act_odds, "all": _z(act_rate) + _z(act_odds)}
+                act_all = runs_value.observed_value(ipl_tab, role, df["cricsheet_id"].to_list())
+                act = {"rate": act_rate, "odds": act_odds, "all": np.nan_to_num(act_all)}
                 p = pooled[role]
                 for a in AXES:  # z within the season, then pool
                     seeds_a = [df[f"m{k}_{a}"].to_numpy() for k in range(len(seed_list))]

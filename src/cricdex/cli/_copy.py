@@ -117,9 +117,11 @@ COMPARE_THRESHOLD_NOTE = (
 HEAD_TO_HEAD_NOTE = (
     "P(A better) = probability A's true value exceeds B's, from the "
     "difference of their Bayesian posteriors. Near-50% = statistically "
-    "indistinguishable. Batting value = opponent-adjusted scoring rate "
-    "+ dismissal resistance; bowling value = economy + strike rate. A "
-    "fast slogger who gets out often no longer outranks an anchor."
+    "indistinguishable. Value is in runs per 100 balls above the league's "
+    "average ball: batting = opponent-adjusted extra scoring + the runs "
+    "saved by not getting out, a wicket priced at what it costs where he "
+    "bats (dear in the powerplay, cheap at the death); bowling = runs saved "
+    "+ extra wickets at the same price."
 )
 
 # --- Venues --------------------------------------------------------------

@@ -165,7 +165,9 @@ def test_web_parity():
             {
                 "id": r["cricsheet_id"],
                 "sim": r["sim"],
-                "price": est_value(r["value"], r["role"], tier),
+                "price": est_value(
+                    r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls")
+                ),
             }
             for r in rows
         ]
@@ -203,3 +205,17 @@ def test_web_parity():
     med = gem_threshold(gem_pool)
     assert med == js["gemMedian"]
     assert [p["cricsheet_id"] for p in gem_pool if is_gem(p, med)] == js["gems"]
+
+    # 5) the cautious price (value − PRICE_CAUTION_SD × value_sd) under the IPL-evidence ceiling,
+    # on fixed inputs (value, role, tier, value_sd, target-league balls)
+    cases = [
+        (0, "batter", "ipl", 0, 0),
+        (13.6, "batter", "ipl", 2.75, 6926),
+        (59.7, "batter", "ipl", 12.5, 449),
+        (27.7, "keeper", "ipl", 12.4, 471),
+        (27.4, "keeper", "bbl", 4.9, 163),
+        (40.0, "all_rounder", "smat", 9.0, None),
+        (-30, "bowler", "bbl", 7.0, 0),
+        (10, "bowler", "cpl", None, 600),
+    ]
+    _approx_eq([est_value(*c) for c in cases], js["estCases"], "estCases")

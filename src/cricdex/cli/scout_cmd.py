@@ -77,7 +77,9 @@ def look_alikes(
         "overseas": f"not {sel.get('country') or '?'}",
         "all": "all",
     }[country]
-    sel_price = est_value(sel["value"], sel["role"], "ipl")
+    sel_price = est_value(
+        sel["value"], sel["role"], "ipl", sel.get("value_sd"), sel.get("target_balls")
+    )
     gem_lg = leagues.gem_pool()
     gem_tier = gem_lg.tier if gem_lg else None
     gem_med = gem_threshold(idx.get(gem_tier, [])) if gem_tier else None
@@ -105,7 +107,7 @@ def look_alikes(
             sel, idx[tier], use_role, use_pos, top_k, country=country, fallback_country=fb
         )
         for r in found:
-            price = est_value(r["value"], r["role"], tier)
+            price = est_value(r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls"))
             saving = sel_price - price if price < sel_price else 0.0
             rows.append(
                 {

@@ -60,10 +60,12 @@ likelihoods (a runs Negative-Binomial + a per-ball dismissal
 Binomial) gives each batter both a **scoring** skill and a **survival**
 (dismissal-resistance) skill, and each bowler both an **economy** and
 a **strike** (wicket-taking) skill — four opponent-adjusted axes, all
-higher = better. A player's **complete value** adds their two relevant
-axes after putting each in the same unit (its population spread — the
-axes are a runs rate and a wicket log-odds), so a fast slogger who gets
-out often is no longer over-rated on scoring alone. Every matchup is
+higher = better. A player's **complete value** puts their two relevant
+axes in one currency, runs per 100 balls above the league's average
+ball: scoring is runs already, and a wicket is priced at the runs it
+costs where the player plays (dear early in the innings, cheap at the
+death). So a fast slogger who gets out often at the top isn't over-rated
+on scoring alone, and a finisher isn't over-rated for rarely getting out. Every matchup is
 fitted, even a 1-ball one; the prior does the shrinking. The plain-English
 walkthrough (with a worked example) is [METHODOLOGY.md §4](METHODOLOGY.md#4-bayesian-skill-ratings);
 the look-alike formula is [§5](METHODOLOGY.md#5-scout-look-alikes); the full

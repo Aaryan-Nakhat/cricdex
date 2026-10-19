@@ -45,7 +45,7 @@ So **adding a league is one TOML entry and an ingest**, never a code change.
 
    ```toml
    [tiers.psl]
-   discount = 0.45     # value removed before comparing with IPL value (population-sd units)
+   discount = 6.0      # value removed before comparing with IPL value (runs per 100 balls)
    calibrated = false  # borrowed by analogy, not yet fitted
    note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
    ```
@@ -116,8 +116,10 @@ are display windows: the rating model doesn't need them, since it already fits a
 ## Tiers and discounts
 
 A rating from a weaker league is lowered by its tier's `discount` before it is compared with IPL
-value. The six original discounts were set against the IPL (IPL 0, SMAT 1.28, BBL and SA20 0.45,
-CPL and T20 Blast 0.64; `calibrated = true`). The leagues added with the registry borrow one by
+value, in runs per 100 balls (the unit of `value`). The six original discounts were set against
+the IPL (IPL 0, SMAT 17.0, BBL and SA20 6.0, CPL and T20 Blast 8.5; `calibrated = true`); they were
+first set in the earlier population-sd units (1.28, 0.45, 0.64) and converted with one factor, 13.3,
+when `value` moved to runs ([AUCTION_MATH.md](AUCTION_MATH.md)). The leagues added with the registry borrow one by
 analogy until a joint multi-league fit can measure them (`calibrated = false`): PSL, ILT20 and The
 Hundred like BBL / SA20; MLC, BPL, LPL, Super Smash and CSA T20 Challenge like CPL / Blast.
 `web_parity/pricing.py` and `site/src/lib/auction.ts` read the same numbers, and the parity test

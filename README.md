@@ -39,13 +39,16 @@ you see **who lands each star, how often, and for how much**, and how every squa
 
 - **Real rules:** 120 cr purse, retention slabs, 8 overseas max, 20 to 25-man squads.
 - **Bidding that behaves like the real room:** a team with more money left per open slot bids harder,
-  the winner pays just above the second-best bid, and no player goes above 27 cr, the real record.
+  the winner pays just above the second-best bid, and no player goes above 27 cr (the real record) or
+  above his own ceiling, which rises with how much IPL cricket he has played.
 - **Yours to change:** release or add any retention, swap a team's personality, change the purse.
 - **The pool is the whole T20 world:** IPL players plus free agents from the SMAT and every overseas
   league in the registry (BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC, BPL, LPL and more),
   weighted by how relevant they are to the IPL right now.
 
-Prices are estimated from the skill model, calibrated to recent auctions. They model how the room
+Prices are estimated from the skill model, calibrated to recent auctions, on a cautious estimate (value
+minus half its uncertainty) and under a ceiling that rises with IPL experience, so a short, hot record
+is priced below a proven one. They model how the room
 behaves, not the exact crore of a real sale. → [How the auction works](docs/AUCTION_MATH.md)
 
 ## 📈 Who really won it?
@@ -70,7 +73,10 @@ player was in the XI. → [NGI in detail](docs/METHODOLOGY.md#2-net-game-impact-
 Raw averages flatter a batter who feasted on weak attacks. The Bayesian model fits every player at once,
 so runs against a great attack count for more, and every ball is judged against its own season, phase,
 innings and ground, so a 2026 strike rate isn't compared with a 2009 one. Batters get a **scoring** and a **survival** rating,
-bowlers an **economy** and a **strike** rating, and every rating comes with **how sure it is**. A player
+bowlers an **economy** and a **strike** rating, and every rating comes with **how sure it is**. The two
+combine into one **value in runs per 100 balls**, with a wicket priced at what it costs where the player
+bats or bowls (about 14 runs early in the powerplay, 2–3 at the death), so a finisher is judged mainly on
+how fast he scores. A player
 with 400 balls gets a wide range; one with 7,000 gets a narrow one. Head-to-heads ("how likely is A
 better than B?") use both ranges, so a thin record can't win the argument on its own.
 
@@ -108,8 +114,8 @@ and the newcomer gaps are bootstrapped 2,000 times with a correction for running
 
 | | CricDex | Plain baseline |
 |---|---|---|
-| Established IPL batters, next season (2021–26) | 0.14 | 0.15 (career average) |
-| Established IPL bowlers, next season (2021–26) | **0.12** | 0.07 (career average) |
+| Established IPL batters, next season (2021–26) | **0.19** | 0.15 (career average) |
+| Established IPL bowlers, next season (2021–26) | **0.15** | 0.11 (career average) |
 | IPL newcomer batters, rated from other leagues (2014–26, 103 players) | **0.22** | 0.10 (league-adjusted numbers there) |
 | IPL newcomer bowlers, rated from other leagues (2014–26, 132 players) | 0.18 | **0.24** (league-adjusted numbers there) |
 
@@ -118,7 +124,7 @@ in 97% of re-draws. That doesn't survive a fair, league-adjusted baseline: the e
 discount itself. With the fixes, the model ranks newcomer batters better **overall** (ahead in 96% of
 resamples with all 13 other leagues, 98% with the original five), but nothing is significant after
 correcting for six tests (best adjusted p = 0.15), and bowlers show no edge. For players the IPL already
-knows, it ties career averages for batters and edges them for bowlers, and the new model predicts held-out
+knows, its value in runs edges career averages for both batters and bowlers, and the new model predicts held-out
 balls better than the old one in every season. A single T20 season is mostly noise, so read the newcomer
 result as **a lean, not proof**. Re-run it yourself with `scripts/backtest_ratings.py` and
 `scripts/backtest_newcomers.py`.

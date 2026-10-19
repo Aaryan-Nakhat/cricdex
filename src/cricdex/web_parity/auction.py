@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from cricdex.web_parity.pricing import est_value, price_tier
+from cricdex.web_parity.pricing import est_value, price_ceiling, price_tier
 
 # ---- pool pricing ----------------------------------------------------------
 
@@ -24,7 +24,8 @@ def build_pool(rows: list[dict]) -> list[dict]:
     to each row; sorts by projected value desc."""
     out: list[dict] = []
     for r in rows:
-        pv = est_value(r["value"], r["role"], "ipl")  # pool value already tier-penalised
+        # pool value already tier-penalised; priced on the cautious estimate (value_sd)
+        pv = est_value(r["value"], r["role"], "ipl", r.get("value_sd"), r.get("target_balls"))
         base = price_tier(pv)
         out.append(
             {
@@ -38,6 +39,8 @@ def build_pool(rows: list[dict]) -> list[dict]:
                 "projected_value": pv,
                 "base_price": base,
                 "vpc": pv / base,
+                # his price ceiling (rises with IPL balls): bidding can't clear him above it
+                "price_cap": price_ceiling(r.get("target_balls")),
             }
         )
     out.sort(key=lambda p: p["projected_value"], reverse=True)
@@ -298,7 +301,7 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
                 elif wtp > second_bid:
                     second_bid = wtp
             if best_team >= 0:
-                price = min(PRICE_CAP, best_bid, second_bid * 1.02)
+                price = min(PRICE_CAP, player["price_cap"], best_bid, second_bid * 1.02)
                 buy(best_team, player, max(player["base_price"], price))
                 sold.add(player["cricsheet_id"])
 

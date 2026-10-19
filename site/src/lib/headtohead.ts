@@ -51,7 +51,7 @@ function usableSd(x: number | null | undefined): number | null {
 }
 
 /** Complete batting/bowling value of one rating row: the fit's `value`/`value_sd`
- * (both axes in population-sd units); older files without `value_sd` → raw sum
+ * (runs per 100 balls, a wicket priced in runs); older files without `value_sd` → raw sum
  * of the two axes, variances added; legacy runs-only files → the one axis. */
 export function completeAxis(r: RatingRow, role: RatedRole): (Axis & { component: string }) | null {
   const ax = SECOND_AXIS[role];

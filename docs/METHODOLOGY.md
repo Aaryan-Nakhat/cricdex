@@ -300,22 +300,71 @@ the model is. Code: `src/cricdex/scout/ratings/bayesian.py`; model spec:
    freely off strong bowlers gains more than one who scored the same off part-timers. Strength flows
    through the whole network of matchups.
 
-**One number per role: `value`.** Scoring is measured in log runs per ball and survival in log-odds of
-getting out, so they can't just be added. Each is first centred on the role's average player and divided by
-the role's population spread (within and between slots), then summed. So `value` is in **"typical spreads
-above average"**: 0 is an average player, +1 is one typical player-to-player spread better, the best in the
-IPL sit near +3.
+**One number per role: `value`, in runs.** Scoring is measured in log runs per ball and survival in
+log-odds of getting out, so they can't just be added: the question is what a wicket is *worth* in runs.
+That depends on when it falls. A wicket in the 2nd over with nobody out costs a side far more of its
+future runs than one in the 19th, so a finisher who rarely gets out has saved his team much less than an
+opener who rarely gets out. CricDex prices it from the ball-by-ball data
+(`src/cricdex/scout/ratings/runs_value.py`):
 
-*Worked example (current IPL fit).* The scoring spread is about 0.25 and the survival spread about 0.22.
+1. **The run cost of a wicket.** From every first innings of a full-length, non-rain-affected match in the
+   league, count the runs and wickets per ball in each state (over, wickets down), smoothed so a thin state
+   borrows from its neighbours (an over level times a wickets-down factor per phase). A backward pass over
+   the innings gives the expected runs still to come from each state, `V(ball, wickets down)`, and the
+   cost of losing a wicket on a ball is `λ = V(next ball, w) − V(next ball, w + 1)`, the same
+   dynamic-programming idea as Duckworth–Lewis resources and the "dismissal-adjusted runs" of
+   Bandyopadhyay (2026, arXiv:2608.18020). On the IPL (par first-innings total 168):
+
+   | | 0–1 down | 2–3 down | 4–5 down | 6+ down |
+   |---|---|---|---|---|
+   | Powerplay (overs 1–6) | 13–14 | 12–13 | 17–18 | 15–18 |
+   | Middle (7–15) | 7–8 | 8 | 10–11 | 11–16 |
+   | Death (16–20) | 2.5 | 2 | 2.5 | 3–8 |
+
+   With 2 down it falls steadily from about 15 runs in the 1st over to 3 in the 16th and 0.3 in the 20th.
+2. **Where the player plays.** Each player's wicket cost is the average of `λ` over the states he actually
+   batted (or bowled) in, each ball weighted by the chance of a wicket there, kept per phase and innings.
+   KL Rahul's is 9.6 runs; Dhoni's 4.7; Russell's 5.4.
+3. **Runs per 100 balls.** With the league's runs per ball `r` and dismissal rate `q` in each phase and
+   innings, his share of balls there `π`, his run-rate multiplier against the average ball `m` (from his
+   scoring skill) and his survival skill against the average ball `Δs`:
+
+   ```
+   batting value = 100 × Σ π × [ r × (m − 1)  −  λ × (P(out | his survival) − q) ]
+   bowling value = 100 × Σ π × [ R × (1 − m)  +  λ × (P(out | his strike) − q) ]
+   ```
+
+   (for a bowler `m` comes from his economy skill, `R` counts wides and no-balls). Both are re-centred so
+   the league's balls average 0, and computed for every posterior draw, so the uncertainty carries
+   through. So **`value` is runs per 100 balls above the league's average ball**: +10 is ten runs better
+   every 100 balls. The best IPL regulars sit around +20 to +25. The rates and `λ` are pooled over the
+   league's seasons, so a 2009 and a 2026 player are converted at the same rate (their skills are already
+   judged against their own season).
+
+*Worked example (current IPL fit).*
 
 ```
-V Kohli     scoring +0.26 ÷ 0.25 ≈ +1.05    survival +0.43 ÷ 0.22 ≈ +1.92    value ≈ +2.97
-SP Narine   scoring +0.45 ÷ 0.25 ≈ +1.78    survival −0.41 ÷ 0.22 ≈ −1.83    value ≈ −0.05
+                  scoring part   staying-in part   wicket cost   value (runs / 100 balls)
+KL Rahul             +8.9            +10.5            9.6          +19.4
+V Kohli              +4.6             +9.0            9.3          +13.6
+AD Russell          +24.7             −0.2            5.4          +24.5
+MS Dhoni             −6.8             +7.9            4.7           +1.1
+SP Narine (bat)     +31.8            −31.8           11.2           +0.1
 ```
 
-Narine (batting) scores much faster than Kohli but gets out far more often, so his complete batting value is
-about average. A runs-only model would have rated him the better batter. The same split separates
-bowlers: Chahal's economy is ordinary but his strike skill is high; Ashwin is the reverse.
+Dhoni gets out far less than the average batter at the death, but a wicket there costs about 5 runs and
+he scores below the death-overs rate, so he is about an average batter per ball (40th of 64 active IPL
+batters with 600+ balls). Under the earlier value, which divided each axis by its spread and added the two
+with equal weight, he was the **best** active IPL batter (3.32, ahead of KL Rahul 3.31 and Kohli 2.97):
+staying in counted as much at the death as at the top. Narine opens and gets out often at the costliest
+time, so his scoring and his wickets cancel. Among bowlers the order barely moves (Narine +24.0, Bumrah
++23.2, Rashid +20.3): a bowler's wicket-taking skill is shrunk hard (it is noisy), so his value is mostly
+runs saved, Chahal's wickets adding +3.5 to his +6.6.
+
+The top active IPL batters by value (600+ balls): Russell +24.5, Abhishek Sharma +22.9, Salt +22.6, Head
++20.7, Bairstow +20.4, Buttler +20.3, KL Rahul +19.4, Pooran +18.6, Klaasen +17.7, Gill +17.5. Young
+hitters with short records rate higher still on the mean (Suryavanshi +60 ± 12 on 449 balls), with
+uncertainty to match.
 
 **Uncertainty.** Every skill and `value` carries a standard deviation from the fit. The Head-to-Head page
 uses it directly: treating two players' values as bell curves, the chance that A is better than B is
@@ -325,7 +374,7 @@ with close values and wide uncertainty come out near 50/50, as they should.
 **How it's fitted, and how we checked the shortcut.** The fit runs in NumPyro (JAX). The default is
 **ADVI**, a fast approximation (12,000 optimisation steps, about 2–3 minutes for the IPL). The exact
 method, **NUTS** (Hamiltonian Monte Carlo), is opt-in (`scripts/scout_rate.py --sampler nuts`). With the
-context terms in, we ran both on the IPL again (2 chains × 500 + 500 NUTS draws, about two hours on a busy laptop; worst r-hat 1.02, smallest effective sample 187, no divergences). For players with 100+ balls, ADVI's uncertainties are 98% of NUTS's for batters (scoring and survival) and 92–95% for bowlers (strike and economy), `value` uncertainty 101% (batters) and 96% (bowlers); the point estimates correlate 0.994 or better; and head-to-head probabilities differ by a median of 2–2.5 points (95th percentile 7). So the shortcut holds, a touch over-confident for bowlers.
+context terms in, we ran both on the IPL again (2 chains × 500 + 500 NUTS draws, about two hours on a busy laptop; worst r-hat 1.02, smallest effective sample 187, no divergences). For players with 100+ balls, ADVI's uncertainties are 98% of NUTS's for batters (scoring and survival) and 92–95% for bowlers (strike and economy), the uncertainty of the earlier sd-sum `value` 101% (batters) and 96% (bowlers) (not yet re-run for the runs value, which is built from the same draws); the point estimates correlate 0.994 or better; and head-to-head probabilities differ by a median of 2–2.5 points (95th percentile 7). So the shortcut holds, a touch over-confident for bowlers.
 
 **Does it fit better?** On every IPL season 2021–26, fitted only on the matches before it, the new model's
 held-out log-likelihood per ball is higher than the old model's in **every season, for both runs and
@@ -334,7 +383,7 @@ dismissals**: −0.621 against −0.626 nats per ball for runs and −0.147 agai
 a sharper test than a rank correlation of season totals: the context terms, the dispersion fix and the
 role priors predict the next season's balls better. (`scripts/backtest_ratings.py --compare legacy`.)
 
-**Limits.** Each league is fitted separately, so an IPL +2 and a BBL +2 aren't the same thing; the scout
+**Limits.** Each league is fitted separately, so an IPL +20 and a BBL +20 aren't the same thing; the scout
 and the auction correct for that with a tier discount (sections 5 and 6). There's one skill set per role
 for a player's whole career in that league (the context is adjusted for, but a player's own form isn't
 allowed to drift); batting slot comes from the data, so a player who moved up the order is grouped by his
@@ -389,29 +438,51 @@ invents a fair price from skill, tuned so the spread looks like recent real auct
 
 **How.**
 
-1. **Tier discount.** A rating from a weaker league is lowered first (in `value` units): BBL −0.45,
-   SA20 −0.45, CPL −0.64, T20 Blast −0.64, SMAT −1.28, IPL 0. A player in several leagues keeps his best
-   discounted value. The discounts live in `[tiers.*]` of `config/leagues.toml`; the leagues added later
-   borrow one by analogy until fitted (PSL, ILT20 and The Hundred −0.45 like BBL / SA20; MLC, BPL, LPL,
-   Super Smash and CSA T20 −0.64 like CPL / Blast) and are marked `calibrated = false`.
+1. **Tier discount.** A rating from a weaker league is lowered first, in runs per 100 balls: BBL −6.0,
+   SA20 −6.0, CPL −8.5, T20 Blast −8.5, SMAT −17.0, IPL 0. A player in several leagues gets one value per
+   role, his leagues blended by precision (and his IPL value alone when he has 300+ IPL balls in the
+   role). The discounts live in `[tiers.*]` of `config/leagues.toml`; the leagues added later borrow one
+   by analogy until fitted (PSL, ILT20 and The Hundred −6.0 like BBL / SA20; MLC, BPL, LPL, Super Smash
+   and CSA T20 −8.5 like CPL / Blast) and are marked `calibrated = false`. They were set in the earlier
+   sd units (1.28 / 0.45 / 0.64) and converted with one factor, 13.3 (the spread of the runs value over
+   the spread of the old value, IPL players with 150+ balls); players with 300+ balls in both leagues show
+   gaps of the same size (SMAT +22 runs for batters and +7 for bowlers, BBL +4 / +3, CPL +5 / +6, Blast
+   +9 / +6).
 2. **IPL relevance.** For the auction pool, a player who hasn't featured in the IPL lately loses up to
-   2.7 from his value, scaled by an *IPL-relevance* weight between 0 and 1: about 1 for a current IPL
+   36 runs per 100 balls from his value, scaled by an *IPL-relevance* weight between 0 and 1: about 1 for a current IPL
    regular (age barely matters while he's playing), fading with years since his last IPL game and with age
    past 32; 0.7 for an uncapped Indian who has never played the IPL. This is what stops a league-only
    veteran from topping an IPL auction.
-3. **Exponential price curve.**
+3. **Cautious estimate.** The price is set from `value − 0.5 × value_sd`, not the central value
+   (`PRICE_CAUTION_SD`, `pricing.py` ⇄ `auction.ts`): a proven star (sd ≈ 3 runs) gives up about 1.5
+   runs, a 400-ball prodigy (sd ≈ 12) about 6. Displays and rankings keep the central value. The pool
+   carries the blended value's sd (translation uncertainty included); Scout the league rating's sd with
+   the tier's translation sd added.
+4. **Exponential price curve.**
 
    ```
-   projected price = 1.1 × e^(0.95 × value) × role weight     clamped to 0.3 – 27 cr
+   projected price = 4.03 × e^(0.0743 × (value − 0.5 × value_sd)) × role weight     clamped to 0.3 – ceiling
+   ceiling         = 27 × (0.5 + 0.5 × min(1, IPL balls in the role / 600))
    ```
+
+   The ceiling rises with IPL evidence: no IPL balls → 13.5 cr at most, 449 (Suryavanshi) → 23.6 cr,
+   600+ (about two full seasons) → 27 cr. The pool and Scout rows carry `target_balls` for it.
 
    All-rounders are weighted ×1.15 and keepers ×1.05, because they're scarcer. The top names land in the
-   20s of crore; the typical pool player is around 1 crore; nobody passes 27 cr, the real record.
-4. **Base price.** Each player enters the auction at a real IPL base-price band chosen from his projected
+   20s of crore; the typical pool player is around 1.2 crore; nobody passes 27 cr, the real record. When
+   `value` moved to runs, the two constants were re-fitted so the 600-player pool keeps the same median
+   price (1.18 cr) and the same number of 10 cr+ players (25) as before, on the cautious values
+   ([AUCTION_MATH.md](AUCTION_MATH.md)). The top end now leans to batters (18 of the 25 are batters or
+   keepers, against 14), because in runs a batter's scoring edge is worth more than a bowler's economy
+   edge after the model's shrinkage.
+5. **Base price.** Each player enters the auction at a real IPL base-price band chosen from his projected
    price: 0.3, 0.5, 0.75, 1.0, 1.5 or 2.0 cr.
 
-*Worked example.* Kohli's IPL value is +2.68 with full IPL relevance:
-`1.1 × e^(0.95 × 2.68) ≈ 1.1 × 12.8 ≈ 14 cr` projected, entering at the 1.5 cr band.
+*Worked example.* Kohli's IPL batting value is +13.6 ± 2.8 with full IPL relevance: priced value
+13.6 − 1.4 = 12.2, `4.03 × e^(0.0743 × 12.2) ≈ 4.03 × 2.48 ≈ 10.0 cr` projected, entering at the 1.0 cr
+band. Priyansh Arya's is higher (+27.7) but on 471 balls (± 12.4): priced at 21.5, about 20 cr instead
+of the 27 cr cap. Suryavanshi (+59.7 ± 12.5 on 449 balls) would still reach 27 cr on the curve, but
+his 449 IPL balls hold him to a 23.6 cr ceiling; Finn Allen (163 IPL balls) is held to 17.2.
 
 **Limits.** These prices are **invented from skill**, calibrated to the level and spread of recent
 auctions but not fitted to actual sale data. They're good for comparing players and testing auction
@@ -539,18 +610,28 @@ of players is compared with how that season actually went. Agreement is a Spearm
   change.
 
 **Established IPL players (2021–26).** Ratings fitted before each season versus each player's raw career
-numbers before that season:
+numbers before that season. The overall axis is scored in the currency `value` is built in: what the player
+actually did that season in runs per 100 balls above the league's average ball, each dismissal above or below
+the league's rate priced at his own wicket cost (`runs_value.observed_value`); the career baseline is the same
+number from his raw career totals. The earlier yardstick (each axis as a z-score, summed) is kept as
+"overall (z-sum)" so the change can be compared with what was published before (0.14 vs 0.15 for batters,
+0.12 vs 0.07 for bowlers, with the earlier sd-sum value):
 
 | | Model | Career average |
 |---|---|---|
-| Batters, overall | 0.14 | 0.15 |
+| Batters, overall (runs) | 0.19 | 0.15 |
+| Batters, overall (z-sum) | 0.20 | 0.15 |
 | Batters, scoring | 0.13 | 0.13 |
 | Batters, survival (staying in) | 0.30 | 0.34 |
-| Bowlers, overall | 0.12 | 0.07 |
+| Bowlers, overall (runs) | 0.15 | 0.11 |
+| Bowlers, overall (z-sum) | 0.10 | 0.07 |
 | Bowlers, economy | 0.31 | 0.30 |
 | Bowlers, strike (wicket-taking) | 0.05 | 0.05 |
 
-A tie for batters and a small edge for bowlers overall (0.12 against 0.07). For players with a long IPL
+The runs value edges career averages for both roles overall (batters 0.19 against 0.15, bowlers 0.15 against
+0.11; the three seeds agree to ±0.01), and it even predicts the old z-sum yardstick better than the old value
+did for batters (0.20 against 0.14 published). The batter edge is largest in 2021 (0.36 against 0.22); in 2025
+and 2026 model and career are level. The single axes are unchanged (the model is the same; only `value` moved). For players with a long IPL
 record, the opponent and context adjustment adds little that a career average doesn't already know. We
 also tried weighting recent seasons more (half-lives of 1, 2 and 4 years); none helped, so recency
 weighting is **off by default** (`fit(half_life=...)` is there to experiment with). Correlations this low
@@ -597,8 +678,10 @@ either way.
 of re-draws, **does not survive a fair, league-adjusted baseline**: that edge was mostly the league
 discount itself. With the fixes, the model ranks newcomer batters better **overall** in both runs (ahead in
 96–98% of re-draws), but no result is significant once you correct for running six tests (the best Holm
-p is 0.15). Bowlers show no edge. For established players the ratings tie career averages for batters and
-edge them for bowlers (0.12 vs 0.07), and the new model predicts held-out balls better in every season.
+p is 0.15). Bowlers show no edge. For established players the runs value edges career averages overall for
+both roles (batters 0.19 vs 0.15, bowlers 0.15 vs 0.11), and the new model predicts held-out balls better in
+every season. (The newcomer tables above were measured with the earlier sd-sum value; the overall rows need
+a re-run of `backtest_newcomers.py` with the runs value.)
 Single T20 seasons are mostly noise, so the newcomer-batter result is **a lean, not proof**.
 
 **Not done yet.** There is no split-half noise ceiling, so we can't yet say how close any of these numbers
@@ -624,11 +707,17 @@ What the models can't see, and where they approximate. Most of these are on the
 - **Prices are invented from skill**, calibrated to recent auctions but not fitted to actual sale data.
 - **A single season is noisy.** The backtest's correlations are low for every method, model or not. Treat
   any one-season ranking with care.
-- **The ratings barely beat career averages for established players** (a tie for batters, a small edge for
+- **The ratings only modestly beat career averages for established players** (overall 0.19 vs 0.15 for
+  batters and 0.15 vs 0.11 for bowlers with the runs value; the single axes tie; earlier: a tie for batters, a small edge for
   bowlers). For newcomers rated from other leagues they lean ahead for batters overall, but nothing is
   significant after correcting for six tests, and bowlers show no edge.
 - **Each league is fitted on its own.** Cross-league comparison rests on one hand-set tier discount per
   league.
+- **A wicket's price is a first-innings average.** The run cost of a wicket comes from first innings
+  (over, wickets down) only and is applied to the chase too, where it really depends on the target; it
+  is a league average, not the cost given the actual batters still to come.
+- **Value is per ball, not per match.** A finisher who faces 10 balls a game and an opener who faces 25
+  are compared per 100 balls; how many balls he gets is a team decision the value leaves out.
 - **Context is adjusted, form isn't.** The rating model judges every ball against its season, phase,
   innings and ground, but each player has one skill set per league for his whole career.
 - **Wicket Quality uses the dismissed batter's scoring skill only**, not his full value. (In a refresh the

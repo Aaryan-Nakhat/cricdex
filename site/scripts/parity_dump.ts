@@ -13,6 +13,7 @@ import {
   estValue,
   IPL_TEAMS_DEFAULT,
   type PriceTier,
+  type Role,
 } from "../src/lib/auction.ts";
 import { similarTo, gemThreshold, isGem } from "../src/lib/scout.ts";
 import type { ScoutPlayer } from "../src/lib/data.ts";
@@ -62,7 +63,7 @@ for (const tier of tiers) {
   scoutOut[tier] = similarTo(sel, scout[tier] as ScoutPlayer[], sel.role, "").map((p) => ({
     id: p.cricsheet_id,
     sim: p.sim,
-    price: estValue(p.value, p.role, tier),
+    price: estValue(p.value, p.role, tier, p.value_sd, p.target_balls),
   }));
 }
 // Same-type matching + slot + country filters: every bowling all-rounder with a known country and slot
@@ -88,6 +89,17 @@ const gemPool = (gemTier && scout[gemTier] ? scout[gemTier] : []) as ScoutPlayer
 const gemMedian = gemThreshold(gemPool);
 const gems = gemPool.filter((p) => isGem(p, gemMedian)).map((p) => p.cricsheet_id);
 
+// mirrored in test_web_parity.py: value, role, tier, value_sd
+const ESTIMATE_CASES: [number, string, string, number | null, number | null][] = [
+  [0, "batter", "ipl", 0, 0],
+  [13.6, "batter", "ipl", 2.75, 6926],
+  [59.7, "batter", "ipl", 12.5, 449],
+  [27.7, "keeper", "ipl", 12.4, 471],
+  [27.4, "keeper", "bbl", 4.9, 163],
+  [40.0, "all_rounder", "smat", 9.0, null],
+  [-30, "bowler", "bbl", 7.0, 0],
+  [10, "bowler", "cpl", null, 600],
+];
 const out = {
   retentions,
   poolSize: res.poolSize,
@@ -125,5 +137,7 @@ const out = {
   scoutTyped,
   gemMedian,
   gems,
+  // the cautious price on fixed inputs (value, role, tier, sd), including a missing sd
+  estCases: ESTIMATE_CASES.map(([v, role, tier, sd, balls]) => estValue(v, role as Role, tier, sd, balls)),
 };
 process.stdout.write(JSON.stringify(out));

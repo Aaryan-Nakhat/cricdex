@@ -107,8 +107,8 @@ disagreements left for a human are in `data/curated/player_master_review.json`.
   phase, venue and innings effects with hierarchical priors. *Done 2026-10-17: season random walk, phase, innings and hierarchical venue terms in both sub-models.*
 - [x] 13. NegBin dispersion doesn't scale with balls (variance grows with balls², high-volume edges are
   under-weighted). Use `concentration = alpha * balls` or a per-outcome multinomial; compare held-out fit. *Done 2026-10-17: `concentration = alpha × balls`; held-out fit in METHODOLOGY §4/§8.*
-- [ ] 14. `value` is an equal-weight sum of two z-scores (survival means little for a finisher). Move to a
-  runs-currency value: runs per ball minus a phase-dependent wicket cost.
+- [x] 14. `value` is an equal-weight sum of two z-scores (survival means little for a finisher). Move to a
+  runs-currency value: runs per ball minus a phase-dependent wicket cost. *Done 2026-10-19: runs per 100 balls above the league's average ball, a wicket priced by a first-innings value function at each player's own (over, wickets down) mix (`scout/ratings/runs_value.py`); prices re-calibrated (METHODOLOGY §4, §6; AUCTION_MATH).*
 - [x] 15. Bowler economy ignores extras (wides-heavy bowlers flattered). Add extras or a wides sub-model. *Done 2026-10-17: wides + no-balls sub-model folded into economy.*
 - [x] 16. One population prior for every batter, so tail-enders shrink to "average batter". Use a role or
   batting-slot prior mean. *Done 2026-10-17: batting-slot and frontline / part-time prior means.*
@@ -234,7 +234,7 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   phase, each bowler's danger batters, venue par.
 - [ ] 16. Expected runs and wickets from ball-by-ball context (M–L): log-linear expectation over phase,
   wickets, venue, era, bowler type and balls faced, with shrinkage; a wicket priced in runs; a
-  runs-currency value replacing the sd-sum. Don't call it "xR" (CricViz's xR uses ball-tracking).
+  runs-currency value replacing the sd-sum. Don't call it "xR" (CricViz's xR uses ball-tracking). *Partly done 2026-10-19: a wicket priced in runs (value function over over × wickets down) and the runs-currency value replacing the sd-sum ship (review item 14); the context expectation is the rating model's season / phase / innings / venue terms. Still open: bowler type and balls faced in the expectation, and a chase-aware wicket cost.*
 - [ ] 17. Joint multi-league fit with league effects (M), publishing the translation factors (e.g. SMAT→IPL
   strike-rate factor with intervals).
 - [ ] 18. Venue page v2 (S–M): par by season, chase-win curve against target, toss outcomes, phase pars,

@@ -56,7 +56,10 @@ players sharing a scorecard name are two players) with columns:
     balls           career legal balls in this role (every matchup)
     runs            career runs off the bat in this role
     survival_skill(_sd) / strike_skill(_sd)   batter / bowler dismissal axis
-    value(_sd)      complete value: both axes in population-sd units, summed (see `_value_draws`)
+    value(_sd)      complete value in RUNS: runs per 100 balls above the league's average ball, the
+                    dismissal axis priced at the run cost of a wicket where the player plays
+                    (see `runs_value.py`); `value_rate` / `value_wkts` are its two parts and
+                    `wicket_cost` the runs a wicket costs at his phase / wickets-down mix
     slot            batter's median batting position (batters), `extras_skill(_sd)` (bowlers)
     unique_name     the player's scorecard name in this collection
 """
@@ -82,12 +85,13 @@ from cricdex.common.sql import (
     table_suffix,
 )
 from cricdex.config import DATA_DIR
+from cricdex.scout.ratings import runs_value
 
 DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 
 # Bump whenever the model or its inputs change: cached fits (e.g. the backtests') are keyed by it,
 # so a fit from an older model can never be reused by mistake.
-MODEL_VERSION = "2026.10-era"
+MODEL_VERSION = "2026.10-runs"
 VARIANTS = ("v2", "legacy")
 
 # Wicket kinds credited to the bowler (exclude run out / retired /
@@ -100,7 +104,7 @@ _BOWLER_WICKET_KINDS = (
     "stumped",
     "hit wicket",
 )
-PHASES = ("powerplay", "middle", "death")
+PHASES = runs_value.PHASES
 SLOT_GROUPS = ("top (1-3)", "middle (4-5)", "lower middle (6-7)", "tail (8-11)")
 BOWLER_GROUPS = ("frontline", "part-time")
 FRONTLINE_BALLS = 15  # deliveries per match bowled that make a frontline bowler
@@ -584,31 +588,6 @@ def _run_advi(
     return {k: np.concatenate([c[k] for c in chunks]) for k in chunks[0]}
 
 
-def _value_draws(
-    rate_draws: np.ndarray,
-    odds_draws: np.ndarray,
-    samples: dict,
-    rate_sigma: str | float,
-    odds_sigma: str | float,
-) -> np.ndarray:
-    """Per-draw complete value: both axes in population-sd units, then summed.
-
-    The scoring/economy axis is a log runs-per-ball effect and the
-    survival/strike axis a log-odds dismissal effect — different units, so
-    adding them raw would let whichever scale happens to be wider dominate.
-    Each axis is divided by its population sd (the posterior mean of its
-    hierarchical `sigma`, or a number: with role-level prior means it is the
-    spread across *all* players of the role, within and between groups), so
-    1.0 means "one typical player-to-player spread better" on either axis and
-    the two count equally. Doing it per draw keeps the posterior sd of the sum
-    honest (`value_sd`)."""
-
-    def _sd(s):
-        return float(s) if isinstance(s, int | float) else float(np.mean(np.asarray(samples[s])))
-
-    return rate_draws / _sd(rate_sigma) + odds_draws / _sd(odds_sigma)
-
-
 def _centre(draws: np.ndarray, sigma: np.ndarray, mu: np.ndarray | None, grp: np.ndarray) -> tuple:
     """Centre player draws on the role's population mean and give the population sd.
 
@@ -788,14 +767,14 @@ def fit(
         return arr.mean(axis=0), arr.std(axis=0)
 
     slot_on = flags.slot_prior
-    b_c, b_scale = _centre(
+    b_c, _ = _centre(
         _draws("b_skill", n_batters), _get("sigma_b"), _get("mu_b") if slot_on else None, bgrp
     )
-    k_c, k_scale = _centre(
+    k_c, _ = _centre(
         _draws("k_skill", n_bowlers), _get("sigma_k"), _get("mu_k") if slot_on else None, kgrp
     )
     # economy: runs off the bat and, with the extras sub-model, wides + no-balls on top
-    econ, econ_scale = k_c, k_scale
+    econ = k_c
     if flags.extras and "bowl_extras" in samples:
         x = _draws("bowl_extras", n_bowlers)
         legal_share = float(all_edges["balls"].sum()) / max(
@@ -804,20 +783,17 @@ def fit(
         bat_rate = np.exp(np.asarray(samples["intercept"]).reshape(-1, 1))
         ext_rate = np.exp(np.asarray(samples["x_intercept"]).reshape(-1, 1)) / legal_share
         econ = -np.log((bat_rate * np.exp(-k_c) + ext_rate * np.exp(-x)) / (bat_rate + ext_rate))
-        w = float((bat_rate / (bat_rate + ext_rate)).mean())
-        sx = float(np.asarray(samples["sigma_x"]).mean())
-        econ_scale = float(np.sqrt((w * k_scale) ** 2 + ((1 - w) * sx) ** 2))
         xm, xs = _stats(x)
     b_mean, b_sd = _stats(b_c)
     k_mean, k_sd = _stats(econ)
     if dismissal_aware:
-        surv_c, surv_scale = _centre(
+        surv_c, _ = _centre(
             _draws("bat_survive", n_batters),
             _get("sigma_surv"),
             _get("mu_surv") if slot_on else None,
             bgrp,
         )
-        strike_c, strike_scale = _centre(
+        strike_c, _ = _centre(
             _draws("bowl_strike", n_bowlers),
             _get("sigma_strike"),
             _get("mu_strike") if slot_on else None,
@@ -825,8 +801,18 @@ def fit(
         )
         surv_mean, surv_sd = _stats(surv_c)
         strike_mean, strike_sd = _stats(strike_c)
-        bv, bv_sd = _stats(_value_draws(b_c, surv_c, samples, b_scale, surv_scale))
-        kv, kv_sd = _stats(_value_draws(econ, strike_c, samples, econ_scale, strike_scale))
+        # complete value in runs per 100 balls, a wicket priced where the player plays
+        tables = runs_value.league_tables(db_path, collection, before=before)
+        bat_ids = sorted(batter_idx, key=batter_idx.get)
+        bowl_ids = sorted(bowler_idx, key=bowler_idx.get)
+        bval = runs_value.batting_value(tables, bat_ids, b_c, surv_c)
+        kval = runs_value.bowling_value(tables, bowl_ids, econ, strike_c)
+        bv, bv_sd = _stats(bval["value"])
+        kv, kv_sd = _stats(kval["value"])
+        b_parts = (bval["rate"].mean(0), bval["wkt"].mean(0))
+        k_parts = (kval["rate"].mean(0), kval["wkt"].mean(0))
+        b_cost = runs_value.wicket_cost(bval["lam"], bval["share"])
+        k_cost = runs_value.wicket_cost(kval["lam"], kval["share"])
 
     # Career totals come from EVERY matchup, not just the fitted ones, so the
     # reported balls are the player's true exposure in this collection.
@@ -853,6 +839,9 @@ def fit(
             row["survival_skill_sd"] = float(surv_sd[idx])
             row["value"] = float(bv[idx])
             row["value_sd"] = float(bv_sd[idx])
+            row["value_rate"] = float(b_parts[0][idx])
+            row["value_wkts"] = float(b_parts[1][idx])
+            row["wicket_cost"] = float(b_cost[idx])
         rows.append(row)
     for name, idx in bowler_idx.items():
         balls_n, runs_n = bowler_totals[name]
@@ -872,6 +861,9 @@ def fit(
             row["strike_skill_sd"] = float(strike_sd[idx])
             row["value"] = float(kv[idx])
             row["value_sd"] = float(kv_sd[idx])
+            row["value_rate"] = float(k_parts[0][idx])
+            row["value_wkts"] = float(k_parts[1][idx])
+            row["wicket_cost"] = float(k_cost[idx])
         rows.append(row)
     # infer_schema_length=None scans every row — batters (added first)
     # lack the bowler-only `strike_skill` key, so a truncated scan would
@@ -895,6 +887,8 @@ def fit(
 
     means = {k: np.asarray(v).mean(axis=0) for k, v in samples.items()}
     context = _context_summary(means, seasons, venues, flags)
+    if dismissal_aware:
+        context["runs_value"] = tables.summary()
     res = FitResult(
         variant=variant,
         flags=flags,

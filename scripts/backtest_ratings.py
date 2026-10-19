@@ -10,11 +10,16 @@ matches BEFORE S only, then compared with what each player actually did in S:
              wicket-taking (outs per ball)  vs `strike_skill`
              both together                  vs `value`
 
-"Both together" scores the season the way `value` is built: each axis as a
-z-score among the qualified players, summed. Baselines, both what a fan could
-work out by hand from the same matches:
+"Both together" scores the season in the currency `value` is built in: runs
+per 100 balls above the league's average ball that season, each bowler-credited
+dismissal above or below the league's rate priced at the run cost of a wicket
+where the player played (`runs_value.observed_value`). The earlier yardstick,
+each axis as a z-score among the qualified players, summed, is kept as
+"overall (z-sum)" so the numbers can be compared with the published ones.
+Baselines, both what a fan could work out by hand from the same matches:
 
-    career   raw career numbers before S (league average if none)
+    career   raw career numbers before S (league average if none); for the
+             overall axis the same runs currency computed from those raw numbers
     recent   the same, each season weighted by the model's recency half-life
              (only with --half-life; shows whether any gain is just recency)
 
@@ -44,12 +49,17 @@ import typer
 from loguru import logger
 
 from cricdex.config import DATA_DIR
-from cricdex.scout.ratings import bayesian
+from cricdex.scout.ratings import bayesian, runs_value
 
 app = typer.Typer(add_completion=False)
 
-AXES = ("rate", "odds", "all")
-LABEL = {"rate": "scoring/economy", "odds": "out/wickets", "all": "overall"}
+AXES = ("rate", "odds", "all", "all_z")
+LABEL = {
+    "rate": "scoring/economy",
+    "odds": "out/wickets",
+    "all": "overall (runs)",
+    "all_z": "overall (z-sum)",
+}
 
 
 def _spearman(a: np.ndarray, b: np.ndarray) -> float:
@@ -95,7 +105,7 @@ def _raw(df: pl.DataFrame, p: str, rate_sign: float, odds_sign: float, league: t
     odds = odds_sign * np.where(
         (trials > 0).to_numpy(), (outs / trials.clip(1e-9)).to_numpy(), league[1]
     )
-    return {"rate": rate, "odds": odds, "all": _z(rate) + _z(odds)}
+    return {"rate": rate, "odds": odds, "all_z": _z(rate) + _z(odds)}
 
 
 def _season(
@@ -112,6 +122,8 @@ def _season(
     db = bayesian.DEFAULT_DB_PATH
     prior_edges = bayesian._load_edges(db, collection, before=start, by_year=True)
     season_edges = bayesian._load_edges(db, collection, since=start, before=end)
+    prior_tab = runs_value.league_tables(db, collection, before=start)
+    season_tab = runs_value.league_tables(db, collection, since=start, before=end)
     fits, lls = [], []
     for sd in seeds:
         ratings, res, _ = bayesian.fit(
@@ -161,18 +173,29 @@ def _season(
         # what happened in the season (higher = better on every axis)
         act_rate = rate_sign * (df["runs"] / df["balls"]).to_numpy()
         act_odds = odds_sign * (df["outs"] / df["trials"].clip(1)).to_numpy()
-        act = {"rate": act_rate, "odds": act_odds, "all": _z(act_rate) + _z(act_odds)}
+        ids = df["cricsheet_id"].to_list()
+        act = {
+            "rate": act_rate,
+            "odds": act_odds,
+            "all": np.nan_to_num(runs_value.observed_value(season_tab, role, ids)),
+            "all_z": _z(act_rate) + _z(act_odds),
+        }
         preds = {
             f"model{k}": {
                 "rate": df[f"skill{k}"].to_numpy(),
                 "odds": df[f"odds{k}"].to_numpy(),
                 "all": df[f"value{k}"].to_numpy(),
+                "all_z": df[f"value{k}"].to_numpy(),
             }
             for k in range(len(fits))
         }
-        preds["career"] = _raw(df, "p_", rate_sign, odds_sign, league)
+        # no prior record = the league's average ball (0 runs above average)
+        career_runs = np.nan_to_num(runs_value.observed_value(prior_tab, role, ids))
+        preds["career"] = _raw(df, "p_", rate_sign, odds_sign, league) | {"all": career_runs}
         if recent_edges is not None:
+            # recency-weighted raw numbers: the z-sum only (the runs currency needs ball states)
             preds["recent"] = _raw(df, "r_", rate_sign, odds_sign, league)
+            preds["recent"]["all"] = preds["recent"]["all_z"]
         thin = (df["p_balls"] < low_prior).to_numpy()
         res: dict = {"n": df.height, "n_thin": int(thin.sum())}
         for axis in AXES:

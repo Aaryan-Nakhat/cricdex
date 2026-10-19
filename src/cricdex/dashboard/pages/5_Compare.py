@@ -72,7 +72,7 @@ ROWS: list[tuple[str, str, object, int, str]] = [
         "Bayesian skill",
         "Batting value",
         lambda p: _num(_g(p, "bayes", "bayes_batter", "value")),
-        3,
+        1,
         "high",
     ),
     (

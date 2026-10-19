@@ -196,6 +196,11 @@ export interface AuctionPoolRow {
   profile_collection?: string | null;
   stale?: boolean;
   value: number; // already IPL-relevance-decayed at export
+  /** sd of that value (leagues blended by precision, translation uncertainty included); the
+   * price uses value − PRICE_CAUTION_SD × value_sd. Absent in older exports (= 0). */
+  value_sd?: number | null;
+  /** IPL balls in the role priced: sets the price ceiling (priceCeiling). Absent → 0. */
+  target_balls?: number | null;
   role: "batter" | "bowler" | "all_rounder" | "keeper";
   country: string | null;
   is_overseas: boolean;
@@ -236,6 +241,11 @@ export interface ScoutPlayer {
   batting_position: string | null;
   country: string | null;
   value: number; // price basis: the better of batting / bowling value (as in the auction pool)
+  /** sd of that value, with the tier's translation sd added (as in the auction pool); absent in
+   * older exports (= 0). */
+  value_sd?: number | null;
+  /** IPL balls in the role priced (the better side): sets the price ceiling. Absent → 0. */
+  target_balls?: number | null;
   z: number; // standing on own role among the shown players of that role in the tier (mean 0, sd 1)
   balls: number; // exposure in this tier — powers the uncapped-gem flag
   last_match_date: string | null;

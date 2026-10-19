@@ -11,13 +11,16 @@
 schema = 1
 
 # ---------------------------------------------------------------------------------------------
-# Strength tiers. `discount` is the value (population-sd units, see scout/ratings/bayesian.py)
+# Strength tiers. `discount` is the value (runs per 100 balls, see scout/ratings/runs_value.py)
 # taken off a player's rating in that competition before it is compared with IPL value — the
 # Auction pool and Scout prices both use it. `calibrated = false` marks a discount borrowed by
 # analogy from a similar league and not yet checked against data (the site says so).
 # `translation_sd` (optional) is how uncertain that translation is; the auction pool blends a
 # player's leagues weighted by 1 / (rating sd² + translation_sd²), so IPL evidence dominates.
-# Default: 0 for a zero-discount tier, 0.5 for a calibrated discount, 0.8 for a borrowed one.
+# Default: 0 for a zero-discount tier, 6.5 for a calibrated discount, 10.5 for a borrowed one.
+# (The discounts and these defaults were set in population-sd units and converted to runs per 100
+# balls with one factor, 13.3 = the sd of the runs value over the sd of the old value, IPL players
+# with 150+ balls; docs/AUCTION_MATH.md.)
 # ---------------------------------------------------------------------------------------------
 
 [tiers.ipl]
@@ -26,67 +29,67 @@ calibrated = true
 note = "The reference competition: everything is priced in IPL value."
 
 [tiers.smat]
-discount = 1.28
+discount = 17.0
 calibrated = true
 note = "Syed Mushtaq Ali: Indian domestic T20, far weaker attacks than the IPL."
 
 [tiers.bbl]
-discount = 0.45
+discount = 6.0
 calibrated = true
 note = "Big Bash: strong overseas league."
 
 [tiers.sa20]
-discount = 0.45
+discount = 6.0
 calibrated = true
 note = "SA20: strong overseas league, about BBL level."
 
 [tiers.cpl]
-discount = 0.64
+discount = 8.5
 calibrated = true
 note = "CPL: slightly weaker than BBL / SA20."
 
 [tiers.blast]
-discount = 0.64
+discount = 8.5
 calibrated = true
 note = "T20 Blast: English county T20, deep but uneven."
 
 [tiers.psl]
-discount = 0.45
+discount = 6.0
 calibrated = false
 note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
 
 [tiers.ilt20]
-discount = 0.45
+discount = 6.0
 calibrated = false
 note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
 
 [tiers.hundred]
-discount = 0.45
+discount = 6.0
 calibrated = false
 note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
 
 [tiers.mlc]
-discount = 0.64
+discount = 8.5
 calibrated = false
 note = "Borrowed from CPL / Blast; not yet fitted."
 
 [tiers.bpl]
-discount = 0.64
+discount = 8.5
 calibrated = false
 note = "Borrowed from CPL / Blast; not yet fitted."
 
 [tiers.lpl]
-discount = 0.64
+discount = 8.5
 calibrated = false
 note = "Borrowed from CPL / Blast; not yet fitted."
 
 [tiers.super_smash]
-discount = 0.64
+discount = 8.5
 calibrated = false
 note = "Borrowed from CPL / Blast; not yet fitted."
 
 [tiers.csa_t20]
-discount = 0.64
+discount = 8.5
 calibrated = false
 note = "Borrowed from CPL / Blast; not yet fitted."
 

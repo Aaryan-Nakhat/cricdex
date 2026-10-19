@@ -27,7 +27,7 @@ function poolLeagues(reg: LeagueRegistry | null) {
   const pool = (reg?.leagues ?? []).filter((l) => l.auction_pool && !l.auction_target);
   const overseas = pool.filter((l) => l.scout_group !== "uncapped").map((l) => l.short);
   const uncapped = pool.filter((l) => l.scout_group === "uncapped").map((l) => l.short);
-  // one "BBL/SA20 −0.45" entry per distinct discount, smallest first
+  // one "BBL/SA20 −6.0" entry per distinct discount, smallest first
   const byDiscount = new Map<number, string[]>();
   for (const l of pool) {
     if (l.discount == null) continue;
@@ -35,7 +35,7 @@ function poolLeagues(reg: LeagueRegistry | null) {
   }
   const discounts = [...byDiscount.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([d, names]) => `${names.join("/")} −${d.toFixed(2)}`)
+    .map(([d, names]) => `${names.join("/")} −${d.toFixed(1)}`)
     .join(", ");
   return { overseas: andList(overseas), uncapped: andList(uncapped), discounts };
 }
@@ -80,9 +80,13 @@ function AuctionMath() {
           </div>
           <div className="space-y-3">
             <Step n={1} title="Amplify skill exponentially">
-              Skill is counted in typical spreads above average (avg 0, stars ~+3). Exponentiate and
-              scale so the spread matches real money — top players land in the 20s (27 cr cap), the
-              median ~0.9 cr. All-rounders/keepers get a small scarcity premium.
+              Skill is counted in runs per 100 balls above the league's average ball (avg 0, the
+              best regulars ~+20 to +25; a wicket is priced in runs where the player plays).
+              The price uses a cautious estimate, value − ½ × its uncertainty, so a short, hot record
+              ("promising but unproven") is priced below a proven one. Exponentiate and scale so the
+              spread matches real money — top players land in the 20s (27 cr cap), the median ~1.2 cr.
+              The cap itself rises with IPL evidence: no IPL balls → 13.5 cr at most, 600+ balls in
+              the role → 27 cr. All-rounders/keepers get a small scarcity premium.
             </Step>
             <Step n={2} title="Decay for staleness">
               A player who's barely featured lately (last game years ago) is worth less now — value
@@ -94,8 +98,9 @@ function AuctionMath() {
               the final price up from there.
             </Step>
           </div>
-          <Code>{`"Player X", skill +1.6:
-  1.1 × e^(0.95 × 1.6)        ≈ 5.0 cr   ← projected value
+          <Code>{`"Player X", value +10 ± 3 runs per 100 balls:
+  priced value = 10 − 0.5 × 3 = 8.5
+  4.03 × e^(0.0743 × 8.5)     ≈ 7.6 cr   ← projected value
   (− recency penalty if stale)
   opening tag                 = 0.75 cr  ← base price`}</Code>
         </div>

@@ -548,20 +548,23 @@ shape semantics correctly.
 
 With the dismissal-aware joint model (§5.7) each batter row also
 carries `survival_skill`, each bowler row `strike_skill`, plus a
-composite `value` (the two axes, each in population-sd units, summed;
-§5.7) and its `value_sd`. Current IPL fit, rounded:
+composite `value` (both axes in runs per 100 balls, a wicket priced where
+the player plays; §5.7) with its `value_sd`, its two parts `value_rate` /
+`value_wkts` and his `wicket_cost`. Current IPL fit, rounded:
 
 ```json
 [
   {"cricsheet_id": "ba607b88", "unique_name": "V Kohli", "role": "batter",
    "skill": 0.262, "skill_sd": 0.017, "slot": 2.0,
    "survival_skill": 0.429, "survival_skill_sd": 0.067,
-   "value": 2.974, "value_sd": 0.304, "balls": 6926, "runs": 9336},
+   "value": 13.64, "value_sd": 2.75, "value_rate": 4.64, "value_wkts": 9.00,
+   "wicket_cost": 9.29, "balls": 6926, "runs": 9336},
   {"cricsheet_id": "ba607b88", "unique_name": "V Kohli", "role": "bowler",
    "skill": -0.090, "skill_sd": 0.048,
    "extras_skill": -0.116, "extras_skill_sd": 0.263,
    "strike_skill": -0.137, "strike_skill_sd": 0.069,
-   "value": -2.660, "value_sd": 0.987, "balls": 257, "runs": 354},
+   "value": -23.42, "value_sd": 7.57, "value_rate": -18.98, "value_wkts": -4.44,
+   "wicket_cost": 6.91, "balls": 257, "runs": 354},
   ...
 ]
 ```
@@ -618,11 +621,11 @@ intercept prior is `Normal(−3, 2)` (log-odds of ~1/25).
 
 **What it fixes — current IPL fit (batting rows):**
 
-| Player | score | survive | complete value |
+| Player | score | survive | complete value (runs / 100 balls) |
 |---|---|---|---|
-| AB de Villiers | +0.36 | +0.44 | **+3.43** (elite on both) |
-| V Kohli | +0.26 | +0.43 | +2.97 (anchor) |
-| SP Narine | +0.45 | **−0.41** | **−0.05** (slogger) |
+| AB de Villiers | +0.36 | +0.44 | **+26.9** (elite on both) |
+| V Kohli | +0.26 | +0.43 | +13.6 (anchor) |
+| SP Narine | +0.45 | **−0.41** | **+0.1** (opening slogger) |
 
 Narine scores faster than Kohli, but his poor survival pulls his
 **complete batting value** down to about average, while De Villiers
@@ -631,17 +634,38 @@ wicket-takers (Chahal: ordinary economy, high strike) from control
 bowlers (Ashwin: strong economy, below-average strike), which the old
 single-skill model couldn't tell apart.
 
-**Complete value.** The two axes are in different units: scoring /
-economy is a log runs-per-ball effect, survival / strike a log-odds
-dismissal effect. So each is centred on the role's average player, divided
-by the role's population sd (within and between batting slots, see §5.8)
-and then added, per posterior draw: `value = skill/σ_rate + second/σ_odds`.
-1.0 = one typical player-to-player spread better; 0 = the average player.
-Doing it per draw keeps `value_sd` honest. On the current IPL fit σ_rate ≈
-0.25 and σ_odds ≈ 0.22 for batters, so Kohli's value is 0.26/0.25 +
-0.43/0.22 ≈ 1.05 + 1.92 ≈ 2.97. This is what the Head-to-Head page
-(`ratings/head_to_head.py`), the scout z-scores (§7) and the auction prices
-(§8) are built on.
+**Complete value, in runs** (`ratings/runs_value.py`). The two axes are
+in different units: scoring / economy is a log runs-per-ball effect,
+survival / strike a log-odds dismissal effect. The question that joins
+them is what a wicket costs in runs, and that depends on when it falls.
+
+1. *Wicket cost.* From first innings of full-length, non-rain matches,
+   runs and wickets per ball by (over, wickets down), smoothed as an over
+   level × a wickets-down factor per phase. A backward recursion gives
+   the expected runs still to come, `V(b, w) = r + p·V(b+1, w+1) +
+   (1−p)·V(b+1, w)`, and a wicket on ball b with w down costs
+   `λ(b, w) = V(b+1, w) − V(b+1, w+1)` (the DP behind Duckworth–Lewis
+   resources and "dismissal-adjusted runs", arXiv:2608.18020). IPL: ~14
+   runs in the powerplay with few down, 7–8 in the middle, 2–3 at the
+   death.
+2. *His wicket cost.* λ averaged over the states he actually played in,
+   each ball weighted by the chance of a wicket there, per phase × innings.
+3. *Per posterior draw*, with league runs per ball `r`, dismissal rate
+   `q` and his share of balls `π` per phase × innings, `m` his run-rate
+   multiplier against the average ball and `Δs` his survival against it:
+   `batting = 100 · Σ π [r (m − 1) − λ (σ(logit q − Δs) − q)]`; bowling
+   uses runs saved `R (1 − m)` (wides and no-balls in `R`) plus
+   `λ (σ(logit q + Δt) − q)`. Re-centred so the league's balls average 0.
+
+So `value` = **runs per 100 balls above the league's average ball**.
+Kohli: +4.6 from scoring + 9.0 from staying in (wicket cost 9.3) =
++13.6. Dhoni: −6.8 + 7.9 (wicket cost 4.7) = +1.1 — he rarely gets out,
+but at the death that's worth little. The earlier value divided each axis
+by its population sd and added them with equal weight, which made Dhoni
+the best active IPL batter; that is what this replaced (roadmap review
+item 14). Doing it per draw keeps `value_sd` honest. This is what the
+Head-to-Head page (`ratings/head_to_head.py`), the scout z-scores (§7) and
+the auction prices (§8) are built on.
 
 ### 5.8 Context, dispersion, role priors and extras (the shipped model)
 
@@ -697,8 +721,9 @@ the season (Spearman). 3 ADVI seeds; the newcomer baseline gets the same
 league centring and tier discount as the model; leagues pooled by
 precision; 2,000 bootstrap resamples with Holm-adjusted p over six tests.
 
-- Established IPL players, 2021–26: batters 0.14 vs 0.15 (career
-  average), bowlers 0.12 vs 0.07. Held-out log-likelihood per ball beats
+- Established IPL players, 2021–26, overall in runs: batters 0.19 vs
+  0.15 (career average), bowlers 0.15 vs 0.11 (with the earlier sd-sum
+  value and z-sum target: 0.14 vs 0.15 and 0.12 vs 0.07). Held-out log-likelihood per ball beats
   the legacy model in every season (runs −0.6212 vs −0.6255, dismissals
   −0.1467 vs −0.1480).
 - IPL newcomers rated from other leagues, 2014–26: batters overall 0.22 vs
@@ -919,15 +944,22 @@ The pool has skill but no cost, so step zero invents a fair price from
 skill, calibrated to recent real auctions:
 
 ```
-projected = clamp(1.1 · e^(0.95 · value) · roleMult, 0.3, 27)
+projected = clamp(4.03 · e^(0.0743 · (value − 0.5 · value_sd)) · roleMult, 0.3, 27)
 ```
 
-`value` is the Bayes complete value in population-sd units (§5.7). The
-`0.95` stretches the curve so the spread matches recent money (top
+`value` is the Bayes complete value in runs per 100 balls (§5.7), priced
+on the cautious estimate `value − 0.5 · value_sd` (`PRICE_CAUTION_SD`), so a
+thin record is priced below a proven one of the same central value, and
+under a ceiling `27 · (0.5 + 0.5 · min(1, IPL balls in the role / 600))`
+(13.5 cr with no IPL balls, 27 cr from 600). The
+`0.0743` stretches the curve so the spread matches recent money (top
 names in the 20s of crore, 27 cr — the 2025 ceiling — as the cap; the
-typical pool player well under 1 cr); `roleMult` weights up scarcer
-all-rounders (×1.15) and keepers (×1.05). Before pricing, the export
-applies an **IPL-relevance** discount: up to 2.7 value units come off a
+typical pool player about 1.2 cr); `roleMult` weights up scarcer
+all-rounders (×1.15) and keepers (×1.05). The two constants were
+re-fitted when `value` moved to runs and the cautious price went in: same pool median and same number
+of 10 cr+ players (25) as the earlier `1.1 · e^(0.95 · value)` on the
+sd-unit value (docs/AUCTION_MATH.md). Before pricing, the export
+applies an **IPL-relevance** discount: up to 36 runs per 100 balls come off a
 player who hasn't featured in the IPL lately (weight ≈ 1 for a current
 IPL regular, fading with years since his last IPL game and age past 32;
 0.7 for a never-IPL uncapped Indian), so league-only veterans don't top
@@ -946,8 +978,8 @@ The pool is the active T20 world, not just past IPL squads:
 Guardrails: active only (last ~3 yrs), ≥150 balls of evidence,
 associate/non-IPL-nation free agents excluded, the top 600 by value,
 and a **tier penalty** applied to cross-tier value before pricing (in
-value units: BBL −0.45, SA20 −0.45, CPL −0.64, T20 Blast −0.64, SMAT
-−1.28; IPL 0). A player in several leagues gets one value per role: his
+runs per 100 balls: BBL −6.0, SA20 −6.0, CPL −8.5, T20 Blast −8.5, SMAT
+−17.0; IPL 0 — the earlier sd-unit discounts × 13.3). A player in several leagues gets one value per role: his
 IPL rating if he has 300+ IPL balls in that role, otherwise a blend of
 his leagues weighted by 1 ÷ (rating sd² + tier `translation_sd`²).
 

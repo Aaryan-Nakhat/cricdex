@@ -118,7 +118,7 @@ PHASE_ORDER = ["powerplay", "middle", "death"]
 COMPARE_ROWS: list[tuple[str, str, tuple[str, ...], int]] = [
     ("Bayesian skill", "Batting · scoring", ("bayes", "bayes_batter", "skill"), 3),
     ("Bayesian skill", "Batting · survival", ("bayes", "bayes_batter", "survival_skill"), 3),
-    ("Bayesian skill", "Batting value", ("bayes", "bayes_batter", "value"), 3),
+    ("Bayesian skill", "Batting value", ("bayes", "bayes_batter", "value"), 1),
     ("Bayesian skill", "Bowling · economy", ("bayes", "bayes_bowler", "skill"), 3),
     ("Bayesian skill", "Bowling · strike", ("bayes", "bayes_bowler", "strike_skill"), 3),
     ("Career", "Runs", ("career", "career_runs"), 0),
@@ -1321,9 +1321,9 @@ class CricDexApp(App):
         if tax.get("country"):
             chips.append(str(tax["country"]))
         if _num(bat.get("value")) is not None:
-            chips.append(f"batting value {_num(bat.get('value')):.3f}")
+            chips.append(f"batting value {_num(bat.get('value')):+.1f}")
         if _num(bowl.get("value")) is not None and (_num(bowl.get("balls")) or 0) > 60:
-            chips.append(f"bowling value {_num(bowl.get('value')):.3f}")
+            chips.append(f"bowling value {_num(bowl.get('value')):+.1f}")
         chips.append(f"id {cid}")
         buf.print("[dim]" + " · ".join(chips) + "[/dim]")
 
@@ -1897,7 +1897,9 @@ class CricDexApp(App):
         role = role_sel or sel["role"]
         # a batting slot means nothing when matching as a bowler
         pos = "" if role == "bowler" else slot_sel
-        sel_price = est_value(sel["value"], sel["role"], "ipl")
+        sel_price = est_value(
+            sel["value"], sel["role"], "ipl", sel.get("value_sd"), sel.get("target_balls")
+        )
         gem_pool = idx.get(GEM_TIER, []) if GEM_TIER else []
         gem_med = gem_threshold(gem_pool)
         rows = []
@@ -1907,7 +1909,7 @@ class CricDexApp(App):
             sel, idx.get(tier, []), role, pos, top_k, country=country, fallback_country=fb
         )
         for r in found:
-            price = est_value(r["value"], r["role"], tier)
+            price = est_value(r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls"))
             saving = sel_price - price if price < sel_price else 0.0
             rows.append(
                 {
@@ -1959,7 +1961,16 @@ class CricDexApp(App):
                     "country": g.get("country") or "—",
                     "standing": round(g["z"], 2),
                     "balls": g.get("balls", 0),
-                    "est_cr": round(est_value(g["value"], g["role"], GEM_TIER), 1),
+                    "est_cr": round(
+                        est_value(
+                            g["value"],
+                            g["role"],
+                            GEM_TIER,
+                            g.get("value_sd"),
+                            g.get("target_balls"),
+                        ),
+                        1,
+                    ),
                 }
                 for g in gems
             ]

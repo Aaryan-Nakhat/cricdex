@@ -268,14 +268,15 @@ function Identity({
             ) : (
               <Badge tone="ball">retired{profile.activity.last_match_date ? ` · last ${profile.activity.last_match_date.slice(0, 4)}` : ""}</Badge>
             ))}
-          {bat && <Badge tone="accent">batting value {fmt(bat.value, 2)}</Badge>}
-          {bowl && bowl.balls > 60 && <Badge tone="willow">bowling value {fmt(bowl.value, 2)}</Badge>}
+          {bat && <Badge tone="accent">batting value {fmt(bat.value, 1)}</Badge>}
+          {bowl && bowl.balls > 60 && <Badge tone="willow">bowling value {fmt(bowl.value, 1)}</Badge>}
           {(bat || (bowl && bowl.balls > 60)) && (
             <InfoTip title="Batting / bowling value" label="What batting and bowling value mean">
-              One number per role from the skill model, centred on the average player in this league: 0 = average,
-              +1 = one typical player-to-player gap better, −1 = one gap worse. The best in the IPL sit near +3.
-              Batting value adds scoring speed and how hard he is to get out; bowling value adds run-saving and
-              wicket-taking.
+              One number per role from the skill model, in runs per 100 balls above the league's average ball:
+              0 = average, +10 = ten runs better every 100 balls; the best IPL regulars sit around +20 to +25.
+              Batting value is extra scoring plus the runs saved by not getting out, a wicket priced at what it
+              costs where he bats (dear early, cheap at the death); bowling value is runs saved plus extra
+              wickets at the same price.
             </InfoTip>
           )}
           <Badge>id {profile.cricsheet_id}</Badge>

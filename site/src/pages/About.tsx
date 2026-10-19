@@ -62,7 +62,12 @@ const SECTIONS: Section[] = [
         The model is{" "}
         <strong>dismissal-aware</strong>: it fits four axes per player — for batters, a{" "}
         <em>scoring</em> rate and a <em>survival</em> (don’t-get-out) rate; for bowlers, an{" "}
-        <em>economy</em> and a <em>strike</em> (take-wickets) rate. Crucially it reports not just a point
+        <em>economy</em> and a <em>strike</em> (take-wickets) rate. The two combine into one{" "}
+        <strong>value in runs per 100 balls</strong>, a wicket priced at what it costs where the player
+        bats or bowls (about 14 runs early in the powerplay, 2–3 at the death), so a finisher is judged
+        mainly on how fast he scores. Prices use a cautious estimate (value minus half its
+        uncertainty), and the price ceiling rises with IPL experience (13.5 cr with none, 27 cr from
+        about two seasons), so a short, hot record is priced below a proven one. Crucially it reports not just a point
         estimate but the <strong>uncertainty</strong> around it — which is what powers the head-to-head
         probabilities.
       </>
@@ -131,8 +136,8 @@ const SECTIONS: Section[] = [
         <strong>before</strong> it only, then its ranking of players is compared with how the season
         actually went (rank correlation: 1 = same order, 0 = no link). The plain baselines get the same
         league adjustment as the model, and every fit is run with three seeds.{" "}
-        <strong>Established IPL players</strong> (2021–26): for batters the ratings tie plain career
-        averages (0.14 vs 0.15 overall); for bowlers they edge them (0.12 vs 0.07). Weighting recent
+        <strong>Established IPL players</strong> (2021–26): the overall value, in runs, edges plain
+        career averages for batters (0.19 vs 0.15) and bowlers (0.15 vs 0.11). Weighting recent
         seasons more didn't help. A single T20 season is mostly noise, for any method, but on a sharper
         test, predicting every ball of the next season, the current model beats the old one in every
         season.{" "}

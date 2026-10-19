@@ -61,14 +61,65 @@ collection. (`--min-balls` is only a speed knob for experiments.)
 per role, runs off the bat only), kept so the changes can be measured
 (`scripts/backtest_ratings.py --compare legacy`).
 
-## `value`
+## `value` — runs per 100 balls (`runs_value.py`)
 
-Each axis is centred on the role's average player and divided by the role's population sd —
-`sqrt(sigma² + the spread of the group means)`, so between-slot differences count — then the two
-are added, per posterior draw: `value = skill/σ_rate + second/σ_odds`. For bowlers σ_rate combines
-the economy and extras spreads. 1.0 = one typical player-to-player spread better; 0 = the average
-player of the role. `value_sd` is the posterior sd of that sum. The auction price curve
-(`web_parity/pricing.py` ⇄ `site/src/lib/auction.ts`) is calibrated to these units.
+`value` puts both axes in one currency, **runs**: runs per 100 balls above the league's average
+ball, with a wicket priced at the run cost of losing it where the player actually plays.
+
+**Wicket cost.** From every first innings of a full-length, non-rain-affected match in the window
+(the chase is shaped by its target, so it isn't used), per state (over bucket o = 0..19 of the
+scheduled innings, wickets down w = 0..9): legal balls, all runs (extras included) and wickets (any
+dismissal except retired hurt / not out). Smoothed as `A_o · C_phase(o),w` (over level × a
+wickets-down factor per phase, each phase's factor shrunk to the all-overs one with a Poisson–gamma
+pseudo-count of ~250 balls for runs and ~300 for wickets) for both runs and wickets per ball. Then
+
+```
+V(b, w) = r(b, w) + p(b, w) · V(b+1, w+1) + (1 − p(b, w)) · V(b+1, w)     V(end, ·) = V(·, 10) = 0
+λ(b, w) = V(b+1, w) − V(b+1, w+1)          run cost of a wicket on ball b with w down (≥ 0)
+```
+
+over the 120 balls of an innings (each step is `balls / 120` of a ball for The Hundred's 100). The
+IPL table: par first-innings total 168; λ ≈ 13–14 in the powerplay with 0–3 down, 7–8 in the middle
+overs, 2–3 at the death, more with more wickets down (a wicket costs more when the tail is next).
+A chase uses the first-innings λ of the same state (an approximation). Fewer than 20 qualifying
+first innings → a default table (13 / 9 / 3.5 by phase, the IPL's).
+
+**Per player.** His balls by phase × innings (`π`, six cells) and, per cell, his wicket cost: the
+average λ over the states he actually played in, each ball weighted by the chance of a wicket in that
+state. League baselines per cell from the same window: runs off the bat per legal ball `r`, runs a
+bowler is charged (bat + wides + no-balls) per legal ball `R`, bowler-credited dismissals per trial
+`q`. Then per posterior draw
+
+```
+batter: 100 · Σ_c π_c [ r_c (m − 1)  −  λ_c (σ(logit q_c − Δs) − q_c) ]
+bowler: 100 · Σ_c π_c [ R_c (1 − m)  +  λ_c (σ(logit q_c + Δt) − q_c) ]
+
+m  = e^skill / (ball-weighted mean of e^skill)   his run-rate multiplier vs the average ball
+                                                 (bowler: from e^−economy, extras included)
+Δs = survival − its ball-weighted mean;  Δt = strike − its ball-weighted mean
+```
+
+and each part is re-centred so the league's balls average 0. Output columns: `value` (= `value_rate`
++ `value_wkts`), `value_sd` (posterior sd, from the draws), the two parts (posterior means) and
+`wicket_cost` (his ball-weighted λ, runs). `scout_context_<collection>.json` carries the wicket-cost
+table (`runs_value`: par, λ by phase × wickets down, λ by over at 2 down, the baselines).
+
+Baselines and λ are pooled over every season in the window, so a 2009 player and a 2026 one are
+converted at the same rate; their skills are already judged against their own season. To read a
+value per 4-over spell multiply by 0.24; per innings, by his balls per innings / 100.
+
+*IPL, current fit:* KL Rahul +19.4 (scoring +8.9, staying in +10.5 at a wicket cost of 9.6), Kohli
++13.6 (+4.6, +9.0), Dhoni +1.1 (−6.8, +7.9 at 4.7: he rarely gets out, but at the death that is
+worth little and he scores below the death-overs rate), Russell +24.5 (+24.7, −0.2), Narine as a
+batter +0.1 (+31.8, −31.8 as an opener who gets out often); bowlers Narine +24.0, Bumrah +23.2,
+Rashid +20.3, Chahal +10.1 (+6.6 economy, +3.5 wickets).
+
+Before October 2026 `value` was each axis divided by its population sd, then added (equal weight):
+a +1 sd survivor counted exactly as much as a +1 sd scorer, which made Dhoni the best active IPL
+batter. The auction price curve (`web_parity/pricing.py` ⇄ `site/src/lib/auction.ts`), the tier
+discounts and the IPL-relevance penalty were converted with one factor (13.3) and the curve re-fitted
+to the same pool median and 10 cr+ count; prices are set on the cautious estimate `value − 0.5 ×
+value_sd`; see [AUCTION_MATH.md](../../../../docs/AUCTION_MATH.md).
 
 ## Fit
 
@@ -79,7 +130,7 @@ NumPyro (JAX). Two samplers wired behind `--sampler`:
   compiling the model for the league's shapes; the compiled programs are dropped after each fit
   (`jax.clear_caches`) so a long backtest's memory stays flat. Re-checked against NUTS on the IPL
   after the context terms went in (2026-10-18; 2 chains × 500 + 500): for players with 100+ balls
-  ADVI's sds are a median 98% of NUTS's for batters, 92–95% for bowlers, `value_sd` 101% / 96%, point
+  ADVI's sds are a median 98% of NUTS's for batters, 92–95% for bowlers, the earlier sd-sum `value_sd` 101% / 96%, point
   estimates correlate ≥ 0.994, P(A>B) differs by a median 2–2.5 points (95th pct ~7). NUTS: r-hat
   1.02, min ESS 187, 0 divergences.
 - `nuts` — full No-U-Turn HMC, `--nuts-chains 2` × `--nuts-draws 1000` + `--nuts-tune 500` by
@@ -92,9 +143,10 @@ uv run python scripts/scout_rate.py -c ipl --variant legacy  # the earlier model
 ```
 
 Output: `data/metrics/scout_ratings_<collection>.json` (one row per player-role) with columns
-`cricsheet_id, unique_name, role, skill, skill_sd, balls, runs, value, value_sd` plus
-`survival_skill(_sd), slot` (batters) or `strike_skill(_sd), extras_skill(_sd)` (bowlers); and
-`scout_context_<collection>.json` (season / phase / innings levels, venue spread, slot means).
+`cricsheet_id, unique_name, role, skill, skill_sd, balls, runs, value, value_sd, value_rate,
+value_wkts, wicket_cost` plus `survival_skill(_sd), slot` (batters) or `strike_skill(_sd),
+extras_skill(_sd)` (bowlers); and `scout_context_<collection>.json` (season / phase / innings levels,
+venue spread, slot means, the wicket-cost table).
 
 `fit(..., return_fit=True)` also returns a `FitResult` (posterior means and index maps) for
 `heldout_loglik(result, edges)`: the plug-in log predictive density of a later season's cells, per
@@ -124,10 +176,15 @@ runs check selection on playing time. Fits are cached under `data/metrics/.backt
 
 Established IPL players, 2021–26, model vs career average:
 
-| | Overall | Scoring / economy | Survival / strike |
-|---|---|---|---|
-| Batters | 0.14 vs 0.15 | 0.13 vs 0.13 | 0.30 vs 0.34 |
-| Bowlers | 0.12 vs 0.07 | 0.31 vs 0.30 | 0.05 vs 0.05 |
+| | Overall (runs) | Overall (z-sum) | Scoring / economy | Survival / strike |
+|---|---|---|---|---|
+| Batters | 0.19 vs 0.15 | 0.20 vs 0.15 | 0.13 vs 0.13 | 0.30 vs 0.34 |
+| Bowlers | 0.15 vs 0.11 | 0.10 vs 0.07 | 0.31 vs 0.30 | 0.05 vs 0.05 |
+
+"Overall (runs)" scores the season in runs per 100 balls above average with wickets priced at the
+player's wicket cost (`runs_value.observed_value`), the baseline the same from raw career totals;
+"overall (z-sum)" is the earlier yardstick (with the earlier sd-sum value it was 0.14 vs 0.15 and
+0.12 vs 0.07). The newcomer numbers below predate the runs value.
 
 Held-out log-likelihood per ball, current vs legacy model: runs −0.6212 vs −0.6255, dismissals
 −0.1467 vs −0.1480; the current model is better in every season on both.
@@ -157,4 +214,4 @@ tables, the sensitivity runs and the caveats: METHODOLOGY §8. Outputs:
 ## Next
 
 - A joint multi-league fit with league effects (replacing the hand-set tier discounts).
-- A runs-currency value (runs per ball minus a phase-dependent wicket cost).
+- A chase-aware wicket cost (target and resources left), and per-player form drift.

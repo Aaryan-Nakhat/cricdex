@@ -164,7 +164,7 @@ function TierPanel({
         ) : (
           rows.map((p, i) => {
             const sim = p.sim;
-            const price = estValue(p.value, p.role, tier);
+            const price = estValue(p.value, p.role, tier, p.value_sd, p.target_balls);
             const saving = selPrice != null && price < selPrice ? selPrice - price : 0;
             const gem = isGem(p, gemMedian);
             return (
@@ -267,7 +267,7 @@ function GemsBoard({
             <Badge tone="willow">standing {fmt(p.z, 2)}</Badge>
             <span className="text-[11px] text-muted">{p.balls} balls</span>
             <span className="stat-num ml-auto text-[11px] text-muted">
-              ≈{fmt(estValue(p.value, p.role, gemTier), 1)}cr
+              ≈{fmt(estValue(p.value, p.role, gemTier, p.value_sd, p.target_balls), 1)}cr
             </span>
             {inPool.has(p.cricsheet_id) ? (
               <button
@@ -338,7 +338,7 @@ export function Scout() {
   );
 
   // the pick's own est. IPL price — the baseline the savings compare against
-  const selPrice = sel && reg.data ? estValue(sel.value, sel.role, "ipl") : null;
+  const selPrice = sel && reg.data ? estValue(sel.value, sel.role, "ipl", sel.value_sd, sel.target_balls) : null;
   const posDisabled = roleSel === "bowler";
   // batting slot: by default the pick's own band (top / middle / lower order); "any" or one exact slot on demand.
   // Meaningless for a bowler match, so it's dropped rather than kept filtering invisibly.

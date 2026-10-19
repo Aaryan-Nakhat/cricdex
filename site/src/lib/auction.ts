@@ -14,6 +14,7 @@ export interface PoolPlayer {
   projected_value: number; // scaled to credits (cr)
   base_price: number; // estimated tier (cr)
   vpc: number; // value per credit
+  price_cap: number; // his price ceiling (rises with IPL balls): bidding can't clear him above it
 }
 
 // All-rounders / keepers carry a small scarcity premium.
@@ -23,15 +24,39 @@ const ROLE_MULT: Record<Role, number> = {
   all_rounder: 1.15,
   keeper: 1.05,
 };
-// Calibrated to real IPL crore. The Bayes `value` is in population-sd units
-// (scoring + survival, or economy + strike, each per its spread; pool ~ -2..+3.5),
-// amplified exponentially: value 3.5 -> cap 27cr, 2.5 -> ~12, 1.5 -> ~4.6,
-// 0 -> 1.1, -1.4 -> floor 0.3. Re-fitted to the earlier curve, which was anchored
-// to the 2025 auction/retention prices: same pool median (~0.9cr) and as many
-// 10cr+ players (22).
-const PV_BASE = 1.1;
-const PV_SCALE = 0.95;
+// Calibrated to real IPL crore. The Bayes `value` is in runs per 100 balls above
+// the league's average ball (scoring + wickets priced in runs where he plays, or
+// runs saved + wickets; pool ~ -40..+60), priced on the cautious estimate
+// value − PRICE_CAUTION_SD × value_sd and amplified exponentially: 25.6 -> 27cr
+// cap, 20 -> ~17.8, 10 -> ~8.5, 0 -> 4.03, -35 -> ~0.3 floor. Re-fitted when the
+// value moved from population-sd units to runs (and again for the cautious
+// estimate): same pool median (~1.18cr) and as many 10cr+ players (25) as the
+// earlier curve, itself anchored to the 2025 auction/retention prices
+// (docs/AUCTION_MATH.md).
+const PV_BASE = 4.03;
+const PV_SCALE = 0.0743;
 const PV_MAX = 27;
+// Price on a cautious estimate: value − PRICE_CAUTION_SD × value_sd (mirror of pricing.py). A
+// thin-sample prodigy is "promising but unproven"; a proven star barely moves. `value` stays the
+// central estimate for display and rankings.
+export const PRICE_CAUTION_SD = 0.5;
+// The price ceiling rises with IPL evidence in the role priced (mirror of pricing.py): 0 balls →
+// half the cap (13.5 cr), 600+ balls → the full 27 cr. Applied after the cautious estimate.
+export const CEILING_FULL_BALLS = 600;
+export const CEILING_FLOOR_SHARE = 0.5;
+
+/** The most a player can be priced at (cr), from his target-league balls (missing → 0). */
+export function priceCeiling(targetBalls?: number | null): number {
+  const b = typeof targetBalls === "number" && Number.isFinite(targetBalls) ? Math.max(targetBalls, 0) : 0;
+  const share = Math.min(1, b / CEILING_FULL_BALLS);
+  return PV_MAX * (CEILING_FLOOR_SHARE + (1 - CEILING_FLOOR_SHARE) * share);
+}
+
+/** The value a price is set from (a missing / non-finite sd counts as 0). */
+export function pricedValue(value: number, valueSd?: number | null): number {
+  const sd = typeof valueSd === "number" && Number.isFinite(valueSd) ? Math.max(valueSd, 0) : 0;
+  return value - PRICE_CAUTION_SD * sd;
+}
 
 // IPL base-price set bands (cr) — what a player ENTERS the auction at.
 const PRICE_TIERS = [0.3, 0.5, 0.75, 1.0, 1.5, 2.0];
@@ -49,15 +74,21 @@ function priceTier(pv: number): number {
 // Mirrors the export-time penalty so Scout's est. prices agree with the
 // Auction pool. The auction_pool `value` is already penalised at export; raw
 // scout `value` is not, so callers pricing scout players pass their tier.
-// In value units (population sds). The numbers come from the league registry
+// In value units (runs per 100 balls). The numbers come from the league registry
 // (config/leagues.toml → data/leagues.json), the same table the Python port reads.
 export type PriceTier = string; // a tier key from leagues.json: "ipl" | "smat" | "bbl" | …
 
 /** Estimated crore value from a raw Bayes value — same curve the auction uses.
  * `tier` discounts non-IPL comps so a SMAT/BBL price is comparable to IPL. */
-export function estValue(value: number, role: Role, tier: PriceTier = "ipl"): number {
-  const adj = value - tierDiscount(tier);
-  return Math.max(0.3, Math.min(PV_MAX, PV_BASE * Math.exp(PV_SCALE * adj) * ROLE_MULT[role]));
+export function estValue(
+  value: number,
+  role: Role,
+  tier: PriceTier = "ipl",
+  valueSd?: number | null,
+  targetBalls?: number | null,
+): number {
+  const adj = pricedValue(value, valueSd) - tierDiscount(tier);
+  return Math.max(0.3, Math.min(priceCeiling(targetBalls), PV_BASE * Math.exp(PV_SCALE * adj) * ROLE_MULT[role]));
 }
 
 /** Price the big auction pool (every ACTIVE rated IPL player). Each row
@@ -66,7 +97,10 @@ export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
   const out: PoolPlayer[] = rows.map((r) => {
     const pv = Math.max(
       0.3,
-      Math.min(PV_MAX, PV_BASE * Math.exp(PV_SCALE * r.value) * ROLE_MULT[r.role]),
+      Math.min(
+        priceCeiling(r.target_balls),
+        PV_BASE * Math.exp(PV_SCALE * pricedValue(r.value, r.value_sd)) * ROLE_MULT[r.role],
+      ),
     );
     const base = priceTier(pv);
     return {
@@ -80,6 +114,7 @@ export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
       projected_value: pv,
       base_price: base,
       vpc: pv / base,
+      price_cap: priceCeiling(r.target_balls),
     };
   });
   out.sort((a, b) => b.projected_value - a.projected_value);
@@ -358,7 +393,7 @@ function oneTrial(
         }
       }
       if (bestTeam >= 0) {
-        const price = Math.min(PRICE_CAP, bestBid, secondBid * 1.02);
+        const price = Math.min(PRICE_CAP, player.price_cap, bestBid, secondBid * 1.02);
         buy(bestTeam, player, Math.max(player.base_price, price));
         sold.add(player.cricsheet_id);
       }

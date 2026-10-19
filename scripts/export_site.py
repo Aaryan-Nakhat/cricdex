@@ -495,9 +495,10 @@ AUCTION_MIN_BALLS = 150  # drop tiny-sample players whose Bayes value is inflate
 AUCTION_TARGET = "ipl"  # the league the auction is for (competition-rules config, later sprint)
 AUCTION_TRUST_BALLS = 300  # a role record this big in the target league stands on its own
 # Value removed from a player with zero IPL relevance (league-only veteran). In
-# value units (population sds, see bayesian._value_draws): 2.7 ≈ the old 0.42
-# log-scale units × 6.4, the measured sd ratio of new to old IPL values.
-PEN_SCALE_VALUE = 2.7
+# value units (runs per 100 balls, see scout/ratings/runs_value.py): 36 ≈ the
+# earlier 2.7 population-sd units × 13.3, the measured sd ratio of the runs value
+# to the old one (IPL players with 150+ balls; docs/AUCTION_MATH.md).
+PEN_SCALE_VALUE = 36.0
 
 
 def _export_auction_pool(
@@ -519,7 +520,7 @@ def _export_auction_pool(
     # dominates whenever it exists, and one hot spell in a weaker or provisional league can't
     # outrank a real IPL record (taking the best league did exactly that). Best role wins.
     acc: dict[tuple[str, str], list[float]] = {}  # (cid, role) -> [Σw, Σw·value]
-    target_rows: dict[tuple[str, str], tuple[float, int]] = {}  # target-league (value, balls)
+    target_rows: dict[tuple[str, str], tuple[float, int, float]] = {}  # target (value, balls, sd)
     names: dict[str, str | None] = {}
     max_balls: dict[str, int] = {}
     for col in AUCTION_POOL_COLLECTIONS:
@@ -540,15 +541,22 @@ def _export_auction_pool(
             a[0] += w
             a[1] += w * (v - pen)
             if col == AUCTION_TARGET:
-                target_rows[(cid, r.get("role") or "")] = (v, int(r.get("balls") or 0))
+                target_rows[(cid, r.get("role") or "")] = (v, int(r.get("balls") or 0), sd)
     best: dict[str, dict] = {}
     for (cid, role), (sw, swx) in acc.items():
         # A big enough record in the target league stands on its own: a flat tier discount is too
         # harsh on stars, so other leagues only fill in when that sample is thin.
+        # The value's sd goes along: the price is set on value − PRICE_CAUTION_SD × sd (pricing.py).
+        # A blend's sd is 1 / √Σw (translation uncertainty included); a trusted IPL record its own.
         own = target_rows.get((cid, role))
-        val = own[0] if own and own[1] >= AUCTION_TRUST_BALLS else swx / sw
+        if own and own[1] >= AUCTION_TRUST_BALLS:
+            val, vsd = own[0], own[2]
+        else:
+            val, vsd = swx / sw, (1.0 / sw) ** 0.5
+        # his IPL balls in this role set the price ceiling (pricing.price_ceiling)
+        tb = own[1] if own else 0
         if cid not in best or val > best[cid]["value"]:
-            best[cid] = {"value": val, "name": names.get(cid)}
+            best[cid] = {"value": val, "value_sd": vsd, "target_balls": tb, "name": names.get(cid)}
     # drop tiny-sample players (inflated value)
     best = {cid: b for cid, b in best.items() if max_balls.get(cid, 0) >= AUCTION_MIN_BALLS}
 
@@ -687,6 +695,10 @@ def _export_auction_pool(
                 # value decayed by IPL-relevance so a league-only veteran stops
                 # topping the IPL pool (the breakdown columns explain why).
                 "value": round(b["value"] - (1 - rel) * PEN_SCALE, 4),
+                # its uncertainty: the price uses value − PRICE_CAUTION_SD × value_sd
+                "value_sd": round(b["value_sd"], 4),
+                # IPL balls in the role priced: the price ceiling rises with them
+                "target_balls": int(b["target_balls"]),
                 "role": role_map.get(tax.get("primary_role"), "batter"),
                 "primary_role": tax.get("primary_role"),
                 "bowling_category": tax.get("bowling_category"),
@@ -778,6 +790,13 @@ def _export_scout_index(
     }
     index: dict[str, list[dict]] = {}
     have = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+    # IPL balls per (player, side): the price ceiling rises with them (pricing.price_ceiling)
+    target_balls: dict[tuple[str, str], int] = {}
+    tf = METRIC_DIR / f"scout_ratings_{AUCTION_TARGET}.json"
+    if tf.exists():
+        for r in json.loads(tf.read_text()):
+            side = "bowl" if r.get("role") == "bowler" else "bat"
+            target_balls[(r.get("cricsheet_id"), side)] = int(r.get("balls") or 0)
     for tier, col in tiers.items():
         f = METRIC_DIR / f"scout_ratings_{col}.json"
         if not f.exists() or f"balls_{_safe(col)}" not in have:
@@ -788,6 +807,8 @@ def _export_scout_index(
         # scored on the role he is matched in (not his better side).
         bat: dict[str, float] = {}
         bowl: dict[str, float] = {}
+        sds: dict[tuple[str, str], float] = {}  # (cid, side) -> value sd
+        tsd = leagues.translation_sd(col)
         names: dict[str, str | None] = {}
         balls: dict[str, int] = {}
         for r in json.loads(f.read_text()):
@@ -795,7 +816,9 @@ def _export_scout_index(
             if cid is None or v is None:
                 continue
             balls[cid] = max(balls.get(cid, 0), int(r.get("balls") or 0))
-            (bowl if r.get("role") == "bowler" else bat)[cid] = v
+            side = "bowl" if r.get("role") == "bowler" else "bat"
+            (bowl if side == "bowl" else bat)[cid] = v
+            sds[(cid, side)] = float(r.get("value_sd") or 0.0)
             names[cid] = names.get(cid) or r.get("unique_name")
         # recency in this tier, by player key (registry id, resolved per match)
         materialize_keyed(
@@ -839,6 +862,10 @@ def _export_scout_index(
             role = role_map.get(tax.get("primary_role"), "batter")
             b, w = bat.get(cid), bowl.get(cid)
             sides = [x for x in (b, w) if x is not None]
+            # the price basis is the better side; its sd, with the tier's translation sd added as in
+            # the auction pool, feeds the cautious price (value − PRICE_CAUTION_SD × value_sd)
+            better = "bat" if w is None or (b is not None and b >= w) else "bowl"
+            vsd = (sds.get((cid, better), 0.0) ** 2 + tsd**2) ** 0.5
             rows.append(
                 {
                     "cricsheet_id": cid,
@@ -855,6 +882,8 @@ def _export_scout_index(
                     "team": tax.get("team"),
                     # price basis: the better side, as in the auction pool
                     "value": round(max(sides), 4),
+                    "value_sd": round(vsd, 4),
+                    "target_balls": target_balls.get((cid, better), 0),
                     "balls": balls.get(cid, 0),  # exposure — for the uncapped-gem flag
                     "last_match_date": ld,
                     # the league this row's numbers come from (its profile lives there)

@@ -106,11 +106,12 @@ def test_womens_and_long_formats_are_known_but_not_exported():
 
 def test_calibrated_discounts_keep_their_values():
     # the values the pricing curve and the published prices were fitted with — never drift
+    # (runs per 100 balls: the earlier 1.28 / 0.45 / 0.64 population-sd discounts × 13.3)
     d = leagues.tier_discounts()
     assert d["ipl"] == 0.0
-    assert d["smat"] == 1.28
-    assert d["bbl"] == d["sa20"] == 0.45
-    assert d["cpl"] == d["blast"] == 0.64
+    assert d["smat"] == 17.0
+    assert d["bbl"] == d["sa20"] == 6.0
+    assert d["cpl"] == d["blast"] == 8.5
     for t in ("ipl", "smat", "bbl", "sa20", "cpl", "blast"):
         assert leagues.tiers()[t].calibrated
 
@@ -118,14 +119,14 @@ def test_calibrated_discounts_keep_their_values():
 def test_new_leagues_borrow_a_tier_by_analogy_and_say_so():
     t = leagues.tiers()
     for key, disc in {
-        "psl": 0.45,
-        "ilt20": 0.45,
-        "hundred_male": 0.45,
-        "mlc": 0.64,
-        "bpl": 0.64,
-        "lpl": 0.64,
-        "super_smash": 0.64,
-        "csa_t20_challenge": 0.64,
+        "psl": 6.0,
+        "ilt20": 6.0,
+        "hundred_male": 6.0,
+        "mlc": 8.5,
+        "bpl": 8.5,
+        "lpl": 8.5,
+        "super_smash": 8.5,
+        "csa_t20_challenge": 8.5,
     }.items():
         lg = leagues.get(key)
         assert leagues.discount(key) == disc, key
@@ -195,7 +196,7 @@ def test_site_payload_shape():
     assert p["auction"]["target"] == "ipl"
     assert "PAK" in p["auction"]["excluded_nationalities"]
     assert p["gem_tier"] == "smat"
-    assert p["tiers"]["smat"] == {"discount": 1.28, "calibrated": True}
+    assert p["tiers"]["smat"] == {"discount": 17.0, "calibrated": True}
 
 
 def test_cli_lists_exported_keys():
@@ -328,7 +329,7 @@ def test_translation_sd_defaults_follow_calibration():
     assert tiers["ipl"].translation_sd == 0.0
     for t in tiers.values():
         if t.discount > 0:
-            assert t.translation_sd == (0.5 if t.calibrated else 0.8), t.key
+            assert t.translation_sd == (6.5 if t.calibrated else 10.5), t.key
     assert leagues.translation_sd("ipl") == 0.0
     assert leagues.translation_sd("psl") > leagues.translation_sd("bbl")
 

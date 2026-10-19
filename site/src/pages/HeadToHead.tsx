@@ -20,25 +20,26 @@ function H2HMath() {
           wide curve; lots of matches → narrow.
         </p>
         <p>
-          For a role we add the two relevant skill axes into one{" "}
-          <b>complete value</b> (batting = scoring + survival; bowling = economy + strike). The two
-          axes are measured differently (runs per ball vs chance of a wicket), so each is first put in
-          the same unit — how many typical player-to-player spreads above average — and then added,
-          with the uncertainties combined. An all-rounder comparison adds batting and bowling.
+          For a role we combine the two relevant skill axes into one{" "}
+          <b>complete value</b> (batting = scoring + survival; bowling = economy + strike), counted in{" "}
+          <b>runs per 100 balls</b> above the league's average ball. Scoring is already runs; a wicket
+          is priced at the runs it costs where the player plays — a lot in the powerplay, little in
+          the last overs. The uncertainty comes along with it. An all-rounder comparison adds
+          batting and bowling.
         </p>
         <p>
           <b>P(A better than B)</b> = how much of A's bell curve sits above B's. Big gap between two
           confident estimates → near 100%. Small gap, or fuzzy estimates → near 50% (too close to
           call).
         </p>
-        <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs text-fg">{`A: value +1.50, uncertainty 0.25
-B: value +0.50, uncertainty 0.25
-gap = 1.00, combined spread = √(0.25² + 0.25²) = 0.35
-P(A better) = how far 1.00 is above 0 in that spread
+        <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs text-fg">{`A: value +15.0, uncertainty 2.5
+B: value  +5.0, uncertainty 2.5
+gap = 10.0, combined spread = √(2.5² + 2.5²) = 3.5
+P(A better) = how far 10.0 is above 0 in that spread
             ≈ 100%  (gap is ~2.8× the spread → A clearly ahead)
 
-If both uncertainties were 1.00 instead:
-combined spread = 1.41 → gap is only 0.7× spread → P ≈ 76%`}</pre>
+If both uncertainties were 10.0 instead:
+combined spread = 14.1 → gap is only 0.7× spread → P ≈ 76%`}</pre>
         <p className="text-xs">
           Technically: P = Φ(gap ÷ combined&nbsp;spread), the normal CDF — but the idea is just
           "overlap of two bell curves".

@@ -138,7 +138,16 @@ if gems:
                     "Country": g.get("country") or "—",
                     "Standing": round(g["z"], 2),
                     "Balls": g.get("balls", 0),
-                    "Est cr": round(est_value(g["value"], g["role"], GEM_TIER), 1),
+                    "Est cr": round(
+                        est_value(
+                            g["value"],
+                            g["role"],
+                            GEM_TIER,
+                            g.get("value_sd"),
+                            g.get("target_balls"),
+                        ),
+                        1,
+                    ),
                 }
                 for g in gems
             ],
@@ -180,7 +189,9 @@ country = c3.selectbox(
     help="Same = the pick's own country; overseas = every other country; all = anyone.",
 )
 
-sel_price = est_value(sel["value"], sel["role"], "ipl")
+sel_price = est_value(
+    sel["value"], sel["role"], "ipl", sel.get("value_sd"), sel.get("target_balls")
+)
 _kind = f" ({sel['bowling_category']})" if sel.get("bowling_category") else ""
 _band = BAND_LABEL.get(slot_band(sel.get("batting_position")), "")
 st.markdown(
@@ -199,7 +210,7 @@ def _similar(tier: str) -> list[dict]:
 def _tier_df(tier: str) -> pd.DataFrame:
     out = []
     for r in _similar(tier):
-        price = est_value(r["value"], r["role"], tier)
+        price = est_value(r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls"))
         saving = sel_price - price if price < sel_price else 0.0
         out.append(
             {

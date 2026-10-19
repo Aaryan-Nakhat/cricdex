@@ -46,6 +46,37 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
   `value` is centred on the role's average and scaled by its full population spread.
   `variant="legacy"` keeps the old model for comparison; `scout_rate.py` writes the fitted context
   to `scout_context_<col>.json`; `bayesian.heldout_loglik` scores a later season ball by ball.
+- **`value` in runs** (roadmap review 14, Tier B 16; `scout/ratings/runs_value.py`,
+  `MODEL_VERSION` 2026.10-runs): runs per 100 balls above the league's average ball, a wicket priced at
+  its run cost **where the player plays** — a value function over (over, wickets down) from the
+  league's first innings, `λ = V(next ball, w) − V(next ball, w+1)` (IPL: ~14 runs early in the
+  powerplay, 7–8 in the middle overs, 2–3 at the death), averaged over each player's own states and
+  computed per posterior draw. Replaces the equal-weight sum of two sd-scaled axes, which made MS Dhoni
+  the best active IPL batter (3.32 ahead of KL Rahul 3.31 and Kohli 2.97); now Dhoni is +1.1 runs per
+  100 balls (40th of 64 active batters with 600+ balls) and Russell (+24.5), Abhishek Sharma, Salt,
+  Head, Bairstow, Buttler and KL Rahul (+19.4) lead. New columns `value_rate`, `value_wkts`,
+  `wicket_cost`; the wicket-cost table goes to `scout_context_<col>.json`. **Prices re-calibrated**:
+  tier discounts, translation sds and the IPL-relevance penalty × 13.3 (the measured sd ratio; SMAT
+  17.0, BBL / SA20 / PSL / ILT20 / Hundred 6.0, the rest 8.5; penalty 36), curve `3.15 × e^(0.079 ×
+  value)` (was `1.1 × e^(0.95 × value)`) for the same pool median (1.17 vs 1.18 cr) and the same 25
+  players at 10 cr+; Python ⇄ TS parity kept. **Prices use a cautious estimate**, `value − 0.5 ×
+  value_sd` (`PRICE_CAUTION_SD`, `pricing.py` ⇄ `auction.ts`; `est_value(..., value_sd)` /
+  `estValue(..., valueSd)`, used by the auction pool, Scout prices and the gem board): the exported
+  pool and scout rows now carry `value_sd` (the blended value's sd, translation uncertainty included),
+  and the curve was re-fitted to `4.03 × e^(0.0743 × priced value)` (median 1.18 cr, 25 at 10 cr+).
+  Priyansh Arya drops from the 27 cr cap to 20, Ayush Mhatre 24.3 → 18, Inglis 18.8 → 14; proven stars
+  move up slightly (Kohli 9.3 → 10.0, Rashid 15.6 → 16.3); Suryavanshi (+59.7 ± 12.5) stays at the cap.
+  `value` itself stays the central estimate for display and rankings. **A price ceiling that rises
+  with IPL evidence**: `27 × (0.5 + 0.5 × min(1, IPL balls in the role / 600))`
+  (`CEILING_FULL_BALLS`, `CEILING_FLOOR_SHARE`, `price_ceiling` ⇄ `priceCeiling`), applied after the
+  cautious estimate in the pool, Scout prices and the gem board; pool and scout rows carry
+  `target_balls`. Suryavanshi 27 → 23.6 cr, Finn Allen 27 → 17.2; median and 10 cr+ count unchanged.
+  The auction simulator also caps each player's sale price at his ceiling (pool rows carry
+  `price_cap`), so bidding can't push a thin-IPL player to the 27 cr record either. The backtests score the overall axis in the same runs
+  currency (`runs_value.observed_value`); established IPL players 2021–26 (3 seeds), overall: batters
+  0.19 vs 0.15 career, bowlers 0.15 vs 0.11 (on the old z-sum yardstick 0.20 vs 0.15 and 0.10 vs 0.07,
+  against 0.14 vs 0.15 and 0.12 vs 0.07 published with the sd-sum value); single axes and held-out
+  log-likelihood unchanged. The newcomer backtest's overall rows still date from the sd-sum value.
 - **Eras in the registry**: `[[league.era]]` (the IPL's `impact`, "Impact Player era", since
   2023-03-31). The exporter builds an `era_<key>` window next to last1y / last3y, lists it in
   `meta.windows` / `meta.window_labels`, and the period selectors offer it (site Leaderboards,

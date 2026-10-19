@@ -40,11 +40,12 @@ const NGI_PCT = METRIC_BY_SLUG.ngi.columns.find((c) => c.key === "ngi_per_match"
 
 const VALUE_INFO = (
   <InfoTip title="Batting and bowling value" label="What batting and bowling value mean">
-    One number per role from the skill model, centred on the average player in this league: <b>0 = average</b>, +1 =
-    one typical player-to-player gap better, −1 = one gap worse; the best in the IPL sit near +3. <b>Batting value</b>{" "}
-    adds how fast he scores and how hard he is to get out, each judged against the bowlers he actually faced.{" "}
-    <b>Bowling value</b> adds how few runs he gives away and how often he takes wickets, judged against the batters he
-    bowled to. Higher is better for both.
+    One number per role from the skill model, in <b>runs per 100 balls</b> above the league's average ball:{" "}
+    <b>0 = average</b>, +10 = ten runs better every 100 balls; the best IPL regulars sit around +20 to +25.{" "}
+    <b>Batting value</b> is how much faster he scores, plus the runs his team doesn't lose because he stays in — a
+    wicket priced at what it costs where he bats (about 14 runs early in the powerplay, 2–3 in the last overs), so a
+    finisher is valued mainly on his scoring rate. <b>Bowling value</b> is the runs he saves plus his extra wickets at
+    the same price. Each is judged against the opponents he actually faced. Higher is better for both.
   </InfoTip>
 );
 
@@ -63,12 +64,12 @@ const CONTEXT: [string, string, string, number][] = [
 ];
 
 const ROWS: Row[] = [
-  { group: "Overall", label: "Batting value", hint: "0 = average batter", digits: 2, better: "high", info: VALUE_INFO, get: (p) => num(bb(p)?.value) },
+  { group: "Overall", label: "Batting value", hint: "runs per 100 balls vs average", digits: 1, better: "high", info: VALUE_INFO, get: (p) => num(bb(p)?.value) },
   {
     group: "Overall",
     label: "Bowling value",
-    hint: "0 = average bowler",
-    digits: 2,
+    hint: "runs saved per 100 balls",
+    digits: 1,
     better: "high",
     info: VALUE_INFO,
     get: (p) => ((num(bw(p)?.balls) ?? 0) > 60 ? num(bw(p)?.value) : null),

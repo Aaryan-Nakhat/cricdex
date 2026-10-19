@@ -52,7 +52,7 @@ class Tier:
     discount: float
     calibrated: bool
     note: str = ""
-    # How uncertain it is to translate a rating from this tier into IPL terms (population-sd units).
+    # How uncertain it is to translate a rating from this tier into IPL terms (runs per 100 balls).
     # Cross-league pooling weights each league by 1 / (rating sd² + translation_sd²), so IPL
     # evidence (0) dominates whenever a player has it and provisional discounts count least.
     translation_sd: float = 0.0
@@ -247,7 +247,7 @@ def parse(text: str, path: Path | str = "<string>") -> Registry:
             raise RegistryError(f"{path}: [tiers.{key}] needs `discount` and `calibrated`")
         discount_v, calibrated_v = float(t["discount"]), bool(t["calibrated"])
         # default: none for the reference tier, more for a borrowed (uncalibrated) discount
-        default_tsd = 0.0 if discount_v == 0 else (0.5 if calibrated_v else 0.8)
+        default_tsd = 0.0 if discount_v == 0 else (6.5 if calibrated_v else 10.5)
         tiers[key] = Tier(
             key=key,
             discount=discount_v,
@@ -371,7 +371,7 @@ def by_tier(tier: str) -> League:
 
 def auction_pool_summary(sep: str = " / ") -> dict[str, str]:
     """Plain-text pieces for "who's in the auction pool" copy: the overseas and uncapped free-agent
-    leagues (short names) and each distinct tier discount, e.g. "BBL/SA20/PSL −0.45"."""
+    leagues (short names) and each distinct tier discount, e.g. "BBL/SA20/PSL −6.0"."""
     reg = load()
     pool = [lg for lg in reg.leagues if lg.auction_pool and not lg.auction_target]
     by_disc: dict[float, list[str]] = {}
@@ -381,7 +381,7 @@ def auction_pool_summary(sep: str = " / ") -> dict[str, str]:
     return {
         "overseas": sep.join(lg.short for lg in pool if lg.scout_group != "uncapped"),
         "uncapped": sep.join(lg.short for lg in pool if lg.scout_group == "uncapped"),
-        "discounts": ", ".join(f"{'/'.join(n)} −{d:.2f}" for d, n in sorted(by_disc.items())),
+        "discounts": ", ".join(f"{'/'.join(n)} −{d:.1f}" for d, n in sorted(by_disc.items())),
     }
 
 
