@@ -76,7 +76,9 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
   currency (`runs_value.observed_value`); established IPL players 2021–26 (3 seeds), overall: batters
   0.19 vs 0.15 career, bowlers 0.15 vs 0.11 (on the old z-sum yardstick 0.20 vs 0.15 and 0.10 vs 0.07,
   against 0.14 vs 0.15 and 0.12 vs 0.07 published with the sd-sum value); single axes and held-out
-  log-likelihood unchanged. The newcomer backtest's overall rows still date from the sd-sum value.
+  log-likelihood unchanged. Newcomers, overall in runs: batters 0.08 vs 0.10 and bowlers 0.22 vs 0.26 (all
+  13 leagues), batters 0.11 vs 0.06 (78% of resamples) and bowlers 0.22 vs 0.25 with the original five;
+  every Holm p = 1.0. The 96–98% newcomer-batter lean below came from the sd-sum value and is withdrawn.
 - **Eras in the registry**: `[[league.era]]` (the IPL's `impact`, "Impact Player era", since
   2023-03-31). The exporter builds an `era_<key>` window next to last1y / last3y, lists it in
   `meta.windows` / `meta.window_labels`, and the period selectors offer it (site Leaderboards,
@@ -93,13 +95,15 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
   reused) and runs them in parallel (`--jobs`). `backtest_ratings.py` runs 3 seeds and adds the
   held-out log-likelihood per ball, with `--compare legacy`.
   **Corrected conclusion:** the old headline, a survival edge for newcomer batters "solid in 97% of
-  re-draws", does not survive the fair baseline; it was mostly the league discount itself. Now the
-  model ranks newcomer batters better *overall* (0.22 vs 0.10 with all 13 other leagues, ahead in 96%
-  of resamples; 0.25 vs 0.09 with the original five, 98%), but nothing is significant after the Holm
-  correction (best adjusted p = 0.15); bowlers show no edge. Established IPL players: a tie with career
-  averages for batters (0.14 vs 0.15), an edge for bowlers (0.12 vs 0.07), and the new model predicts
-  held-out balls better than the old one in every season 2021–26 (runs −0.6212 vs −0.6255,
-  dismissals −0.1467 vs −0.1480 nats per ball). New tables in METHODOLOGY §8, the README, the site's
+  re-draws", does not survive the fair baseline; it was mostly the league discount itself. With the
+  runs-currency `value` (above), the ratings beat career averages for established IPL players
+  (overall: batters 0.19 vs 0.15, bowlers 0.15 vs 0.11) and the new model predicts held-out balls
+  better than the old one in every season 2021–26 (runs −0.6212 vs −0.6255, dismissals −0.1467 vs
+  −0.1480 nats per ball). For IPL newcomers rated from other leagues they are no better than the
+  players' own league-adjusted numbers (batters 0.08 vs 0.10, bowlers 0.22 vs 0.26 with all 13 other
+  leagues; a lean for batters with the original five only, 0.11 vs 0.06, 78% of resamples); every Holm
+  p is 1.0. An interim overall lean for newcomer batters (96–98% of resamples) came from the old
+  sd-sum value and is withdrawn. New tables in METHODOLOGY §8, the README, the site's
   About page and `docs/media/backtest.png`; the hero video's backtest scene says the same.
 - **`scripts/rebuild_all.sh --from ratings|metrics|export`** restarts a rebuild at that stage without
   re-downloading.

@@ -168,7 +168,7 @@ disagreements left for a human are in `data/curated/player_master_review.json`.
   (at 120 balls batters flip, n = 44).*
 - [x] 36. Multiple comparisons: the old "97% of resamples" result (one-sided p ≈ 0.03) was one of six tests
   and wasn't significant after correction. Report all six with Holm-adjusted p. *Done 2026-10-19: all six reported;
-  best Holm p = 0.15 (newcomer batters overall, original five leagues), so nothing is significant.*
+  with the runs value every Holm p is 1.0, so nothing is significant.*
 - [ ] 37. Weak target: Spearman on noisy season totals, one ADVI seed, no noise ceiling (roadmap 27).
   *In part 2026-10-19: 3 ADVI seeds and the held-out log-likelihood per ball are done; the split-half noise ceiling
   is still open.*

@@ -66,13 +66,21 @@ def test_scout_drafts_accumulate_across_picks():
     idx = load_scout_index("ipl")
     pool = {p["cricsheet_id"] for p in load_auction_pool("ipl")}
 
+    # options are 'Name (League)': the league label comes from the registry, so match the player by
+    # name (scorecard or display) across every Scout pool rather than mapping the label to a key
+    by_name: dict[str, list[str]] = {}
+    for rows in idx.values():
+        for r in rows:
+            for n in {r.get("name"), r.get("display_name")} - {None}:
+                by_name.setdefault(n, []).append(r["cricsheet_id"])
+
     def eligible(ms) -> str | None:
-        """Raw cid for the first prospect in the priced pool (options are 'Name (TIER)')."""
+        """Raw cid for the first prospect in the priced pool."""
         for label in ms.options:
-            name, tier = label.rsplit(" (", 1)
-            for r in idx[tier.rstrip(")").lower()]:
-                if r["name"] == name and r["cricsheet_id"] in pool:
-                    return r["cricsheet_id"]
+            name = label.rsplit(" (", 1)[0]
+            for cid in by_name.get(name, []):
+                if cid in pool:
+                    return cid
         return None
 
     at = _app("9_Scout.py")

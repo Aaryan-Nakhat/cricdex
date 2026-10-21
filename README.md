@@ -116,18 +116,19 @@ and the newcomer gaps are bootstrapped 2,000 times with a correction for running
 |---|---|---|
 | Established IPL batters, next season (2021–26) | **0.19** | 0.15 (career average) |
 | Established IPL bowlers, next season (2021–26) | **0.15** | 0.11 (career average) |
-| IPL newcomer batters, rated from other leagues (2014–26, 103 players) | **0.22** | 0.10 (league-adjusted numbers there) |
-| IPL newcomer bowlers, rated from other leagues (2014–26, 132 players) | 0.18 | **0.24** (league-adjusted numbers there) |
+| IPL newcomer batters, rated from other leagues (2014–26, 103 players) | 0.08 | **0.10** (league-adjusted numbers there) |
+| IPL newcomer bowlers, rated from other leagues (2014–26, 132 players) | 0.22 | **0.26** (league-adjusted numbers there) |
 
-**The honest read:** an earlier version of this page claimed a survival edge for newcomer batters that held
-in 97% of re-draws. That doesn't survive a fair, league-adjusted baseline: the edge was mostly the league
-discount itself. With the fixes, the model ranks newcomer batters better **overall** (ahead in 96% of
-resamples with all 13 other leagues, 98% with the original five), but nothing is significant after
-correcting for six tests (best adjusted p = 0.15), and bowlers show no edge. For players the IPL already
-knows, its value in runs edges career averages for both batters and bowlers, and the new model predicts held-out
-balls better than the old one in every season. A single T20 season is mostly noise, so read the newcomer
-result as **a lean, not proof**. Re-run it yourself with `scripts/backtest_ratings.py` and
-`scripts/backtest_newcomers.py`.
+All four are the overall rating, scored in runs per 100 balls above average.
+
+**The honest read:** for players the IPL already knows, the ratings **beat career averages**, for batters
+(0.19 vs 0.15) and bowlers (0.15 vs 0.11), and the new model predicts held-out balls better than the old one
+in every season. For **newcomers rated from other leagues, they are no better than the players' own
+league-adjusted numbers**: the only lean is for batters with the original five leagues (0.11 vs 0.06, ahead
+in 78% of resamples, not significant), and no test survives the correction for six comparisons. Earlier
+versions of this page claimed a newcomer-batter edge; the first came from an unfair baseline, the second from
+the old way of adding up `value`, and neither survives. A single T20 season is mostly noise. Re-run it
+yourself with `scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`.
 → [The backtest in detail](docs/METHODOLOGY.md#8-does-it-predict-the-backtest)
 
 ## 🧠 How it works

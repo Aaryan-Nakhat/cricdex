@@ -184,22 +184,24 @@ Established IPL players, 2021–26, model vs career average:
 "Overall (runs)" scores the season in runs per 100 balls above average with wickets priced at the
 player's wicket cost (`runs_value.observed_value`), the baseline the same from raw career totals;
 "overall (z-sum)" is the earlier yardstick (with the earlier sd-sum value it was 0.14 vs 0.15 and
-0.12 vs 0.07). The newcomer numbers below predate the runs value.
+0.12 vs 0.07).
 
 Held-out log-likelihood per ball, current vs legacy model: runs −0.6212 vs −0.6255, dismissals
 −0.1467 vs −0.1480; the current model is better in every season on both.
 
-IPL newcomers rated only from other leagues, 2014–26, overall axis, model vs league-adjusted baseline:
+IPL newcomers rated only from other leagues, 2014–26, overall in runs, model vs league-adjusted baseline:
 
 | Leagues | Batters | Bowlers |
 |---|---|---|
-| All 13 non-IPL pool leagues | 0.22 vs 0.10 (n=103; ahead in 96%, p=0.042, Holm 0.25) | 0.18 vs 0.24 (n=132; ahead in 20%) |
-| Original 5 (BBL, SA20, CPL, Blast, SMAT) | 0.25 vs 0.09 (n=96; ahead in 98%, p=0.025, Holm 0.15) | 0.18 vs 0.22 (n=110; ahead in 27%) |
+| All 13 non-IPL pool leagues | 0.08 vs 0.10 (n=103; ahead in 38%) | 0.22 vs 0.26 (n=132; ahead in 32%) |
+| Original 5 (BBL, SA20, CPL, Blast, SMAT) | 0.11 vs 0.06 (n=96; ahead in 78%, p=0.22) | 0.22 vs 0.25 (n=110; ahead in 27%) |
 
-No scoring, survival, economy or strike test comes close after the Holm correction (the best is 0.93).
-Read: the old "survival edge for newcomer batters" was mostly the league discount and doesn't survive
-the fair baseline; the newcomer-batter overall edge is a lean, not proof; bowlers show no edge. Full
-tables, the sensitivity runs and the caveats: METHODOLOGY §8. Outputs:
+Every Holm-adjusted p is 1.0 (single axes, all 13 leagues: batter scoring 0.13 vs 0.19, survival
+0.29 vs 0.27; bowler economy 0.25 vs 0.26, strike 0.08 vs 0.07). Read: the runs value beats career
+averages for established IPL players; for newcomers rated from other leagues it is no better than the
+players' own league-adjusted numbers (a lean for batters with the original five leagues only, not
+significant). The earlier newcomer-batter edges, first from an unfair baseline and then from the old
+sd-sum value, don't survive. Full tables, the sensitivity runs and the caveats: METHODOLOGY §8. Outputs:
 `data/metrics/ratings_backtest_ipl.json`, `newcomer_backtest_ipl.json`,
 `newcomer_backtest_ipl_published.json`.
 

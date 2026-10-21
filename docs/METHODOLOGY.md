@@ -591,8 +591,9 @@ of players is compared with how that season actually went. Agreement is a Spearm
 - **A fair baseline.** The baseline is what a scout could work out by hand from the same matches,
   *given the same league adjustment as the model*: each league's raw numbers relative to that league's
   average (runs per ball divided by the league's runs per ball, outs per ball divided by the league's
-  rate), the overall axis as a z-score within the league minus the same tier discount the model gets,
-  pooled across leagues by balls. The first version compared the tier-discounted model with raw numbers
+  rate), the overall axis in the same runs currency as `value` (runs per 100 balls above the league's
+  average ball, each dismissal priced at the player's wicket cost) minus the same tier discount the model
+  gets, pooled across leagues by balls. The first version compared the tier-discounted model with raw numbers
   that had no league adjustment at all, so part of the "model edge" was just the discount.
 - **One number per player, pooled by precision.** A newcomer with several leagues gets one value per axis:
   each league's value minus its discount, weighted by 1 / (value sd² + the tier's translation sd²), the
@@ -647,42 +648,48 @@ balls in the role before the season), rated **only** from other leagues, scored 
 season. We ran it twice: with all 13 non-IPL auction-pool leagues (the current default), and with the
 original five (BBL, SA20, CPL, T20 Blast and SMAT) that the first published run used.
 
+The overall rows are scored in runs, like the established-player test: the IPL season's runs per 100 balls
+above the league's average ball against the model's `value` and against the same number from the player's
+league-adjusted raw numbers.
+
 All 13 leagues (103 batters, 132 bowlers):
 
 | | Model | Baseline | Gap, 95% range | Model ahead in | p | Holm p |
 |---|---|---|---|---|---|---|
-| Batters, overall | 0.22 | 0.10 | +0.12 [−0.02, +0.25] | 96% | 0.042 | 0.25 |
+| Batters, overall (runs) | 0.08 | 0.10 | −0.02 [−0.15, +0.12] | 38% | 0.62 | 1.00 |
 | Batters, scoring | 0.13 | 0.19 | −0.06 [−0.23, +0.11] | 22% | 0.78 | 1.00 |
-| Batters, survival | 0.29 | 0.27 | +0.01 [−0.16, +0.18] | 56% | 0.44 | 1.00 |
-| Bowlers, overall | 0.18 | 0.24 | −0.06 [−0.20, +0.09] | 20% | 0.80 | 1.00 |
-| Bowlers, economy | 0.25 | 0.26 | −0.01 [−0.11, +0.10] | 44% | 0.56 | 1.00 |
-| Bowlers, strike | 0.08 | 0.07 | +0.02 [−0.16, +0.20] | 58% | 0.42 | 1.00 |
+| Batters, survival | 0.29 | 0.27 | +0.01 [−0.15, +0.17] | 55% | 0.45 | 1.00 |
+| Bowlers, overall (runs) | 0.22 | 0.26 | −0.04 [−0.17, +0.10] | 32% | 0.68 | 1.00 |
+| Bowlers, economy | 0.25 | 0.26 | −0.01 [−0.12, +0.10] | 42% | 0.58 | 1.00 |
+| Bowlers, strike | 0.08 | 0.07 | +0.02 [−0.16, +0.19] | 57% | 0.43 | 1.00 |
 
 The original five leagues (96 batters, 110 bowlers):
 
 | | Model | Baseline | Gap, 95% range | Model ahead in | p | Holm p |
 |---|---|---|---|---|---|---|
-| Batters, overall | 0.25 | 0.09 | +0.16 [0.00, +0.33] | 98% | 0.025 | 0.15 |
-| Batters, scoring | 0.11 | 0.18 | −0.07 [−0.26, +0.11] | 24% | 0.76 | 1.00 |
-| Batters, survival | 0.31 | 0.23 | +0.08 [−0.10, +0.25] | 82% | 0.19 | 0.93 |
-| Bowlers, overall | 0.18 | 0.22 | −0.04 [−0.20, +0.10] | 27% | 0.73 | 1.00 |
-| Bowlers, economy | 0.21 | 0.20 | +0.01 [−0.11, +0.13] | 54% | 0.46 | 1.00 |
-| Bowlers, strike | 0.21 | 0.13 | +0.08 [−0.10, +0.27] | 80% | 0.20 | 0.93 |
+| Batters, overall (runs) | 0.11 | 0.06 | +0.05 [−0.08, +0.17] | 78% | 0.22 | 1.00 |
+| Batters, scoring | 0.11 | 0.18 | −0.07 [−0.25, +0.12] | 23% | 0.77 | 1.00 |
+| Batters, survival | 0.31 | 0.23 | +0.08 [−0.09, +0.25] | 83% | 0.17 | 1.00 |
+| Bowlers, overall (runs) | 0.22 | 0.25 | −0.04 [−0.18, +0.09] | 27% | 0.73 | 1.00 |
+| Bowlers, economy | 0.21 | 0.20 | +0.00 [−0.11, +0.12] | 53% | 0.47 | 1.00 |
+| Bowlers, strike | 0.21 | 0.13 | +0.08 [−0.11, +0.27] | 79% | 0.21 | 1.00 |
 
-**Playing-time sensitivity (all 13 leagues, overall axis).** With a 30-ball bar the model leads for both
-roles (batters 0.12 vs 0.05, n = 183; bowlers 0.16 vs 0.10, n = 187). With a 120-ball bar, batters flip
-(−0.19 vs −0.12, n = 44) and bowlers lead slightly (0.24 vs 0.20, n = 70). Samples that small move a lot
-either way.
+Every Holm-adjusted p is 1.00: no test is significant.
 
-**The honest read.** The first published headline, a survival edge for newcomer batters that held in 97%
-of re-draws, **does not survive a fair, league-adjusted baseline**: that edge was mostly the league
-discount itself. With the fixes, the model ranks newcomer batters better **overall** in both runs (ahead in
-96–98% of re-draws), but no result is significant once you correct for running six tests (the best Holm
-p is 0.15). Bowlers show no edge. For established players the runs value edges career averages overall for
-both roles (batters 0.19 vs 0.15, bowlers 0.15 vs 0.11), and the new model predicts held-out balls better in
-every season. (The newcomer tables above were measured with the earlier sd-sum value; the overall rows need
-a re-run of `backtest_newcomers.py` with the runs value.)
-Single T20 seasons are mostly noise, so the newcomer-batter result is **a lean, not proof**.
+**Playing-time sensitivity (all 13 leagues, overall in runs).** With a 30-ball bar the model is slightly
+ahead for both roles (batters 0.06 vs 0.03, n = 183; bowlers 0.18 vs 0.16, n = 187). With a 120-ball bar
+it is slightly behind for both (batters 0.05 vs 0.08, n = 44; bowlers 0.20 vs 0.24, n = 70). None of these
+gaps is large, and samples that small move a lot either way.
+
+**The honest read.** With the runs-currency `value`, the ratings **beat career averages for established IPL
+players**, batters (0.19 vs 0.15) and bowlers (0.15 vs 0.11), and the new model predicts held-out balls
+better in every season. For **IPL newcomers rated from other leagues they are no better than the players' own
+league-adjusted numbers**: there is a lean for batters in the original five leagues only (ahead in 78% of
+re-draws, not significant), and no test survives the correction for six comparisons. Two earlier newcomer
+headlines are withdrawn: the first, a survival edge for newcomer batters "in 97% of re-draws", was mostly the
+league discount and fell to the fair baseline; the second, an overall lean for newcomer batters (96–98% of
+re-draws), came from the old sd-sum `value` and doesn't survive the switch to runs. Single T20 seasons are
+mostly noise, for any method.
 
 **Not done yet.** There is no split-half noise ceiling, so we can't yet say how close any of these numbers
 are to the best correlation a season this noisy allows (roadmap 37 and 27).
@@ -708,9 +715,8 @@ What the models can't see, and where they approximate. Most of these are on the
 - **A single season is noisy.** The backtest's correlations are low for every method, model or not. Treat
   any one-season ranking with care.
 - **The ratings only modestly beat career averages for established players** (overall 0.19 vs 0.15 for
-  batters and 0.15 vs 0.11 for bowlers with the runs value; the single axes tie; earlier: a tie for batters, a small edge for
-  bowlers). For newcomers rated from other leagues they lean ahead for batters overall, but nothing is
-  significant after correcting for six tests, and bowlers show no edge.
+  batters, 0.15 vs 0.11 for bowlers), and **for newcomers rated from other leagues they are no better than
+  the players' own league-adjusted numbers** (no test significant after correcting for six).
 - **Each league is fitted on its own.** Cross-league comparison rests on one hand-set tier discount per
   league.
 - **A wicket's price is a first-innings average.** The run cost of a wicket comes from first innings

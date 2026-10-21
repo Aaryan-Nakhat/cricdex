@@ -136,20 +136,19 @@ const SECTIONS: Section[] = [
         <strong>before</strong> it only, then its ranking of players is compared with how the season
         actually went (rank correlation: 1 = same order, 0 = no link). The plain baselines get the same
         league adjustment as the model, and every fit is run with three seeds.{" "}
-        <strong>Established IPL players</strong> (2021–26): the overall value, in runs, edges plain
+        <strong>Established IPL players</strong> (2021–26): the overall value, in runs, beats plain
         career averages for batters (0.19 vs 0.15) and bowlers (0.15 vs 0.11). Weighting recent
         seasons more didn't help. A single T20 season is mostly noise, for any method, but on a sharper
         test, predicting every ball of the next season, the current model beats the old one in every
         season.{" "}
-        <strong>IPL newcomers</strong> (2014–26, rated only from other leagues): the ratings ranked{" "}
-        <em>batters</em> better overall than their league-adjusted numbers from those leagues (0.22 vs
-        0.10 with all 13 other leagues, 0.25 vs 0.09 with the original five); for <em>bowlers</em> there
-        was no edge (0.18 vs 0.24). How sure is that? Re-drawing the ~100 newcomers 2,000 times, the
-        batter overall edge held in 96–98% of redraws, but after correcting for running six tests at once
-        none of the results is significant. So it is a lean, not proof. An earlier version of this page
-        claimed a clear "staying in" edge for newcomer batters; that turned out to be mostly the league
-        discount itself and doesn't survive a fair baseline. Both backtests are scripts in the repo, so
-        you can re-run them.
+        <strong>IPL newcomers</strong> (2014–26, rated only from other leagues): here the ratings are no
+        better than the players' own league-adjusted numbers from those leagues (batters 0.08 vs 0.10,
+        bowlers 0.22 vs 0.26, with all 13 other leagues). The only lean is for batters with the original
+        five leagues (0.11 vs 0.06), and re-drawing the ~100 newcomers 2,000 times it held in just 78% of
+        redraws; after correcting for running six tests at once none of the results is significant.
+        Earlier versions of this page claimed an edge for newcomer batters; one came from an unfair
+        baseline, the other from the old way of adding up the value, and neither survives. Both
+        backtests are scripts in the repo, so you can re-run them.
       </>
     ),
   },

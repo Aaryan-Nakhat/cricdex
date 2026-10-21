@@ -726,14 +726,16 @@ precision; 2,000 bootstrap resamples with Holm-adjusted p over six tests.
   value and z-sum target: 0.14 vs 0.15 and 0.12 vs 0.07). Held-out log-likelihood per ball beats
   the legacy model in every season (runs −0.6212 vs −0.6255, dismissals
   −0.1467 vs −0.1480).
-- IPL newcomers rated from other leagues, 2014–26: batters overall 0.22 vs
-  0.10 (all 13 leagues, model ahead in 96% of resamples) and 0.25 vs 0.09
-  (original five, 98%); best Holm p = 0.15, so not significant. Bowlers:
-  no edge.
+- IPL newcomers rated from other leagues, 2014–26, overall in runs:
+  batters 0.08 vs 0.10 and bowlers 0.22 vs 0.26 (all 13 leagues); with
+  the original five, batters 0.11 vs 0.06 (model ahead in 78% of
+  resamples) and bowlers 0.22 vs 0.25. Every Holm p is 1.0.
 
-The old "survival edge for newcomer batters, 97% of re-draws" was mostly
-the league discount and is gone under the fair baseline. A lean, not
-proof. Full tables in [METHODOLOGY §8](METHODOLOGY.md#8-does-it-predict-the-backtest).
+So the ratings beat career averages for established IPL players but are
+no better than a newcomer's own league-adjusted numbers. The earlier
+newcomer-batter edges (first the "97% of re-draws" survival edge, which
+was the league discount; then a 96–98% overall lean, which came from the
+old sd-sum value) don't survive. Full tables in [METHODOLOGY §8](METHODOLOGY.md#8-does-it-predict-the-backtest).
 
 ---
 
