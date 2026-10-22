@@ -120,7 +120,12 @@ const SECTIONS: Section[] = [
       <>
         A Monte-Carlo of a real IPL auction. The pool spans the active T20 world it draws from — IPL
         players plus free agents from every overseas league in the league list (the Big Bash, SA20,
-        CPL, T20 Blast, PSL and more) and the <strong>SMAT</strong> (uncapped Indians) — priced in crore at the market price fitted to real auctions (at most 36% of the lots overseas, as on a real shortlist). Each
+        CPL, T20 Blast, PSL and more) and the <strong>SMAT</strong> (uncapped Indians) — ranked by his{" "}
+        <strong>expected season value</strong>: the chance he plays a match (fitted on real IPL XIs: where he ranks in
+        his squad, overseas places, experience, age, last season; for a free agent also whether players like him get
+        bought) × his runs a match above a replacement, batting and bowling at the balls he actually gets, so an
+        all-rounder counts both disciplines and a league-only veteran ranks low without a hand-set penalty — and
+        priced in crore at the market price fitted to real auctions (at most 36% of the lots overseas, as on a real shortlist). Each
         franchise first <strong>retains</strong> its core (Mega = the real 2025 lists, ~5; Mini = keep
         most of the squad — both editable), then the ten teams bid for the rest by their own
         personality (marquee-chaser, value-hunter, overseas-heavy…), hundreds of times, filling 20–25-man
@@ -152,7 +157,8 @@ const SECTIONS: Section[] = [
         model fitted to every real retention deadline 2018–2026 (his market price against his cost, his
         three-season Form forecast, his ties to the side: captain, seasons there, home-grown; capped Indian or
         overseas, age, IPL balls). Chosen on the deadlines up to 2024 and tested once on 2025–26, it made the
-        franchise's own call for 78% of players (82% of stars). Keep at 65%+, release under 35%, borderline in
+        franchise's own call for 78% of players (82% of stars). His playing time (the chance he plays in this
+        squad × his runs a match) was tried as an input too and didn't improve the calls. Keep at 65%+, release under 35%, borderline in
         between. Then the squad that follows: purse left after what the kept players cost, open slots, and the role gaps
         (keepers, openers, death bowlers, spinners, overseas) filled from the likely auction pool, free agents
         plus the players our calls release elsewhere. Squads and salaries come from Wikipedia's personnel pages
@@ -196,7 +202,10 @@ const SECTIONS: Section[] = [
         For the auction itself: whom your franchise should bid for, and how high. Your squad and purse come from Keep or
         release (your own calls carry over); every team opens at least 8 places (the median a team bought at recent mini
         auctions). The other nine teams then bid in the Auction room's simulator 200 times, which gives each player's{" "}
-        <strong>price to beat</strong>. A squad's <strong>strength</strong> is its best XI's values added up (at most 4
+        <strong>price to beat</strong>. A squad's <strong>strength</strong> is its best XI's expected runs a match
+        above a replacement, each player's batting at the balls he faces and his bowling at the balls he bowls,
+        times his chance of playing (an opener about
+        21 a match, a No. 7 about 9, a frontline bowler about 23; the XI's balls held to a side's innings; at most 4
         overseas, a keeper, five bowling and six batting options) plus a little for depth and minus a penalty for each
         role need missed. In every run you bid for a player up to his gain in strength ÷ λ, an exchange rate in runs per
         crore chosen to give the best average squad. Each target gets a <strong>max bid</strong> (where his value per crore
@@ -205,7 +214,7 @@ const SECTIONS: Section[] = [
         tested on 2025–26: real prices now fall inside the simulated range about as often as they should), and a team
         never buys back its own releases: a release worth more to the squad than his salary is flagged "reconsider
         keeping". Replayed on the 2025 and 2026 auctions with only what was known beforehand, the plan's squads were
-        level with the real ones in 2025 and worse in 2026: a starting sheet, not a forecast. Same optimiser on the CLI
+        ahead of the real ones in 2025 (8 of 10 teams) and behind in 2026 (all 10): a starting sheet, not a forecast. Same optimiser on the CLI
         (<code>cricdex bidplan</code>), locked by a parity test.
       </>
     ),

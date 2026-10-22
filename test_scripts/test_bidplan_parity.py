@@ -55,6 +55,27 @@ def _val(i: int) -> float:
     return round(((i * 37) % 51) - 25 + (i % 7) * 0.37, 3)
 
 
+# balls faced and bowled a match by role (the export's playing-time fields, METHODOLOGY §6c)
+_BALLS = {"batter": (24.0, 0.0), "keeper": (19.0, 0.0), "all_rounder": (13.0, 16.0),
+          "bowler": (3.0, 22.5)}  # fmt: skip
+
+
+def _contrib(v: float | None, role: str, i: int) -> dict:
+    """Synthetic playing-time fields from a value: runs above replacement per match, batting and
+    bowling parts at the role's balls (replacement −10 per 100 balls), as export_site writes them."""
+    if v is None:
+        return dict.fromkeys(("contrib", "contrib_bat", "contrib_bowl", "balls_faced",
+                              "balls_bowled", "p_play", "season_value"))  # fmt: skip
+    f, b = _BALLS[role]
+    f += i % 5
+    cb = round((v + 10.0) * f / 100.0, 4) if f else 0.0
+    cw = round((v - 4.0 + (i % 3)) * b / 100.0, 4) if b else 0.0
+    p = round(0.3 + (i % 7) / 10.0, 3)
+    return {"contrib": round(cb + cw, 4), "contrib_bat": cb, "contrib_bowl": cw,
+            "balls_faced": f, "balls_bowled": b, "p_play": p,
+            "season_value": round(p * (cb + cw) * 14, 3)}  # fmt: skip
+
+
 def _league() -> dict:
     teams = ["AAA", "BBB", "CCC", "DDD"]
     players = []
@@ -80,6 +101,7 @@ def _league() -> dict:
                     "country": "AUS" if ov else "IND",
                     "role": role,
                     "value": None if n % 23 == 0 else _val(n),
+                    **_contrib(None if n % 23 == 0 else _val(n), role, n),
                     "value_sd": 3.0 + (n % 5),
                     "target_balls": 200 + (n * 61) % 900,
                     "balls": 200 + (n * 61) % 900,
@@ -103,7 +125,8 @@ def _league() -> dict:
                 "name": f"Free {k}",
                 "display_name": f"Free Agent {k}" if k % 5 == 0 else None,
                 "value": _val(k + 500),
-                "value_sd": 2.0 + k % 6,
+                **_contrib(_val(k + 500), ROLES[k % 4], k),
+                "value_sd": 2.0 + k % 6 + 0.013,  # no exact price ties with squad rows
                 "target_balls": (k * 97) % 800,
                 "role": ROLES[k % 4],
                 "country": "ENG" if ov else "IND",
@@ -120,6 +143,18 @@ def _league() -> dict:
                     "cricsheet_id": p["id"],
                     "name": p["name"],
                     "value": p["value"],
+                    **{
+                        k: p[k]
+                        for k in (
+                            "contrib",
+                            "contrib_bat",
+                            "contrib_bowl",
+                            "balls_faced",
+                            "balls_bowled",
+                            "p_play",
+                            "season_value",
+                        )
+                    },
                     "value_sd": p["value_sd"],
                     "target_balls": p["target_balls"],
                     "role": p["role"],
@@ -164,6 +199,12 @@ XI_CASES = [
         "tags": "k"}, {"id": "nv", "name": "Unrated", "value": None, "role": "bowler",
                        "overseas": False, "tags": ""}],
     [],
+    # eight openers at 25 balls each and three bowlers: the XI can't face more than a side's
+    # innings, so the batting parts are scaled to TEAM_BALLS (a keeper-opener among them)
+    [{"id": f"t{i}", "name": f"T{i}", "value": 6.0 - 0.2 * i, "role": "keeper" if i == 0 else "batter",
+      "overseas": False, "tags": "o", "parts": [6.0 - 0.2 * i, 0.0, 25.0, 0.0]} for i in range(8)]
+    + [{"id": f"w{i}", "name": f"W{i}", "value": 4.0 - i, "role": "all_rounder", "overseas": False,
+        "tags": "d", "parts": [0.5, 3.5 - i, 8.0, 24.0, 0.9 - 0.15 * i]} for i in range(5)],
 ]  # fmt: skip
 
 
@@ -261,8 +302,10 @@ def _python(cases: list[dict]) -> dict:
     xi = []
     for ps in XI_CASES:
         pieces = [
-            piece(p["id"], p["name"], p["value"], p["role"], p["overseas"], p["tags"]) for p in ps
-        ]
+            piece(p["id"], p["name"], p["value"], p["role"], p["overseas"], p["tags"],
+                  tuple(p["parts"]) if p.get("parts") else None)
+            for p in ps
+        ]  # fmt: skip
         b = best_xi(pieces)
         xi.append({"xi": b["xi"], "ids": b["ids"], "fillers": b["fillers"],
                    "strength": strength(pieces, XI_NEEDS)})  # fmt: skip
@@ -313,6 +356,25 @@ def test_best_xi_rules():
     assert "low" not in b["ids"] and "nv" not in b["ids"] and b["fillers"] >= 1
     empty = best_xi([])
     assert empty["xi"] == pytest.approx(11 * REPLACEMENT)
+
+
+def test_best_xi_balls_budget():
+    """An XI whose expected balls faced pass a side's innings has its batting parts scaled down to
+    TEAM_BALLS, every member alike; bowling parts too; nothing is scaled up."""
+    from cricdex.web_parity.bidplan import TEAM_BALLS
+
+    pieces = [piece(p["id"], p["name"], p["value"], p["role"], p["overseas"], p["tags"],
+                    tuple(p["parts"])) for p in XI_CASES[3]]  # fmt: skip
+    b = best_xi(pieces)
+    chosen = [p for p in pieces if p["id"] in b["ids"]]
+    faced = sum(p["fb"] for p in chosen)
+    bowled = sum(p["wb"] for p in chosen)
+    sb = min(1.0, TEAM_BALLS / faced)
+    sw = min(1.0, TEAM_BALLS / bowled)
+    assert faced > TEAM_BALLS and sb < 1
+    assert b["xi"] == pytest.approx(
+        sb * sum(p["cb"] for p in chosen) + sw * sum(p["cw"] for p in chosen)
+    )
 
 
 def test_plan_respects_purse_and_room():

@@ -18,7 +18,7 @@ metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [
 | [3. The nine context metrics + fielding](#3-the-nine-context-metrics--fielding) | Pressure Runs, Intent Curve, Dot-Ball Recovery and the rest; time windows and eras |
 | [4. Bayesian skill ratings](#4-bayesian-skill-ratings) | Four skills per player, adjusted for the opposition, with honest uncertainty |
 | [5. Scout look-alikes](#5-scout-look-alikes) | Who plays like X in another league, and what he'd cost; style twins on every profile (5a) |
-| [6. From skill to crore](#6-from-skill-to-crore) | Turning a rating into an auction price |
+| [6. From skill to crore](#6-from-skill-to-crore) | Turning a rating into an auction price; who plays and how much he adds a match (6c) |
 | [7. The auction room](#7-the-auction-room) | Retentions, personalities, budget pressure, second-price clearing |
 | [8. Does it predict? The backtest](#8-does-it-predict-the-backtest) | Fitted before each season, scored on that season |
 | [9. Limits](#9-limits) | What the models can't see, and what's approximate |
@@ -560,11 +560,11 @@ both, locked by `test_scripts/test_web_parity.py`).
    the spread of the old value, IPL players with 150+ balls); players with 300+ balls in both leagues show
    gaps of the same size (SMAT +22 runs for batters and +7 for bowlers, BBL +4 / +3, CPL +5 / +6, Blast
    +9 / +6).
-2. **IPL relevance.** For the auction pool, a player who hasn't featured in the IPL lately loses up to
-   36 runs per 100 balls from his value, scaled by an *IPL-relevance* weight between 0 and 1: about 1 for a current IPL
-   regular (age barely matters while he's playing), fading with years since his last IPL game and with age
-   past 32; 0.7 for an uncapped Indian who has never played the IPL. This is what stops a league-only
-   veteran from topping an IPL auction.
+2. **No IPL-relevance penalty** (since 2026-10-22, audit item 4). Until then a player who hadn't featured
+   in the IPL lately lost up to 36 runs per 100 balls from his value on a hand-set curve (age, years since
+   his last IPL game, 0.7 for a never-IPL Indian), which also set the pool's order. Whether he will play is
+   now a fitted chance, P(plays), and the pool is ranked by what he is expected to add over a season (6c).
+   This curve prices his value as it is.
 3. **Cautious estimate.** The price is set from `value − 0.5 × value_sd`, not the central value
    (`PRICE_CAUTION_SD`, `pricing.py` ⇄ `auction.ts`): a proven star (sd ≈ 3 runs) gives up about 1.5
    runs, a 400-ball prodigy (sd ≈ 12) about 6. Displays and rankings keep the central value. The pool
@@ -580,7 +580,10 @@ both, locked by `test_scripts/test_web_parity.py`).
    The ceiling rises with IPL evidence: no IPL balls → 13.5 cr at most, 449 (Suryavanshi) → 23.6 cr,
    600+ (about two full seasons) → 27 cr. The pool and Scout rows carry `target_balls` for it.
 
-   All-rounders are weighted ×1.15 and keepers ×1.05, because they're scarcer. The top names land in the
+   Until 2026-10-22 all-rounders were weighted ×1.15 and keepers ×1.05 "because they're scarcer", a
+   hand-set premium standing in for an all-rounder's second discipline (audit item 6); it is gone: the
+   second discipline counts in his contribution per match (6c), and the market model's fitted role terms
+   are the price premium. The top names land in the
    20s of crore; the typical pool player is around 1.2 crore; nobody passes 27 cr, the real record. When
    `value` moved to runs, the two constants were re-fitted so the 600-player pool keeps the same median
    price (1.18 cr) and the same number of 10 cr+ players (25) as before, on the cautious values
@@ -590,7 +593,7 @@ both, locked by `test_scripts/test_web_parity.py`).
 5. **Base price.** Each player enters the auction at a real IPL base-price band chosen from his projected
    price: 0.3, 0.5, 0.75, 1.0, 1.5 or 2.0 cr.
 
-*Worked example.* Kohli's IPL batting value is +13.6 ± 2.8 with full IPL relevance: priced value
+*Worked example.* Kohli's IPL batting value is +13.6 ± 2.8: priced value
 13.6 − 1.4 = 12.2, `4.03 × e^(0.0743 × 12.2) ≈ 4.03 × 2.48 ≈ 10.0 cr` projected, entering at the 1.0 cr
 band. Priyansh Arya's is higher (+27.7) but on 471 balls (± 12.4): priced at 21.5, about 20 cr instead
 of the 27 cr cap. Suryavanshi (+59.7 ± 12.5 on 449 balls) would still reach 27 cr on the curve, but
@@ -789,6 +792,16 @@ Selection (auctions up to 2024; 688 lots and 51 retentions held out; lower MAE w
 | U L, value held, top-end hinge on lots + retentions (top fifth) | 0.795 | 0.90 | −1.432 | −1.473 | −0.867 | 0.889 |
 | V U, hinge at the top tenth | 0.795 | 0.91 | −1.431 | −1.469 | −0.917 | 0.889 |
 | W U, hinge at the top twentieth | 0.795 | 0.91 | −1.437 | −1.467 | −1.039 | 0.890 |
+| X T with the contribution per match as the value (declared later that evening, below) | 0.794 | 0.92 | −1.438 | −1.461 | −1.127 | 0.906 |
+
+**Candidate X** (declared on the evening of 2026-10-22 with the playing-time model, 6c, before any of its
+numbers): T with the value replaced by the contribution per match (both roles at their expected balls,
+above replacement, as of each auction; `scripts/playing_time_fit.py asof-contrib`). Under the declared rule
+T stays: its held-out lot error is 0.792 against 0.794 and its dearest predictions are better placed (0.98
+against 0.92), though X fits the retention floors and the 2023–24 validation better (−1.438 against −1.455;
+0.906 against 0.924). The market seems to price a player's headline rate more than his runs a match, so the
+price keeps `value` (the better role's rate) as its input; an all-rounder's premium is its fitted role term.
+X wasn't chosen, so it has no test score; T's below is unchanged.
 
 (All on the international caps with Afghanistan restored, section 1.) T has the lowest held-out lot
 error and the best top end (its 20 dearest predictions per auction fetched 0.98× them, against 0.91×).
@@ -922,6 +935,190 @@ retention: what a released player like them fetches, not what their franchise pa
 "not bought" includes players who didn't register. The caution (`value − 0.5 × sd`) is still a fixed
 0.5, not estimated (audit item 2c).
 
+### 6c. Playing time: who plays, and what he adds a match
+
+**What it does.** A rating says how good a player is per ball. A franchise buys matches: whether he plays,
+and how many balls he gets when he does. Since 2026-10-22 (audit items 4 and 6) CricDex values every player
+as
+
+```
+expected season value  = P(plays a match) × contribution per match × 14 matches
+contribution per match = (batting value − replacement for his batting slot)   × balls faced a match / 100
+                       + (bowling value − replacement for his bowling group) × balls bowled a match / 100
+```
+
+in the runs currency of section 4. It replaces two hand-set patches: the IPL-relevance penalty (6a step 2),
+which ranked the pool, and the all-rounder rule (his better role only, ×1.15), which dropped Narine's batting
+entirely and made Bid plan add per-100-ball rates across an XI as if a No. 7 faced as many balls as an
+opener. Code: `src/cricdex/scout/playing_time.py`, fitted by `scripts/playing_time_fit.py` into
+`config/playing_time_model.json`; every number below is in `data/metrics/playing_time_ipl.json`. Each piece
+follows the frozen protocol of 6b: candidates declared before any test number, fitted on seasons up to 2023,
+chosen on 2024, the chosen one refitted to 2024 and scored **once** on 2025–26, then refitted on everything.
+
+**The data: who actually played.** Cricsheet lists each match's XI (`match_players`; the impact player too
+from 2023), so for every player and match: did he play, where he batted, his legal balls faced and bowled,
+and his side's legal balls. Every auction-pool league is read the same way, so a newcomer's usage comes from
+his own leagues.
+
+**1. Balls a match.** His share of his side's balls in the matches he played, batting and bowling apart, as a
+credibility (shrinkage) estimate: his past IPL matches (×d per season back), his other-league matches
+discounted (×k_o: another side uses him differently) and his role's mean share with the weight of k0
+matches; times the IPL's balls per innings (115.0, 2023–26). Mean absolute error in balls a match
+(matches-weighted):
+
+| candidate | 2024 (validation): faced / bowled | 2025–26 (test): faced / bowled |
+|---|---|---|
+| E0 his role's mean (reference) | 3.98 / 2.17 | 3.71 / 2.14 |
+| E1 last IPL season's share, else role mean (reference) | 3.66 / 1.96 | 3.12 / 1.55 |
+| E2 credibility, IPL history only | 3.21 / 1.53 | |
+| E3 E2 + other leagues | 3.12 / 1.53 | |
+| **E4 E3 with impact-era role means (shipped)** | **3.00 / 1.46** | **2.71 / 1.44** |
+
+Shipped (refitted 2012–2026): batting d = 0.8, other leagues ×0.25, 8 matches toward the role's mean; bowling
+d = 0.4, ×0.1, 2 matches. Position comes through his own history: Kohli faces 27 balls a match, Gill 26,
+Abhishek Sharma 17 (an opener who scores fast faces fewer), Rinku Singh 14, Dhoni 10, Tewatia 8; Bumrah and
+Narine bowl 23–24. **On whole XIs** the predictions run high: summed over each real XI of the test seasons
+they come to 1.22× (2025) and 1.11× (2026) the side's real balls faced (1.18× / 1.10× bowled). A regular is
+predicted well; a newcomer or fringe player is shrunk toward his role's mean, which the regulars set. So Bid
+plan holds an XI's balls to a side's innings (section 12).
+
+**2. Replacement level.** What a side gets from the next man up: the mean rating, at the auction, of the
+players bought at that auction's lowest price (nobody bid more: freely available talent, the usual definition
+of replacement level), by the slot group of his usual batting position (the ratings' slot groups) and by
+bowling group (frontline: 15+ balls a match), auctions 2012–2026 (walk-forward in the validations). Batting:
+top order −7.3, middle −16.8, lower middle −23.2, tail −63.2; bowling: frontline −11.3, part-time −27.4 runs
+per 100 balls above the average ball (32–88 players each). So an opener is measured against a replacement
+opener, a bowler's batting against a tail-ender. Tried first and rejected: "fringe" players defined after the
+fact (under half their side's matches), who are fringe because they failed (top order −28).
+
+**3. P(plays): a squad player.** The share of his side's matches he plays: a fractional logistic regression
+(a binomial on matches) on every squad of every season with a complete retained list (2018–2026, the retained
+and bought players, 1,899 player-seasons), with inputs as of the auction (walk-forward ratings, usage and
+replacement levels): where he ranks in his squad (his contribution, whether he makes its projected XI —
+Bid plan's greedy XI: four overseas, a keeper, five bowling and six batting options — his distance to its
+selection line, ln of his rank); overseas places (overseas, outside the four best overseas, places beyond);
+experience and age (ln IPL matches, never played, age, age past 32); availability (his share of matches last
+season, 0 when he was in a squad and didn't play; not in a squad last season); keeper, last season's
+captain, the impact-player era.
+
+| candidate | 2024: log loss / Brier / rank corr. | 2025–26: log loss / Brier / MAE / rank corr. |
+|---|---|---|
+| P0 base rate (reference) | 0.694 / 0.152 / – | 0.697 / 0.150 / 0.350 / – |
+| P1 rank in the squad | 0.641 / 0.126 / 0.39 | 0.626 / 0.115 / 0.290 / 0.47 |
+| P2 P1 + overseas places | 0.635 / 0.124 / 0.41 | |
+| P3 P2 + experience and age | 0.598 / 0.107 / 0.54 | |
+| P4 P3 + availability | 0.581 / 0.099 / 0.58 | |
+| **P5 P4 + keeper, captain, era (shipped)** | **0.578 / 0.098 / 0.58** | **0.562 / 0.087 / 0.246 / 0.63** |
+
+(Log loss per match; Brier and MAE on the share of matches.) Calibration in the test, fifths of the
+prediction, predicted / real share: 0.20 / 0.25, 0.30 / 0.27, 0.48 / 0.47, 0.70 / 0.68, 0.83 / 0.90.
+Availability and experience carry the most: a player who sat out last season in a squad is much less likely
+to play than his rank says.
+
+**P(plays): a free agent** has no squad to rank in, and whether he plays also depends on whether anyone buys
+him, which is what the relevance penalty tried to say by hand. A second model, fitted the same way on every
+free agent of every past auction pool (active in a pool league in the three years before, a nationality the
+auction admits, not retained: 1,025–1,421 a year, 33–146 of whom then played): his contribution and its
+distance to the median squad's XI line, ln IPL matches, never played the IPL, years since his last IPL match,
+age and age past 32, last season's share, overseas, keeper, captain, era. Candidates F0 (base rate), F1
+(contribution and line), F2 (+ experience, years since, age), F3 (+ last season, overseas, keeper, captain,
+era); F3 chosen on 2024 (log loss 0.074 against 0.100); test 2025–26: **0.085** against 0.157 for the base
+rate and 0.137 for F1, rank corr. 0.39; the top fifth of predictions averaged 0.18 and played 0.17 of a
+side's matches. A known gap: no mega/mini term was declared, so a 2027 (mini) free agent's chance averages
+both kinds of year, and in a mini year far fewer free agents play (33 in 2026 against 133 in 2025).
+
+**Fielding** isn't in the contribution: Cricsheet records completed catches, run-outs and stumpings, not
+chances, drops or runs saved, so a fielding value in runs can't be identified from it.
+
+**Where it is used.** The pool is ranked by expected season value (section 7) and the Auction room's mini
+retentions by the same; Bid plan's strength adds P(plays) × contribution per match at realistic balls (section 12); Keep
+or release's role gaps compare contribution per match, and P(plays) and P × contribution were tried as inputs
+of its retention model (section 10, not chosen); the market price was tried on the contribution instead of
+the better role's rate (6b, candidate X, not chosen). `value` (the better role's rate) is still shown, and is
+still the market price's input.
+
+**Reality check** (IPL 2027 defaults, data to the 2026 final; P(plays) in his 2026 squad, for a free agent
+the free-agent model; contribution = runs above replacement a match he plays, batting + bowling at his balls
+faced / bowled a match; season value = P × contribution × 14; pool rank before = by value less the relevance
+penalty, after = by season value; the market price and the Keep call are unchanged by this: the price's input
+and the retention model are the same):
+
+| player | team | value (better role) | P(plays) | contribution (bat + bowl; balls faced / bowled) | season value | pool rank before → after | market (cr) | Keep |
+|---|---|---|---|---|---|---|---|---|
+| Vaibhav Suryavanshi | RR | 59.7 | 0.91 | 13.0 (13.0 + 0; 19 / 0) | 164 | 1 → 1 | 21.5 | Keep (100%) |
+| Sunil Narine | KKR | 24.0 | 0.83 | 8.7 (0.5 + 8.1; 7 / 23) | 100 | 5 → 2 | 5.1 | Keep (88%) |
+| Jasprit Bumrah | MI | 23.2 | 0.88 | 8.1 (−0.1 + 8.2; 1 / 24) | 99 | 6 → 3 | 11.3 | Keep (97%) |
+| Rashid Khan | GT | 20.3 | 0.91 | 7.7 (1.0 + 6.7; 3 / 21) | 98 | 13 → 4 | 9.0 | Keep (92%) |
+| Shubman Gill | GT | 17.5 | 0.91 | 6.4 (6.4 + 0; 26 / 0) | 82 | 17 → 6 | 26.1 | Keep (99%) |
+| Heinrich Klaasen | SRH | 17.7 | 0.85 | 6.7 (6.7 + 0; 20 / 0) | 81 | 16 → 7 | 7.7 | Keep (83%) |
+| Ravindra Jadeja | RR | 4.2 | 0.83 | 6.7 (2.0 + 4.7; 13 / 15) | 79 | 74 → 8 | 7.5 | Keep (84%) |
+| Axar Patel | DC | 12.1 | 0.90 | 5.5 (1.1 + 4.4; 12 / 19) | 69 | 34 → 14 | 18.3 | Keep (96%) |
+| Cameron Green | KKR | 6.9 | 0.83 | 6.0 (3.6 + 2.4; 15 / 11) | 69 | 57 → 15 | 10.7 | Keep (81%) |
+| Virat Kohli | RCB | 13.6 | 0.86 | 5.7 (5.7 + 0; 27 / 0) | 69 | 28 → 16 | 7.9 | Keep (93%) |
+| Abhishek Sharma | SRH | 22.9 | 0.88 | 5.5 (5.2 + 0.4; 17 / 3) | 69 | 7 → 17 | 16.4 | Keep (98%) |
+| Finn Allen | KKR | 26.5 | 0.71 | 5.8 (5.8 + 0; 17 / 0) | 58 | 3 → 24 | 10.3 | Keep (90%) |
+| Krunal Pandya | RCB | 9.7 | 0.82 | 4.8 (1.2 + 3.7; 9 / 17) | 55 | 45 → 28 | 3.3 | Keep (85%) |
+| Hardik Pandya | MI | −1.6 | 0.80 | 4.8 (2.0 + 2.7; 13 / 14) | 54 | 127 → 30 | 12.4 | Keep (89%) |
+| Mitchell Marsh | LSG | 12.9 | 0.70 | 4.7 (4.5 + 0.2; 22 / 1) | 46 | 33 → 36 | 5.5 | Keep (78%) |
+| Marcus Stoinis | PBKS | 4.4 | 0.72 | 3.2 (2.8 + 0.5; 13 / 7) | 33 | 71 → 55 | 4.4 | Borderline (52%) |
+| Rinku Singh | KKR | −6.4 | 0.79 | 2.4 (2.4 + 0; 14 / 0) | 27 | 184 → 68 | 5.0 | Keep (90%) |
+| Liam Livingstone | SRH | 4.4 | 0.43 | 4.2 (3.2 + 1.1; 15 / 8) | 26 | 72 → 71 | 4.9 | Borderline (40%) |
+| Rohit Sharma | MI | 3.7 | 0.53 | 2.0 (2.0 + 0; 18 / 0) | 15 | 80 → 107 | 5.0 | Borderline (60%) |
+| Washington Sundar | GT | 6.3 | 0.80 | 1.3 (−0.5 + 1.8; 12 / 5) | 14 | 65 → 113 | 10.7 | Keep (84%) |
+| MS Dhoni | CSK | −6.1 | 0.27 | 2.3 (2.3 + 0; 10 / 0) | 9 | 177 → 141 | 1.1 | Borderline (62%) |
+| Rahul Tewatia | GT | 0.5 | 0.66 | 0.7 (0.5 + 0.2; 8 / 1) | 6 | 105 → 159 | 0.6 | Borderline (48%) |
+| Andre Russell (retired) | — | 24.5 | 0.08 | 7.4 (4.9 + 2.5; 10 / 12) | 8 | out → out | 5.3 | — |
+| Moeen Ali, 39 | free agent | 10.8 | 0.04 | 6.6 (2.1 + 4.5; 11 / 12) | 4 | 39 → 194 | 5.4 | — |
+| Faf du Plessis, 42 | free agent | 7.0 | 0.01 | 4.6 (4.6 + 0; 21 / 0) | 1 | 56 → 267 | 4.0 | — |
+| Imran Tahir, 47 | free agent | −18.1 | 0.00 | 4.1 (0 + 4.1; 1 / 22) | 0 | 449 → out | 2.4 | — |
+| Rahul Singh (uncapped, SMAT) | free agent | 10.4 | 0.03 | 6.0 (6.0 + 0; 16 / 0) | 2 | 40 → 223 | 0.5 | — |
+| Lewis Goldsworthy (never IPL; Blast, 26) | free agent | −16.3 | 0.03 | 5.8 (3.0 + 2.9; 9 / 13) | 2 | 385 → 224 | 1.5 | — |
+
+(The "before" value of a free agent is his value less the relevance penalty, which is why it is low for
+Imran Tahir and Goldsworthy; Russell and the retired are left out of the pool either way.)
+
+Read player by player:
+
+- **The all-rounders now count both disciplines.** Jadeja (batting 2.0 + bowling 4.7 runs a match) moves from
+  74th to 8th, Hardik (2.0 + 2.7) from 127th to 30th, Green (3.6 + 2.4) from 57th to 15th, Axar 34th → 14th,
+  Krunal 45th → 28th. Before, each was valued by his better rate alone (Hardik's −1.6) and an ×1.15 premium.
+  An all-rounder adds through two sets of balls, so a good one matches a top specialist: Jadeja 6.7 a match,
+  Klaasen 6.7, Gill 6.4, Kohli 5.7.
+- **Narine's batting is back**: 7 balls a match at the top, worth +0.5 against a replacement opener, on top of
+  bowling worth 8.1 — the most valuable player in the pool after Suryavanshi. His batting value (0.1 per 100
+  balls: he scores fast and gets out often, section 4) is still worth something, because a replacement opener
+  is worse.
+- **Bowlers keep their place**: Bumrah 8.1, Rashid 7.7 (his batting adds 1.0), all from about 21–24 balls a
+  match. A four-over bowler and a 25-ball batter now count at their own balls, not per 100 balls each.
+- **Batters at the death face few balls**: Rinku 14 a match, Dhoni 10, Tewatia 8. Rinku rises (his −6.4 per
+  100 balls is a finisher's rate measured against the average ball; against a replacement lower-middle batter
+  it is +2.4 a match); Tewatia (0.7 a match) and Dhoni (2.3, and a 27% chance of playing at 45 after not
+  playing in 2026) fall.
+- **Kohli** (5.7 a match from 27 balls, 86% to play) and **Rohit** (2.0, 53%: he played 64% of MI's matches in
+  2026, and age counts) are where their recent seasons put them. **Abhishek Sharma** drops from 7th to 17th:
+  a +22.9 rate on 17 balls a match is worth less a match than Kohli's +13.6 on 27; and he bowls 3 balls a
+  match.
+- **Washington Sundar** falls (65th → 113th): GT used him for 5 balls a match in the last seasons and his
+  batting value is below a replacement lower-middle batter's. That is how he was used, not a judgement of his
+  ceiling.
+- **Finn Allen** (+26.5 per 100 balls on a thin IPL record) drops from 3rd to 24th: 17 balls a match, and a
+  71% chance of playing in KKR's crowded overseas places.
+- **Veterans out of the IPL**: Moeen Ali, Faf du Plessis, Imran Tahir, Bravo still contribute per match in
+  their leagues, but free agents of their age and years away rarely play an IPL match again (P ≤ 0.04), so
+  they fall to between 194th and 324th, and Imran Tahir out of the 600 — fitted, not penalised by hand. **Russell** (retired) would be a 7.4-a-match
+  all-rounder with an 8% chance of playing.
+- **Newcomers** (an uncapped SMAT batter, an overseas league all-rounder) contribute 5.8–6.0 a match on their
+  league numbers, but a never-IPL free agent plays rarely (3%), so they rank in the 200s; a franchise that
+  buys one changes that (in a squad, the squad model applies).
+- **Stoinis** and **Livingstone** are Borderline on Keep, and P(plays) agrees: 0.72 and 0.43 (Livingstone
+  played 2 of SRH's 15 matches in 2026).
+
+**Limits.** The contribution uses the career rating, not an aged forecast: a veteran's age counts only through
+P(plays) (audit items 3 and 9). The free-agent model has no mega/mini term. A newcomer's balls are shrunk
+toward his role's regular share (the XI check above). P(plays) is computed against the squad as listed; a
+flipped Keep call doesn't recompute it. Fielding is missing. Balls a match don't depend on venue or
+opposition.
+
 ---
 
 ## 7. The auction room
@@ -934,14 +1131,21 @@ step-by-step version is [AUCTION_MATH.md](AUCTION_MATH.md).
 **The pool.** The active T20 world an IPL auction draws from: IPL players (each carrying his current
 franchise, so he can be retained) plus free agents from every `auction_pool` league in the registry
 (the overseas leagues and SMAT; men's T20Is are left out). Only
-players active in the last three years with at least 150 balls in one of those leagues; free agents must
+players active in the last three years in one of those leagues; free agents must
 come from a nation whose players feature in IPL auctions (so not Pakistan or associate sides — the
 `auction_nationalities` / `auction_excluded_nationalities` lists in the registry). A player in several
 leagues gets one value per role: if he has 300+ balls in that role in the IPL, his IPL rating stands on
 its own; otherwise his leagues are blended, each first discounted by its tier and weighted by
 1 ÷ (rating sd² + the tier's `translation_sd`²), so thin IPL evidence still counts most and a hot spell
-in a weaker or provisional league can't outrank it. His better role is kept. Priced as in section 6;
-the top 600 by value make the pool.
+in a weaker or provisional league can't outrank it. Both roles feed his contribution per match, and the
+pool is ranked by **expected season value** (P(plays) × contribution per match × 14, section 6c; a squad
+player's P(plays) in his squad, a free agent's from the free-agent model); the top 600 make the pool, a size
+limit for the browser and the room's Monte-Carlo (the room auctions 200 lots by price; Bid plan's free agents
+are this list), not a quality cut. His better role's rate is still shown as `value` and priced as in section
+6. Until 2026-10-22 the order was the value less the IPL-relevance penalty (6a step 2) and players under 150
+balls were dropped outright; the penalty is replaced by P(plays), the 150-ball cut by the ratings' own
+shrinkage (a thin record sits near its slot's mean and, without IPL experience, plays little). The recency
+rule stays, with its reason: a player idle for three seasons has no usage or form to project.
 
 **Retentions.** Editable per team.
 - **Mega auction**: each franchise keeps its real 2025 retention list (about five players), paid at the
@@ -950,7 +1154,7 @@ the top 600 by value make the pool.
   salaries, so KKR lost 69 cr (not its 57 of salaries) and DC 47 (not 43.75); the room charges the
   salaries, giving those two teams 12 and 3.25 cr too much (Keep or release and the calibration replays
   use the rule).
-- **Mini auction**: each team keeps its 18 most valuable players free (they were bought in earlier years)
+- **Mini auction**: each team keeps its 18 players with the highest expected season value free (they were bought in earlier years)
   and tops up from a small purse (30 cr by default).
 
 Retained overseas players count towards the overseas cap of 8.
@@ -1336,8 +1540,10 @@ group stage and all of SMAT 2025-26 as missing) and are priced from the market (
    Targets: 2 keepers, 3 openers, 3 death bowlers, 3 spinners, and the overseas players the squad has now (at
    most 8). Gaps are filled in that order from the **likely pool**: today's free agents in the auction pool
    plus the players our default plan releases from the other nine squads (at our price), cheapest first,
-   among those at least as good as the best player the team released in that role (else an average player,
-   value 0), within the open slots and overseas room. A pick counts for every tag he carries.
+   among those at least as good as the best player the team released in that role, by contribution per match
+   (runs above replacement, batting and bowling at his balls, section 6c; until 2026-10-22 by the better
+   role's rate per 100 balls; a replacement-level player, 0, when the team released none), within the open
+   slots and overseas room. A pick counts for every tag he carries.
 
 **The backtest: does the call do what franchises do?** (`scripts/keep_backtest.py`; audit item 1.) Every
 deadline with a complete published retained list is replayed with only what was known before it: the 2018,
@@ -1374,31 +1580,44 @@ accuracy, the mean of the share kept that we keep and the share released that we
 | rule | precision | recall | F1 | BA | stars: precision / recall / F1 / BA | regulars F1 | depth F1 | log loss |
 |---|---|---|---|---|---|---|---|---|
 | B0 keep everyone the rules allow (reference) | 0.64 | 0.98 | 0.773 | 0.71 | 0.77 / 0.99 / 0.87 / 0.50 | 0.77 | 0.71 | |
-| C0 shipped rule (margins, age 35) | 0.64 | 0.85 | 0.729 | 0.68 | 0.80 / 0.81 / 0.81 / 0.57 | 0.71 | 0.71 | |
+| C0 shipped rule (margins, age 35) | 0.63 | 0.75 | 0.684 | 0.65 | 0.81 / 0.46 / 0.58 / 0.55 | 0.70 | 0.71 | |
 | C1 market price vs cost, threshold | 0.65 | 0.96 | 0.772 | 0.71 | 0.80 / 0.93 / 0.86 / 0.57 | 0.77 | 0.71 | |
 | C2 forecast market price vs cost | 0.65 | 0.96 | 0.771 | 0.71 | 0.80 / 0.93 / 0.86 / 0.58 | 0.77 | 0.71 | |
 | L1 logistic: price vs cost | 0.65 | 0.95 | 0.773 | 0.71 | 0.83 / 0.91 / 0.87 / 0.65 | 0.77 | 0.71 | 0.653 |
 | L2 + 3-season forecast | 0.75 | 0.74 | 0.745 | 0.74 | 0.82 / 0.91 / 0.86 / 0.63 | 0.78 | 0.52 | 0.573 |
 | L3 + ties to the franchise | 0.74 | 0.82 | 0.774 | 0.76 | 0.83 / 0.93 / 0.88 / 0.64 | 0.79 | 0.65 | 0.566 |
 | **L4 + status (shipped)** | **0.77** | **0.82** | **0.795** | **0.79** | **0.84 / 0.92 / 0.87 / 0.66** | **0.78** | **0.74** | **0.554** |
+| L5 L4 + playing time (P(plays) in his squad, P × contribution) | 0.77 | 0.80 | 0.786 | 0.78 | 0.85 / 0.92 / 0.88 / 0.68 | 0.77 | 0.72 | 0.546 |
+| L6 L5 without the Form forecast | 0.77 | 0.82 | 0.794 | 0.78 | 0.85 / 0.93 / 0.88 / 0.68 | 0.77 | 0.74 | 0.552 |
 
-L4 is best on F1, on balanced accuracy and on log loss, and every step from L1 adds something: the price
-against the cost alone does no better than keeping everyone; the forecast tells who stops playing (and so
-who goes); the ties and the status terms tell the rest.
+L4 is best on F1 and on balanced accuracy, and every step from L1 adds something: the price against the
+cost alone does no better than keeping everyone; the forecast tells who stops playing (and so who goes); the
+ties and the status terms tell the rest.
+
+**Playing time as an input** (L5, L6; declared on the evening of 2026-10-22 with section 6c, before any of
+their numbers; rows rebuilt with each player's contribution per match as of the deadline and his P(plays) in
+the squad his franchise held before it, from the squad model fitted out of fold: on the other seasons up to
+2024 for a training deadline, on 2018–2024 for 2025–26). Both fit the decisions better in likelihood (log loss
+0.546 and 0.552 against 0.554; at a weaker penalty 0.543 against 0.548) and tell the stars apart better (stars'
+F1 0.88 against 0.87, balanced accuracy 0.68 against 0.66), but neither beats L4 on the declared rule, F1 for
+"kept" (0.786 and 0.794 against 0.795), so L4 stays and has the only test. What a franchise does at a deadline
+is already carried by the Form forecast's chance he stays a regular, which overlaps P(plays). The C0 rows
+were recomputed that evening on the shipped price recipe (T, 6b); the first run had priced C0 with the
+afternoon's recipe (F1 0.729 in selection, 0.683 in the test); every other row is unchanged.
 
 The test, once (fitted on 2018–2024, scored on 2025 and 2026):
 
 | rule | precision | recall | F1 | BA | accuracy | stars: precision / recall / F1 / BA (accuracy) | 2025 mega: F1 / BA | 2026 mini: F1 / BA |
 |---|---|---|---|---|---|---|---|---|
 | **L4 (shipped)** | **0.77** | **0.69** | **0.724** | **0.77** | **0.78** | **0.88 / 0.88 / 0.88 / 0.79 (82%)** | **0.48 / 0.66** | **0.78 / 0.64** |
-| C0 shipped rule before | 0.64 | 0.74 | 0.683 | 0.72 | 0.71 | 0.78 / 0.79 / 0.79 / 0.63 (70%) | 0.51 / 0.70 | 0.73 / 0.44 |
+| C0 shipped rule before | 0.64 | 0.66 | 0.646 | 0.69 | 0.70 | 0.82 / 0.63 / 0.71 / 0.65 (64%) | 0.42 / 0.64 | 0.69 / 0.42 |
 | B0 keep everyone the rules allow | 0.64 | 0.92 | 0.755 | 0.77 | 0.75 | 0.73 / 1.00 / 0.85 / 0.57 (75%) | 0.55 / 0.74 | 0.81 / 0.50 |
 
 Read honestly:
 
 - **Against the rule it replaces** the model is better on every measure: it makes the franchise's own call
-  for 78% of the players (71%) and 82% of the stars (70%), and it tells which stars go (balanced accuracy on
-  stars 0.79 against 0.63).
+  for 78% of the players (70%) and 82% of the stars (64%), and it tells which stars go (balanced accuracy on
+  stars 0.79 against 0.65).
 - **Against keeping everyone**, it is level overall (balanced accuracy 0.77 / 0.77, F1 0.72 / 0.76): most of
   a squad is kept in a mini year (157 of 230 in 2026), so keeping everyone is a strong default. What the
   model adds is telling which of the expensive players go (stars 0.79 against 0.57).
@@ -1749,7 +1968,8 @@ Run: `uv run python scripts/form_forecast.py fits` (the walk-forward fits; cache
 ## 12. Bid plan (beta)
 
 > **Beta.** In honest replays of the 2025 mega and 2026 mini auctions the plan built a stronger squad
-> than the real franchise for 4 and 2 of 10 teams — it is shipped as an exploration tool, not a verdict.
+> than the real franchise for 8 and 0 of 10 teams (re-run 2026-10-22 on expected contributions) — it is
+> shipped as an exploration tool, not a verdict.
 
 **What it does.** Before the auction (IPL 2027: likely 16 December 2026), a franchise needs a sheet: whom to
 bid for, how high, and what to do when a target goes for more. Bid plan takes the squad and purse a team
@@ -1786,21 +2006,39 @@ rival's maximum bid × 1.02 (the simulator's clearing step; a rival bids at most
 player no rival bid for (or not among the simulator's lots) costs his base price. We are a price-taker: our
 own buys don't change what the rivals do in a run.
 
-**3. Squad strength**, in the runs-per-100-balls currency of section 4:
+**3. Squad strength**, in runs a match above replacement (since 2026-10-22, audit items 6 and 8; section 6c):
 
 ```
-strength = best XI + 0.25 × depth − 3 × role places short
+strength = best XI + 0.25 × depth − 0.63 × role places short
+best XI  = s_bat × Σ P × batting contribution + s_bowl × Σ P × bowling contribution
+s_bat    = min(1, 115 ÷ the XI's expected balls faced a match),  s_bowl the same for balls bowled
+P        = his P(plays) (6c): in his squad for a kept player; as a free agent for the auction's lots
 ```
 
 - **Best XI**: 11 players, at most 4 overseas, at least one keeper, five bowling options (bowlers and
-  all-rounders) and six batting options (batters, keepers, all-rounders), their values added up. It is
-  picked greedily: highest value first, skipping a player who would break the overseas limit or leave too
-  few places for the keeper, bowling and batting minimums. A place the squad can't fill goes to a
-  **replacement-level** player, −15 (about the median value of the pool's players priced at 2 cr or less); a
-  player below that never plays, and an unrated player counts at that level.
-- **Depth**: the next four players' edge over replacement level.
+  all-rounders) and six batting options (batters, keepers, all-rounders). Each counts his **expected
+  contribution per match**: his batting value less a replacement batter's for his slot, at the balls he faces
+  a match, plus his bowling value less a replacement bowler's, at the balls he bowls (6c), × his P(plays).
+  For a lot (a free agent, or a player another plan releases) P is the free-agent model's: the chance players
+  like him play an IPL match at all. That is what keeps retired and long-gone veterans (Bravo, Nabi, Amit
+  Mishra, whose career contributions are 4–10 runs a match) off the target lists: without it they topped
+  every team's plan at base price, because the ratings are career-long and don't see a player's decline or
+  absence; P(plays) carries the evidence that franchises stopped picking players like them. It is picked
+  greedily: highest expected contribution first, skipping a player who would break the overseas limit or leave too few places for the
+  keeper, bowling and batting minimums. **Realistic balls**: an XI can't face or bowl more than a side's
+  innings (115 legal balls, the IPL 2023–26 mean), so when its players' expected balls add up to more, every
+  member's batting (bowling) part is scaled down alike; eight openers can't each face 25 balls. A place the
+  squad can't fill goes to a **replacement-level** player, 0 by construction; a player at or below it never
+  plays, and an unrated player counts at that level.
+- **Depth**: the next four players' expected contributions.
 - **Role needs**: keepers (2), openers (3), death bowlers (3), spinners (3), pace bowlers (4), editable; each
-  place short costs 3.
+  place short costs 0.63 runs a match (the earlier hand-set 3 runs per 100 balls, converted at a player's
+  mean balls a match, 2 × 115 / 11 ≈ 20.9; still hand-set, roadmap 26).
+
+Until 2026-10-22 strength added the XI's per-100-ball values, as if a No. 7 faced as many balls as an
+opener and a four-over bowler counted like a 25-ball batter, with a −15 replacement level and the better
+role only for an all-rounder. λ's grid moved with the unit (0.05 … 3.2 runs a match per crore, the old
+0.25 … 16 at the same 0.209), so the crore figures are on the same scale.
 
 A player's **gain** is strength with him minus strength without him.
 
@@ -1811,7 +2049,7 @@ there is squad and overseas room. A user's max bid replaces gain ÷ λ for that 
 gain is measured on the squad so far **plus the likely buys still to come**, so an early lot isn't overpaid
 while a cheaper fit comes later, and if a likely buy goes elsewhere his substitutes bid higher. "Likely buys"
 are the players the rule lands in at least half the runs; the rule is re-run with them until they stop
-changing (at most four rounds, usually two or three). λ is chosen from 25 rates (0.25 to 16, ×2^¼ apart) as
+changing (at most four rounds, usually two or three). λ is chosen from 25 rates (0.05 to 3.2 runs a match per crore, ×2^¼ apart) as
 the one whose rule gives the **highest mean strength over the 200 runs** (a sample-average optimisation;
 ties go to the higher rate). A low λ (a big purse for the places left) bids generously; a high one waits for
 bargains. Unspent purse counts for nothing.
@@ -1843,56 +2081,42 @@ asks "what is he worth to *this* squad?".
   and squad size, the likely squad, the share of runs in which each need is met, what is still missing, and
   the releases to reconsider.
 
-*Examples (IPL 2027 defaults: 125 cr assumed, 8 places opened, 200 runs; data to the 2026 final; computed
-before the 2026-10-22 price recipe and slab costs, so the market prices, calls and purses below are the old
-ones, due a re-run with issue I2).* "Rivals"
-= what rivals usually pay; "9 in 10" = usually enough; "max" = worth to the squad.
+*Examples (IPL 2027 defaults: 125 cr assumed, 8 places opened, 200 runs; data to the 2026 final; the evening
+of 2026-10-22: expected contributions, market price T, slab costs).* "Gain" = expected runs a match the player
+adds to the likely squad; "rivals" = what rivals usually pay; "9 in 10" = usually enough; "max" = worth to the
+squad (gain ÷ λ).
 
-- **RCB** (17 kept, 41.1 cr left; Patidar, Bhuvneshwar Kumar, Venkatesh Iyer and Rasikh Salam released on
-  Keep's calls, four unrated youngsters to open places; λ 0.84).
-  1. *Rahul Singh*, uncapped batter, free agent: rivals 0.9, 9 in 10 3.6, max 17.6. His domestic record rates
-     him +10 per 100 balls but the market prices him at 0.8 (uncapped, little IPL); after the middle-order
-     releases he would add 14.8 to RCB's strength. Expect to pay about 1 cr; the high ceiling says don't lose
-     him to a small bidding war.
-  2. *Yuzvendra Chahal*, released by PBKS (last paid 18): rivals 3.3, 9 in 10 12.4, max 14.5. The one spinner
-     who walks into RCB's XI; his old price keeps rivals interested, so the range is wide. If he goes above
-     14.5: Rahul Chahar up to 13.2.
-  3. *Sandeep Sharma* (RR, last 4): rivals 1.1, max 10.4: the fourth pace bowler RCB lacks.
-  4. *Atharva Taide*, opener: rivals 4.1, max 11.4; fallback Mayank Agarwal ≤ 5.5. He fills the third opener
-     (each missing role place costs 3 runs of strength).
-  5. *Rahul Chahar* (CSK, last 5.2): rivals 3.1, max 10.3.
+- **RCB** (15 kept, 13.6 cr left, λ 0.10): strength 31.3 → 33.4 for about 8 cr. Maheesh Theekshana (spin, free
+  agent; gain 0.68, rivals 4.3, 9 in 10 13.2, max 6.8), Jonny Bairstow (keeper-opener; 0.63, rivals 5.7, max
+  6.3), Ramandeep Singh (released by KKR's plan; 0.41, rivals 0.7, max 4.1), Wiaan Mulder (0.27, base price,
+  max 2.7).
+- **CSK** (17 kept, 39.5 cr, λ 0.05, the most purse per place, so it bids freely): Theekshana ≤ 12.8 and
+  Bairstow ≤ 12.6 (rivals 4.0 and 5.2), Ramandeep ≤ 2.8, Mulder ≤ 1.9. Strength 25.9 → 27.5 for about 11 cr.
+- **MI** (17 kept, 17.8 cr): little to add (strength 35.1 → 35.4, about 1.3 cr): Ramandeep ≤ 3.9, Mulder ≤ 1.2.
+- **KKR** (14 kept, 23.2 cr, λ 0.084): Kartik Sharma (released by CSK's plan; 0.64, rivals 3.1, max 7.7),
+  Devon Conway ≤ 7.8 and Bairstow ≤ 7.5 (keepers), Mitchell Starc (released by DC's plan; rivals 7.0, max
+  7.5), Rahul Tewatia ≤ 4.6. Reconsider keeping Ramandeep Singh (paid 4, worth about 9.6 to KKR). Strength
+  27.4 → 30.4 for about 16 cr.
 
-  **Reconsider keeping**: Patidar (paid 11, worth about 20 to RCB), Bhuvneshwar (10.75, about 19), Venkatesh
-  Iyer (7, about 9). Keep or release releases them because players like them fetch less than their salary;
-  Bid plan says RCB's thin squad would miss them more than that. Expected: strength 34 → 105 (best XI 36 → 92)
-  for about 17 cr.
-- **CSK** (17 kept, 51.9 cr; λ 0.42: plenty of purse for the places, so it bids generously): Rashid Khan (GT
-  release, last 18: rivals 4.4, 9 in 10 19.6, max 19.5, purse-bound), the spinner the XI is built around;
-  Bhuvneshwar (rivals 3.6, max 17.5) for the death overs; Jonny Bairstow, keeper-opener (rivals 4.8, max 18.9;
-  fallback Devon Conway ≤ 13.9); Chahal (3.5, max 16.6). Reconsider keeping Noor Ahmad (paid 10, worth about
-  12). Strength 87 → 176 for about 35 cr.
-- **MI** (17 kept, 26.8 cr; λ 1.0): Bhuvneshwar ≤ 15.5 (purse-bound), Bairstow ≤ 16.3, Rashid ≤ 11.6 (the purse
-  can't stretch further, so MI lands him in only a quarter of the runs; Chahal ≤ 12.3 is the fallback),
-  Sandeep Sharma ≤ 8.9, Rahul Singh ≤ 8.6. Strength 86 → 162 for about 19 cr.
-- **KKR** (17 kept, 26.8 cr; λ 1.19, so the purse binds hardest): Bhuvneshwar ≤ 8.5, Rahul Singh ≤ 6.1, Chahal
-  ≤ 7.5, Sandeep ≤ 5.8, all cut to what the purse leaves after the likely buys; keeper chain Bairstow ≤ 4.5 →
-  Conway ≤ 9.6 (Conway is the likelier buy). Still one death bowler short (2 of 3) after the likely buys.
-
-The same few names top several lists (Bhuvneshwar, Chahal, Bairstow, Rahul Singh): released or free players
-the rival model thinks will go cheaply for what they add. In a real room more than one team would chase them;
-the price-taker plan can't see that, which is why "9 in 10" and the fallback chains matter.
+The gains are small (under one run a match) because a mini-auction squad keeps most of its XI and a free
+agent's expected contribution carries his chance of playing. Before the expected contribution the same plans
+put Mohammad Nabi (41), Dwayne Bravo (43), Amit Mishra (43) and a 37-year-old SMAT all-rounder at the top of
+every list at base price: their career contributions are high, and only P(plays) knows franchises stopped
+picking players like them.
 
 **Validation 1: rival prices against real ones.** On the 2025 mega and 2026 mini auctions, out of time (the
 inputs of `scripts/bidplan_backtest.py`, below), the median price to beat from a team's nine rivals for each
 player that team really bought, against what it paid:
 
-| | 2025, before → after calibration | 2026, before → after |
+| | 2025, before → after calibration → re-run 2026-10-22 evening | 2026, before → after → re-run |
 |---|---|---|
-| lots | 173 | 62 |
-| median real ÷ price to beat | 1.00 → 1.25 | 1.00 → 1.00 |
-| error, mean abs. ln | 0.71 → **0.60** (market price alone 0.67) | 0.70 → **0.68** (0.80) |
-| rank correlation | 0.80 → 0.80 | 0.56 → 0.50 |
-| real price inside the rivals' 20–80% range (60% = calibrated) | 29% → **55%** | 40% → **52%** |
+| lots | 173 | 62 → 64 |
+| median real ÷ price to beat | 1.00 → 1.25 → 1.11 | 1.00 → 1.00 → 1.00 |
+| error, mean abs. ln | 0.71 → 0.60 → **0.61** (market price alone 0.62) | 0.70 → 0.68 → **0.69** (0.77) |
+| rank correlation | 0.80 → 0.80 → 0.79 | 0.56 → 0.50 → 0.47 |
+| real price inside the rivals' 20–80% range (60% = calibrated) | 29% → 55% → **49%** | 40% → 52% → **53%** |
+
+(The re-run is on the shipped price recipe T and the re-run calibration, issue I13.)
 
 The simulator's own clearing prices against reality (all ten teams bidding) are in AUCTION_MATH Part 3b: the
 spread and the top end now hold out of time; the 2025 mega auction still ran about 1.5× above the simulation
@@ -1931,51 +2155,57 @@ the anchor: Jitesh Sharma (his last price was an uncapped 0.2 cr) and Bhuvneshwa
 price of about 5 cr in 2025 terms; for 2027 his 10.75 salary is the anchor). The last-price anchor helps on
 average (it is fitted) but drags down a player who has improved since his last auction.
 
-**Validation 2: the plans, replayed** (`scripts/bidplan_backtest.py`, about 35 minutes). For each auction and
-franchise, with only what was known before it: values from the IPL fitted on the matches before the auction
-date, blended with the other leagues' fits whose cut-off is on or before it and discounted for IPL relevance
-as the pool does; market prices from the price recipe re-fitted on the auctions before (2018–2024 for 2025,
-2018–2025 for 2026; the numbers below are from the recipe before 2026-10-22: the script now uses the group-median
-recipe, and they are due a re-run with issue I2); the real retentions and purses; the pool = every player sold at that auction with a
+**Validation 2: the plans, replayed** (`scripts/bidplan_backtest.py`, about 25 minutes; re-run on the evening
+of 2026-10-22 with expected contributions and the shipped price recipe T). For each auction and franchise,
+with only what was known before it: each player's contribution per match as of the auction (6c: the IPL
+fitted on the matches before the auction date, blended with the other leagues' fits whose cut-off is on or
+before it, his usage before it, the walk-forward balls models and replacement levels) and his P(plays) from
+the squad and free-agent models fitted on the seasons before (a kept player's in his squad, a lot's as a free
+agent; the squad rows' rank features are computed against the squad after that auction, a small look-ahead);
+market prices from the price recipe re-fitted on the auctions before (2018–2024 for 2025, 2018–2025 for 2026);
+the real retentions and purses; the pool = every player sold at that auction with a
 Cricsheet id at his real base price, **plus the unsold alternatives** (recent IPL players neither retained nor
 bought: the P(bought) risk set, which the plan may target but is never credited with buying); rivals
 calibrated as above, 200 runs. The plan is built with the team's real purse left and with a purse equal to
 what it actually spent ("same spend"); its bidding rule is played against **the real prices** (a player is
 ours if our bid reaches what he actually sold for, purse and room permitting). Squads are scored on **what the
-players did in the IPL season the auction was for** (runs per 100 balls above that season's average,
-`runs_value.observed_value`, 60+ balls in a role, else replacement level), with the same strength measure.
+players did in the IPL season the auction was for**, in the same measure: per role with 60+ balls, his season
+value (runs per 100 balls above that season's average, `runs_value.observed_value`) less the replacement
+level for the slot or group he actually played in, at the balls he got a match, × the share of his side's
+matches he actually played (a role under 60 balls, or a player who didn't play, at replacement level).
 
 | | 2025 mega | 2026 mini |
 |---|---|---|
-| Same spend, next season: plan's squad stronger than the real one | **4 of 10 teams** (mean +2.1 strength, −0.4 best XI) | **2 of 10 teams** (mean −5.7, −8.8) |
-| The same on our own pre-auction values (circular: the plan maximises exactly this) | 10 of 10 (+77) | 10 of 10 (+30) |
-| The plan's top 10 targets that team really bought | 0.9 on average | 0.5 |
-| Real price ÷ rivals' median, over the plan's targets that sold | 1.61 | 1.87 |
-| P(≤ max bid) said 0.8–1.0: share sold at or under the max bid | 0.92 (said 0.93, n = 74) | 0.44 (said 0.88, n = 9) |
-| P(≤ max bid) said 0.5–0.8 | 0.41 (said 0.63, n = 87) | 0.55 (said 0.63, n = 20) |
+| Same spend, next season: plan's squad stronger than the real one | **8 of 10 teams** (mean +8.5 runs a match, +7.8 best XI) | **0 of 10 teams** (mean −4.4, −4.8) |
+| The same on our own pre-auction values (circular: the plan maximises exactly this) | 10 of 10 (+14.2) | 9 of 10 (+1.9) |
+| The plan's top 10 targets that team really bought | 1.0 on average | 0.4 |
+| Real price ÷ rivals' median, over the plan's targets that sold | 1.54 | 0.78 |
+| P(≤ max bid) said 0.8–1.0: share sold at or under the max bid | 0.75 (said 0.95, n = 79) | 0.73 (said 0.89, n = 11) |
+| P(≤ max bid) said 0.5–0.8 | 0.52 (said 0.64, n = 33) | 0.64 (said 0.64, n = 14) |
 
-Per team, best XI next season, plan / real (same spend). 2025: CSK 16 / 26, DC 146 / 69, GT 113 / 157, KKR
-133 / 39, LSG 99 / 72, MI 137 / 284, PBKS 138 / 178, RCB 139 / 166, RR 106 / 39, SRH 125 / 127. 2026: CSK 74 /
-92, DC 52 / 63, GT 173 / 207, KKR 129 / 41, LSG 102 / 119, MI 153 / 153 (two buys against five), PBKS 153 / 132,
-RCB 230 / 267, RR 105 / 166, SRH 102 / 118.
+Per team, best XI next season (expected runs a match above replacement, realised), plan / real (same spend).
+2025: CSK 31.4 / 27.8, DC 54.4 / 35.9, GT 51.6 / 55.5, KKR 45.7 / 32.3, LSG 51.1 / 31.9, MI 47.0 / 60.5, PBKS
+41.2 / 37.0, RCB 52.1 / 46.7, RR 49.6 / 28.8, SRH 48.7 / 38.0. 2026: CSK 31.5 / 35.4, DC 19.3 / 27.6, GT 55.7 /
+64.2, KKR 34.6 / 35.9, LSG 34.0 / 40.5, MI 30.8 / 30.8, PBKS 34.7 / 39.7, RCB 64.3 / 67.5, RR 49.1 / 54.1, SRH
+40.3 / 46.4.
 
-**The honest read.** With rivals that price like real rooms, the plan's squads are **level with the real ones in
-2025** (ahead for DC, KKR, LSG and RR, behind for CSK, GT, MI, PBKS, RCB and SRH; mean +2 strength) and **worse
-in 2026** (ahead only for KKR and PBKS). It often spends less than the team did (it walks away when the price
-passes a player's worth, and some of its picks went unsold or unregistered in reality). An earlier version of
-this replay, with uncalibrated (too cheap) rivals and a pool of only the players who sold (a hindsight the real
-room didn't have), showed the plan ahead for 8 of 10 teams in 2025; that lead does not survive. Teams bought
-about one of the plan's top 10: it doesn't read the room as franchises do, whose scouting sees what our
-ratings can't. The targets' real prices ran 1.6–1.9× the rivals' median: they are chosen *because* the model
-rates them above their price, so they are where it is most often wrong. So the plan is a structured starting
-sheet (who fills which need, where the value runs out, what to do next, which release to rethink), not a
-forecast and not, on this evidence, better than a franchise's own war room.
+**The honest read.** On the new measure, the plan's squads are **ahead of the real ones in the 2025 mega
+auction** (8 of 10 teams; behind for GT and MI) and **behind in the 2026 mini auction for every team**, by
+about 4 runs a match. These numbers are not comparable with the earlier replay's (4 and 2 of 10): the
+strength measure changed (per-100-ball values summed then; expected runs a match, realised share of matches
+included, now), and so did the price recipe. In a mega auction there is a whole XI to buy and the plan's
+preference for players who actually play pays; in a mini auction the real teams bought the players their
+scouts wanted (Kartik Sharma, Prashant Veer at 14.2 cr; the model prices them at base) and the plan, which
+walks away when a price passes a player's worth, spent less. Teams bought about one of the plan's top 10, and
+"P(≤ max bid) 0.8–1.0" came true about three times in four, not nine in ten: the rivals' range is still too
+narrow at the top. The plan stays a structured starting sheet (who fills which need, where the value runs out,
+what to do next, which release to rethink), not a forecast.
 
 **Limits.** Rivals bid by hand-set personalities on a calibrated level, and don't react to our buys; a bidding
 war for one name isn't predictable. Prices rest on the market model (a typical player off by about 1.7×), which
-can't see scouting, injury or brand. Strength adds per-ball values across an XI (a bowler's per ball he bowls, a
-batter's per ball he faces) and knows nothing of batting order, conditions or the impact-player rule beyond
-five bowling and six batting options. Lot order is "stars first", not the real sets. Values are this season's
+can't see scouting, injury or brand. Strength adds expected contributions at each player's usual balls (6c),
+held to a side's innings, but knows nothing of batting order within the XI, conditions or the impact-player
+rule beyond five bowling and six batting options. Lot order is "stars first", not the real sets. Values are this season's
 ratings, not a multi-year forecast: for a player bought for three seasons, section 11's forecast
 (`forecast.json`) is the natural next input (gain over the next three seasons, weighted by P(regular)); not
 wired in yet. Keep or release's salaries, squads and assumed purse carry over unchanged.

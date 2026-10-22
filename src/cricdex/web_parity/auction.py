@@ -25,6 +25,20 @@ from cricdex.web_parity.pricing import (
 # ---- pool pricing ----------------------------------------------------------
 
 
+# the playing-time fields a pool row carries through (scripts/export_site.py PT_KEYS)
+POOL_PT_KEYS = (
+    "contrib", "contrib_bat", "contrib_bowl", "balls_faced", "balls_bowled", "p_play",
+    "season_value",
+)  # fmt: skip
+
+
+def _retain_key(p: dict) -> float:
+    """A mini auction's default retention order: expected season value (P(plays) × contribution),
+    else (an export before it) value. Mirror of `retainKey` in auction.ts."""
+    sv = p.get("season_value")
+    return float(sv) if sv is not None else float(p["value"])
+
+
 def build_pool(rows: list[dict], model: dict | None = None) -> list[dict]:
     """Price the auction pool (every active rated player). Adds crore pricing to each row: the
     market price when the model and its inputs are there (`projected_value`), with the on-field
@@ -48,6 +62,9 @@ def build_pool(rows: list[dict], model: dict | None = None) -> list[dict]:
                 "projected_value": pv,
                 "onfield_value": onfield,
                 "p_bought": mk["p_bought"] if mk else None,
+                # playing time (METHODOLOGY §6c): contribution per match, its parts and balls,
+                # P(plays) and the expected season value; None in an export before 2026-10-22
+                **{k: r.get(k) for k in POOL_PT_KEYS},
                 # the IPL sides he captained last season (the "Captain" badge), else None
                 "captain": " / ".join(r.get("captain_teams") or []) or None,
                 "base_price": base,
@@ -215,8 +232,8 @@ def retention_spend(team: str, retained: list[dict], opts: dict) -> tuple[float,
 def default_retentions(
     pool: list[dict], team_cfg: list[dict], mode: str, mega_ids: dict[str, list[str]]
 ) -> dict[str, list[str]]:
-    """Mega = the real 2025 lists (mega_ids); Mini = each team's top-N active
-    players by value."""
+    """Mega = the real 2025 lists (mega_ids); Mini = each team's top-N active players by expected
+    season value (`_retain_key`)."""
     out: dict[str, list[str]] = {}
     pool_ids = {p["cricsheet_id"] for p in pool}
     for cfg in team_cfg:
@@ -224,9 +241,7 @@ def default_retentions(
         if mode == "mega":
             out[team] = [i for i in mega_ids.get(team, []) if i in pool_ids]
         else:
-            roster = sorted(
-                (p for p in pool if p["team"] == team), key=lambda p: p["value"], reverse=True
-            )
+            roster = sorted((p for p in pool if p["team"] == team), key=_retain_key, reverse=True)
             out[team] = [p["cricsheet_id"] for p in roster[:MINI_RETAIN]]
     return out
 

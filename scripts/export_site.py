@@ -38,6 +38,7 @@ import shutil
 from pathlib import Path
 
 import duckdb
+import polars as pl
 import typer
 from loguru import logger
 
@@ -58,7 +59,7 @@ from cricdex.common.sql import (
 )
 from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.config import SITE_DATA as _DEFAULT_SITE_DATA
-from cricdex.scout import forecast
+from cricdex.scout import forecast, playing_time
 from cricdex.scout.identity import captains, countries
 from cricdex.scout.identity import master as player_master
 
@@ -492,16 +493,20 @@ AUCTION_POOL_COLLECTIONS = [lg.key for lg in leagues.auction_pool()]
 # associate sides are left out — data in config/leagues.toml, not code).
 AUCTION_TARGET = leagues.auction_target().key
 auction_eligible = leagues.auction_target().auction_eligible
-AUCTION_RECENCY_DAYS = 1100  # ~3 years of activity in ANY of those comps
-AUCTION_POOL_CAP = 600  # top-N by value (keeps the sim snappy + relevant)
-AUCTION_MIN_BALLS = 150  # drop tiny-sample players whose Bayes value is inflated
+# Who may be in the pool (each threshold with its reason; METHODOLOGY §7):
+# * active in the last ~3 years in any pool league: an auction draws on current players, and a
+#   player idle for three seasons has no usage or form to project;
+# * the top AUCTION_POOL_CAP by expected season value (P(plays) × contribution per match,
+#   scout/playing_time.py): a size limit for the browser and the room's Monte-Carlo, not a quality
+#   cut (the room auctions 200 lots; Bid plan's free agents are this list). Until 2026-10-22 the
+#   ranking was the value less a hand-set IPL-relevance penalty (up to 36 runs per 100 balls) and
+#   players under 150 balls were dropped outright; the penalty is replaced by the fitted P(plays) and
+#   the 150-ball cut by the ratings' own shrinkage (a thin record is pulled to its slot's mean and
+#   carries a low P(plays) through no IPL experience).
+AUCTION_RECENCY_DAYS = 1100
+AUCTION_POOL_CAP = 600
 AUCTION_TARGET = "ipl"  # the league the auction is for (competition-rules config, later sprint)
 AUCTION_TRUST_BALLS = 300  # a role record this big in the target league stands on its own
-# Value removed from a player with zero IPL relevance (league-only veteran). In
-# value units (runs per 100 balls, see scout/ratings/runs_value.py): 36 ≈ the
-# earlier 2.7 population-sd units × 13.3, the measured sd ratio of the runs value
-# to the old one (IPL players with 150+ balls; docs/AUCTION_MATH.md).
-PEN_SCALE_VALUE = 36.0
 
 
 def _target_competition(col: str):
@@ -658,6 +663,8 @@ def _export_auction_pool(
     # (cid, role) -> {league: Σw}: which leagues the blend rests on (the stale-evidence share)
     w_col: dict[tuple[str, str], dict[str, float]] = {}
     target_rows: dict[tuple[str, str], tuple[float, int, float]] = {}  # target (value, balls, sd)
+    # cid -> {"batter": (value, sd), "bowler": (value, sd)}: the blend per role (playing time uses both)
+    per_role: dict[str, dict[str, tuple[float, float]]] = {}
     names: dict[str, str | None] = {}
     max_balls: dict[str, int] = {}
     for col in AUCTION_POOL_COLLECTIONS:
@@ -694,15 +701,16 @@ def _export_auction_pool(
         else:
             val, vsd = swx / sw, (1.0 / sw) ** 0.5
             wbc = dict(w_col.get((cid, role)) or {})
-        # his IPL balls in this role set the price ceiling (pricing.price_ceiling)
+        # his IPL balls in this role (the on-field curve's ceiling, pricing.price_ceiling)
         tb = own[1] if own else 0
+        if role in ("batter", "bowler"):
+            per_role.setdefault(cid, {})[role] = (val, vsd)
+        # `value` (shown, and the market price's `price_value`): his better role's rate. Ranking and
+        # strength no longer use it: they use the contribution per match, both roles at their balls.
         if cid not in best or val > best[cid]["value"]:
             best[cid] = {"value": val, "value_sd": vsd, "target_balls": tb, "name": names.get(cid),
                          "w_by_col": wbc}  # fmt: skip
-    # drop tiny-sample players (inflated value); the squads' rows are kept aside for Keep or release
-    extras = {cid: b for cid, b in best.items() if cid in extra_cids}
-    best = {cid: b for cid, b in best.items() if max_balls.get(cid, 0) >= AUCTION_MIN_BALLS}
-    best_all = {**best, **{cid: b for cid, b in extras.items() if cid not in best}}
+    best_all = best
 
     # Per-league last-played (keyed by cid). Keeping the breakdown — not just a
     # single cross-league max — lets us tell "active in SA20 but hasn't played
@@ -769,41 +777,23 @@ def _export_auction_pool(
         except ValueError:
             return None
 
-    def _age_factor(age: float | None) -> float | None:
-        if age is None:
-            return None
-        if age <= 32:
-            return 1.0
-        if age >= 42:
-            return 0.35
-        return 1.0 - (age - 32) * 0.065  # 32→1.0 … 42→0.35
-
-    def _relevance(cid: str, team: str | None, country: str | None, age: float | None) -> float:
-        """IPL-relevance weight in [0,1]: how much this player's value should
-        count toward an *IPL* auction. Current IPL players ≈ 1; league-only
-        veterans (Imran Tahir) get hit by IPL-staleness + age."""
-        li = _last_ipl(cid)
-        af = _age_factor(age)
-        if li:
-            yrs = (asof_d - _dt.date.fromisoformat(li)).days / 365.25 if asof_d else 0
-            if yrs <= 1.5:
-                # current IPL regular — proven *now*, so age barely matters
-                # (don't bury a 37-yo Kohli who's playing this season).
-                return 1.0 if (age is None or age < 40) else 0.8
-            ipl_f = max(0.4, 1.0 - (yrs - 1.5) * 0.18)
-            return max(0.3, ipl_f * (af if af is not None else 1.0))
-        # never played IPL
-        if country == "IND" and not team:
-            return 0.7  # uncapped Indian — a genuine draft target
-        if af is not None:
-            return max(0.2, 0.7 * af)  # overseas leaguer: young ~0.7, old ~0.25
-        return 0.5  # unknown age → moderate (mid-pool, not top)
-
-    PEN_SCALE = PEN_SCALE_VALUE  # value units removed at relevance 0
     comp = _target_competition(AUCTION_TARGET)
     price_in = _price_inputs(
         con, comp.auction_date if comp else asof, comp.season if comp else None
     )
+    # playing time (scout/playing_time.py, config/playing_time_model.json): every rated player's
+    # contribution per match and his P(plays), in his squad or, for a free agent, averaged over the
+    # squads he could join
+    pt_model = playing_time.load_model()
+    pt_rows: dict[str, dict] = {}
+    if pt_model is not None:
+        live = [
+            cid for cid in best_all
+            if cid in extra_cids or not (cutoff and (_last_any(cid) or "") < cutoff)
+        ]  # fmt: skip
+        pt_rows = _playing_time_rows(
+            con, taxonomy, per_role, live, comp, asof, pt_model, price_in, _age
+        )
     role_map = {
         "wk_batter": "keeper",
         "allrounder": "all_rounder",
@@ -833,7 +823,6 @@ def _export_auction_pool(
         if not pooled and cid not in extra_cids:
             continue
         age = _age(cid)
-        rel = _relevance(cid, team, country, age)
         li = _last_ipl(cid)
         played = _leagues(cid)
         home = played[0]["league"] if played else None
@@ -844,22 +833,28 @@ def _export_auction_pool(
                 "last_any": ld,
                 "home_league": home,
                 "age": round(age, 1) if age is not None else None,
-                "ipl_relevance": round(rel, 3),
+                # the chance he plays a match (P(plays), METHODOLOGY §6c; replaced ipl_relevance)
+                "p_play": (pt_rows.get(cid) or {}).get("p_play"),
             }
+        ptr = pt_rows.get(cid) or {}
         row = {
             "cricsheet_id": cid,
             "name": name,
             "display_name": tax.get("display_name") or name,
-            # value decayed by IPL-relevance so a league-only veteran stops
-            # topping the IPL pool (the breakdown columns explain why).
-            "value": round(b["value"] - (1 - rel) * PEN_SCALE, 4),
+            # his better role's value (runs per 100 balls above the average ball): shown, and the
+            # market price's input; the pool is ranked by `season_value`
+            "value": round(b["value"], 4),
             # its uncertainty: the price uses value − PRICE_CAUTION_SD × value_sd
             "value_sd": round(b["value_sd"], 4),
             # IPL balls in the role priced: the price ceiling rises with them
             "target_balls": int(b["target_balls"]),
-            # the market price's inputs (web_parity/pricing.market_features): his blended value
-            # before the IPL-relevance discount, caps, IPL experience, years since his last IPL game
+            # the market price's inputs (web_parity/pricing.market_features): his blended value,
+            # caps, IPL experience, years since his last IPL game
             "price_value": round(b["value"], 4),
+            # playing time (METHODOLOGY §6c): runs above replacement per match he plays (batting and
+            # bowling at his expected balls), its sd and parts, his expected balls, the chance he
+            # plays a match, and the expected runs over a season (P × contribution × 14)
+            **{k: ptr.get(k) for k in PT_KEYS},
             **price_in(cid),
             "role": role_map.get(tax.get("primary_role"), "batter"),
             "primary_role": tax.get("primary_role"),
@@ -881,17 +876,138 @@ def _export_auction_pool(
             "last_ipl": li,
             "home_league": home,
             "age": round(age, 1) if age is not None else None,
-            "ipl_relevance": round(rel, 3),
         }
         if pooled:
             out.append(row)
         if cid in extra_cids:
             extra_rows[cid] = {**row, "balls": max_balls.get(cid, 0), "in_pool_leagues": pooled}
-    out.sort(key=lambda p: p["value"], reverse=True)
+    # ranked by expected season value (no playing-time model: by value); the top AUCTION_POOL_CAP kept
+    out.sort(
+        key=lambda p: (
+            p["season_value"] if p.get("season_value") is not None else -1e9,
+            p["value"],
+        ),
+        reverse=True,
+    )
     out = out[:AUCTION_POOL_CAP]
     _write(out_dir / "auction_pool.json", out)
     _write(out_dir / "activity_index.json", activity)
     return len(out), extra_rows
+
+
+# the playing-time fields of pool, squad and Keep rows (scout/playing_time.py)
+PT_KEYS = (
+    "contrib", "contrib_sd", "contrib_bat", "contrib_bowl", "balls_faced", "balls_bowled",
+    "p_play", "p_play_free", "season_value",
+)  # fmt: skip
+
+
+def _playing_time_rows(
+    con: duckdb.DuckDBPyConnection,
+    taxonomy: dict[str, dict],
+    per_role: dict[str, dict[str, tuple[float, float]]],
+    cids,
+    comp,
+    asof: str | None,
+    model: dict,
+    price_in,
+    age_of,
+) -> dict[str, dict]:
+    """cid → the PT_KEYS fields for every cid in `cids` (rated in a pool league): his contribution
+    per match from both roles at his expected balls (usage in every pool league before the next
+    auction), and P(plays): in his squad of the next competition (competitions.squad_rows) when he is
+    in one (the squad model), else the free-agent model (the chance a free agent plays a match next
+    season: bought and picked), his contribution measured against the median squad's XI line."""
+    import datetime as _dt
+
+    from cricdex import competitions
+
+    before = comp.auction_date if comp else (asof or _dt.date.today().isoformat())
+    season = comp.season if comp else int(before[:4]) + 1
+    parts = [playing_time.usage(con, c) for c in AUCTION_POOL_COLLECTIONS]
+    u = pl.concat([x for x in parts if x.height], how="vertical_relaxed")
+    role_map = {"wk_batter": "keeper", "allrounder": "all_rounder", "bowler": "bowler"}
+    squads: dict[str, list[str]] = {}
+    in_squad: dict[str, str] = {}
+    if comp is not None:
+        for team, rows in competitions.squad_rows(comp).items():
+            for k, r in enumerate(rows):
+                cid = r.get("cricsheet_id") or f"nodata:{team}:{k}"
+                squads.setdefault(team, []).append(cid)
+                in_squad[cid] = team
+    want = set(cids) | {c for cs in squads.values() for c in cs if c in per_role}
+    roles = {
+        cid: role_map.get((taxonomy.get(cid) or {}).get("primary_role") or "", "batter")
+        for cid in want | set(in_squad)
+    }
+    con_ = playing_time.contributions(
+        {c: per_role.get(c, {}) for c in want}, u, before, roles, model
+    )
+    # last season (the latest IPL season before the auction): his share of his side's matches
+    ipl = u.filter((pl.col("league") == AUCTION_TARGET) & (pl.col("date") < before))
+    last_season = int(ipl["season"].max()) if ipl.height else season - 1
+    ls = ipl.filter(pl.col("season") == last_season)
+    tm = dict(ls.group_by("team").agg(pl.col("match_id").n_unique()).iter_rows())
+    share: dict[str, float] = {}
+    for t, cid, n in ls.group_by("team", "cid").agg(pl.len()).iter_rows():
+        share[cid] = max(share.get(cid, 0.0), n / tm[t])
+    ipl_m = dict(ipl.group_by("cid").agg(pl.len()).iter_rows())
+    last_d = dict(ipl.group_by("cid").agg(pl.col("date").max()).iter_rows())
+    in_prev = set(share) | set(in_squad)
+
+    def overseas(cid: str) -> bool:
+        c = (taxonomy.get(cid) or {}).get("country")
+        return bool(c) and c != "IND"
+
+    def member(cid: str) -> dict:
+        c = (con_.get(cid) or {}).get("contrib", 0.0)
+        return playing_time.squad_member(cid, c, roles.get(cid, "batter"), overseas(cid))
+
+    members = {t: [member(c) for c in cs] for t, cs in squads.items()}
+    lines = [playing_time.xi_line(m) for m in members.values()]
+    line = (
+        sorted(lines)[len(lines) // 2]
+        if len(lines) % 2
+        else (0.5 * sum(sorted(lines)[len(lines) // 2 - 1 : len(lines) // 2 + 1]) if lines else 0.0)
+    )
+    pm = playing_time.PlayModel.from_json(model["play"])
+    fm = playing_time.PlayModel.from_json(model["free_agent"])
+    at = _dt.date.fromisoformat(before)
+    out: dict[str, dict] = {}
+    for cid in cids:
+        x = con_[cid]
+        cap = price_in(cid)
+        meta = {
+            "age": age_of(cid),
+            "ipl_matches": ipl_m.get(cid, 0),
+            "last_share": share.get(cid, 0.0) if cid in in_prev else None,
+            "keeper": roles.get(cid) == "keeper",
+            "captain": bool(cap.get("captain_ipl_last")),
+            "overseas": overseas(cid),
+        }
+        me = member(cid)
+        team = in_squad.get(cid)
+        ld = last_d.get(cid)
+        gap = (at - _dt.date.fromisoformat(ld[:10])).days / 365.25 if ld else None
+        # as a free agent (the free-agent model): his chance outright, or a squad player's if released
+        pf = playing_time.p_play_free(
+            {**meta, "contrib": x["contrib"], "margin": x["contrib"] - line, "gap": gap,
+             "last_share": share.get(cid), "season": season}, fm,
+        )  # fmt: skip
+        p = playing_time.p_play(me, members[team], meta, pm, season) if team else pf
+        sv = None if p is None else playing_time.season_value(p, x["contrib"])
+        out[cid] = {
+            "contrib": round(x["contrib"], 4),
+            "contrib_sd": round(x["contrib_sd"], 4),
+            "contrib_bat": round(x["bat"], 4),
+            "contrib_bowl": round(x["bowl"], 4),
+            "balls_faced": round(x["faced"], 2),
+            "balls_bowled": round(x["bowled"], 2),
+            "p_play": None if p is None else round(p, 4),
+            "p_play_free": round(pf, 4),
+            "season_value": None if sv is None else round(sv, 3),
+        }
+    return out
 
 
 def _stale_evidence(
@@ -1169,6 +1285,9 @@ def _export_keep(
                     "profile": (rr or {}).get("profile_collection") or ("ipl" if cid else None),
                     "forecast": forecast.keep_outlook(fc, cid, role),
                     **_ties(cid, team),
+                    # playing time (METHODOLOGY §6c): contribution per match, P(plays) in this
+                    # squad, expected season value (from the same pool row)
+                    **{k: (rr or {}).get(k) for k in PT_KEYS},
                     # how much of his value rests on a stale league (SMAT; issue I7)
                     "stale_share": (rr or {}).get("stale_share") or 0.0,
                     "stale_note": (rr or {}).get("stale_note"),

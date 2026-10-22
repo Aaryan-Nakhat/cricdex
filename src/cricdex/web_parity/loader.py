@@ -45,9 +45,9 @@ def load_scout_index(collection: str = "ipl", base: Path | str | None = None) ->
 
 
 def load_activity_index(collection: str = "ipl", base: Path | str | None = None) -> dict:
-    """cricsheet_id -> {leagues, last_ipl, last_any, home_league, age,
-    ipl_relevance} — cross-league activity behind the auction's IPL-relevance
-    weight. Empty dict if not exported yet."""
+    """cricsheet_id -> {leagues, last_ipl, last_any, home_league, age, p_play} — cross-league
+    activity and the chance he plays a match (P(plays), METHODOLOGY §6c). Empty dict if not
+    exported yet."""
     path = _base(base) / collection / "activity_index.json"
     return json.loads(path.read_text()) if path.exists() else {}
 

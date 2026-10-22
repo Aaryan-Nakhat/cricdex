@@ -6,9 +6,10 @@
 // 1. Rivals: the Auction room's simulator (auction.ts `oneTrial`) runs the other nine franchises,
 //    each with its own Keep-or-release plan and personality, `trials` times → for every player the
 //    price we'd have to beat in each run (his base price when no rival bid).
-// 2. Squad strength: the best XI's value (≤ 4 overseas, ≥ 1 keeper, 5 bowling and 6 batting
-//    options; replacement-level fillers), + a smaller weight on the next four, − a penalty per
-//    role need missed.
+// 2. Squad strength: the best XI's contribution in runs per match above replacement (batting and
+//    bowling at each player's balls a match, the XI's balls held to a side's innings; ≤ 4 overseas,
+//    ≥ 1 keeper, 5 bowling and 6 batting options; replacement-level fillers), + a smaller weight on
+//    the next four, − a penalty per role need missed.
 // 3. The bidding rule: in lot order, bid up to (gain in strength) / λ, within purse, squad and
 //    overseas room; λ chosen to maximise the mean strength over the runs; the gain counts the
 //    likely buys still to come (a lookahead iterated to a fixed point).
@@ -31,11 +32,16 @@ export const XI_OVERSEAS = 4;
 export const XI_MIN_KEEPERS = 1;
 export const XI_MIN_BOWLING = 5;
 export const XI_MIN_BATTING = 6;
-/** Replacement level (runs per 100 balls): what a base-price buy is worth. */
-export const REPLACEMENT = -15.0;
+/** Replacement level: contributions are runs per match above replacement (playing_time.py), so a
+ * place the squad can't fill adds 0 and a player at or below 0 never plays. */
+export const REPLACEMENT = 0.0;
+/** A side's legal balls per innings (playing_time_model.json, IPL 2023-2026): an XI's expected balls
+ * faced (bowled) beyond it are scaled down to it, every member alike. */
+export const TEAM_BALLS = 115.0;
 export const DEPTH_N = 4;
 export const DEPTH_WEIGHT = 0.25;
-export const NEED_PENALTY = 3.0;
+/** The hand-set 3 runs per 100 balls, in runs per match (× 2 × 115 / 11 / 100 ≈ 0.209). */
+export const NEED_PENALTY = 0.63;
 export type Need = "keeper" | "opener" | "death" | "spinner" | "pace";
 export const NEED_ORDER: Need[] = ["keeper", "opener", "death", "spinner", "pace"];
 export const DEFAULT_NEEDS: Record<Need, number> = { keeper: 2, opener: 3, death: 3, spinner: 3, pace: 4 };
@@ -52,11 +58,11 @@ export const NEED_LABEL: Record<Need, string> = {
  * 2023, 2024 and 2026 mini auctions); 0 = Keep or release's plan exactly. */
 export const OPEN_SLOTS = 8;
 export const TRIALS = 200;
-/** 0.25 × 2^(k/4), k = 0 … 24, written out (identical to bidplan.py). */
+/** 0.05 × 2^(k/4), k = 0 … 24 (runs per match per crore), written out (identical to bidplan.py). */
 export const LAMBDA_GRID = [
-  0.25, 0.297302, 0.353553, 0.420448, 0.5, 0.594604, 0.707107, 0.840896, 1.0, 1.189207,
-  1.414214, 1.681793, 2.0, 2.378414, 2.828427, 3.363586, 4.0, 4.756828, 5.656854, 6.727171,
-  8.0, 9.513657, 11.313708, 13.454343, 16.0,
+  0.05, 0.05946, 0.070711, 0.08409, 0.1, 0.118921, 0.141421, 0.168179, 0.2, 0.237841,
+  0.282843, 0.336359, 0.4, 0.475683, 0.565685, 0.672717, 0.8, 0.951366, 1.13137, 1.34543,
+  1.6, 1.90273, 2.26274, 2.69087, 3.2,
 ];
 export const MIN_SLOT_PRICE = 0.3;
 export const TARGET_MIN_SHARE = 0.05;
@@ -87,6 +93,11 @@ export interface Piece {
   id: string;
   name: string;
   v: number;
+  /** the batting and bowling parts of v and the balls they come from (a match) */
+  cb: number;
+  cw: number;
+  fb: number;
+  wb: number;
   rated: boolean;
   role: string;
   os: boolean;
@@ -99,8 +110,51 @@ export interface Piece {
   own?: boolean;
 }
 
-export function piece(id: string, name: string, value: number | null | undefined, role: string, overseas: boolean, tags: string): Piece {
-  const v = value === null || value === undefined ? REPLACEMENT : Number(value);
+/** The playing-time fields a lot or squad row carries (export_site PT_KEYS). */
+export interface ContribFields {
+  contrib?: number | null;
+  contrib_bat?: number | null;
+  contrib_bowl?: number | null;
+  balls_faced?: number | null;
+  balls_bowled?: number | null;
+  p_play?: number | null;
+}
+export type Parts = number[];
+
+/** [batting part, bowling part, balls faced, balls bowled, P(plays)] of a row's contribution (a
+ * missing P(plays) counts as 1); null when any of the first four is missing. Mirror of bidplan.py
+ * `contrib_parts`. */
+export function contribParts(r: ContribFields): Parts | null {
+  const ks = [r.contrib_bat, r.contrib_bowl, r.balls_faced, r.balls_bowled];
+  if (ks.some((x) => x === null || x === undefined)) return null;
+  const p = r.p_play === null || r.p_play === undefined ? 1.0 : Number(r.p_play);
+  return [...ks.map(Number), p];
+}
+
+export function piece(
+  id: string,
+  name: string,
+  contrib: number | null | undefined,
+  role: string,
+  overseas: boolean,
+  tags: string,
+  parts: Parts | null = null,
+): Piece {
+  const rated = !(contrib === null || contrib === undefined);
+  let v = rated ? Number(contrib) : REPLACEMENT;
+  let cb = v;
+  let cw = 0;
+  let fb = 0;
+  let wb = 0;
+  if (parts !== null && rated) {
+    // expected contribution: every part and ball × P(plays) (mirror of bidplan.py `piece`)
+    const pp = parts.length > 4 ? parts[4] : 1.0;
+    cb = pp * parts[0];
+    cw = pp * parts[1];
+    fb = pp * parts[2];
+    wb = pp * parts[3];
+    v = cb + cw;
+  }
   const t = tags || "";
   const keeper = role === "keeper" || t.includes("k");
   const bowl = role === "bowler" || role === "all_rounder";
@@ -115,7 +169,11 @@ export function piece(id: string, name: string, value: number | null | undefined
     id,
     name,
     v,
-    rated: !(value === null || value === undefined),
+    cb,
+    cw,
+    fb,
+    wb,
+    rated,
     role,
     os: !!overseas,
     tags: t,
@@ -163,7 +221,12 @@ export function bestXi(pieces: Piece[]): { xi: number; ids: string[]; fillers: n
     if (p.os) osN++;
   }
   const fillers = XI_SIZE - chosen.length;
-  const xi = fsum(chosen.map((p) => p.v)) + fillers * REPLACEMENT;
+  const faced = fsum(chosen.map((p) => p.fb));
+  const bowled = fsum(chosen.map((p) => p.wb));
+  const sb = faced > TEAM_BALLS ? TEAM_BALLS / faced : 1.0;
+  const sw = bowled > TEAM_BALLS ? TEAM_BALLS / bowled : 1.0;
+  let xi = sb * fsum(chosen.map((p) => p.cb)) + sw * fsum(chosen.map((p) => p.cw));
+  xi += fillers * REPLACEMENT;
   return { xi, ids: chosen.map((p) => p.id), fillers, bench };
 }
 
@@ -197,7 +260,7 @@ export const upperGain = (p: Piece) => 2 * Math.max(0, p.v - REPLACEMENT) + NEED
 
 // ---- the context ----
 
-export interface Lot {
+export interface Lot extends ContribFields {
   cricsheet_id: string;
   name: string;
   role: Role;
@@ -235,7 +298,7 @@ export interface BidContext {
 }
 
 function availRow(
-  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; projected_value: number; p_bought?: number | null; base_price: number },
+  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; projected_value: number; p_bought?: number | null; base_price: number } & ContribFields,
   tags: string,
   fromTeam: string | null,
 ): Lot {
@@ -252,6 +315,12 @@ function availRow(
     base_price: r.base_price,
     tags: t,
     from_team: fromTeam,
+    contrib: r.contrib ?? null,
+    contrib_bat: r.contrib_bat ?? null,
+    contrib_bowl: r.contrib_bowl ?? null,
+    balls_faced: r.balls_faced ?? null,
+    balls_bowled: r.balls_bowled ?? null,
+    p_play: r.p_play ?? null,
   };
   const anchor = (r as { anchor_price?: number | null }).anchor_price;
   if (anchor) out.anchor_price = anchor;
@@ -269,6 +338,12 @@ function squadRowAsLot(p: AssessedPlayer) {
     projected_value: price,
     p_bought: p.p_bought ?? null,
     base_price: priceTier(price),
+    contrib: p.contrib ?? null,
+    contrib_bat: p.contrib_bat ?? null,
+    contrib_bowl: p.contrib_bowl ?? null,
+    balls_faced: p.balls_faced ?? null,
+    balls_bowled: p.balls_bowled ?? null,
+    p_play: p.p_play ?? null,
   };
 }
 
@@ -278,13 +353,13 @@ const lotOrder = (a: Lot, b: Lot) =>
 const NO_GAPS = { keeper: 0, opener: 0, death: 0, spinner: 0, overseas: 0 };
 
 /** Open squad places the way franchises do before a mini auction: while more than `limit` players
- * are kept, release the lowest-valued kept player the user hasn't decided on (an unrated one
- * first), marked `auto_release` = "open". Mirror of bidplan.py `open_places`. */
+ * are kept, release the kept player with the lowest contribution per match the user hasn't decided
+ * on (an unrated one first), marked `auto_release` = "open". Mirror of bidplan.py `open_places`. */
 export function openPlaces(players: AssessedPlayer[], limit: number): void {
   const kept = players.filter((p) => p.kept);
   const extra = kept.length - Math.max(0, limit);
   if (extra <= 0) return;
-  const key = (p: AssessedPlayer): [number, number] => [p.value === null || p.value === undefined ? 0 : 1, p.value ?? 0];
+  const key = (p: AssessedPlayer): [number, number] => [p.contrib === null || p.contrib === undefined ? 0 : 1, p.contrib ?? 0];
   const movable = kept
     .filter((p) => !p.overridden)
     .sort((a, b) => {
@@ -336,7 +411,7 @@ export function buildContext(
     openPlaces(res.players, Number(compRules.squad_max) - Number(openSlots));
     const kept = res.players.filter((p) => p.kept);
     const salaryKept = fsum(kept.map((p) => Number(p.salary)));
-    const pieces = kept.map((p) => piece(p.key, p.name, p.value, p.role, !!p.overseas, p.tags || ""));
+    const pieces = kept.map((p) => piece(p.key, p.name, p.contrib, p.role, !!p.overseas, p.tags || "", contribParts(p)));
     // what the kept players cost the purse (salaries; 2025 retentions by the retention slabs)
     const purseLeft = Number(compRules.purse) - purseCharged(kept, compRules);
     for (const p of res.players) if (!p.kept && p.id && p.value !== null && p.value !== undefined) released.push(p);
@@ -387,7 +462,11 @@ export function buildContext(
   }
   const shown = display ?? {};
   const squadNames = new Map(data.players.filter((p) => p.id).map((p) => [p.id as string, p.name]));
+  // a squad player in the auction is a free agent there: the free-agent model's P(plays)
+  const freeP = new Map(data.players.filter((p) => p.id).map((p) => [p.id as string, p.p_play_free]));
   for (const row of avail) {
+    const fp = freeP.get(row.cricsheet_id);
+    if (fp !== null && fp !== undefined) row.p_play = fp;
     const pid = row.cricsheet_id;
     row.name = (Object.prototype.hasOwnProperty.call(shown, pid) && shown[pid]) || squadNames.get(pid) || row.name;
   }
@@ -679,7 +758,7 @@ export function plan(
   const prices = pricesIn ?? rivalPrices(ctx, trials);
   const nTrials = prices.length ? prices[0].length : trials;
   const cands = ctx.available.map((r) => {
-    const p = piece(r.cricsheet_id, r.name, r.value, r.role, r.is_overseas, r.tags);
+    const p = piece(r.cricsheet_id, r.name, r.contrib, r.role, r.is_overseas, r.tags, contribParts(r));
     p.ub = upperGain(p);
     p.own = r.from_team !== null && r.from_team !== undefined && r.from_team === ctx.team;
     return p;

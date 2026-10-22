@@ -200,10 +200,10 @@ def keep(
                 "target": g["target"],
                 "kept": g["kept"],
                 "gap": g["gap"],
-                "at least": (
+                "at least (runs a match)": (
                     f"{fmt_num(g['ref_value'], 1)} (best released)"
                     if g["ref_from_release"]
-                    else "0 (league average)"
+                    else "0 (replacement level)"
                 ),
                 "cheapest fits": ", ".join(
                     f"{c['name']} {cr(c['price'])}"

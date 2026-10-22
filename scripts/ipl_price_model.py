@@ -210,6 +210,18 @@ def asof_values(season: int, date: str) -> dict[str, dict]:
     return best
 
 
+ASOF_CONTRIB = DATA_DIR / "metrics" / ".playing_time" / "asof_contrib.parquet"
+
+
+def _asof_contrib() -> dict[tuple[int, str], tuple[float, float]]:
+    """(auction season, cid) → (contribution per match, its sd) as of that auction
+    (`scripts/playing_time_fit.py asof-contrib`); empty when not built."""
+    if not ASOF_CONTRIB.exists():
+        return {}
+    d = pl.read_parquet(ASOF_CONTRIB).select("season", "cid", "contrib", "contrib_sd")
+    return {(s, c): (v, sd) for s, c, v, sd in d.iter_rows()}
+
+
 def _captaincy(cid: str, season: int) -> dict:
     """Captaincy known before the auction for `season` (scout/identity/captains.py)."""
     c = captains.as_of(cid, season)
@@ -227,8 +239,8 @@ def _years(a: str, b: str) -> float:
 
 
 def _relevance(last_ipl: str | None, age: float | None, country: str | None, date: str) -> float:
-    """export_site's IPL-relevance weight (the old curve's input), as of `date`, for a player
-    entering an auction (so he has no current franchise)."""
+    """The IPL-relevance weight export_site used until 2026-10-22 (the old curve's input, kept only
+    for that baseline), as of `date`, for a player entering an auction (no current franchise)."""
     af = None
     if age is not None:
         af = 1.0 if age <= 32 else 0.35 if age >= 42 else 1.0 - (age - 32) * 0.065
@@ -277,9 +289,12 @@ def feature_fn(refresh_caps: bool = False):
         if r.get("sold") and r.get("price_cr"):
             floors[r["season"]] = min(floors.get(r["season"], math.inf), float(r["price_cr"]))
 
+    contrib = _asof_contrib()
+
     def features_in(cid: str, season: int, date: str, vals: dict, country: str | None) -> dict:
         rec = pm.get(cid) if isinstance(pm.get(cid), dict) else {}
         v = vals.get(cid)
+        ct = contrib.get((season, cid))
         country = country or normalise(rec.get("country"))
         dob = rec.get("dob")
         age = None
@@ -300,6 +315,10 @@ def feature_fn(refresh_caps: bool = False):
             "season": season,
             "price_value": v["value"] if v else None,
             "value_sd": v["value_sd"] if v else None,
+            # his contribution per match as of the auction (scripts/playing_time_fit.py asof-contrib):
+            # the value of candidate X
+            "contrib": ct[0] if ct else None,
+            "contrib_sd": ct[1] if ct else None,
             "target_balls": v["target_balls"] if v else 0,
             "ipl_balls": v["ipl_balls"] if v else 0,
             "role": ROLE_MAP.get(rec.get("primary_role") or "", "batter"),
@@ -422,20 +441,30 @@ TRIED_FEATURES = ("mega_x_overseas", ERA)
 # IPL-evidence ceiling (the recipes before 2026-10-22 did), and the top of the value support the
 # priced value is held to (None = pricing.MARKET_PV_MAX; a number = winsorised at the largest value
 # of any training row: no extrapolation beyond the best player the market has priced).
-_FORM: dict = {"ceiling": True, "pv_max": None, "cal": "none+group-median-offset", "tail": 0.2}
+_FORM: dict = {"ceiling": True, "pv_max": None, "cal": "none+group-median-offset", "tail": 0.2,
+               "value": "best"}  # fmt: skip
 
 
 def _form_of(spec: tuple) -> dict:
     return {
         "ceiling": True, "winsor": False, "cal": "none+group-median-offset", "tail": TAIL_SHARE,
-        **(spec[4] if len(spec) > 4 else {}),
+        "value": "best", **(spec[4] if len(spec) > 4 else {}),
     }  # fmt: skip
+
+
+def _valued(r: dict) -> dict:
+    """The row as the candidate prices it: with `value` = "contrib" (candidate X) his contribution
+    per match and its sd stand in for `price_value` / `value_sd`."""
+    if _FORM.get("value") == "contrib":
+        return {**r, "price_value": r.get("contrib"), "value_sd": r.get("contrib_sd")}
+    return r
 
 
 def _pv_support(rows: list[dict]) -> float:
     """The largest priced value (the cautious estimate, before any clamp) among `rows`."""
     out = -math.inf
     for r in rows:
+        r = _valued(r)
         v = r.get("price_value")
         if v is not None:
             out = max(out, pricing.priced_value(v, r.get("value_sd")))
@@ -447,12 +476,13 @@ def _use_form(spec: tuple, train: list[dict] | None = None) -> None:
     _FORM["ceiling"] = form["ceiling"]
     _FORM["cal"] = form["cal"]
     _FORM["tail"] = form["tail"]
+    _FORM["value"] = form["value"]
     _FORM["pv_max"] = _pv_support(train) if form["winsor"] and train else None
 
 
 def _features(r: dict) -> dict[str, float]:
     """pricing.market_features for a history row, plus the tried-only terms."""
-    f = pricing.market_features(r, r["cycle"], pv_max=_FORM["pv_max"])
+    f = pricing.market_features(_valued(r), r["cycle"], pv_max=_FORM["pv_max"])
     f["mega_x_overseas"] = f["overseas"] * f["mega"]
     f[ERA] = f["overseas"] * (1.0 if r["season"] >= ERA_FIRST_SEASON else 0.0)
     return f
@@ -874,16 +904,24 @@ def _apply_cal(part: dict, lin: np.ndarray, rows: list[dict]) -> np.ndarray:
     return np.array(out)
 
 
-def _old_curve(r: dict) -> float:
-    """The hand-set on-field curve as the site priced a player entering this auction: his value
-    less the IPL-relevance discount, cautious estimate, IPL-evidence ceiling."""
-    from export_site import PEN_SCALE_VALUE
+# The hand-set pieces of the old on-field price, kept here only to reproduce that baseline in the
+# comparison tables (both were removed from the site on 2026-10-22, audit items 4 and 6): the
+# IPL-relevance penalty (up to 36 runs per 100 balls, `_relevance`) and the role premium.
+OLD_PEN_SCALE_VALUE = 36.0
+OLD_ROLE_MULT = {"all_rounder": 1.15, "keeper": 1.05}
 
+
+def _old_curve(r: dict) -> float:
+    """The hand-set on-field curve as the site priced a player entering this auction until
+    2026-10-22: his value less the IPL-relevance discount, cautious estimate, the role premium,
+    IPL-evidence ceiling."""
     if r["price_value"] is None:
         return 0.3
     rel = _relevance(r["last_ipl"], r["age"], r["country"], AUCTIONS_DATES[r["season"]])
-    v = r["price_value"] - (1 - rel) * PEN_SCALE_VALUE
-    return pricing.est_value(v, r["role"], "ipl", r["value_sd"], r["target_balls"])
+    v = r["price_value"] - (1 - rel) * OLD_PEN_SCALE_VALUE
+    adj = pricing.priced_value(v, r["value_sd"])
+    raw = pricing.PV_BASE * math.exp(pricing.PV_SCALE * adj) * OLD_ROLE_MULT.get(r["role"], 1.0)
+    return max(0.3, min(pricing.price_ceiling(r["target_balls"]), raw))
 
 
 def _choose_alpha(kind: str, rows: list[dict], names: list[str], extra=()) -> float:
@@ -1112,6 +1150,13 @@ CANDIDATES: dict[str, tuple] = {
     "W  U with the hinge at the top twentieth": (
         PRICE_FEATURES, "tobit", "censored", False,
         {"ceiling": False, "winsor": True, "cal": "hinge+group-median-offset", "tail": 0.05}),
+    # declared 2026-10-22 evening (audit items 4 and 6), before any of its numbers: T with the value
+    # replaced by the contribution per match (both roles at their expected balls, above
+    # replacement; scout/playing_time.py) instead of the better role's rate per 100 balls
+    "X  T with the contribution per match as the value": (
+        _NO_SQ, "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
+         "value": "contrib"}),
 }  # fmt: skip
 # P(bought): the previous features, and with the prior market price
 BOUGHT_CANDIDATES = {
@@ -1448,7 +1493,7 @@ def _retention_check(rets: list[dict], part: dict) -> dict:
     price for each retained player against what he was paid."""
     ratios = []
     for r in rets:
-        f = pricing.market_features(r, "mega", part.get("pv_max"))
+        f = pricing.market_features(_valued(r), "mega", part.get("pv_max"))
         share = math.exp(
             pricing.calibrate(
                 pricing.calibration_part(part, f),

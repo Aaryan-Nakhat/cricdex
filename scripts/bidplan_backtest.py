@@ -2,9 +2,11 @@
 
 For each auction and each franchise, using only what was known before that auction:
 
-* **Values** are the IPL ratings fitted on the matches before the auction date (the walk-forward
-  fits `scripts/ipl_price_model.py fits` caches) blended with the other leagues' fits whose
-  cut-off is on or before it, then discounted for IPL relevance as the auction pool does.
+* **Values** are each player's contribution per match as of the auction (runs above replacement,
+  batting and bowling at his expected balls; `scripts/playing_time_fit.py asof-contrib`): the IPL
+  ratings fitted on the matches before the auction date blended with the other leagues' fits whose
+  cut-off is on or before it, his usage before it, the walk-forward expected-balls models and
+  replacement levels. (Until 2026-10-22: the better role's rate less the IPL-relevance discount.)
 * **Market prices** come from a price model fitted only on the auctions before (2018 to the year
   before; the shipped recipe: Huber + quantile map + group shifts), on the features as of the
   auction (`ipl_price_model.build_rows`). The P(bought) part isn't refitted: the plan doesn't use it.
@@ -53,7 +55,6 @@ from cricdex.web_parity.pricing import load_price_model, market_price  # noqa: E
 app = typer.Typer(add_completion=False)
 SEASONS = (2025, 2026)
 RULES = {"squad_min": 18, "squad_max": 25, "overseas_max": 8}
-PEN_SCALE = 36.0  # export_site.PEN_SCALE_VALUE: value removed at IPL relevance 0
 TOP = 10
 
 
@@ -118,47 +119,117 @@ def _age(dob: str | None, date: str) -> float | None:
         return None
 
 
-def _pool_value(
-    v: float | None, cid: str, country: str | None, date: str, pm, apps
-) -> float | None:
-    """The auction pool's value: blended value less the IPL-relevance discount."""
-    if v is None:
-        return None
-    rec = pm.get(cid) if isinstance(pm.get(cid), dict) else {}
-    ipl = [d for d in apps.get(cid, []) if d < date]
-    rel = ipm._relevance(ipl[-1] if ipl else None, _age(rec.get("dob"), date), country, date)
-    return v - (1 - rel) * PEN_SCALE
+_ASOF: dict = {}
+_P: dict = {}
+
+
+def _p_play(season: int) -> tuple[dict, dict]:
+    """({cid: P(plays) in his squad}, {cid: P(plays) as a free agent}) as of `season`'s auction: the
+    squad and free-agent models (playing_time_fit `play` / `free`, their chosen features) fitted on
+    the seasons before it only, applied to that season's squad rows and auction-pool rows."""
+    if season not in _P:
+        import pickle
+
+        import playing_time_fit as ptf
+
+        from cricdex.scout import playing_time as pt
+
+        rep_ = ptf._read()
+        prows = ptf._all_play_rows()
+        sq_m = pt.fit_play_model([r for r in prows if r["season"] < season],
+                                 ptf.PLAY_CANDIDATES[rep_["play"]["chosen"]], rep_["play"]["alpha"])  # fmt: skip
+        fa = pickle.loads(ptf.CACHE_FA.read_bytes())
+        frows = [r for y in ptf.PLAY_SEASONS for r in fa[y]]
+        for r in frows:
+            r["_f"] = pt.fa_features(r)
+        fa_m = pt.fit_play_model([r for r in frows if r["season"] < season],
+                                 ptf.FA_CANDIDATES[rep_["free_agent"]["chosen"]],
+                                 rep_["free_agent"]["alpha"])  # fmt: skip
+        _P[season] = (
+            {r["cid"]: sq_m.prob(r["_f"]) for r in prows if r["season"] == season},
+            {r["cid"]: fa_m.prob(r["_f"]) for r in frows if r["season"] == season},
+        )
+    return _P[season]
+
+
+def _contrib(season: int, cid: str | None, free: bool) -> tuple[float | None, tuple | None]:
+    """(contribution per match, its parts (batting, bowling, balls faced, balls bowled, P(plays)))
+    as of the auction (`scripts/playing_time_fit.py asof-contrib`; P(plays) as a free agent when
+    `free`, else in his squad; 1 when unknown); (None, None) for a player not in it."""
+    if not _ASOF:
+        import polars as pl
+
+        f = ipm.ASOF_CONTRIB
+        for r in pl.read_parquet(f).iter_rows(named=True):
+            _ASOF[(r["season"], r["cid"])] = r
+    r = _ASOF.get((season, cid or ""))
+    if r is None:
+        return None, None
+    sq, fa = _p_play(season)
+    p = (fa if free else sq).get(cid or "", 1.0)
+    return r["contrib"], (
+        r["contrib_bat"],
+        r["contrib_bowl"],
+        r["balls_faced"],
+        r["balls_bowled"],
+        p,
+    )
 
 
 NEXT_MIN_BALLS = 60  # a role needs this many balls in the next season to count, else replacement
 
 
-def _next_season_values(season: int) -> dict[str, float]:
-    """What each player actually did in the IPL season the auction was for (runs per 100 balls
-    above that season's average ball, `runs_value.observed_value`), in his better role with
-    NEXT_MIN_BALLS+ balls in it. Missing = he barely played: replacement level."""
-    from cricdex.scout.ratings import bayesian, runs_value
+def _next_season_values(season: int) -> dict[str, tuple[float, tuple]]:
+    """What each player actually contributed in the IPL season the auction was for, in the strength
+    measure's currency: per role with NEXT_MIN_BALLS+ balls in it, (his season value in runs per 100
+    balls above that season's average ball, `runs_value.observed_value`, less the replacement level
+    for the slot or group he actually played in) × his balls a match / 100, at the share of his
+    side's matches he actually played (the realised P(plays)); a role under NEXT_MIN_BALLS counts at
+    replacement (0). Missing = he barely played: replacement level. Replacement levels are the
+    walk-forward ones of that auction (playing_time_fit `play`)."""
+    import pickle
 
-    tab = runs_value.league_tables(
-        bayesian.DEFAULT_DB_PATH, "ipl", since=f"{season}-01-01", before=f"{season + 1}-01-01"
-    )
-    out: dict[str, float] = {}
-    for role in ("batter", "bowler"):
-        ids = [pid for pid, t in tab.totals.get(role, {}).items()
-               if t[:, 3].sum() >= NEXT_MIN_BALLS]  # fmt: skip
-        if not ids:
+    import playing_time_fit as ptf
+    import polars as pl
+
+    from cricdex.scout import playing_time as pt
+
+    repl = pickle.loads(ptf.CACHE_PLAY.read_bytes())[season]["repl"]
+    _tm, _pl, share = ptf.ipl_shares(ptf._u())
+    h = pl.read_parquet(ptf.HISTORY_PATH).filter(pl.col("season") == season)
+    u = ptf._u().filter((pl.col("league") == "ipl") & (pl.col("season") == season))
+    per = {cid: (m, pos, f, b) for cid, m, pos, f, b in u.group_by("cid").agg(
+        pl.len(), pl.col("bat_pos").median(), pl.col("faced").sum(), pl.col("bowled").sum()
+    ).iter_rows()}  # fmt: skip
+    parts: dict[str, list[float]] = {}
+    for cid, role, _s, v, n in h.iter_rows():
+        if cid not in per or n is None or n < NEXT_MIN_BALLS or v is None or math.isnan(v):
             continue
-        for pid, v in zip(ids, runs_value.observed_value(tab, role, ids), strict=True):
-            if not math.isnan(v):
-                out[pid] = max(out.get(pid, -math.inf), float(v))
-    return out
+        m, pos, faced, bowled = per[cid]
+        p = parts.setdefault(cid, [0.0, 0.0, faced / m, bowled / m, share.get((season, cid), 0.0)])
+        if role == "batter":
+            p[0] = (v - repl["bat"].get(pt.slot_group(pos), 0.0)) * (faced / m) / 100.0
+        else:
+            g = "frontline" if bowled / m >= pt.FRONTLINE_BALLS else "part_time"
+            p[1] = (v - repl["bowl"][g]) * (bowled / m) / 100.0
+    return {cid: (p[0] + p[1], tuple(p)) for cid, p in parts.items()}  # parts end with his share
 
 
-def _next_strength(pieces: list[dict], nxt: dict[str, float], needs: dict) -> dict:
+def _next_strength(pieces: list[dict], nxt: dict, needs: dict) -> dict:
     """The plan's strength measure on next-season performance instead of our pre-auction values."""
-    re = [bp.piece(p["id"], p["name"], nxt.get(p["id"]), p["role"], p["os"], p["tags"])
-          for p in pieces]  # fmt: skip
+    re = []
+    for p in pieces:
+        c, parts = nxt.get(p["id"], (None, None))
+        re.append(bp.piece(p["id"], p["name"], c, p["role"], p["os"], p["tags"], parts))
     return bp.strength(re, needs)
+
+
+def _contrib_fields(c: float | None, parts: tuple | None) -> dict:
+    """A lot's playing-time fields (bidplan.CONTRIB_KEYS)."""
+    if c is None or parts is None:
+        return dict.fromkeys(bp.CONTRIB_KEYS)
+    return {"contrib": c, "contrib_bat": parts[0], "contrib_bowl": parts[1],
+            "balls_faced": parts[2], "balls_bowled": parts[3], "p_play": parts[4]}  # fmt: skip
 
 
 def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
@@ -168,7 +239,6 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
     risk_rows = rows[2] if len(rows) > 2 else []
     model = _fit_price_model(price_rows, ret_rows, season)
     comp = {"cycle": cycle, "purse": purse}
-    vals = ipm.asof_values(season, date)
     lots = [r for r in hist["lots"] if r["season"] == season and r.get("sold")]
     feats = {r["cricsheet_id"]: r for r in price_rows if r["season"] == season}
     avail = []
@@ -182,13 +252,15 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
         mk = market_price(f, comp, model)
         role = f["role"]
         ov = bool(f["is_overseas"])
+        c, parts = _contrib(season, cid, True)
         avail.append(
             {
                 "cricsheet_id": cid,
                 "name": lot["name"],
                 "role": role,
                 "is_overseas": ov,
-                "value": _pool_value(f.get("price_value"), cid, f.get("country"), date, pm, apps),
+                "value": f.get("price_value"),
+                **_contrib_fields(c, parts),
                 "projected_value": mk["price"],
                 "p_bought": mk["p_bought"],
                 "base_price": float(lot.get("base_price_cr") or 0.3),
@@ -213,13 +285,15 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
         mk = market_price(f, comp, model)
         role, ov = f["role"], bool(f["is_overseas"])
         rec = pm.get(cid) if isinstance(pm.get(cid), dict) else {}
+        c, parts = _contrib(season, cid, True)
         avail.append(
             {
                 "cricsheet_id": cid,
                 "name": rec.get("display_name") or cid,
                 "role": role,
                 "is_overseas": ov,
-                "value": _pool_value(f.get("price_value"), cid, f.get("country"), date, pm, apps),
+                "value": f.get("price_value"),
+                **_contrib_fields(c, parts),
                 "projected_value": mk["price"],
                 "p_bought": mk["p_bought"],
                 "base_price": price_tier(mk["price"]),
@@ -241,10 +315,9 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
         role = ipm.ROLE_MAP.get(rec.get("primary_role") or "", "batter")
         country = r.get("country") or rec.get("country")
         ov = bool(country) and country != "IND"
-        v = vals.get(cid) if cid else None
-        value = _pool_value(v["value"] if v else None, cid or "", country, date, pm, apps)
-        t["kept"].append(bp.piece(cid or f"name:{r['name']}", r["name"], value, role, ov,
-                                  tags(cid, role, ov)))  # fmt: skip
+        c, parts = _contrib(season, cid, False) if cid else (None, None)
+        t["kept"].append(bp.piece(cid or f"name:{r['name']}", r["name"], c, role, ov,
+                                  tags(cid, role, ov), parts))  # fmt: skip
         t["cost"] += float(r.get("purse_deduction_cr") or r.get("salary_cr") or 0.0)
     for lot in lots:
         teams.setdefault(lot["team"], {"kept": [], "cost": 0.0})
@@ -289,8 +362,8 @@ def _team_result(si: dict, team: str, trials: int, tags) -> dict:
         cid = lot.get("cricsheet_id")
         r = by_id.get(cid or "")
         if r:
-            actual_pieces.append(bp.piece(cid, r["name"], r["value"], r["role"], r["is_overseas"],
-                                          r["tags"]))  # fmt: skip
+            actual_pieces.append(bp.piece(cid, r["name"], r.get("contrib"), r["role"],
+                                          r["is_overseas"], r["tags"], bp.contrib_parts(r)))  # fmt: skip
         else:  # an uncapped player with no ball-by-ball: replacement level, role unknown
             ov = (lot.get("country") or "IND") != "IND"
             actual_pieces.append(bp.piece(f"name:{lot['name']}", lot["name"], None, "batter", ov,

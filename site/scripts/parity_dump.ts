@@ -161,6 +161,8 @@ const out = {
     retentionSpend("KKR", SLAB_PLAYERS, { ...SLAB_OPTS, mode: "mini" as const }),
   ],
   retentions,
+  // a mini auction's default retentions: each team's top 18 by expected season value
+  retentionsMini: defaultRetentions(pool, teams, "mini", megaIds),
   poolSize: res.poolSize,
   auctioned: res.auctioned,
   teams: res.teams.map((t) => ({

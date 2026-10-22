@@ -71,6 +71,19 @@ export interface KeepPlayer {
   prior_retained?: boolean | null;
   /** a 2025 mega-auction retention still with his franchise, charged by the retention slabs */
   slab_holder?: "capped" | "uncapped" | null;
+  // playing time (METHODOLOGY §6c; export_site PT_KEYS): runs above replacement per match he plays
+  // (both roles at his expected balls), its parts and balls, P(plays a match) in his squad and the
+  // expected runs over a season; absent in exports before 2026-10-22
+  contrib?: number | null;
+  contrib_sd?: number | null;
+  contrib_bat?: number | null;
+  contrib_bowl?: number | null;
+  balls_faced?: number | null;
+  balls_bowled?: number | null;
+  p_play?: number | null;
+  /** his P(plays) as a free agent (the free-agent model), for Bid plan when he is released */
+  p_play_free?: number | null;
+  season_value?: number | null;
   /** A hand-written note on the salary (e.g. an overseas fee cap). Display only. */
   note?: string | null;
   /** share of his value's evidence from a stale league (SMAT), and which ("SMAT data to Dec 2024") */
@@ -326,11 +339,14 @@ export function keepFeatures(
   age: number | null | undefined,
   iplBalls: number | null | undefined,
   boughtPrev: boolean,
+  pPlay: number | null | undefined = null,
+  contrib: number | null | undefined = null,
 ): Record<string, number> {
   const c = cost && cost > 0 ? cost : 1e-3;
   const lr = Math.log(Math.max(market, 1e-3) / c);
   const mg = mega ? 1 : 0;
   const hasAge = age !== null && age !== undefined;
+  const hasPlay = pPlay !== null && pPlay !== undefined && contrib !== null && contrib !== undefined;
   return {
     log_ratio: lr,
     mega: mg,
@@ -348,6 +364,9 @@ export function keepFeatures(
     bought_prev: boughtPrev ? 1 : 0,
     log_cost: Math.log(c),
     mega_x_log_ratio: mg * lr,
+    p_play: hasPlay ? (pPlay as number) : 0,
+    play_value: hasPlay ? (pPlay as number) * (contrib as number) : 0,
+    no_play: hasPlay ? 0 : 1,
   };
 }
 
@@ -460,6 +479,8 @@ export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: numb
       p.age,
       p.ipl_balls,
       p.acquired === "auction",
+      p.p_play,
+      p.contrib,
     );
     pKeep = keepProbability(f, model);
     rec = callOf(pKeep);
@@ -491,6 +512,8 @@ export interface MarketPlayer {
   id: string;
   name: string;
   value: number;
+  /** runs above replacement per match (null in an export before it) */
+  contrib: number | null;
   price: number;
   overseas: boolean;
   tags: string;
@@ -498,10 +521,17 @@ export interface MarketPlayer {
   from_team: string | null;
 }
 
+/** How good a player is for a role gap: his contribution per match, else (an export before it) his
+ * value. Mirror of keep.py `level`. */
+export function level(p: { contrib?: number | null; value?: number | null }): number | null {
+  if (p.contrib !== null && p.contrib !== undefined) return Number(p.contrib);
+  return p.value ?? null;
+}
+
 /** The replacement market: priced auction-pool players with no franchise, with their tags.
  * `pool` = buildPool(auction_pool.json) rows (projected_value = the price). */
 export function freeAgents(
-  pool: { cricsheet_id: string; name: string; value: number; projected_value: number; is_overseas: boolean; team: string | null }[],
+  pool: { cricsheet_id: string; name: string; value: number; contrib?: number | null; projected_value: number; is_overseas: boolean; team: string | null }[],
   tags: Record<string, string>,
 ): MarketPlayer[] {
   const out: MarketPlayer[] = [];
@@ -509,7 +539,7 @@ export function freeAgents(
     if (r.team) continue;
     let t = tags[r.cricsheet_id] ?? "";
     if (r.is_overseas && !t.includes("x")) t += "x";
-    out.push({ id: r.cricsheet_id, name: r.name, value: r.value, price: r.projected_value, overseas: !!r.is_overseas, tags: t, from_team: null });
+    out.push({ id: r.cricsheet_id, name: r.name, value: r.value, contrib: r.contrib ?? null, price: r.projected_value, overseas: !!r.is_overseas, tags: t, from_team: null });
   }
   return out;
 }
@@ -538,7 +568,7 @@ export function marketFor(
     if (a.default_keep) continue;
     let t = p.tags || "";
     if (p.overseas && !t.includes("x")) t += "x";
-    out.push({ id: playerKey(p), name: p.name, value: p.value, price: a.price as number, overseas: !!p.overseas, tags: t, from_team: p.team });
+    out.push({ id: playerKey(p), name: p.name, value: p.value, contrib: p.contrib ?? null, price: a.price as number, overseas: !!p.overseas, tags: t, from_team: p.team });
   }
   return out;
 }
@@ -670,12 +700,14 @@ export function evaluate(
   const gaps: Gap[] = [];
   for (const tag of TAG_ORDER) {
     const need = Math.max(0, target[tag] - have[tag]);
-    const relVals = released.filter((p) => hasTag(p, tag) && p.value !== null && p.value !== undefined).map((p) => p.value as number);
+    // the bar: the best player the team released with this tag, by contribution per match
+    const relVals = released.filter((p) => hasTag(p, tag) && level(p) !== null).map((p) => level(p) as number);
     const ref = relVals.length ? Math.max(...relVals) : 0.0;
     const picks: MarketPlayer[] = [];
     if (need > 0) {
-      const cands = market.filter((c) => c.tags.includes(TAG_LETTER[tag]) && c.value >= ref && !picked.has(c.id));
-      cands.sort((a, b) => a.price - b.price || b.value - a.value || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      const lv = (c: MarketPlayer) => level(c) ?? -Infinity;
+      const cands = market.filter((c) => c.tags.includes(TAG_LETTER[tag]) && lv(c) >= ref && !picked.has(c.id));
+      cands.sort((a, b) => a.price - b.price || (level(b) ?? 0) - (level(a) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       for (const c of cands) {
         if (picks.length >= need || room <= 0) break;
         if (c.overseas && osRoom <= 0) continue;

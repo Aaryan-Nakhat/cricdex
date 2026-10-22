@@ -1749,7 +1749,7 @@ class CricDexApp(App):
                     "player": self._dn(m["player"]),
                     "role": m["player"]["role"].replace("_", "-"),
                     "value": round(m["player"]["projected_value"], 1),
-                    "ipl_fit": self._ipl_fit(m["player"]["cricsheet_id"]),
+                    "plays": self._ipl_fit(m["player"]["cricsheet_id"]),
                     "landing": ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in m["winners"])
                     or "unsold",
                 }
@@ -1763,7 +1763,7 @@ class CricDexApp(App):
 
     def _activity(self) -> dict:
         # Lazy-load + cache the cross-league activity index (cid -> last-IPL /
-        # age / ipl_relevance), shared by the marquee + player-search tables.
+        # age / p_play), shared by the marquee + player-search tables.
         if not hasattr(self, "_activity_cache"):
             try:
                 from cricdex.web_parity import load_activity_index
@@ -1775,7 +1775,8 @@ class CricDexApp(App):
 
     def _ipl_fit(self, cid: str) -> str:
         a = self._activity().get(cid)
-        return f"{round(a['ipl_relevance'] * 100)}%" if a else "—"
+        p = (a or {}).get("p_play")
+        return f"{round(p * 100)}%" if p is not None else "—"
 
     def _on_find_sim_player(self) -> None:
         # Search the last run's per-player outcomes: retained / sold / unsold.
@@ -1804,7 +1805,7 @@ class CricDexApp(App):
                 {
                     "player": self._dn(o),
                     "role": o["role"].replace("_", "-"),
-                    "ipl_fit": self._ipl_fit(o["cricsheet_id"]),
+                    "plays": self._ipl_fit(o["cricsheet_id"]),
                     "status": o["status"],
                     "avg_cr": "—" if o["status"] == "unsold" else round(o["avgPrice"], 1),
                     "sold%": round(o["soldPct"]) if o["status"] == "sold" else "—",

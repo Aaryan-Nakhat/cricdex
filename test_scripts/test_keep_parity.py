@@ -239,12 +239,16 @@ def _keep_model() -> dict | None:
 
 
 # keep_features arguments: (market, cost, mega, forecast avg3, P(regular), captain here, seasons
-# here, home-grown, capped Indian, overseas, age, IPL balls, bought at the last auction)
+# here, home-grown, capped Indian, overseas, age, IPL balls, bought at the last auction[, P(plays),
+# contribution per match])
 KEEP_CASES = [
     [12.5, 14.0, False, 3.4, 0.54, False, 19, True, True, False, 38.0, 6000, False],
     [0.3, 3.0, False, None, None, False, 1, True, False, False, 24.5, 15, True],
     [25.0, 0.0, True, -15.3, 0.2, True, 0, False, False, True, None, None, False],
     [1.1, 4.0, False, -15.8, 0.04, False, 16, True, True, False, 45.2, 4000, False],
+    [8.0, 11.0, False, 6.1, 0.8, True, 6, False, True, False, 31.0, 2500, False, 0.86, 5.42],
+    [2.0, 6.5, False, None, None, False, 2, False, False, True, 27.0, 300, True, 0.31, None],
+    [4.0, 2.0, False, 1.0, 0.5, False, 3, True, False, False, 22.0, 700, True, 0.55, -1.2],
 ]
 
 

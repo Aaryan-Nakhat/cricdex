@@ -154,9 +154,11 @@ now prices with.
    the IPL rating's own when that stands alone; in Scout it is the league
    rating's sd with the tier's translation sd added, so both price a player
    the same way.
-2. **Amplify exponentially.** `4.03 × e^(0.0743 × priced value)`, times a
-   small role weight (all-rounders / keepers are rarer → weighted up). The
-   `0.0743` stretches the curve so the spread matches recent real money —
+2. **Amplify exponentially.** `4.03 × e^(0.0743 × priced value)`. (Until
+   2026-10-22 it was also multiplied by a hand-set role weight, all-rounders
+   ×1.15 and keepers ×1.05; removed with audit item 6: an all-rounder's second
+   discipline now counts in his contribution per match, METHODOLOGY §6c, and
+   the market price has fitted role terms.) The `0.0743` stretches the curve so the spread matches recent real money —
    the top names land in the 20s (27 cr, the 2025 ceiling, is the cap,
    reached at a priced value of about +25.6), the typical pool player around
    1.2 cr — and the result is clamped to `[0.3, ceiling]`.
@@ -167,15 +169,15 @@ now prices with.
    13.5 cr at most, 163 → ~17 cr, 449 → ~23.6 cr, 600+ → the full 27 cr. The
    exported pool and Scout rows carry `target_balls` (IPL balls in the role
    priced; missing counts as 0), so the web and Python apply it the same way.
-4. **Discount for IPL relevance.** A player who hasn't featured in the IPL
-   lately is worth less to an IPL auction *now*. Each player gets an
-   IPL-relevance weight between 0 and 1: about 1 for a current IPL regular
-   (last IPL game within ~18 months; age barely matters while he's playing),
-   fading with years since his last IPL game and with age past 32; 0.7 for an
-   uncapped Indian who has never played the IPL; lower for an older overseas
-   leaguer. Up to 36 runs per 100 balls is taken off the value at weight 0
-   (about −29 in practice, since the weight never drops below 0.2). This is
-   what stops retired or league-only veterans topping the buys.
+4. **No IPL-relevance discount any more** (removed 2026-10-22, audit item 4).
+   Until then a hand-set weight (1 for a current IPL regular, fading with
+   years since his last IPL game and age past 32, 0.7 for a never-IPL Indian)
+   took up to 36 runs per 100 balls off the value, and that discounted value
+   ordered the pool. Whether a player will play is now a chance fitted on real
+   IPL XIs, P(plays), and the pool is ordered by his expected season value
+   (P(plays) × runs above replacement a match × 14; METHODOLOGY §6c). That is
+   what keeps league-only veterans out of the top now (Imran Tahir's P(plays)
+   as a 47-year-old free agent is under 1%).
 5. **Out come two numbers:**
    - **projected value** — what he's worth, in crore.
    - **base price** — his opening tag, snapped to real IPL bands:
@@ -187,7 +189,6 @@ now prices with.
 ```
 priced value = 10 − 0.5 × 3 = 8.5
 4.03 × e^(0.0743 × 8.5)     ≈ 7.6 cr   ← projected value
-(− recency penalty if stale)
 opening tag                 = 0.75 cr  ← base price
 ```
 
@@ -202,7 +203,7 @@ re-fitted:
   spread of the old value, IPL players with 150+ balls (batters 20.3,
   bowlers 7.5: in runs, batters' values spread more than bowlers'). Every
   league discount, the default translation uncertainties (0.5 → 6.5,
-  0.8 → 10.5) and the IPL-relevance penalty (2.7 → 36) were multiplied by
+  0.8 → 10.5) and the IPL-relevance penalty (2.7 → 36, removed since) were multiplied by
   it and rounded. A check from players with 300+ balls in both leagues
   (their runs value there minus in the IPL) gives gaps of the same size:
   SMAT +22 for batters / +7 for bowlers (discount 17), BBL +4 / +3 (6),
@@ -265,9 +266,17 @@ IPL squads. So the pool is **cross-collection**:
 
 With guardrails so it stays realistic:
 
-- **Active only** — last match within ~3 years.
-- **≥150 balls** of evidence — cuts tiny-sample flukes (no more a 30-ball
-  domestic unknown outranking Kohli).
+- **Active only** — last match within ~3 years (a player idle for three
+  seasons has no usage or form to project).
+- **Ranked by expected season value** (since 2026-10-22): P(plays a match)
+  × his runs above a replacement a match, batting and bowling at the balls
+  he actually gets, × 14 (METHODOLOGY §6c). A squad player's P(plays) comes
+  from where he ranks in his squad, his overseas place, experience, age and
+  last season; a free agent's also from whether franchises buy players like
+  him at all (fitted on every past auction pool). The top 600 are kept: a
+  size limit for the browser and the simulation, not a quality cut. (Until
+  then: the value less the IPL-relevance discount, and a ≥150-ball cut; a
+  thin record is now handled by the ratings' shrinkage and a low P(plays).)
 - **Excludes** men's-T20I associate noise and non-IPL nations (e.g. PAK).
 - **Tier penalty** — runs against weaker attacks aren't worth as much as runs
   in the IPL, so cross-tier values are discounted before pricing, in runs per 100
@@ -295,7 +304,8 @@ With guardrails so it stays realistic:
   releasing him alone would free (`retention_spend` ⇄ `retentionSpend`, the same
   charge as Keep or release).
 - **Mini auction** — teams keep **most** of their squad (by default their 18
-  most valuable players, already paid for in prior years), so retentions are
+  players with the highest expected season value, METHODOLOGY §6c, already
+  paid for in prior years), so retentions are
   free and they bid only a small leftover purse (30 cr by default) to top up.
 
 Retained players leave the pool and count toward the **overseas cap (8)**.
@@ -443,16 +453,21 @@ auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-beta)).
 1. **Rivals only.** Your team steps out; the other nine (their Keep-or-release squads, each opening
    at least 8 places) run through this simulator 200 times. In each run, for each player, the
    **price to beat** = the winning rival's max bid × 1.02, or his base price if nobody bid.
-2. **Strength.** Your best XI's values added up (≤ 4 overseas, a keeper, 5 bowling and 6 batting
-   options, a −15 replacement player for any gap) + 0.25 × the next four + −3 per role need missed.
+2. **Strength.** Your best XI's expected runs a match above replacement (since 2026-10-22: each player's
+   batting at the balls he faces a match plus his bowling at the balls he bowls, × his P(plays), a lot's as
+   a free agent, METHODOLOGY §6c; the XI's balls
+   held to a side's 115 an innings; ≤ 4 overseas, a keeper, 5 bowling and 6 batting options, a
+   replacement player, 0, for any gap) + 0.25 × the next four − 0.63 per role need missed. (Until then
+   the XI's per-100-ball values were added up as if every player got the same balls, with a −15
+   replacement and −3 a need.)
 3. **The rule.** Stars first, bid up to *gain in strength ÷ λ*; λ (runs per crore) is the rate that
    gives the highest average strength across the 200 runs.
 
 ```
-Worked example (made-up numbers). λ = 1.0 runs per crore.
-Spinner A adds 8.3 runs of strength → max bid 8.3 cr. Rivals' prices to beat
+Worked example (made-up numbers). λ = 0.2 runs a match per crore.
+Spinner A adds 1.66 runs a match of strength → max bid 8.3 cr. Rivals' prices to beat
 over 200 runs: median 1.2 cr, 100% of runs ≤ 8.3 → "P(≤ max) 100%".
-If A goes above 8.3, spinner B (who now fills the gap A leaves) adds 8.5
+If A goes above 8.3, spinner B (who now fills the gap A leaves) adds 1.7
 → fallback: "A up to 8.3 → if he goes above that: B up to 8.5".
 ```
 

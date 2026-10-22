@@ -288,7 +288,61 @@ def _feats(r: dict) -> dict[str, float]:
         r.get("forecast_p_regular"), bool(r.get("captain_here")), int(r.get("seasons_here") or 0),
         bool(r.get("home_grown")), _capped(r) and not r.get("is_overseas"),
         bool(r.get("is_overseas")), r.get("age"), r.get("ipl_balls"), bool(r.get("bought_prev")),
+        r.get("p_play"), r.get("contrib"),
     )  # fmt: skip
+
+
+def _playing_time(data: dict) -> None:
+    """Each row's playing time before the deadline (METHODOLOGY §6c): his contribution per match as
+    of the auction (`playing_time_fit.py asof-contrib`) and P(plays a match) in the squad his
+    franchise held before the deadline, from the squad model (playing_time_fit `play`) fitted
+    out of fold: for a deadline up to 2024 on the other seasons up to 2024, for 2025-26 on
+    2018-2024 (the model of the test). In place: `contrib`, `p_play`."""
+    import playing_time_fit as ptf
+
+    from cricdex.scout import playing_time as pt
+
+    rep_ = ptf._read()
+    feats = ptf.PLAY_CANDIDATES[rep_["play"]["chosen"]]
+    alpha = rep_["play"]["alpha"]
+    prows = ptf._all_play_rows()
+    contrib = {(s_, c): v for (s_, c), v in ipm._asof_contrib().items()}
+    u = ptf._u()
+    _team_m, _played, share = ptf.ipl_shares(u)
+    i = u.filter(pl.col("league") == "ipl")
+    roles = ptf._roles()
+    models: dict[int, pt.PlayModel] = {}
+    for s in SEASONS:
+        tr = [r for r in prows if r["season"] <= SELECT_LAST and r["season"] != s]
+        models[s] = pt.fit_play_model(tr, feats, alpha)
+    for s, rows in data.items():
+        date = ipm.AUCTIONS_DATES.get(s) or ipm.auction_dates()[s]
+        ipl_m = dict(i.filter(pl.col("date") < date).group_by("cid").agg(pl.len()).iter_rows())
+        by_team: dict[str, list[dict]] = {}
+        for r in rows:
+            by_team.setdefault(r["team"], []).append(r)
+        for team_rows in by_team.values():
+            squad = []
+            for r in team_rows:
+                c = contrib.get((s, r["cricsheet_id"]))
+                r["contrib"] = c[0] if c else None
+                squad.append(pt.squad_member(r["cricsheet_id"], c[0] if c else 0.0,
+                                             r["role"], bool(r.get("is_overseas"))))  # fmt: skip
+            xi = pt.projected_xi(squad)
+            for r in team_rows:
+                cid = r["cricsheet_id"]
+                x = xi[cid]
+                meta = {
+                    "contrib": squad[[q["cid"] for q in squad].index(cid)]["c"],
+                    "in_xi": x["in_xi"], "margin": x["margin"], "rank": x["rank"],
+                    "os_rank": x["os_rank"], "overseas": bool(r.get("is_overseas")),
+                    "ipl_matches": ipl_m.get(cid, 0), "age": r.get("age"),
+                    "last_share": share.get((s - 1, cid), 0.0),
+                    "keeper": roles.get(cid) == "keeper",
+                    "captain": bool(captains.as_of(cid, s).get("captain_ipl_last")),
+                    "season": s,
+                }  # fmt: skip
+                r["p_play"] = models[s].prob(pt.play_features(meta))
 
 
 # Candidate rules, declared before any test number (2026-10-22). "rule": a threshold on one index;
@@ -297,6 +351,9 @@ BASE = ["log_ratio", "mega", "mega_x_log_ratio"]
 FORECAST = ["forecast", "forecast_regular", "no_forecast"]
 FRANCHISE = ["captain_here", "seasons_here", "home_grown"]
 STATUS = ["capped_indian", "overseas", "age", "age_over_33", "ipl_balls", "bought_prev", "log_cost"]
+# playing time (declared 2026-10-22 evening, audit items 4 and 6, before any of its numbers): P(plays a
+# match) in his squad and P × his contribution per match (runs above replacement)
+PLAY = ["p_play", "play_value", "no_play"]
 # reference only (not a candidate): keep everyone the rules allow
 BASELINE = ("B0 keep everyone the rules allow", ("all", None))
 CANDIDATES = {
@@ -308,6 +365,9 @@ CANDIDATES = {
     "L3 L2 + franchise ties (captain, seasons there, home-grown)": ("logit", BASE + FORECAST + FRANCHISE),
     "L4 L3 + status (capped Indian, overseas, age, IPL balls, last auction's buy, cost)": (
         "logit", BASE + FORECAST + FRANCHISE + STATUS),
+    "L5 L4 + playing time (P(plays) in his squad, P(plays) x contribution per match)": (
+        "logit", BASE + FORECAST + FRANCHISE + STATUS + PLAY),
+    "L6 L5 without the Form forecast": ("logit", BASE + FRANCHISE + STATUS + PLAY),
 }  # fmt: skip
 C_GRID = (0.03, 0.1, 0.3, 1.0, 3.0)
 
@@ -463,6 +523,8 @@ def score(
     """Choose the rule by leave-one-deadline-out on the deadlines up to 2024, score it once on 2025
     (mega) + 2026 (mini)."""
     data: dict = pickle.loads((work / "rows.pkl").read_bytes())
+    ipm.AUCTIONS_DATES.update(ipm.auction_dates())
+    _playing_time(data)
     mk = _market(work, data, recipe or None)
     for s, rows in data.items():
         for r in rows:

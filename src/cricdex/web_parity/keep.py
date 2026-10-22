@@ -304,14 +304,17 @@ def keep_features(
     age: float | None,
     ipl_balls: float | None,
     bought_prev: bool,
+    p_play: float | None = None,
+    contrib: float | None = None,
 ) -> dict[str, float]:
     """The retention model's inputs (scripts/keep_backtest.py fits it on the same function):
     ln(market price / what keeping him costs), ln(cost), the mega-auction flag, the 3-season Form
     forecast (average / 10, the chance he is a regular in its third season, a no-forecast flag),
     captain of this franchise last season, ln(1 + IPL seasons played for it), home-grown (his first
     IPL side), capped Indian, overseas, age ((age − 28) / 5 and (age − 33)+ / 3), ln(1 + IPL balls)
-    / 5, bought at the last auction, and mega × the price ratio. Mirror of `keepFeatures` in
-    keep.ts."""
+    / 5, bought at the last auction, mega × the price ratio, and his playing time (METHODOLOGY §6c):
+    P(plays a match) in this squad, P × his contribution per match (runs above replacement) and a flag
+    when either is missing. Mirror of `keepFeatures` in keep.ts."""
     c = cost if cost and cost > 0 else 1e-3
     lr = math.log(max(market, 1e-3) / c)
     mg = 1.0 if mega else 0.0
@@ -332,6 +335,9 @@ def keep_features(
         "bought_prev": 1.0 if bought_prev else 0.0,
         "log_cost": math.log(c),
         "mega_x_log_ratio": mg * lr,
+        "p_play": p_play if p_play is not None and contrib is not None else 0.0,
+        "play_value": p_play * contrib if p_play is not None and contrib is not None else 0.0,
+        "no_play": 0.0 if p_play is not None and contrib is not None else 1.0,
     }
 
 
@@ -446,6 +452,7 @@ def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict
             (p.get("team") or "") in (p.get("captain_teams") or []), int(p.get("seasons_here") or 0),
             bool(p.get("home_grown")), (p.get("intl_caps") or 0) > 0 and not p.get("overseas"),
             bool(p.get("overseas")), p.get("age"), p.get("ipl_balls"), p.get("acquired") == "auction",
+            p.get("p_play"), p.get("contrib"),
         )  # fmt: skip
         p_keep = keep_probability(f, model)
         rec = call_of(p_keep)
@@ -477,6 +484,14 @@ def player_key(p: dict) -> str:
 # ---- squad ----------------------------------------------------------------------------------------
 
 
+def level(p: dict) -> float | None:
+    """How good a player is for a role gap: his contribution per match (runs above replacement, both
+    roles at his balls; METHODOLOGY §6c), else (an export before it) his value. Mirror of `level` in
+    keep.ts."""
+    c = p.get("contrib")
+    return float(c) if c is not None else p.get("value")
+
+
 def free_agents(pool: list[dict], tags: dict[str, str]) -> list[dict]:
     """The replacement market: priced auction-pool players with no franchise, with their tags."""
     out = []
@@ -491,6 +506,7 @@ def free_agents(pool: list[dict], tags: dict[str, str]) -> list[dict]:
                 "id": r["cricsheet_id"],
                 "name": r.get("name"),
                 "value": r["value"],
+                "contrib": r.get("contrib"),
                 "price": r["projected_value"],
                 "overseas": bool(r.get("is_overseas")),
                 "tags": t,
@@ -533,6 +549,7 @@ def market_for(
                 "id": player_key(p),
                 "name": p["name"],
                 "value": p["value"],
+                "contrib": p.get("contrib"),
                 "price": a["price"],
                 "overseas": bool(p.get("overseas")),
                 "tags": t,
@@ -645,16 +662,19 @@ def evaluate(
     gaps = []
     for tag in TAG_ORDER:
         need = max(0, target[tag] - have[tag])
-        rel_vals = [p["value"] for p in released if has_tag(p, tag) and p.get("value") is not None]
+        # the bar: the best player the team released with this tag, by contribution per match
+        rel_vals = [level(p) for p in released if has_tag(p, tag) and level(p) is not None]
         ref = max(rel_vals) if rel_vals else 0.0
         picks = []
         if need > 0:
             cands = [
                 c
                 for c in market
-                if TAG_LETTER[tag] in c["tags"] and c["value"] >= ref and c["id"] not in picked
+                if TAG_LETTER[tag] in c["tags"]
+                and (level(c) if level(c) is not None else -math.inf) >= ref
+                and c["id"] not in picked
             ]
-            cands.sort(key=lambda c: (c["price"], -c["value"], c["id"]))
+            cands.sort(key=lambda c: (c["price"], -(level(c) or 0.0), c["id"]))
             for c in cands:
                 if len(picks) >= need or room <= 0:
                     break

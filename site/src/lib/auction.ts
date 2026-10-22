@@ -15,18 +15,23 @@ export interface PoolPlayer {
   projected_value: number; // his price (cr): the market price, else the on-field curve
   onfield_value: number; // the on-field curve's price (cr): what his play alone is worth
   p_bought: number | null; // chance a franchise buys him (players with an IPL record), else null
+  // playing time (METHODOLOGY §6c): runs above replacement per match he plays, its parts and balls,
+  // P(plays a match) and the expected runs over a season; null in an export before 2026-10-22
+  contrib: number | null;
+  contrib_bat: number | null;
+  contrib_bowl: number | null;
+  balls_faced: number | null;
+  balls_bowled: number | null;
+  p_play: number | null;
+  season_value: number | null;
   captain: string | null; // the IPL sides he captained last season (the "Captain" badge), else null
   base_price: number; // estimated tier (cr)
   vpc: number; // value per credit
 }
 
-// All-rounders / keepers carry a small scarcity premium.
-const ROLE_MULT: Record<Role, number> = {
-  batter: 1.0,
-  bowler: 1.0,
-  all_rounder: 1.15,
-  keeper: 1.05,
-};
+// The hand-set all-rounder ×1.15 / keeper ×1.05 premium was removed on 2026-10-22 (audit item 6):
+// the market model's fitted role terms are the price premium, and a second discipline counts
+// through the contribution per match (playing_time.py). Mirror of pricing.py.
 // Calibrated to real IPL crore. The Bayes `value` is in runs per 100 balls above
 // the league's average ball (scoring + wickets priced in runs where he plays, or
 // runs saved + wickets; pool ~ -40..+60), priced on the cautious estimate
@@ -90,14 +95,16 @@ export function estValue(
   valueSd?: number | null,
   targetBalls?: number | null,
 ): number {
+  void role;
   const adj = pricedValue(value, valueSd) - tierDiscount(tier);
-  return Math.max(0.3, Math.min(priceCeiling(targetBalls), PV_BASE * Math.exp(PV_SCALE * adj) * ROLE_MULT[role]));
+  return Math.max(0.3, Math.min(priceCeiling(targetBalls), PV_BASE * Math.exp(PV_SCALE * adj)));
 }
 
 /** A player's price on the IPL curve (no tier discount) — the pool's price; `estValue(…, "ipl", …)`
  * without needing the league registry loaded. Mirror of `est_value(value, role, "ipl", sd, balls)`. */
 export function iplPrice(value: number, role: Role, valueSd?: number | null, targetBalls?: number | null): number {
-  return Math.max(0.3, Math.min(priceCeiling(targetBalls), PV_BASE * Math.exp(PV_SCALE * pricedValue(value, valueSd)) * ROLE_MULT[role]));
+  void role;
+  return Math.max(0.3, Math.min(priceCeiling(targetBalls), PV_BASE * Math.exp(PV_SCALE * pricedValue(value, valueSd))));
 }
 
 // ---- market price: fitted to real IPL auction prices ----------------------------------------
@@ -340,6 +347,10 @@ export function hasMarketInputs(row: object): boolean {
   return priceModel !== null && "price_value" in row;
 }
 
+/** A mini auction's default retention order: expected season value, else (an export before it)
+ * value. Mirror of auction.py `_retain_key`. */
+export const retainKey = (p: PoolPlayer): number => (p.season_value !== null && p.season_value !== undefined ? p.season_value : p.value);
+
 /** Price the big auction pool (every ACTIVE rated IPL player). Each row
  * already carries value / role / country / team; we add crore pricing: the market price when the
  * model and its inputs are there (`projected_value`), with the on-field curve alongside. */
@@ -349,7 +360,7 @@ export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
       0.3,
       Math.min(
         priceCeiling(r.target_balls),
-        PV_BASE * Math.exp(PV_SCALE * pricedValue(r.value, r.value_sd)) * ROLE_MULT[r.role],
+        PV_BASE * Math.exp(PV_SCALE * pricedValue(r.value, r.value_sd)),
       ),
     );
     const mk = hasMarketInputs(r) ? marketPrice(r as MarketInputs) : null;
@@ -366,6 +377,13 @@ export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
       projected_value: pv,
       onfield_value: onfield,
       p_bought: mk ? mk.p_bought : null,
+      contrib: r.contrib ?? null,
+      contrib_bat: r.contrib_bat ?? null,
+      contrib_bowl: r.contrib_bowl ?? null,
+      balls_faced: r.balls_faced ?? null,
+      balls_bowled: r.balls_bowled ?? null,
+      p_play: r.p_play ?? null,
+      season_value: r.season_value ?? null,
       captain: r.captain_teams && r.captain_teams.length ? r.captain_teams.join(" / ") : null,
       base_price: base,
       vpc: pv / base,
@@ -449,7 +467,7 @@ export function defaultRetentions(
     } else {
       out[team] = pool
         .filter((p) => p.team === team)
-        .sort((a, b) => b.value - a.value)
+        .sort((a, b) => retainKey(b) - retainKey(a))
         .slice(0, MINI_RETAIN)
         .map((p) => p.cricsheet_id);
     }

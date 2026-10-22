@@ -18,14 +18,6 @@ from cricdex import leagues
 Role = str  # "batter" | "bowler" | "all_rounder" | "keeper"
 PriceTier = str  # a tier key from config/leagues.toml: "ipl" | "smat" | "bbl" | …
 
-# All-rounders / keepers carry a small scarcity premium.
-ROLE_MULT: dict[str, float] = {
-    "batter": 1.0,
-    "bowler": 1.0,
-    "all_rounder": 1.15,
-    "keeper": 1.05,
-}
-
 # value is in runs per 100 balls above the league's average ball (see
 # scout/ratings/runs_value.py), priced on the cautious estimate (PRICE_CAUTION_SD
 # below); re-fitted to the earlier curve so the pool keeps the same median price
@@ -95,12 +87,15 @@ def est_value(
     value_sd: float | None = None,
     target_balls: float | None = None,
 ) -> float:
-    """Estimated crore value from a raw Bayes value (runs per 100 balls) — same curve the auction
-    uses, on the cautious estimate (`priced_value`), capped by the IPL-evidence ceiling
-    (`price_ceiling`). `tier` discounts non-IPL comps so a SMAT/BBL price is comparable."""
+    """Estimated crore value from a raw Bayes value (runs per 100 balls) — the on-field curve, on
+    the cautious estimate (`priced_value`), capped by the IPL-evidence ceiling (`price_ceiling`).
+    `tier` discounts non-IPL comps so a SMAT/BBL price is comparable. `role` is kept for the
+    callers: the hand-set all-rounder ×1.15 / keeper ×1.05 premium was removed on 2026-10-22 (audit
+    item 6; the market model's fitted role terms are the price premium, and a player's second
+    discipline counts through his contribution per match, scout/playing_time.py)."""
     adj = priced_value(value, value_sd) - TIER_PENALTY[tier]
     cap = price_ceiling(target_balls)
-    return max(0.3, min(cap, PV_BASE * math.exp(PV_SCALE * adj) * ROLE_MULT[role]))
+    return max(0.3, min(cap, PV_BASE * math.exp(PV_SCALE * adj)))
 
 
 # ---- market price: fitted to real IPL auction prices --------------------------------------------

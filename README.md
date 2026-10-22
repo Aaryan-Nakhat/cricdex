@@ -44,7 +44,10 @@ you see **who lands each star, how often, and for how much**, and how every squa
 - **Yours to change:** release or add any retention, swap a team's personality, change the purse.
 - **The pool is the whole T20 world:** IPL players plus free agents from the SMAT and every overseas
   league in the registry (BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC, BPL, LPL and more),
-  weighted by how relevant they are to the IPL right now.
+  ranked by what each is expected to add over a season: the chance he plays a match (fitted on real IPL
+  XIs, tested out of time) × his runs a match above a replacement, batting and bowling at the balls he
+  actually gets, so an all-rounder counts both disciplines and a league-only veteran ranks low without a
+  hand-set penalty.
 
 Prices are **fitted to real IPL auction prices** (every sale and mega retention 2018–2026, from
 Wikipedia): what the market has paid for players like him, from his value on a cautious estimate, caps,
@@ -64,7 +67,7 @@ player costs (his salary, or for a 2025 mega-auction retention the 2025 retentio
 / Borderline** call from **what franchises actually do**: the chance a franchise keeps a player like him, from
 a model of every real retention deadline since 2018 (price against cost, his three-season form forecast, his
 ties to the side, his status). Chosen on 2018–2024 and tested once on 2025–26, it made the franchise's own call
-for 78% of players and 82% of stars (the old price-against-salary rule: 71% / 70%). The reason is in one line,
+for 78% of players and 82% of stars (the old price-against-salary rule: 70% / 64%). The reason is in one line,
 then the squad that follows: purse left, open slots, and the role gaps (keepers, openers, death
 bowlers, spinners, overseas) with the cheapest players in the likely pool who fill them. Flip any call, change
 the purse or a role target, export the table to CSV, or share the link. Squads and salaries come from
@@ -75,15 +78,15 @@ purse isn't published yet). In the terminal: `cricdex keep --team RCB`.
 
 ## 📋 Bid plan, for the auction room (beta)
 
-**Beta, not yet proven:** in replays of the real 2025 and 2026 auctions it beat the real franchise's squad for 4 and 2 of 10 teams. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
+**Beta, not yet proven:** in replays of the real 2025 and 2026 auctions it beat the real franchise's squad for 8 of 10 teams in the 2025 mega auction and none in the 2026 mini. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
 purse from Keep or release (your own calls carry over), lets the other nine teams bid in the Auction room's
 simulator 200 times to see what each player would cost, and picks the targets that add the most to your
 best XI for the money: each with a **max bid**, the odds of landing him under it, and a **fallback chain**
 per role ("if he goes above 8 cr, the next spinner is worth up to 8.5"). Every assumption is editable, the
 link keeps them, and the sheet exports to CSV or prints. The rival bidding is calibrated to real auctions
 (2022–24, tested on 2025–26), a team never buys back its own releases (it flags "reconsider keeping"
-instead), and replayed on the 2025 and 2026 auctions its squads were level with the real ones in 2025 and
-worse in 2026: a starting sheet, not a forecast. In the terminal: `cricdex bidplan --team RCB`.
+instead), and replayed on the 2025 and 2026 auctions its squads were ahead of the real ones in 2025 (8 of
+10 teams) and behind in 2026 (all 10): a starting sheet, not a forecast. In the terminal: `cricdex bidplan --team RCB`.
 → [How it plans, and the replay](docs/METHODOLOGY.md#12-bid-plan-beta)
 
 

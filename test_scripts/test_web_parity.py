@@ -119,8 +119,10 @@ def test_web_parity():
     teams = IPL_TEAMS_DEFAULT
     retentions = default_retentions(pool, teams, "mega", mega_ids)
 
-    # 1) retention builder parity
+    # 1) retention builder parity (mega: the real lists; mini: top 18 by expected season value)
     _approx_eq(retentions, js["retentions"], "retentions")
+    mini = default_retentions(pool, teams, "mini", mega_ids)
+    _approx_eq(mini, js["retentionsMini"], "retentionsMini")
 
     # 2) auction simulation parity (same seeds, same trials)
     res = simulate_auction(

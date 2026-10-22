@@ -961,16 +961,15 @@ under a ceiling `27 · (0.5 + 0.5 · min(1, IPL balls in the role / 600))`
 (13.5 cr with no IPL balls, 27 cr from 600). The
 `0.0743` stretches the curve so the spread matches recent money (top
 names in the 20s of crore, 27 cr — the 2025 ceiling — as the cap; the
-typical pool player about 1.2 cr); `roleMult` weights up scarcer
-all-rounders (×1.15) and keepers (×1.05). The two constants were
+typical pool player about 1.2 cr). (A hand-set `roleMult`, all-rounders
+×1.15 and keepers ×1.05, was removed on 2026-10-22: an all-rounder's second
+discipline counts in his contribution per match, METHODOLOGY §6c.) The two constants were
 re-fitted when `value` moved to runs and the cautious price went in: same pool median and same number
 of 10 cr+ players (25) as the earlier `1.1 · e^(0.95 · value)` on the
-sd-unit value (docs/AUCTION_MATH.md). Before pricing, the export
-applies an **IPL-relevance** discount: up to 36 runs per 100 balls come off a
-player who hasn't featured in the IPL lately (weight ≈ 1 for a current
-IPL regular, fading with years since his last IPL game and age past 32;
-0.7 for a never-IPL uncapped Indian), so league-only veterans don't top
-the buys. The opening **base price** snaps to the real IPL bands (0.3 /
+sd-unit value (docs/AUCTION_MATH.md). (Until 2026-10-22 the export also
+took up to 36 runs per 100 balls off a player who hadn't featured in the
+IPL lately, a hand-set IPL-relevance discount; it is replaced by a fitted
+P(plays), below.) The opening **base price** snaps to the real IPL bands (0.3 /
 0.5 / 0.75 / 1.0 / 1.5 / 2.0 cr) by projected price (<2, <4, <7, <11,
 <16, else).
 
@@ -982,8 +981,10 @@ The pool is the active T20 world, not just past IPL squads:
 - **Free agents** — overseas via BBL / SA20 / CPL / T20 Blast, and
   uncapped Indians via SMAT.
 
-Guardrails: active only (last ~3 yrs), ≥150 balls of evidence,
-associate/non-IPL-nation free agents excluded, the top 600 by value,
+Guardrails: active only (last ~3 yrs), associate/non-IPL-nation free
+agents excluded, the top 600 by **expected season value** (P(plays a
+match) × runs above a replacement a match, both disciplines at the balls
+he gets; `scout/playing_time.py`, METHODOLOGY §6c),
 and a **tier penalty** applied to cross-tier value before pricing (in
 runs per 100 balls: BBL −6.0, SA20 −6.0, CPL −8.5, T20 Blast −8.5, SMAT
 −17.0; IPL 0 — the earlier sd-unit discounts × 13.3). A player in several leagues gets one value per role: his

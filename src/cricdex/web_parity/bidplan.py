@@ -9,10 +9,12 @@ how high:
    each with its own Keep-or-release plan and bidding personality, `trials` times. For every
    player that gives the price a rival would have paid in each run: the price we would have to
    beat (his base price when no rival bid).
-2. **Squad strength.** A squad's strength is its best XI's value (runs per 100 balls, summed; at
-   most 4 overseas, at least 1 keeper, 5 bowling and 6 batting options, a replacement-level player
-   filling any place the squad can't), plus a smaller weight on the next four players (depth),
-   minus a penalty for each role need it misses (keepers, openers, death bowlers, spinners, pace).
+2. **Squad strength.** A squad's strength is its best XI's contribution in runs per match above
+   replacement (each player's batting and bowling at the balls he gets a match, scout/playing_time.py;
+   the XI's balls held to a side's balls per innings; at most 4 overseas, at least 1 keeper, 5
+   bowling and 6 batting options, a replacement-level player filling any place the squad can't),
+   plus a smaller weight on the next four players (depth), minus a penalty for each role need it
+   misses (keepers, openers, death bowlers, spinners, pace).
 3. **The bidding rule.** In lot order, bid for a player up to his gain in strength divided by an
    exchange rate λ (runs per crore), within the purse (keeping 0.3 cr for each place still needed
    to reach the squad minimum), the squad maximum and the overseas cap. λ is chosen to maximise the
@@ -59,15 +61,24 @@ XI_OVERSEAS = 4
 XI_MIN_KEEPERS = 1
 XI_MIN_BOWLING = 5
 XI_MIN_BATTING = 6
-# Replacement level (runs per 100 balls above the average IPL ball): what a base-price buy is
-# worth, about the median value of the auction pool's players priced at 2 cr or less. A place the
-# squad can't fill is filled at this level, and a player below it adds nothing.
-REPLACEMENT = -15.0
-# Depth: the next DEPTH_N players after the XI count DEPTH_WEIGHT × (value − replacement level).
+# Strength is in runs per match above replacement (since 2026-10-22; audit items 4, 6): each player's
+# `contrib` = (batting value − replacement for his slot) × balls faced a match / 100 + (bowling value −
+# replacement for his group) × balls bowled a match / 100 (scout/playing_time.py, METHODOLOGY §6c).
+# A place the squad can't fill is filled at replacement level (0), and a player at or below it never
+# plays. Until then strength added per-100-ball values across the XI (a No. 7 weighted like an
+# opener, a four-over bowler like a 25-ball batter) with a replacement level of −15.
+REPLACEMENT = 0.0
+# A side's legal balls per innings (config/playing_time_model.json `balls_per_innings`, the IPL
+# 2023-2026): an XI whose expected balls faced (or bowled) add up to more is scaled down to it, every
+# member alike, so eight openers can't each face 25 balls.
+TEAM_BALLS = 115.0
+# Depth: the next DEPTH_N players after the XI count DEPTH_WEIGHT × (contribution − replacement).
 DEPTH_N = 4
 DEPTH_WEIGHT = 0.25
-# Each role need missed costs NEED_PENALTY runs per 100 balls of strength.
-NEED_PENALTY = 3.0
+# Each role need missed costs NEED_PENALTY runs per match of strength: the hand-set 3 runs per 100
+# balls of the per-100-ball strength (audit item 8, still hand-set), converted at a player's mean
+# balls a match (2 × 115 balls / 11 players ≈ 20.9 → 3 × 0.209).
+NEED_PENALTY = 0.63
 NEED_ORDER = ["keeper", "opener", "death", "spinner", "pace"]
 DEFAULT_NEEDS: dict[str, int] = {"keeper": 2, "opener": 3, "death": 3, "spinner": 3, "pace": 4}
 NEED_LABEL = {
@@ -86,12 +97,13 @@ NEED_LABEL = {
 # 0 = Keep or release's plan exactly. A player the user decided on is never moved.
 OPEN_SLOTS = 8
 TRIALS = 200
-# The exchange rates tried (runs per 100 balls of strength per crore): 0.25 × 2^(k/4), k = 0 … 24
-# (0.25 … 16), written out so Python and the browser use the same numbers to the last digit.
+# The exchange rates tried (runs per match of strength per crore): 0.05 × 2^(k/4), k = 0 … 24
+# (0.05 … 3.2; the earlier per-100-ball grid 0.25 … 16 at the same 0.209 conversion), written out so
+# Python and the browser use the same numbers to the last digit.
 LAMBDA_GRID = [
-    0.25, 0.297302, 0.353553, 0.420448, 0.5, 0.594604, 0.707107, 0.840896, 1.0, 1.189207,
-    1.414214, 1.681793, 2.0, 2.378414, 2.828427, 3.363586, 4.0, 4.756828, 5.656854, 6.727171,
-    8.0, 9.513657, 11.313708, 13.454343, 16.0,
+    0.05, 0.05946, 0.070711, 0.08409, 0.1, 0.118921, 0.141421, 0.168179, 0.2, 0.237841,
+    0.282843, 0.336359, 0.4, 0.475683, 0.565685, 0.672717, 0.8, 0.951366, 1.13137, 1.34543,
+    1.6, 1.90273, 2.26274, 2.69087, 3.2,
 ]  # fmt: skip
 MIN_SLOT_PRICE = 0.3
 # A player is a target when the plan lands him in at least this share of the runs (or you set his
@@ -115,17 +127,42 @@ SLOT_LABEL = {
 # ---- pieces: a player as the strength model sees him ------------------------------------------------
 
 
+def contrib_parts(r: dict) -> tuple[float, float, float, float, float] | None:
+    """(batting part, bowling part, balls faced, balls bowled, P(plays)) of a row's contribution per
+    match (`contrib_bat`, `contrib_bowl`, `balls_faced`, `balls_bowled`, `p_play`; a missing P(plays)
+    counts as 1); None when any of the first four is missing."""
+    ks = ("contrib_bat", "contrib_bowl", "balls_faced", "balls_bowled")
+    if any(r.get(k) is None for k in ks):
+        return None
+    p = r.get("p_play")
+    return (float(r["contrib_bat"]), float(r["contrib_bowl"]), float(r["balls_faced"]),
+            float(r["balls_bowled"]), 1.0 if p is None else float(p))  # fmt: skip
+
+
 def piece(
     pid: str,
     name: str,
-    value: float | None,
+    contrib: float | None,
     role: str,
     overseas: bool,
     tags: str,
+    parts: tuple | None = None,
 ) -> dict[str, Any]:
-    """A squad member or candidate for the strength model. An unrated player (no value) counts at
-    replacement level."""
-    v = REPLACEMENT if value is None else float(value)
+    """A squad member or candidate for the strength model: `contrib` = runs per match above
+    replacement; `parts` = (batting part, bowling part, balls faced, balls bowled[, P(plays)]) of it.
+    He counts at his **expected** contribution: each part and each ball count × P(plays) (section 6c:
+    a squad player's chance in his squad, a free agent's chance of playing an IPL match at all), so a
+    40-year-old free agent franchises stopped picking, or a player who sat out last season, adds what
+    players like him have actually added. Without `parts` the contribution counts whole and outside
+    the XI's balls. An unrated player (no contribution) counts at replacement level."""
+    v = REPLACEMENT if contrib is None else float(contrib)
+    if parts is not None and contrib is not None:
+        cb, cw, fb, wb = parts[:4]
+        pp = float(parts[4]) if len(parts) > 4 else 1.0
+        cb, cw, fb, wb = pp * cb, pp * cw, pp * fb, pp * wb
+        v = cb + cw
+    else:
+        cb, cw, fb, wb = v, 0.0, 0.0, 0.0
     tags = tags or ""
     keeper = role == "keeper" or "k" in tags
     bowl = role in ("bowler", "all_rounder")
@@ -133,7 +170,11 @@ def piece(
         "id": pid,
         "name": name,
         "v": v,
-        "rated": value is not None,
+        "cb": cb,
+        "cw": cw,
+        "fb": fb,
+        "wb": wb,
+        "rated": contrib is not None,
         "role": role,
         "os": bool(overseas),
         "tags": tags,
@@ -159,9 +200,12 @@ def _by_value(p: dict) -> tuple:
 
 
 def best_xi(pieces: list[dict]) -> dict[str, Any]:
-    """The best XI, picked greedily: highest value first, skipping a player who would break the
-    overseas limit or leave too few places for a keeper, five bowling and six batting options
-    (replacement-level players fill any place the squad can't). {xi, ids, fillers, bench}."""
+    """The best XI, picked greedily: highest contribution first, skipping a player who would break
+    the overseas limit or leave too few places for a keeper, five bowling and six batting options
+    (replacement-level players fill any place the squad can't). Its value is the members' batting
+    parts × min(1, TEAM_BALLS ÷ their balls faced) plus their bowling parts × min(1, TEAM_BALLS ÷
+    their balls bowled): an XI can't face or bowl more than a side's innings. {xi, ids, fillers,
+    bench}."""
     cands = sorted((p for p in pieces if p["v"] > REPLACEMENT), key=_by_value)
     chosen: list[dict] = []
     bench: list[dict] = []
@@ -189,7 +233,12 @@ def best_xi(pieces: list[dict]) -> dict[str, Any]:
         if p["os"]:
             os_n += 1
     fillers = XI_SIZE - len(chosen)
-    xi = fsum([p["v"] for p in chosen]) + fillers * REPLACEMENT
+    faced = fsum([p["fb"] for p in chosen])
+    bowled = fsum([p["wb"] for p in chosen])
+    sb = TEAM_BALLS / faced if faced > TEAM_BALLS else 1.0
+    sw = TEAM_BALLS / bowled if bowled > TEAM_BALLS else 1.0
+    xi = sb * fsum([p["cb"] for p in chosen]) + sw * fsum([p["cw"] for p in chosen])
+    xi += fillers * REPLACEMENT
     return {"xi": xi, "ids": [p["id"] for p in chosen], "fillers": fillers, "bench": bench}
 
 
@@ -224,7 +273,7 @@ def strength(pieces: list[dict], needs: dict[str, int]) -> dict[str, Any]:
 
 def upper_gain(p: dict) -> float:
     """A quick ceiling on what one player can add (used only to skip hopeless bids fast):
-    2 × (value − replacement level), plus the penalty for every need he could fill."""
+    2 × (contribution − replacement level), plus the penalty for every need he could fill."""
     return 2 * max(0.0, p["v"] - REPLACEMENT) + NEED_PENALTY * len(p["needs"])
 
 
@@ -248,6 +297,7 @@ def _avail_row(r: dict, tags: str, from_team: str | None) -> dict:
         "base_price": r["base_price"],
         "tags": t,
         "from_team": from_team,
+        **{k: r.get(k) for k in CONTRIB_KEYS},
     }
     if r.get("anchor_price"):
         out["anchor_price"] = r["anchor_price"]
@@ -267,7 +317,12 @@ def _squad_row_as_lot(p: dict) -> dict:
         "projected_value": price,
         "p_bought": p.get("p_bought"),
         "base_price": price_tier(price),
+        **{k: p.get(k) for k in CONTRIB_KEYS},
     }
+
+
+# the playing-time fields a lot carries for the strength model (export_site PT_KEYS)
+CONTRIB_KEYS = ("contrib", "contrib_bat", "contrib_bowl", "balls_faced", "balls_bowled", "p_play")
 
 
 def _lot_order(r: dict) -> tuple:
@@ -279,15 +334,16 @@ NO_GAPS = {"keeper": 0, "opener": 0, "death": 0, "spinner": 0, "overseas": 0}
 
 def open_places(players: list[dict], limit: int) -> None:
     """Open squad places the way franchises do before a mini auction: while more than `limit`
-    players are kept, release the lowest-valued kept player the user hasn't decided on (an unrated
-    one first). Each gets `auto_release` = "open". In place, after Keep or release's `evaluate`."""
+    players are kept, release the kept player with the lowest contribution per match the user hasn't
+    decided on (an unrated one first). Each gets `auto_release` = "open". In place, after Keep or
+    release's `evaluate`."""
     kept = [p for p in players if p["kept"]]
     extra = len(kept) - max(0, limit)
     if extra <= 0:
         return
     movable = sorted(
         (p for p in kept if not p["overridden"]),
-        key=lambda p: (p.get("value") is not None, p.get("value") or 0.0, p["key"]),
+        key=lambda p: (p.get("contrib") is not None, p.get("contrib") or 0.0, p["key"]),
     )
     for p in movable[:extra]:
         p["kept"] = False
@@ -337,8 +393,8 @@ def build_context(
         kept = [p for p in res["players"] if p["kept"]]
         salary_kept = fsum([float(p["salary"]) for p in kept])
         pieces = [
-            piece(p["key"], p["name"], p.get("value"), p["role"], bool(p.get("overseas")),
-                  p.get("tags") or "")
+            piece(p["key"], p["name"], p.get("contrib"), p["role"], bool(p.get("overseas")),
+                  p.get("tags") or "", contrib_parts(p))
             for p in kept
         ]  # fmt: skip
         # what the kept players cost the purse (salaries; 2025 retentions by the retention slabs)
@@ -409,8 +465,13 @@ def build_context(
             row["anchor_price"] = float(p["salary"])  # rivals remember what he was paid
             avail.append(row)
     squad_names = {p["id"]: p["name"] for p in data["players"] if p.get("id")}
+    # a squad player in the auction is a free agent there: his chance of playing is the free-agent
+    # model's (`p_play_free`), not his chance in the squad that let him go
+    free_p = {p["id"]: p.get("p_play_free") for p in data["players"] if p.get("id")}
     for row in avail:
         pid = row["cricsheet_id"]
+        if free_p.get(pid) is not None:
+            row["p_play"] = free_p[pid]
         row["name"] = shown.get(pid) or squad_names.get(pid) or row["name"]
     avail.sort(key=_lot_order)
     return {
@@ -606,7 +667,8 @@ def _likely(ctx: dict, cands: list[dict], land: list[int], price_sum: list[float
 def _cands(ctx: dict) -> list[dict]:
     out = []
     for r in ctx["available"]:
-        p = piece(r["cricsheet_id"], r["name"], r["value"], r["role"], r["is_overseas"], r["tags"])
+        p = piece(r["cricsheet_id"], r["name"], r.get("contrib"), r["role"], r["is_overseas"],
+                  r["tags"], contrib_parts(r))  # fmt: skip
         p["ub"] = upper_gain(p)
         p["own"] = r.get("from_team") is not None and r.get("from_team") == ctx["team"]
         out.append(p)

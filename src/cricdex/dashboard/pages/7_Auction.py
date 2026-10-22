@@ -87,15 +87,16 @@ def _nm(p: dict) -> str:
 
 
 try:
-    act = load_activity_index("ipl")  # cid -> last-IPL / age / ipl_relevance
+    act = load_activity_index("ipl")  # cid -> last-IPL / age / p_play
 except ValueError as e:
-    st.error(f"Could not read `activity_index.json` ({e}); IPL fit / last IPL / age left blank.")
+    st.error(f"Could not read `activity_index.json` ({e}); plays % / last IPL / age left blank.")
     act = {}
 
 
 def _fit(cid: str) -> int | None:
     a = act.get(cid)
-    return round(a["ipl_relevance"] * 100) if a else None
+    p = (a or {}).get("p_play")
+    return round(p * 100) if p is not None else None
 
 
 def _last_ipl(cid: str):
@@ -248,7 +249,7 @@ marq_df = pd.DataFrame(
             "Player": _nm(m["player"]),
             "Role": m["player"]["role"].replace("_", "-"),
             "Value": round(m["player"]["projected_value"], 1),
-            "IPL fit %": _fit(m["player"]["cricsheet_id"]),
+            "Plays %": _fit(m["player"]["cricsheet_id"]),
             "Last IPL": _last_ipl(m["player"]["cricsheet_id"]),
             "Age": _age(m["player"]["cricsheet_id"]),
             "Most likely": ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in m["winners"])
@@ -299,7 +300,7 @@ if pick != _PICK:
                 {
                     "Player": _nm(o),
                     "Role": o["role"].replace("_", "-"),
-                    "IPL fit %": _fit(o["cricsheet_id"]),
+                    "Plays %": _fit(o["cricsheet_id"]),
                     "Last IPL": _last_ipl(o["cricsheet_id"]),
                     "Age": _age(o["cricsheet_id"]),
                     "Status": o["status"],

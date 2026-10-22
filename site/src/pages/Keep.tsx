@@ -126,7 +126,7 @@ P(kept)      = the chance a franchise keeps a player like him, from market price
           <Badge tone="ball">Release</Badge> below {Math.round((KEEP_CALL - BORDER_BAND) * 100)}%,{" "}
           <Badge tone="gold">Borderline</Badge> in between (a close call); the default plan keeps him from{" "}
           {Math.round(KEEP_CALL * 100)}%. Chosen on the deadlines up to 2024 and tested once on 2025 and 2026, it
-          made the franchise's own call for 78% of the players (82% of the stars), against 71% (70%) for the
+          made the franchise's own call for 78% of the players (82% of the stars), against 70% (64%) for the
           old rule that set the price against the salary with a fixed margin; keeping everyone the rules
           allow scores 75% (75%), so the gain is in telling which stars go. A player we can't price at all (too few balls, no market inputs) is Borderline: scout him.
         </p>
@@ -150,7 +150,8 @@ P(kept)      = the chance a franchise keeps a player like him, from market price
           openers, death bowlers, spinners, overseas) is your target minus the kept players with that tag. It is
           filled from the likely <b>auction pool</b>: today's free agents plus the players our calls release from
           the other nine squads, cheapest first (at our estimated price), among those at least as good as the best
-          player you released in that role (or an average IPL player, value 0, if you released none), respecting
+          player you released in that role, by runs above a replacement per match (batting and bowling at the balls
+          he gets; a replacement-level player, 0, if you released none), respecting
           open slots and overseas room; a player who fills two gaps counts for both. A death bowler bowls{" "}
           {Math.round(data.death_rule.share * 100)}%+ of his balls in overs 16–20 ({data.death_rule.min_balls}+ such
           balls, every league we have); an opener is tagged so in the player master; spinners by bowling type.
@@ -585,7 +586,7 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
                     ))}
                     {g.gap > 0 && (
                       <div className="mt-0.5 text-[11px]">
-                        value ≥ {fmtNum(g.ref_value, 1)} {g.ref_from_release ? "(best released)" : "(an average IPL player)"}
+                        ≥ {fmtNum(g.ref_value, 1)} runs a match {g.ref_from_release ? "(best released)" : "(replacement level)"}
                       </div>
                     )}
                   </td>

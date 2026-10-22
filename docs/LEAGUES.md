@@ -143,6 +143,6 @@ carries a copy of the repo file.
 ## What is still competition-specific
 
 The auction room itself models the IPL: the ten franchises, purse and squad rules, retentions,
-"overseas" meaning not Indian, and the IPL-relevance discount. Those move into competition-rules
+"overseas" meaning not Indian, and the playing-time model (P(plays), fitted on IPL XIs). Those move into competition-rules
 config in a later sprint; until then a different `auction_target` would price the pool for that
 league but still run IPL auction rules.

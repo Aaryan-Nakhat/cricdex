@@ -39,7 +39,8 @@ taxonomy (role, bowling type, batting slot, country).
 **Rooms and pages**
 - **Scout**: cross-league look-alikes across IPL, SMAT, BBL, SA20, CPL and T20 Blast, with estimated price,
   saving versus the pick, a gem flag, role and batting-slot filters, and one-click draft into the auction.
-- **Auction room**: real-rules IPL auction Monte-Carlo with a cross-league pool, IPL-relevance weighting,
+- **Auction room**: real-rules IPL auction Monte-Carlo with a cross-league pool ranked by expected season
+  value (P(plays) × contribution per match, METHODOLOGY §6c),
   editable Mega / Mini retentions charged by the 2025 slab rule, team personalities, budget-aware bidding,
   second-price clearing within each team's purse (no price cap since 2026-10-22), two-phase fill and a
   post-auction player search.
@@ -290,8 +291,9 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   bowls overs 17–20.
 - [ ] 26. Auction value as wins added (M): replace the hand-set need 1.5/0.7 with marginal wins to a squad's
   best XI; calibrate team personalities against real auction moments.
-  *2026-10-21: the marginal-strength-to-the-best-XI measure exists now (Bid plan's `strength`, runs per
-  100 balls, not yet wins); the simulator's rivals still use need 1.5/0.7. Open.*
+  *2026-10-21: the marginal-strength-to-the-best-XI measure exists now (Bid plan's `strength`; since
+  2026-10-22 in expected runs a match above replacement, each player at his balls and P(plays), not yet
+  wins); the simulator's rivals still use need 1.5/0.7; DEPTH 0.25 and NEED 0.63 are still hand-set. Open.*
 - [x] 26b. Bid plan (M): an auction bidding-plan optimiser for one franchise: rivals simulated for the price to
   beat, targets by marginal squad strength per crore, max bids, fallback chains per role, every assumption
   editable. *Done 2026-10-21/22: page Bid plan + `cricdex bidplan`, web ⇄ Python parity; the auction
@@ -380,7 +382,8 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
 
 - [ ] I1. README auction / Scout images were rendered before the market price model — refresh every visual
   from current data (last, after the price fixes).
-- [ ] I2. Bid plan (beta) doesn't beat real franchises in replay (4/10 in 2025, 2/10 in 2026); target lists
+- [ ] I2. Bid plan (beta) doesn't beat real franchises in replay (re-run 2026-10-22 on expected contributions:
+  8/10 in the 2025 mega, 0/10 in the 2026 mini; before, on per-100-ball strength, 4/10 and 2/10); target lists
   overlap across teams because the plan is a price-taker. Make rivals react to the plan's targets
   (equilibrium across teams) and re-validate; drop "beta" only when the replay beats the real franchises.
 - [ ] I3. Star prices still low out of time (lots ≥10 cr predicted at ~0.5× their price). *Re-examined
@@ -440,15 +443,23 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
   against real retentions (audit item 1). *Done 2026-10-22:* the call is the chance a franchise keeps a
   player like him, a logistic model of every real deadline 2018–2026 (price vs cost, 3-season forecast,
   captain / seasons there / home-grown, status), chosen on 2018–2024 and tested once on 2025–26: 78% of
-  calls as the franchise made them (82% of stars) against 71% (70%) for the old rule
+  calls as the franchise made them (82% of stars) against 70% (64%) for the old rule (corrected that
+  evening: the first run had priced the old rule with the afternoon's recipe, 71% / 70%)
   (`scripts/keep_backtest.py`, METHODOLOGY §10). Open: the mega-year calls under-keep (2025 allowed 6
   retentions, the training years 3–4); the model can't tell which stars a franchise lets go in a mini year
   (2026 stars' balanced accuracy 0.49); it inherits franchises' habits rather than optimising.
 - [x] I11. The Auction room's 2025 replay charged retentions at their salaries (KKR 57 cr, not 69).
   *Done 2026-10-22:* charged by the 2025 slab rule (`retention_spend` ⇄ `retentionSpend`), including the
   real retentions too new to rate; reproduces all ten published 2025 purses.
-- [ ] I13. Bid plan's replay table and the auction calibration ran on the morning's price recipe; Bid plan's
+- [x] I13. Bid plan's replay table and the auction calibration ran on the morning's price recipe; Bid plan's
   replays (`scripts/bidplan_backtest.py`) are due a re-run on the new recipe (the calibration was re-run).
+  *Done 2026-10-22, late evening:* re-run on the shipped recipe T and the playing-time strength (METHODOLOGY
+  §12). The 2027 examples were recomputed too.
+- [x] I14. The IPL-relevance penalty and the all-rounder rule (better role × 1.15; per-100-ball strength) were
+  hand-set (audit items 4, 6). *Done 2026-10-22, late evening:* expected season value = P(plays) × contribution
+  per match, fitted on IPL XIs and tested out of time (METHODOLOGY §6c). Open: a mega/mini term for free
+  agents' P(plays); contributions from an aged forecast instead of the career rating (items 3, 9); a newcomer's
+  balls a match run high (XIs sum to 1.1–1.2× a side's balls; Bid plan caps them); fielding.
 - [x] I12. Style twins still give odd matches (item 25) — rebuild the similarity features and check 20 famous
   players by eye. *Done 2026-10-22: see item 25; 20 players read by eye, `tests/test_style_twins.py`.*
 

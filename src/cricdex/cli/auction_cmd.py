@@ -55,7 +55,7 @@ def room(
     }
     ri = retention_inputs(ret)  # the real 2025 lists, prices and the slab rule they cost
     mega_ids = ri["mega_ids"]
-    act = load_activity_index("ipl")  # cid -> last-IPL / age / ipl_relevance
+    act = load_activity_index("ipl")  # cid -> last-IPL / age / p_play
     if purse is None:
         purse = 120.0 if mode == "mega" else 30.0
     retentions = default_retentions(pool, IPL_TEAMS_DEFAULT, mode, mega_ids)
@@ -103,9 +103,9 @@ def room(
                 "player": shown.get(m["player"]["cricsheet_id"]) or m["player"]["name"],
                 "role": m["player"]["role"].replace("_", "-"),
                 "value": round(m["player"]["projected_value"], 1),
-                "ipl_fit": (
-                    f"{round(act[m['player']['cricsheet_id']]['ipl_relevance'] * 100)}%"
-                    if m["player"]["cricsheet_id"] in act
+                "plays": (
+                    f"{round(act[m['player']['cricsheet_id']]['p_play'] * 100)}%"
+                    if (act.get(m["player"]["cricsheet_id"]) or {}).get("p_play") is not None
                     else "—"
                 ),
                 "last_ipl": (act.get(m["player"]["cricsheet_id"], {}).get("last_ipl") or "never")[

@@ -8,6 +8,48 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Playing time: P(plays) × contribution per match replaces the relevance penalty and the all-rounder rule (2026-10-22, late evening)
+
+- **One valuation** (audit items 4 and 6; `src/cricdex/scout/playing_time.py`, `scripts/playing_time_fit.py`,
+  `config/playing_time_model.json`, METHODOLOGY §6c): expected season value = P(plays a match) × contribution
+  per match × 14, contribution = (batting value − replacement for his slot) × balls faced a match / 100 +
+  (bowling value − replacement for his group) × balls bowled a match / 100. Fitted on real IPL XIs
+  (Cricsheet `match_players`), every piece under the frozen protocol (chosen on 2024, fitted to 2023, tested
+  once on 2025–26):
+  - **expected balls**, a credibility estimate (his IPL history, other leagues discounted, his role's
+    impact-era mean): test MAE 2.71 balls faced / 1.44 bowled a match against 3.12 / 1.55 for last
+    season's share and 3.71 / 2.14 for the role mean;
+  - **replacement levels**: the mean rating of minimum-price buys, by batting slot and bowling group (top
+    −7.3, middle −16.8, lower −23.2, tail −63.2; frontline −11.3, part-time −27.4);
+  - **P(plays) in a squad** (rank in the squad / projected XI, overseas places, experience, age, last season's
+    share, keeper, captain, era): log loss 0.562 against 0.697 (base rate) and 0.626 (rank only), Brier 0.087;
+  - **P(plays) of a free agent** (every past auction pool; includes whether he's bought): 0.085 against 0.157.
+- **The IPL-relevance penalty is gone** (up to 36 runs per 100 balls on a hand-set curve). The pool is ranked
+  by expected season value; the 150-ball cut is gone (the ratings' shrinkage and P(plays) handle thin
+  records); recency and the 600 size limit stay, with their reasons in the code and METHODOLOGY §7. The room's
+  mini retentions keep each team's top 18 by expected season value. `activity_index.json` carries `p_play`
+  instead of `ipl_relevance` (Auction page, CLI, TUI and dashboard show "Plays %").
+- **All-rounders count both disciplines.** `ROLE_MULT` (×1.15 / ×1.05) deleted from `pricing.py` ⇄
+  `auction.ts`. Jadeja 74th → 8th, Hardik 127th → 30th, Green 57th → 15th; Narine's batting counts again.
+- **Bid plan strength** = the best XI's Σ P(plays) × contribution per match, the XI's balls held to 115 an
+  innings (`TEAM_BALLS`), replacement 0, NEED 0.63 and λ 0.05–3.2 (unit conversions of the hand-set 3 and
+  0.25–16); a lot counts at the free-agent P(plays) (`p_play_free` for a squad player released). Without P the
+  plans put 41–43-year-old veterans at the top of every list. `bidplan.py` ⇄ `bidplan.ts`.
+- **Keep or release**: role gaps compare contribution per match (`level` in `keep.py` ⇄ `keep.ts`);
+  `keep_features` takes P(plays) and contribution. `scripts/keep_backtest.py` declared L5 / L6 (playing
+  time as inputs): better log loss (0.543–0.546 against 0.548–0.554) and stars, not better F1 (0.786 / 0.794
+  against 0.795), so L4 stays (coefficients unchanged). The old rule's comparison corrected: 70% / 64%, not
+  71% / 70% (it had been priced with the afternoon's recipe).
+- **Market price**: candidate X (the contribution as `pv`) declared in `scripts/ipl_price_model.py` and not
+  chosen (held-out lot error 0.794 against T's 0.792, top 20 0.92 against 0.98); T and its test unchanged.
+- **Bid plan replays re-run** (roadmap I13, on recipe T and the new strength): same spend, next season, the
+  plan's squad was stronger than the real one for 8 of 10 teams in the 2025 mega auction and none in the 2026
+  mini (not comparable with the earlier 4 / 2: the measure changed). Rival prices: real inside the 20–80% range
+  for 49% / 53% of lots. The METHODOLOGY §12 examples are recomputed.
+- Checks: `tests/test_playing_time.py`; parity cases for expected contributions and the XI's ball budget,
+  mini retentions by season value, keep features with playing time; `auction_check` on a scratch export (all
+  ten purses as published, squads 20–25).
+
 ### Afghanistan caps, the top end without a ceiling, Keep or release on what franchises do (2026-10-22, evening)
 
 - **Afghanistan internationals restored.** Cricsheet withholds every match featuring Afghanistan since 14

@@ -1,0 +1,419 @@
+{
+ "schema": 1,
+ "version": "2026.10-1",
+ "league": "ipl",
+ "fitted": "2026-10-22",
+ "method": "expected season value = P(plays a match | in the squad) x contribution per match (runs above replacement: (batting value - replacement for his slot) x balls faced per match / 100 + (bowling value - replacement for his group) x balls bowled per match / 100); scripts/playing_time_fit.py, docs/METHODOLOGY.md section 6c",
+ "balls_per_innings": 114.973,
+ "league_matches": 14,
+ "balls": {
+  "bat": {
+   "discipline": "bat",
+   "k0": 8.0,
+   "k_o": 0.25,
+   "decay": 0.8,
+   "mu": {
+    "bowler": 0.012764398123690686,
+    "all": 0.08352787991755706,
+    "all_rounder": 0.10108904769756503,
+    "batter": 0.13590871185517317,
+    "keeper": 0.14594111056995562
+   },
+   "trained_on": [
+    2012,
+    2026
+   ]
+  },
+  "bowl": {
+   "discipline": "bowl",
+   "k0": 2.0,
+   "k_o": 0.1,
+   "decay": 0.4,
+   "mu": {
+    "bowler": 0.1770127029277679,
+    "all": 0.08353390391713844,
+    "all_rounder": 0.08046671995609775,
+    "batter": 0.003413701141017162,
+    "keeper": 0.0005832217474817871
+   },
+   "trained_on": [
+    2012,
+    2026
+   ]
+  }
+ },
+ "balls_chosen": "E4 E3 with impact-era role means (2023+)",
+ "replacement": {
+  "bat": {
+   "top": -7.322,
+   "middle": -16.764,
+   "tail": -63.219,
+   "lower": -23.241
+  },
+  "bowl": {
+   "frontline": -11.341,
+   "part_time": -27.395
+  },
+  "n": {
+   "bat:top": 39,
+   "bat:middle": 32,
+   "bat:tail": 74,
+   "bat:lower": 39,
+   "bowl:frontline": 88,
+   "bowl:part_time": 62
+  }
+ },
+ "play": {
+  "features": [
+   "contrib",
+   "in_xi",
+   "margin",
+   "rank_log",
+   "overseas",
+   "os_out",
+   "os_rank_gt4",
+   "ipl_exp",
+   "never_ipl",
+   "age",
+   "age_gt32",
+   "last_share",
+   "no_last",
+   "keeper",
+   "captain",
+   "impact_era"
+  ],
+  "intercept": -1.228292042451293,
+  "coef": {
+   "contrib": -0.05087368735467797,
+   "in_xi": 0.29619661521121265,
+   "margin": 0.08066304171581433,
+   "rank_log": -0.2674337066761113,
+   "overseas": -0.09000468456858304,
+   "os_out": 0.15142390629345606,
+   "os_rank_gt4": 0.0036923294302721446,
+   "ipl_exp": 0.27989973675191687,
+   "never_ipl": 0.3122423067261708,
+   "age": -0.24847525057309744,
+   "age_gt32": 0.029864754061034195,
+   "last_share": 1.6426189985820243,
+   "no_last": 0.35063230699372827,
+   "keeper": 0.13893988564097048,
+   "captain": 0.26778748195134355,
+   "impact_era": 0.15813135640058662
+  },
+  "trained_on": [
+   2018,
+   2026
+  ],
+  "alpha": 10.0,
+  "chosen": "P5 P4 + keeper, captain, impact era"
+ },
+ "free_agent": {
+  "features": [
+   "contrib",
+   "margin",
+   "ipl_exp",
+   "never_ipl",
+   "gap",
+   "age",
+   "age_gt32",
+   "last_share",
+   "played_last",
+   "overseas",
+   "keeper",
+   "captain",
+   "impact_era"
+  ],
+  "intercept": -2.3586572168113507,
+  "coef": {
+   "contrib": 0.24847395208729153,
+   "margin": 0.0009066773908404497,
+   "ipl_exp": 0.3660083486234065,
+   "never_ipl": -2.273914701589334,
+   "gap": -0.44599954874251874,
+   "age": -0.4470234260226556,
+   "age_gt32": -1.2383180137706946,
+   "last_share": 2.601322748162534,
+   "played_last": -0.6312153989698556,
+   "overseas": -0.40457207114106347,
+   "keeper": 0.13285855871646463,
+   "captain": -0.2965778240984484,
+   "impact_era": -0.11316398442440452
+  },
+  "trained_on": [
+   2018,
+   2026
+  ],
+  "alpha": 0.1,
+  "chosen": "F3 F2 + last season's share, overseas, keeper, captain, impact era"
+ },
+ "evaluation": {
+  "balls": {
+   "protocol": "candidates fitted on IPL seasons 2012-2023, chosen on 2024 by the matches-weighted MAE in balls per match (faced + bowled); the chosen one refitted on 2012-2024 and scored once on 2025-2026",
+   "test": {
+    "E4 E3 with impact-era role means (2023+)": {
+     "sf": {
+      "mae_balls": 2.707,
+      "by_season": {
+       "2025": 2.86,
+       "2026": 2.557
+      }
+     },
+     "sb": {
+      "mae_balls": 1.439,
+      "by_season": {
+       "2025": 1.283,
+       "2026": 1.593
+      }
+     }
+    },
+    "E0 role mean (reference)": {
+     "sf": {
+      "mae_balls": 3.713,
+      "by_season": {
+       "2025": 3.824,
+       "2026": 3.603
+      }
+     },
+     "sb": {
+      "mae_balls": 2.138,
+      "by_season": {
+       "2025": 1.98,
+       "2026": 2.293
+      }
+     }
+    },
+    "E1 last IPL season's share, else role mean (reference)": {
+     "sf": {
+      "mae_balls": 3.115,
+      "by_season": {
+       "2025": 3.062,
+       "2026": 3.167
+      }
+     },
+     "sb": {
+      "mae_balls": 1.552,
+      "by_season": {
+       "2025": 1.461,
+       "2026": 1.641
+      }
+     }
+    }
+   }
+  },
+  "play": {
+   "protocol": "candidates fitted on the squads of 2018-2023, chosen on 2024 by the binomial log loss per match; the chosen one refitted on 2018-2024 and scored once on the 2025 and 2026 squads",
+   "test": {
+    "P5 P4 + keeper, captain, impact era": {
+     "n": 454,
+     "log_loss": 0.5621,
+     "brier_share": 0.0873,
+     "mae_share": 0.2457,
+     "spearman": 0.631,
+     "calibration_fifths": [
+      [
+       0.199,
+       0.253,
+       91
+      ],
+      [
+       0.301,
+       0.265,
+       91
+      ],
+      [
+       0.477,
+       0.465,
+       91
+      ],
+      [
+       0.702,
+       0.677,
+       91
+      ],
+      [
+       0.83,
+       0.901,
+       90
+      ]
+     ]
+    },
+    "P0 base rate (reference)": {
+     "n": 454,
+     "log_loss": 0.6974,
+     "brier_share": 0.1499,
+     "mae_share": 0.3498,
+     "spearman": NaN,
+     "calibration_fifths": [
+      [
+       0.464,
+       0.507,
+       91
+      ],
+      [
+       0.464,
+       0.511,
+       91
+      ],
+      [
+       0.464,
+       0.514,
+       91
+      ],
+      [
+       0.464,
+       0.481,
+       91
+      ],
+      [
+       0.464,
+       0.545,
+       90
+      ]
+     ]
+    },
+    "P1 rank in the squad": {
+     "n": 454,
+     "log_loss": 0.6255,
+     "brier_share": 0.1152,
+     "mae_share": 0.2903,
+     "spearman": 0.466,
+     "calibration_fifths": [
+      [
+       0.265,
+       0.277,
+       91
+      ],
+      [
+       0.325,
+       0.395,
+       91
+      ],
+      [
+       0.453,
+       0.457,
+       91
+      ],
+      [
+       0.62,
+       0.643,
+       91
+      ],
+      [
+       0.717,
+       0.788,
+       90
+      ]
+     ]
+    }
+   }
+  },
+  "free_agent": {
+   "protocol": "candidates fitted on the free agents of the 2018-2023 auction pools, chosen on 2024 by the binomial log loss per match; the chosen one refitted on 2018-2024 and scored once on the 2025 and 2026 pools",
+   "test": {
+    "F3 F2 + last season's share, overseas, keeper, captain, impact era": {
+     "n": 2253,
+     "log_loss": 0.0848,
+     "brier_share": 0.0128,
+     "mae_share": 0.038,
+     "spearman": 0.393,
+     "calibration_fifths": [
+      [
+       0.001,
+       0.0,
+       451
+      ],
+      [
+       0.004,
+       0.001,
+       451
+      ],
+      [
+       0.007,
+       0.004,
+       451
+      ],
+      [
+       0.01,
+       0.008,
+       450
+      ],
+      [
+       0.177,
+       0.168,
+       450
+      ]
+     ]
+    },
+    "F0 base rate (reference)": {
+     "n": 2253,
+     "log_loss": 0.1571,
+     "brier_share": 0.0248,
+     "mae_share": 0.0623,
+     "spearman": NaN,
+     "calibration_fifths": [
+      [
+       0.03,
+       0.053,
+       451
+      ],
+      [
+       0.03,
+       0.057,
+       451
+      ],
+      [
+       0.03,
+       0.043,
+       451
+      ],
+      [
+       0.03,
+       0.009,
+       450
+      ],
+      [
+       0.03,
+       0.018,
+       450
+      ]
+     ]
+    },
+    "F1 contribution and its distance to a squad's XI line": {
+     "n": 2253,
+     "log_loss": 0.1373,
+     "brier_share": 0.0228,
+     "mae_share": 0.0577,
+     "spearman": 0.24,
+     "calibration_fifths": [
+      [
+       0.008,
+       0.004,
+       451
+      ],
+      [
+       0.015,
+       0.006,
+       451
+      ],
+      [
+       0.022,
+       0.036,
+       451
+      ],
+      [
+       0.032,
+       0.024,
+       450
+      ],
+      [
+       0.071,
+       0.111,
+       450
+      ]
+     ]
+    }
+   }
+  }
+ }
+}

@@ -225,9 +225,19 @@ export interface AuctionPoolRow {
   last_ipl?: string | null;
   home_league?: string | null;
   age?: number | null;
-  ipl_relevance?: number; // 1 = current IPL regular … lower = league-only / aged
+  // playing time (METHODOLOGY §6c): runs above replacement per match he plays (both roles at his
+  // expected balls), its sd and parts, his expected balls a match, P(plays a match | in a squad) and
+  // the expected runs over a season (P × contribution × 14); absent in exports before 2026-10-22
+  contrib?: number | null;
+  contrib_sd?: number | null;
+  contrib_bat?: number | null;
+  contrib_bowl?: number | null;
+  balls_faced?: number | null;
+  balls_bowled?: number | null;
+  p_play?: number | null;
+  season_value?: number | null;
   // the market price's inputs (auction.ts `marketFeatures`); absent in exports before it
-  price_value?: number | null; // blended value before the IPL-relevance discount
+  price_value?: number | null; // his better role's blended value
   intl_caps?: number | null; // men's T20I + ODI + Test matches
   intl_caps_2y?: number | null; // ... in the two years before the auction
   ipl_balls?: number | null; // IPL balls faced + bowled
@@ -250,15 +260,15 @@ export const getAuctionPool = (c: string) =>
     return rows;
   });
 
-// Per-player cross-league activity, keyed by cricsheet_id (the breakdown behind
-// the auction's IPL-relevance weight). Any surface can join on it.
+// Per-player cross-league activity, keyed by cricsheet_id, with the chance he plays a match
+// (P(plays), METHODOLOGY §6c). Any surface can join on it.
 export interface ActivityRow {
   leagues: { league: string; last: string }[];
   last_ipl: string | null;
   last_any: string | null;
   home_league: string | null;
   age: number | null;
-  ipl_relevance: number;
+  p_play: number | null;
 }
 export const getActivityIndex = (c: string) =>
   getJSON<Record<string, ActivityRow>>(`${c}/activity_index.json`);

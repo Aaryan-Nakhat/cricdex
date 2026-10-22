@@ -30,6 +30,7 @@ import {
   OPEN_SLOTS,
   REPLACEMENT,
   SLOT_LABEL,
+  TEAM_BALLS,
   TRIALS,
   XI_OVERSEAS,
   buildContext,
@@ -127,11 +128,14 @@ function HowItWorks({ res }: { res: Plan | null }) {
           his salary, the plan says "reconsider keeping".
         </p>
         <p>
-          <b className="text-fg">3. Squad strength.</b> The best XI's value added up (runs per 100 balls above an average
-          IPL ball), with at most {XI_OVERSEAS} overseas, a keeper, five bowling and six batting options; a place your squad
-          can't fill goes to a replacement-level player ({fmtNum(REPLACEMENT, 0)}, about what a base-price buy is worth).
-          The next {DEPTH_N} players count {Math.round(DEPTH_WEIGHT * 100)}% of their edge over that level (depth), and
-          each role need you miss (keepers, openers, death bowlers, spinners, pace) costs {fmtNum(NEED_PENALTY, 0)}.
+          <b className="text-fg">3. Squad strength.</b> The best XI's expected runs per match above a replacement
+          player: each player's batting value at the balls he faces a match plus his bowling value at the balls he
+          bowls, times his chance of playing (a lot's as a free agent: how often players like him play at all) (an opener
+          faces about 21, a No. 7 about 9, a frontline bowler bowls about 23), the XI's balls held to a side's{" "}
+          {TEAM_BALLS} a innings; at most {XI_OVERSEAS} overseas, a keeper, five bowling and six batting options; a place
+          your squad can't fill goes to a replacement-level player ({fmtNum(REPLACEMENT, 0)}). The next {DEPTH_N} players
+          count {Math.round(DEPTH_WEIGHT * 100)}% of their contribution (depth), and each role need you miss (keepers,
+          openers, death bowlers, spinners, pace) costs {fmtNum(NEED_PENALTY, 2)} runs a match.
         </p>
         <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs leading-relaxed text-fg">{`strength = best XI + ${DEPTH_WEIGHT} × depth − ${NEED_PENALTY} × role places short
 gain     = strength with him − strength without him
@@ -156,7 +160,7 @@ max bid  = gain ÷ λ   (at most the purse left after the other likely buys)`}</
           <b className="text-willow">Honest caveat:</b> the rivals' bidding is calibrated to real auctions (2022–24, tested on
           2025–26), but prices rest on the market model (a typical player is off by a factor of about 1.7) and nobody's
           scouting is in it; values are ratings, not certainties. Replayed on the 2025 and 2026 auctions, the plan's squads
-          were level with the real ones in 2025 and worse in 2026 on what the players did next season: see How it works and
+          were ahead of the real ones in 2025 (8 of 10 teams) and behind in 2026 (all 10) on what the players did next season: see How it works and
           docs/METHODOLOGY.md §12. Treat it as a starting sheet for the war room, not a verdict.
         </p>
       </div>
@@ -178,8 +182,8 @@ export function BidPlan() {
       <Card className="mb-4 border-gold/40 bg-gold/5 px-4 py-3 text-sm leading-relaxed text-muted">
         <Badge tone="gold" className="mr-2">Beta</Badge>
         <b className="text-fg">Not yet proven.</b> Replaying the real auctions with only what was known
-        beforehand, this plan built a stronger squad than the real franchise for 4 of 10 teams in the 2025
-        mega auction and 2 of 10 in the 2026 mini auction. Its edge comes from spotting players the market
+        beforehand, this plan built a stronger squad than the real franchise for 8 of 10 teams in the 2025
+        mega auction and none in the 2026 mini auction. Its edge comes from spotting players the market
         under-prices, which is where the price model is weakest (scouted youngsters, unusual prices), and it
         doesn't see rivals chasing the same names. Use it to explore bid limits and fallbacks, not as a
         verdict. Full results in the methodology (Bid plan section).
@@ -481,8 +485,8 @@ function Summary({ ctx, res }: { ctx: BidContext; res: Plan }) {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="Purse left" value={`${cr(ctx.purse_left)} cr`} hint={`${cr(ctx.salary_kept)} cr kept salaries`} />
         <StatTile label="Open places" value={`${res.slots_open}`} hint={`${res.overseas_open} overseas · squad ${ctx.rules.squad_min}–${ctx.rules.squad_max}`} />
-        <StatTile label="Strength now → expected" value={`${fmtNum(res.before.total, 0)} → ${fmtNum(res.mean_strength, 0)}`}
-          hint={`best XI ${fmtNum(res.before.xi, 0)} → ${fmtNum(res.mean_xi, 0)} (runs per 100 balls, summed)`} />
+        <StatTile label="Strength now → expected" value={`${fmtNum(res.before.total, 1)} → ${fmtNum(res.mean_strength, 1)}`}
+          hint={`best XI ${fmtNum(res.before.xi, 1)} → ${fmtNum(res.mean_xi, 1)} (runs a match above replacement)`} />
         <StatTile label="Expected spend" value={`${cr(res.mean_spend)} cr`} hint={`squad ${fmtNum(res.mean_squad, 1)} on average · λ ${fmtNum(res.lam, 2)} runs/cr`} />
       </div>
       <Card className="px-5 py-4 text-sm">
@@ -730,8 +734,9 @@ function Assumptions({ ctx, res, data, openSlots, trials, register }: {
     ["The pool", register ? "the official auction list" : "free agents + every plan's releases (our guess)", !register],
     ["Rivals", `the Auction room's simulator, ${trials} runs, its personalities`, true],
     ["Best XI", `≤ ${XI_OVERSEAS} overseas, a keeper, 5 bowling and 6 batting options`, false],
-    ["Replacement level", `${fmtNum(REPLACEMENT, 0)} runs per 100 balls`, true],
-    ["Depth and needs", `next ${DEPTH_N} at ${DEPTH_WEIGHT}; ${fmtNum(NEED_PENALTY, 0)} per role place short`, true],
+    ["Replacement level", `${fmtNum(REPLACEMENT, 0)} (contributions are runs a match above it)`, false],
+    ["XI balls", `held to ${TEAM_BALLS} a side's innings, faced and bowled`, false],
+    ["Depth and needs", `next ${DEPTH_N} at ${DEPTH_WEIGHT}; ${fmtNum(NEED_PENALTY, 2)} runs a match per role place short`, true],
     ["Exchange rate λ", `${fmtNum(res.lam, 2)} runs per crore (chosen by the plan)`, false],
     ["Plan converged", res.converged ? `yes, in ${res.rounds} round${res.rounds === 1 ? "" : "s"}` : `stopped after ${res.rounds} rounds`, false],
   ];

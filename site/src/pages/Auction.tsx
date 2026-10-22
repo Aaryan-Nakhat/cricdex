@@ -91,12 +91,14 @@ function AuctionMath() {
               spread matches real money — top players land in the 20s, the median ~1.2 cr. (This is the
               older skill-only curve, the "on-field worth"; it still keeps its own 27 cr cap, rising with
               IPL balls from 13.5 cr. The pool's price is the market model, which needs no cap.)
-              All-rounders/keepers get a small scarcity premium.
             </Step>
-            <Step n={2} title="Decay for staleness">
-              A player who's barely featured lately (last game years ago) is worth less now — value
-              decays with time since their last match (a few months' grace, then ramps). Keeps
-              has-beens out of the top buys.
+            <Step n={2} title="Playing time">
+              Who ranks where: his <b>expected season value</b> = the chance he plays a match ×
+              his runs above a replacement per match (batting at the balls he faces a match, bowling at
+              the balls he bowls), × 14 matches. Both chances are fitted on real IPL XIs: a squad player's
+              from where he ranks in his squad, his overseas place, experience, age and last season; a free
+              agent's also from whether a franchise buys him at all. That is what keeps league-only veterans
+              and one-season wonders out of the top, with no hand-set penalty.
             </Step>
             <Step n={3} title="Base price">
               The opening tag, snapped to IPL bands (0.3 / 0.5 / 0.75 / 1 / 1.5 / 2 cr). Bidding pushes
@@ -120,7 +122,7 @@ function AuctionMath() {
           <ul className="mt-2 space-y-1 text-sm text-muted">
             <li>• <b className="text-fg">IPL players</b> — retainable, carry their current franchise.</li>
             <li>• <b className="text-fg">Free agents</b> — overseas via the <b>{pl.overseas || "overseas leagues"}</b>, uncapped Indians via <b>{pl.uncapped || "domestic T20"}</b>.</li>
-            <li>• Active only (last ~3 years), ≥150 balls (cuts tiny-sample flukes).</li>
+            <li>• Active only (last ~3 years); the top 600 by expected season value (a thin record is already shrunk toward its slot and plays little).</li>
             <li>• Excludes men's-T20I associate noise + non-IPL nations (PAK).</li>
           </ul>
           <p className="mt-2 text-sm leading-relaxed text-muted">
@@ -312,13 +314,14 @@ function Simulate({
   const [q, setQ] = useState(""); // player-lookup search
   const [result, setResult] = useState<SimResult | null>(null);
   const [running, setRunning] = useState(false);
-  // cross-league activity (last-IPL / age / IPL-relevance) joined by cid, so a
-  // league-only veteran's lower auction standing is explained on screen.
+  // cross-league activity (last-IPL / age) and the chance he plays a match (P(plays), METHODOLOGY
+  // §6c) joined by cid, so a league-only veteran's lower standing is explained on screen.
   const activity = useAsync(() => getActivityIndex("ipl"), []);
   const relCell = (cid: string) => {
     const a = activity.data?.[cid];
     if (!a) return <span className="text-xs text-muted">—</span>;
-    const r = a.ipl_relevance;
+    const r = a.p_play;
+    if (r === null || r === undefined) return <span className="text-xs text-muted">—</span>;
     const yr = a.last_ipl ? a.last_ipl.slice(0, 4) : "never";
     const bits = [`last IPL ${yr}`];
     if (a.age != null) bits.push(`age ${a.age}`);
@@ -328,7 +331,7 @@ function Simulate({
         title={bits.join(" · ")}
         className={cn(
           "stat-num text-xs",
-          r >= 0.85 ? "text-willow" : r >= 0.55 ? "text-accent-glow" : "text-ball",
+          r >= 0.75 ? "text-willow" : r >= 0.45 ? "text-accent-glow" : "text-ball",
         )}
       >
         {Math.round(r * 100)}%
@@ -621,7 +624,7 @@ function Simulate({
                 <th className="th">Player</th>
                 <th className="th">Role</th>
                 <th className="th text-right">Value</th>
-                <th className="th text-right">IPL fit</th>
+                <th className="th text-right" title="The chance he plays a match when in a squad (P(plays))">Plays</th>
                 <th className="th">Most likely landing spot</th>
               </tr>
             </thead>
@@ -679,7 +682,7 @@ function Simulate({
                       <tr>
                         <th className="th">Player</th>
                         <th className="th">Role</th>
-                        <th className="th text-right">IPL fit</th>
+                        <th className="th text-right" title="The chance he plays a match when in a squad (P(plays))">Plays</th>
                         <th className="th">Status</th>
                         <th className="th text-right">Avg price</th>
                         <th className="th text-right">Sold %</th>
