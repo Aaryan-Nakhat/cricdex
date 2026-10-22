@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from cricdex import leagues
+from cricdex.config import SITE_DATA
 from cricdex.web_parity import (
     IPL_TEAMS_DEFAULT,
     build_pool,
@@ -29,9 +30,12 @@ from cricdex.web_parity import (
     load_auction_pool,
     load_retentions,
     load_scout_index,
+    market_price,
+    scout_price,
     similar_to,
     simulate_auction,
 )
+from cricdex.web_parity.pricing import _MODEL_PATHS, load_price_model, market_features
 from cricdex.web_parity.scout import slot_band
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +46,7 @@ TOL = 1e-9
 def _node_dump() -> dict:
     if shutil.which("node") is None:
         pytest.skip("node not on PATH")
-    if not (SITE / "public" / "data" / "ipl" / "auction_pool.json").exists():
+    if not (SITE_DATA / "ipl" / "auction_pool.json").exists():
         pytest.skip("exported JSON missing — run scripts/export_site.py")
     # Both sides price from the same registry: hand the TS the Python payload of config/leagues.toml.
     with tempfile.TemporaryDirectory() as tmp:
@@ -53,11 +57,35 @@ def _node_dump() -> dict:
             cwd=SITE,
             capture_output=True,
             text=True,
-            env={**os.environ, "CRICDEX_LEAGUES_JSON": str(reg)},
+            env={
+                **os.environ,
+                "CRICDEX_LEAGUES_JSON": str(reg),
+                "CRICDEX_SITE_DATA": str(SITE_DATA),
+                **_model_env(),
+            },
         )
     if r.returncode != 0:
         pytest.skip(f"node strip-types unavailable / TS failed:\n{r.stderr[-500:]}")
     return json.loads(r.stdout)
+
+
+def _model_env() -> dict[str, str]:
+    """Hand the TS the same market-price model file the Python reads (config/price_model.json)."""
+    for p in _MODEL_PATHS:
+        if p.exists():
+            return {"CRICDEX_PRICE_MODEL_JSON": str(p)}
+    return {"CRICDEX_PRICE_MODEL_JSON": str(ROOT / "no-price-model.json")}
+
+
+# mirrored in site/scripts/parity_dump.ts (MARKET_CASES)
+MARKET_CASES = [
+    ({"price_value": 13.6, "value_sd": 2.75, "role": "batter", "is_overseas": False, "intl_caps": 555, "age": 38.1, "ipl_balls": 8400, "ipl_seasons": 19, "ipl_gap": 0.55, "target_balls": 6926, "captain_ipl_last": 0, "captain_ipl_seasons": 10, "captain_intl_2y": 0}, "mini", 125),
+    ({"price_value": 59.7, "value_sd": 12.5, "role": "batter", "is_overseas": False, "intl_caps": 0, "age": 15.7, "ipl_balls": 449, "ipl_seasons": 2, "ipl_gap": 0.55, "target_balls": 449}, "mini", 125),
+    ({"price_value": 23.2, "value_sd": 2.7, "role": "bowler", "overseas": False, "intl_caps": 210, "age": 32.9, "ipl_balls": 3100, "ipl_seasons": 12, "ipl_gap": 0.55, "target_balls": 3000, "captain_ipl_last": 1, "captain_ipl_seasons": 1, "captain_intl_2y": 1}, "mega", 120),
+    ({"price_value": 6.0, "value_sd": 9.0, "role": "all_rounder", "is_overseas": True, "intl_caps": 40, "age": 27.2, "ipl_balls": 0, "ipl_seasons": 0, "ipl_gap": None, "target_balls": 0}, "mini", 125),
+    ({"price_value": None, "role": "keeper", "is_overseas": False, "intl_caps": None, "age": None, "ipl_balls": None, "ipl_seasons": None, "ipl_gap": 3.2}, "mega", 90),
+    ({"price_value": -45, "value_sd": 20, "role": "bowler", "is_overseas": True, "intl_caps": 3, "age": 41, "ipl_balls": 120, "ipl_seasons": 1, "ipl_gap": 9.5, "target_balls": 120}, "mini", 125),
+]  # fmt: skip
 
 
 def _approx_eq(a, b, path="") -> None:
@@ -165,9 +193,7 @@ def test_web_parity():
             {
                 "id": r["cricsheet_id"],
                 "sim": r["sim"],
-                "price": est_value(
-                    r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls")
-                ),
+                "price": scout_price(r, tier),
             }
             for r in rows
         ]
@@ -219,3 +245,32 @@ def test_web_parity():
         (10, "bowler", "cpl", None, 600),
     ]
     _approx_eq([est_value(*c) for c in cases], js["estCases"], "estCases")
+
+    # 6) the market price (fitted to real auctions): features, price and P(bought) on fixed inputs,
+    # and every pool row's market / on-field price and P(bought)
+    load_price_model.cache_clear()
+    if load_price_model() is None:
+        assert js["marketCases"] is None
+    else:
+        py_market = [
+            {
+                "features": market_features(row, cycle),
+                **market_price(row, {"cycle": cycle, "purse": purse}),
+            }
+            for row, cycle, purse in MARKET_CASES
+        ]
+        _approx_eq(py_market, js["marketCases"], "marketCases")
+    _approx_eq(
+        [
+            [
+                p["cricsheet_id"],
+                p["projected_value"],
+                p["onfield_value"],
+                p["p_bought"],
+                p["captain"],
+            ]
+            for p in pool
+        ],
+        js["poolPrices"],
+        "poolPrices",
+    )

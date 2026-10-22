@@ -49,6 +49,8 @@ WIKI_SLEEP_S = 1.0
 
 IPL_PERSONNEL_PAGE = "List of 2026 Indian Premier League personnel changes"
 IPL_SEASON = 2026
+# the next cycle's page: trades and retirements since the 2026 season (applied to the squads file)
+IPL_NEXT_PERSONNEL_PAGE = "List of 2027 Indian Premier League personnel changes"
 
 
 # ---- small helpers ------------------------------------------------------------------------------
@@ -699,4 +701,193 @@ def fetch_ipl_personnel(force: bool = False) -> dict[str, Any]:
         **parsed,
     }
     write_json(IPL_SQUADS, out)
+    return out
+
+
+# ---- IPL salaries (same Wikipedia personnel page) -------------------------------------------------
+
+# {{INRConvert|18|c|lk=on}} = ₹18 crore, {{INRConvert|30|l}} = ₹30 lakh; "INR convert" is the
+# same template under another name.
+_INR = re.compile(r"\{\{\s*INR\s*Convert\s*\|\s*([\d.]+)\s*\|\s*([clCL])", re.I)
+_FLAG = re.compile(r"\{\{\s*cr\s*\|\s*([A-Za-z]+)\s*\}\}", re.I)
+
+
+def _crore(text: str) -> float | None:
+    """The first {{INRConvert}} amount in a cell, in crore (lakh / 100)."""
+    m = _INR.search(text or "")
+    if not m:
+        return None
+    v = float(m.group(1))
+    return round(v if m.group(2).lower() == "c" else v / 100.0, 4)
+
+
+def _flag(text: str) -> str | None:
+    from cricdex.scout.identity.countries import normalise
+
+    m = _FLAG.search(text or "")
+    return normalise(m.group(1)) if m else None
+
+
+def parse_ipl_salaries(text: str) -> dict[str, Any]:
+    """The personnel page wikitext → each squad player's salary and how he was acquired.
+
+    {"players": {code: {wiki_title: {salary_cr, acquired, country}}}, "trades": [...]}:
+    - **retained** table: the contract carried into the season (2025 auction / retention price, or
+      the price a trade moved with him), with his nationality flag;
+    - **traded** table: a retained-list player who arrived by trade is `acquired = "trade"`;
+    - **sold** tables: the auction price (lakhs on the page), `acquired = "auction"`;
+    - **withdrawn** table: a replacement's fee, `acquired = "replacement"`.
+    Salaries are in crore."""
+    sections = re.split(r"\n(==+)[ \t]*([^=\n]+?)[ \t]*\1[ \t]*(?=\n)", text)
+    by_title: dict[str, str] = {}
+    for i in range(1, len(sections) - 2, 3):
+        t = sections[i + 1].strip()
+        by_title[t] = by_title.get(t, "") + sections[i + 2]
+    players: dict[str, dict[str, dict]] = {
+        code: {} for code in sorted(set(IPL_TEAM_CODES.values()))
+    }
+    trades: list[dict] = []
+
+    # traded table (in Pre-auction): Date | Name | Salary | From | To — From / To cells may span
+    # several rows (rowspan), so the last seen value carries down.
+    pre = by_title.get("Pre-auction", "")
+    for table in pre.split("{|")[1:]:
+        if "Traded players" not in table[:300]:
+            continue
+        cur = {"from": None, "to": None}
+        span = {"from": 0, "to": 0}  # rows still covered by a rowspan'd From / To cell
+        for row in table.split("|-")[1:]:
+            m = _SORTNAME.search(row)
+            if not m:
+                continue
+            shown, title = _sortname_title(m.group(1))
+            after = row[m.end() :]
+            need = []
+            for col in ("from", "to"):
+                if span[col] > 0:
+                    span[col] -= 1  # carried down from the row above
+                else:
+                    need.append(col)
+            for cell in re.split(r"\|\||\n\|", after):
+                code = _team_in(cell)
+                if not code or not need:
+                    continue
+                col = need.pop(0)
+                cur[col] = code
+                rs = re.search(r'rowspan\s*=\s*"?(\d+)', cell)
+                span[col] = int(rs.group(1)) - 1 if rs else 0
+            trades.append(
+                {
+                    "name": shown,
+                    "wiki_title": title,
+                    "salary_cr": _crore(after),
+                    "from": cur["from"],
+                    "to": cur["to"],
+                }
+            )
+
+    retained = by_title.get("Retained players", "")
+    traded_to = {(t["to"], t["wiki_title"]) for t in trades}
+    for table in retained.split("{|")[1:]:
+        caption = table.split("\n|-", 1)[0]
+        code = _team_in(caption)
+        if not code:
+            continue
+        for row in table.split("|-")[1:]:
+            m = _SORTNAME.search(row)
+            if not m:
+                continue
+            _shown, title = _sortname_title(m.group(1))
+            after = row[m.end() :]
+            players[code][title] = {
+                "salary_cr": _crore(after),
+                "acquired": "trade" if (code, title) in traded_to else "retained",
+                "country": _flag(after),
+            }
+
+    sold = by_title.get("Sold players", "")
+    for table in sold.split("{|")[1:]:
+        for row in table.split("|-")[1:]:
+            m = _SORTNAME.search(row)
+            if not m:
+                continue
+            _shown, title = _sortname_title(m.group(1))
+            after = row[m.end() :]
+            cells = [c.strip() for c in re.split(r"\|\||\n\|", after)]
+            code, price = None, None
+            for i, c in enumerate(cells):
+                code = _team_in(c)
+                if code:
+                    nxt = cells[i + 1] if i + 1 < len(cells) else ""
+                    num = re.match(r"^\s*([\d.]+)", _strip_markup(nxt))
+                    price = round(float(num.group(1)) / 100.0, 4) if num else None
+                    break
+            if code:
+                players[code][title] = {
+                    "salary_cr": price,
+                    "acquired": "auction",
+                    "country": _flag(after),
+                }
+
+    withdrawn = by_title.get("Withdrawn players", "")
+    for row in withdrawn.split("|-")[1:]:
+        names = list(_SORTNAME.finditer(row))
+        code = _team_in(row)
+        if len(names) < 2 or not code:
+            continue
+        _rshown, rtitle = _sortname_title(names[1].group(1))
+        after = row[names[1].end() :]
+        players[code].setdefault(
+            rtitle,
+            {"salary_cr": _crore(after), "acquired": "replacement", "country": None},
+        )
+    return {"players": players, "trades": trades}
+
+
+def fetch_ipl_personnel_text(title: str = IPL_PERSONNEL_PAGE) -> tuple[str, dict]:
+    """A personnel page's current wikitext and its revision {revid, ts}."""
+    with _client() as cx:
+        r = _get_with_retry(
+            cx,
+            WIKIPEDIA_API,
+            {
+                "action": "query",
+                "prop": "revisions",
+                "rvprop": "content|ids|timestamp",
+                "rvslots": "main",
+                "format": "json",
+                "formatversion": "2",
+                "titles": title,
+            },
+            "ipl personnel",
+        )
+    rev = r.json()["query"]["pages"][0]["revisions"][0]
+    return rev["slots"]["main"]["content"], {"revid": rev.get("revid"), "ts": rev.get("timestamp")}
+
+
+def international_dates(con, raw_dir: Path | None = None) -> dict[str, list[str]]:
+    """cricsheet_id → sorted dates of every men's international XI he played (T20Is from the
+    ingested `t20s_male` collection, ODIs and Tests from Cricsheet's archives, read and never
+    ingested), so caps can be counted before any date (the market price's `intl_caps` /
+    `intl_caps_2y`; scripts/ipl_price_model.py and the site export count them the same way)."""
+    from cricdex.scout.ingest.cricsheet import download_zip
+
+    raw_dir = raw_dir or (DATA_DIR / "cricsheet" / "raw")
+    seen: set[tuple[str, str]] = set()
+    tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+    if "match_players_t20s_male" in tables and "matches_t20s_male" in tables:
+        for a, b in con.execute(
+            "SELECT p.identifier, m.match_date FROM match_players_t20s_male p "
+            "JOIN matches_t20s_male m USING (match_id) WHERE p.identifier IS NOT NULL"
+        ).fetchall():
+            seen.add((a, str(b)[:10]))
+    for fmt, z in INTL_ZIPS.items():
+        path = raw_dir / z
+        if not path.exists():
+            path = download_zip(z, raw_dir)
+        for pid, _team, d, _f in read_international_zip(path, fmt):
+            seen.add((pid, d))
+    out: dict[str, list[str]] = {}
+    for pid, d in sorted(seen, key=lambda x: x[1]):
+        out.setdefault(pid, []).append(d)
     return out

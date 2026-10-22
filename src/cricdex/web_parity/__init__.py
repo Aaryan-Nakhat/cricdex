@@ -33,7 +33,7 @@ from cricdex.web_parity.loader import (
     load_retentions,
     load_scout_index,
 )
-from cricdex.web_parity.pricing import TIER_PENALTY, est_value
+from cricdex.web_parity.pricing import TIER_PENALTY, est_value, market_price, scout_price
 from cricdex.web_parity.scout import (
     COUNTRY_MODES,
     SAME_SLOT,
@@ -52,6 +52,8 @@ __all__ = [
     "build_pool",
     "default_retentions",
     "est_value",
+    "market_price",
+    "scout_price",
     "gem_threshold",
     "is_gem",
     "load_activity_index",

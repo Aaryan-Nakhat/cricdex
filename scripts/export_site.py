@@ -44,6 +44,8 @@ from loguru import logger
 from cricdex import leagues
 from cricdex.common.sql import (
     BOWLER_RUNS,
+    BOWLER_WICKET,
+    DISMISSAL,
     MAIN_INNINGS,
     UNRESOLVED,
     WINDOWS,
@@ -56,7 +58,8 @@ from cricdex.common.sql import (
 )
 from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.config import SITE_DATA as _DEFAULT_SITE_DATA
-from cricdex.scout.identity import countries
+from cricdex.scout import forecast
+from cricdex.scout.identity import captains, countries
 from cricdex.scout.identity import master as player_master
 
 app = typer.Typer(add_completion=False)
@@ -501,16 +504,126 @@ AUCTION_TRUST_BALLS = 300  # a role record this big in the target league stands 
 PEN_SCALE_VALUE = 36.0
 
 
+def _target_competition(col: str):
+    """The latest competition run on this league (config/competitions.toml), or None."""
+    from cricdex import competitions
+
+    comps = [c for c in competitions.load().values() if c.league == col]
+    return max(comps, key=lambda c: (c.season, c.auction_date)) if comps else None
+
+
+_INTL_DATES: dict[str, dict[str, list[str]]] = {}
+
+
+def _price_inputs(con: duckdb.DuckDBPyConnection, ref_date: str | None, season: int | None = None):
+    """The market price's per-player inputs (web_parity/pricing.market_features), as of the next
+    auction (`ref_date`): international caps (men's T20I + ODI + Test matches before it, and
+    those in the two years before it; sources.international_dates, as the price fit counts
+    them), IPL balls faced + bowled (the IPL rating's balls), IPL seasons played and the years
+    from his last IPL match to the auction (None = never played it). Returns cid → dict."""
+    import bisect as _bisect
+    import datetime as _dt
+
+    from cricdex.scout.identity import sources as _src
+
+    # cid → sorted dates of his international XIs (read once per export: the ODI / Test archives)
+    if "intl" not in _INTL_DATES:
+        _INTL_DATES["intl"] = _src.international_dates(con)
+    intl = _INTL_DATES["intl"]
+    balls: dict[str, int] = {}
+    f = METRIC_DIR / f"scout_ratings_{AUCTION_TARGET}.json"
+    if f.exists():
+        for r in json.loads(f.read_text()):
+            cid = r.get("cricsheet_id")
+            if cid:
+                balls[cid] = balls.get(cid, 0) + int(r.get("balls") or 0)
+    hist: dict[str, tuple[int, str]] = {}
+    have = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+    t = _safe(AUCTION_TARGET)
+    if f"match_players_{t}" in have:
+        for cid, n, last in con.execute(
+            f"SELECT p.identifier, COUNT(DISTINCT SUBSTR(CAST(m.match_date AS VARCHAR), 1, 4)), "
+            f"MAX(CAST(m.match_date AS VARCHAR)) FROM match_players_{t} p "
+            f"JOIN matches_{t} m USING (match_id) WHERE p.identifier IS NOT NULL GROUP BY 1"
+        ).fetchall():
+            hist[cid] = (int(n), str(last)[:10])
+    ref = _dt.date.fromisoformat(ref_date) if ref_date else None
+    ref_s = ref.isoformat() if ref else "9999-12-31"
+    lo_s = (ref - _dt.timedelta(days=730)).isoformat() if ref else "0000-01-01"
+
+    def get(cid: str | None) -> dict:
+        h = hist.get(cid or "")
+        ds = intl.get(cid or "", [])
+        n_caps = _bisect.bisect_left(ds, ref_s)
+        gap = None
+        if h and ref:
+            gap = round(max(0.0, (ref - _dt.date.fromisoformat(h[1])).days / 365.25), 3)
+        cap = captains.as_of(cid, season) if season else {}
+        return {
+            **{k: cap.get(k) for k in CAPTAIN_KEYS if season},
+            "intl_caps": n_caps,
+            "intl_caps_2y": n_caps - _bisect.bisect_left(ds, lo_s),
+            "ipl_balls": balls.get(cid or "", 0),
+            "ipl_seasons": h[0] if h else 0,
+            "ipl_gap": gap,
+        }
+
+    return get
+
+
+def _export_price_model(out_dir: Path, col: str) -> bool:
+    """data/<league>/price_model.json: the fitted market-price model (config/price_model.json),
+    its default competition set to the league's next one (cycle + purse)."""
+    from cricdex.web_parity.pricing import load_price_model
+
+    load_price_model.cache_clear()
+    model = load_price_model()
+    comp = _target_competition(col)
+    if model is None or model.get("league") != col:
+        return False
+    model = dict(model)
+    if comp is not None:
+        model["competition"] = {"cycle": comp.cycle, "purse": float(comp.purse), "key": comp.key}
+    _write(out_dir / "price_model.json", model)
+    return True
+
+
+def _export_auction_register(out_dir: Path, col: str) -> int | None:
+    """data/<league>/auction_register.json for Bid plan: the official auction list once published,
+    hand-written to data/curated/<league>_auction_register.json as [{"id": cricsheet id,
+    "base_price": cr}, …]. No file = no register (the plan infers the pool); a stale copy is removed."""
+    src = CURATED_DIR / f"{col}_auction_register.json"
+    dst = out_dir / "auction_register.json"
+    if not src.exists():
+        if dst.exists():
+            dst.unlink()
+        return None
+    rows = json.loads(src.read_text(encoding="utf-8"))
+    rows = [
+        {"id": str(r["id"]), "base_price": r.get("base_price")}
+        for r in (rows.get("players", []) if isinstance(rows, dict) else rows)
+        if r.get("id")
+    ]
+    _write(dst, rows)
+    return len(rows)
+
+
 def _export_auction_pool(
     con: duckdb.DuckDBPyConnection,
     out_dir: Path,
     taxonomy: dict[str, dict],
     teams: dict[str, str],
-) -> int:
+    extra_cids: set[str] | None = None,
+) -> tuple[int, dict[str, dict]]:
     """Cross-collection auction pool — the whole active T20 world an IPL
     auction draws from, not just IPL. Overseas players surface via BBL /
     men's T20Is, uncapped Indians via SMAT. Deduped by player; IPL players
-    keep their franchise (retainable), everyone else is a free agent."""
+    keep their franchise (retainable), everyone else is a free agent.
+
+    Returns (pool size, {cid: row}) where the second holds the same row, computed the same way,
+    for every id in `extra_cids` that has a rating anywhere in the pool leagues, whether or not
+    it made the pool (the Keep-or-release export prices whole squads, thin records included)."""
+    extra_cids = extra_cids or set()
     import datetime as _dt
 
     # Value isn't comparable across tiers (a number vs weak SMAT attacks ≠ vs
@@ -557,8 +670,10 @@ def _export_auction_pool(
         tb = own[1] if own else 0
         if cid not in best or val > best[cid]["value"]:
             best[cid] = {"value": val, "value_sd": vsd, "target_balls": tb, "name": names.get(cid)}
-    # drop tiny-sample players (inflated value)
+    # drop tiny-sample players (inflated value); the squads' rows are kept aside for Keep or release
+    extras = {cid: b for cid, b in best.items() if cid in extra_cids}
     best = {cid: b for cid, b in best.items() if max_balls.get(cid, 0) >= AUCTION_MIN_BALLS}
+    best_all = {**best, **{cid: b for cid, b in extras.items() if cid not in best}}
 
     # Per-league last-played (keyed by cid). Keeping the breakdown — not just a
     # single cross-league max — lets us tell "active in SA20 but hasn't played
@@ -584,7 +699,7 @@ def _export_auction_pool(
             ) WHERE k IS NOT NULL GROUP BY 1
             """
         ).fetchall():
-            if cid in best and d:
+            if cid in best_all and d:
                 last_by_col[col][cid] = str(d)[:10]
 
     def _last_ipl(cid: str) -> str | None:
@@ -603,10 +718,12 @@ def _export_auction_pool(
         ]
         return sorted(rows, key=lambda r: r["last"], reverse=True)
 
-    asof = max((d for c in last_by_col.values() for d in c.values()), default=None)
-    stale_league = {
-        c: _is_stale(max(last_by_col[c].values(), default=None), asof) for c in last_by_col
+    # as of / staleness from the pool's own players only (the squads' extra rows can't move them)
+    in_pool_dates = {
+        c: [d for cid, d in last_by_col[c].items() if cid in best] for c in last_by_col
     }
+    asof = max((d for ds in in_pool_dates.values() for d in ds), default=None)
+    stale_league = {c: _is_stale(max(ds, default=None), asof) for c, ds in in_pool_dates.items()}
     asof_d = _dt.date.fromisoformat(asof) if asof else None
     cutoff = (asof_d - _dt.timedelta(days=AUCTION_RECENCY_DAYS)).isoformat() if asof_d else None
 
@@ -653,6 +770,10 @@ def _export_auction_pool(
         return 0.5  # unknown age → moderate (mid-pool, not top)
 
     PEN_SCALE = PEN_SCALE_VALUE  # value units removed at relevance 0
+    comp = _target_competition(AUCTION_TARGET)
+    price_in = _price_inputs(
+        con, comp.auction_date if comp else asof, comp.season if comp else None
+    )
     role_map = {
         "wk_batter": "keeper",
         "allrounder": "all_rounder",
@@ -661,69 +782,332 @@ def _export_auction_pool(
     }
     activity: dict[str, dict] = {}
     out = []
-    for cid, b in best.items():
+    extra_rows: dict[str, dict] = {}
+    for cid, b in best_all.items():
         name = b["name"]
         ld = _last_any(cid)
-        if not name or not ld or (cutoff and ld < cutoff):
-            continue  # active somewhere in the last ~3 years
         tax = taxonomy.get(cid, {})
-        if tax.get("retired"):
-            continue  # retired from the IPL (or from cricket): not in any auction
         country = tax.get("country")
         # IPL franchise (the 2026 squads in the player master), else None (free agent)
         team = tax.get("team") if tax.get("display_name") else teams.get(cid)
-        if not team and not auction_eligible(country):
+        pooled = (
+            cid in best
+            and bool(name)
+            and bool(ld)
+            # active somewhere in the last ~3 years
+            and not (cutoff and ld < cutoff)
+            # retired from the IPL (or from cricket): not in any auction
+            and not tax.get("retired")
+            and bool(team or auction_eligible(country))
+        )
+        if not pooled and cid not in extra_cids:
             continue
         age = _age(cid)
         rel = _relevance(cid, team, country, age)
         li = _last_ipl(cid)
         played = _leagues(cid)
         home = played[0]["league"] if played else None
-        activity[cid] = {
-            "leagues": played,
-            "last_ipl": li,
-            "last_any": ld,
-            "home_league": home,
-            "age": round(age, 1) if age is not None else None,
-            "ipl_relevance": round(rel, 3),
-        }
-        out.append(
-            {
-                "cricsheet_id": cid,
-                "name": name,
-                "display_name": tax.get("display_name") or name,
-                # value decayed by IPL-relevance so a league-only veteran stops
-                # topping the IPL pool (the breakdown columns explain why).
-                "value": round(b["value"] - (1 - rel) * PEN_SCALE, 4),
-                # its uncertainty: the price uses value − PRICE_CAUTION_SD × value_sd
-                "value_sd": round(b["value_sd"], 4),
-                # IPL balls in the role priced: the price ceiling rises with them
-                "target_balls": int(b["target_balls"]),
-                "role": role_map.get(tax.get("primary_role"), "batter"),
-                "primary_role": tax.get("primary_role"),
-                "bowling_category": tax.get("bowling_category"),
-                "bowling_style": tax.get("bowling_style"),
-                "country": country,
-                "is_overseas": bool(country) and country != "IND",
-                "capped": bool(tax.get("capped")),
-                "team": team,
-                # where this player's profile lives: the target league if he has played it,
-                # else his most recent league
-                "profile_collection": AUCTION_TARGET if li else home,
-                # every league his value rests on is stale (e.g. SMAT only)
-                "stale": bool(played) and all(stale_league.get(r["league"]) for r in played),
-                "last_match_date": ld,
+        if pooled:
+            activity[cid] = {
+                "leagues": played,
                 "last_ipl": li,
+                "last_any": ld,
                 "home_league": home,
                 "age": round(age, 1) if age is not None else None,
                 "ipl_relevance": round(rel, 3),
             }
-        )
+        row = {
+            "cricsheet_id": cid,
+            "name": name,
+            "display_name": tax.get("display_name") or name,
+            # value decayed by IPL-relevance so a league-only veteran stops
+            # topping the IPL pool (the breakdown columns explain why).
+            "value": round(b["value"] - (1 - rel) * PEN_SCALE, 4),
+            # its uncertainty: the price uses value − PRICE_CAUTION_SD × value_sd
+            "value_sd": round(b["value_sd"], 4),
+            # IPL balls in the role priced: the price ceiling rises with them
+            "target_balls": int(b["target_balls"]),
+            # the market price's inputs (web_parity/pricing.market_features): his blended value
+            # before the IPL-relevance discount, caps, IPL experience, years since his last IPL game
+            "price_value": round(b["value"], 4),
+            **price_in(cid),
+            "role": role_map.get(tax.get("primary_role"), "batter"),
+            "primary_role": tax.get("primary_role"),
+            "bowling_category": tax.get("bowling_category"),
+            "bowling_style": tax.get("bowling_style"),
+            "country": country,
+            "is_overseas": bool(country) and country != "IND",
+            "capped": bool(tax.get("capped")),
+            "team": team,
+            # where this player's profile lives: the target league if he has played it,
+            # else his most recent league
+            "profile_collection": AUCTION_TARGET if li else home,
+            # every league his value rests on is stale (e.g. SMAT only)
+            "stale": bool(played) and all(stale_league.get(r["league"]) for r in played),
+            "last_match_date": ld,
+            "last_ipl": li,
+            "home_league": home,
+            "age": round(age, 1) if age is not None else None,
+            "ipl_relevance": round(rel, 3),
+        }
+        if pooled:
+            out.append(row)
+        if cid in extra_cids:
+            extra_rows[cid] = {**row, "balls": max_balls.get(cid, 0), "in_pool_leagues": pooled}
     out.sort(key=lambda p: p["value"], reverse=True)
     out = out[:AUCTION_POOL_CAP]
     _write(out_dir / "auction_pool.json", out)
     _write(out_dir / "activity_index.json", activity)
-    return len(out)
+    return len(out), extra_rows
+
+
+# the per-player market-price inputs `_price_inputs` adds to pool, squad and Scout rows
+PRICE_INPUT_KEYS = ("intl_caps", "intl_caps_2y", "ipl_balls", "ipl_seasons", "ipl_gap")
+# captaincy known before the next auction (scout/identity/captains.as_of): market-price inputs, and
+# `captain_teams` (the IPL sides he led last season) for the "Captain" badge
+CAPTAIN_KEYS = ("captain_ipl_last", "captain_ipl_seasons", "captain_intl_2y", "captain_teams")
+
+# ---- Keep or release (retention calculator) -----------------------------------------------------
+
+# A death bowler bowls at least this share of his legal balls in the death overs (16-20), with at
+# least KEEP_DEATH_MIN_BALLS of them, across every auction-pool league (the IPL's average share is
+# about 18%; a specialist bowls one or two of his four overs at the death).
+KEEP_DEATH_SHARE = 0.25
+KEEP_DEATH_MIN_BALLS = 60
+
+
+def _keep_death_bowlers(con: duckdb.DuckDBPyConnection) -> set[str]:
+    have = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+    death: dict[str, list[int]] = {}
+    for col in AUCTION_POOL_COLLECTIONS:
+        if f"balls_{_safe(col)}" not in have:
+            continue
+        materialize_keyed(con, col)
+        kb = keyed_balls(con, col)
+        for cid, d, n in con.execute(
+            f"""
+            SELECT bowler, COUNT(*) FILTER (WHERE phase = 'death'), COUNT(*) FROM {kb}
+            WHERE COALESCE(extras_type, '') NOT IN ('wides', 'noballs') AND {MAIN_INNINGS}
+              AND bowler IS NOT NULL
+            GROUP BY 1
+            """
+        ).fetchall():
+            a = death.setdefault(cid, [0, 0])
+            a[0] += int(d or 0)
+            a[1] += int(n or 0)
+    return {
+        cid
+        for cid, (d, n) in death.items()
+        if n and d >= KEEP_DEATH_MIN_BALLS and d / n >= KEEP_DEATH_SHARE
+    }
+
+
+def _keep_tags(
+    rec: dict, role: str | None, overseas: bool, death: set[str], cid: str | None
+) -> str:
+    """k keeper · o opener · d death bowler · s spinner · x overseas (web_parity/keep.py)."""
+    t = ""
+    if role == "keeper" or rec.get("primary_role") == "wk_batter":
+        t += "k"
+    if rec.get("batting_position") == "opener" and role != "bowler":
+        t += "o"
+    if cid and cid in death and role in ("bowler", "all_rounder"):
+        t += "d"
+    if rec.get("bowling_category") == "spin" and role in ("bowler", "all_rounder"):
+        t += "s"
+    if overseas:
+        t += "x"
+    return t
+
+
+def _keep_form(con: duckdb.DuckDBPyConnection, col: str) -> tuple[dict, dict[str, dict]]:
+    """Last season in raw numbers: {season, bat_sr, bowl_econ} for the league, and per player
+    bat = [balls, runs, outs], bowl = [balls, runs conceded, wickets]."""
+    materialize_keyed(con, col)
+    kb = keyed_balls(con, col)
+    season = con.execute(f"SELECT MAX(EXTRACT(YEAR FROM match_date::DATE)) FROM {kb}").fetchone()[0]
+    if season is None:
+        return {}, {}
+    season = int(season)
+    where = f"EXTRACT(YEAR FROM match_date::DATE) = {season} AND {MAIN_INNINGS}"
+    legal_bat = "COALESCE(extras_type, '') <> 'wides'"
+    legal_bowl = "COALESCE(extras_type, '') NOT IN ('wides', 'noballs')"
+    per: dict[str, dict] = {}
+    for cid, balls, runs, outs in con.execute(
+        f"""
+        SELECT batter, COUNT(*) FILTER (WHERE {legal_bat}), SUM(runs_batter),
+               COUNT(*) FILTER (WHERE player_out = batter AND {DISMISSAL})
+        FROM {kb} WHERE {where} AND batter IS NOT NULL GROUP BY 1
+        """
+    ).fetchall():
+        per.setdefault(cid, {})["bat"] = [int(balls or 0), int(runs or 0), int(outs or 0)]
+    for cid, balls, runs, wk in con.execute(
+        f"""
+        SELECT bowler, COUNT(*) FILTER (WHERE {legal_bowl}), SUM({BOWLER_RUNS}),
+               COUNT(*) FILTER (WHERE {BOWLER_WICKET})
+        FROM {kb} WHERE {where} AND bowler IS NOT NULL GROUP BY 1
+        """
+    ).fetchall():
+        per.setdefault(cid, {})["bowl"] = [int(balls or 0), int(runs or 0), int(wk or 0)]
+    lb, lr, bb, br = con.execute(
+        f"""
+        SELECT COUNT(*) FILTER (WHERE {legal_bat}), SUM(runs_batter),
+               COUNT(*) FILTER (WHERE {legal_bowl}), SUM({BOWLER_RUNS})
+        FROM {kb} WHERE {where}
+        """
+    ).fetchone()
+    league = {
+        "season": season,
+        "bat_sr": round(100.0 * lr / lb, 2) if lb else None,
+        "bowl_econ": round(6.0 * br / bb, 3) if bb else None,
+    }
+    return league, per
+
+
+def _keep_squad_cids(col: str) -> set[str]:
+    """Every Cricsheet id in the squads of the competitions run on this league."""
+    from cricdex import competitions
+
+    out: set[str] = set()
+    for c in competitions.load().values():
+        if c.league == col:
+            for rows in competitions.squad_rows(c).values():
+                out.update(r["cricsheet_id"] for r in rows if r.get("cricsheet_id"))
+    return out
+
+
+def _export_keep(
+    con: duckdb.DuckDBPyConnection,
+    col: str,
+    out_dir: Path,
+    taxonomy: dict[str, dict],
+    rated: dict[str, dict],
+    death: set[str],
+) -> int:
+    """keep.json for the Keep-or-release page and `cricdex keep`: the competition's rules (with
+    sources and assumptions), every squad player with salary, value, tags, age and last season,
+    and the tags of the pool's free agents (the replacement market)."""
+    import datetime as _dt
+
+    from cricdex import competitions
+
+    comps = [c for c in competitions.load().values() if c.league == col]
+    if not comps:
+        return 0
+    comp = max(comps, key=lambda c: (c.season, c.auction_date))
+    squads_file = competitions.load_squads(comp)
+    squads = competitions.squad_rows(comp, squads_file)
+    form_lg, form = _keep_form(con, col)
+    # Form forecast's "3-season outlook" (scripts/form_forecast.py build; METHODOLOGY §11)
+    fc_path = METRIC_DIR / f"forecast_{col}.json"
+    fc = json.loads(fc_path.read_text(encoding="utf-8")) if fc_path.exists() else None
+    dob = _dob_by_cid(taxonomy)
+    at = _dt.date.fromisoformat(comp.auction_date)
+    role_map = {"wk_batter": "keeper", "allrounder": "all_rounder", "bowler": "bowler"}
+
+    def _age(cid: str | None) -> float | None:
+        d = dob.get(cid or "")
+        if not d:
+            return None
+        try:
+            return round((at - _dt.date.fromisoformat(str(d)[:10])).days / 365.25, 1)
+        except ValueError:
+            return None
+
+    players: list[dict] = []
+    unmatched: list[dict] = []
+    for team, rows in squads.items():
+        for r in rows:
+            cid = r.get("cricsheet_id")
+            rec = taxonomy.get(cid or "", {})
+            rr = rated.get(cid or "")
+            role = (rr or {}).get("role") or role_map.get(rec.get("primary_role") or "", "batter")
+            country = r.get("country") or rec.get("country")
+            if r.get("overseas") is not None:
+                overseas = bool(r["overseas"])
+            else:
+                overseas = bool(country) and country != "IND"
+            players.append(
+                {
+                    "id": cid,
+                    "name": rec.get("display_name") or r.get("name"),
+                    "team": team,
+                    "salary": r.get("salary_cr"),
+                    "acquired": r.get("acquired"),
+                    "overseas": overseas,
+                    "country": country,
+                    "role": role,
+                    "value": round(rr["value"], 3) if rr else None,
+                    "value_sd": round(rr["value_sd"], 3) if rr else None,
+                    "target_balls": int(rr["target_balls"]) if rr else 0,
+                    "balls": int(rr.get("balls", 0)) if rr else 0,
+                    # the market price's inputs (from the same pool row)
+                    **(
+                        {
+                            k: rr[k]
+                            for k in ("price_value", *PRICE_INPUT_KEYS, *CAPTAIN_KEYS)
+                            if k in rr
+                        }
+                        if rr
+                        else {}
+                    ),
+                    "age": _age(cid),
+                    "tags": _keep_tags(rec, role, overseas, death, cid),
+                    "form": form.get(cid or "") or None,
+                    "withdrawn": r.get("withdrawn") or None,
+                    "trade": r.get("trade") or None,
+                    "note": r.get("salary_note") or None,
+                    "profile": (rr or {}).get("profile_collection") or ("ipl" if cid else None),
+                    "forecast": forecast.keep_outlook(fc, cid, role),
+                }
+            )
+            if not cid:
+                unmatched.append({"team": team, "name": r.get("name")})
+    # every pool free agent's tags (the replacement market); the pool rows carry the rest
+    pool = json.loads((out_dir / "auction_pool.json").read_text(encoding="utf-8"))
+    pool_tags: dict[str, str] = {}
+    for r in pool:
+        if r.get("team"):
+            continue
+        t = _keep_tags(
+            taxonomy.get(r["cricsheet_id"], {}),
+            r["role"],
+            bool(r["is_overseas"]),
+            death,
+            r["cricsheet_id"],
+        )
+        if t:
+            pool_tags[r["cricsheet_id"]] = t
+    # the published pre-auction purses, against the same sum from our salaries (a data check)
+    check = squads_file.get("purse_check_2026") or {}
+    ours: dict[str, float] = {}
+    for team, rows in (squads_file.get("squads") or {}).items():
+        for r in rows:
+            src = (r.get("trade") or {}).get("from") or team
+            sal = (r.get("trade") or {}).get("salary_before_cr", r.get("salary_cr"))
+            if r.get("status") == "retained" and sal is not None:
+                ours[src] = ours.get(src, 0.0) + float(sal)
+    purse_check = {
+        t: {"published": v, "ours": round(float(check.get("purse", 0)) - ours.get(t, 0.0), 2)}
+        for t, v in (check.get("remaining") or {}).items()
+    }
+    changes = squads_file.get("changes_since_season") or {}
+    out = {
+        "competition": competitions.site_payload(comp),
+        "squads_source": squads_file.get("_source"),
+        "salary_source": squads_file.get("_salary_source"),
+        "changes_source": changes.get("_source"),
+        "changes": changes.get("applied") or [],
+        "purse_check": {"source": check.get("_source"), "teams": purse_check},
+        "unmatched": unmatched,
+        "form": form_lg,
+        "death_rule": {"share": KEEP_DEATH_SHARE, "min_balls": KEEP_DEATH_MIN_BALLS},
+        "teams": sorted(squads),
+        "players": players,
+        "pool_tags": pool_tags,
+    }
+    _write(out_dir / "keep.json", out)
+    return len(players)
 
 
 # A league whose newest match is more than this many days older than the newest match anywhere is
@@ -790,6 +1174,22 @@ def _export_scout_index(
     }
     index: dict[str, list[dict]] = {}
     have = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+    comp = _target_competition(AUCTION_TARGET)
+    ref = comp.auction_date if comp else newest
+    price_in = _price_inputs(con, ref, comp.season if comp else None)
+    dob_by = _dob_by_cid(taxonomy)
+
+    def _age_at(cid: str) -> float | None:
+        d = dob_by.get(cid)
+        if not d or not ref:
+            return None
+        try:
+            return round(
+                (_dt.date.fromisoformat(ref) - _dt.date.fromisoformat(str(d)[:10])).days / 365.25, 1
+            )
+        except ValueError:
+            return None
+
     # IPL balls per (player, side): the price ceiling rises with them (pricing.price_ceiling)
     target_balls: dict[tuple[str, str], int] = {}
     tf = METRIC_DIR / f"scout_ratings_{AUCTION_TARGET}.json"
@@ -885,6 +1285,10 @@ def _export_scout_index(
                     "value_sd": round(vsd, 4),
                     "target_balls": target_balls.get((cid, better), 0),
                     "balls": balls.get(cid, 0),  # exposure — for the uncapped-gem flag
+                    # the market price's inputs (scout market price: value − tier discount)
+                    "is_overseas": bool(tax.get("country")) and tax.get("country") != "IND",
+                    "age": _age_at(cid),
+                    **price_in(cid),
                     "last_match_date": ld,
                     # the league this row's numbers come from (its profile lives there)
                     "profile_collection": col,
@@ -1430,6 +1834,10 @@ def _export_profiles_and_cohorts(
                     t["country"] = ident.get("country")
             prof["identity"] = player_master.identity_block(tax, fallback_name=name)
             prof["identity"]["scorecard_name"] = name
+            # IPL and international captaincy (data/curated/ipl_captains.json, Wikipedia)
+            cap = captains.summary(cid)
+            if cap:
+                prof["identity"]["captaincy"] = cap
             for k in (
                 "dob",
                 "first_international",
@@ -1885,9 +2293,22 @@ def export(
             meta["newest_data_anywhere"] = newest
             if col == AUCTION_TARGET:
                 _export_retentions(players, out_dir)
-                n_pool = _export_auction_pool(con, out_dir, taxonomy, _current_teams(con, col))
+                n_pool, rated = _export_auction_pool(
+                    con, out_dir, taxonomy, _current_teams(con, col), _keep_squad_cids(col)
+                )
                 n_scout = _export_scout_index(con, out_dir, taxonomy)
-                logger.info(f"  auction_pool: {n_pool}, scout_index: {n_scout}")
+                n_keep = _export_keep(con, col, out_dir, taxonomy, rated, _keep_death_bowlers(con))
+                fc_src = METRIC_DIR / f"forecast_{col}.json"
+                if fc_src.exists():
+                    forecast.export_site(fc_src, out_dir / "forecast.json")
+                else:
+                    logger.warning("no forecast_ipl.json: run scripts/form_forecast.py build")
+                if not _export_price_model(out_dir, col):
+                    logger.warning("no price model for the IPL: prices use the on-field curve")
+                n_reg = _export_auction_register(out_dir, col)
+                if n_reg is not None:
+                    logger.info(f"  auction_register: {n_reg} players (Bid plan's pool)")
+                logger.info(f"  auction_pool: {n_pool}, scout_index: {n_scout}, keep: {n_keep}")
             match_counts = _match_counts(con, col)
             n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
             for win in windows_by_col.get(col, []):

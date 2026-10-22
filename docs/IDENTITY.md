@@ -100,7 +100,7 @@ polite batches (rerun = only what's missing; `--force` refetches, `--no-fetch` w
 | `country` | overrides → latest international side (Cricsheet) → Wikidata country for sport → infobox → LLM, normalised to ISO alpha-3 (ENG / SCO / WIN for the non-ISO sides) by `countries.normalise` |
 | `active` | played any exported league or a men's international in the last 18 months (`master.ACTIVE_MONTHS`) of the data |
 | `retired` | overrides (with evidence); the Wikipedia IPL personnel page's retirements are listed as review TODOs |
-| `team` | the 2026 IPL squads (retained + bought + replacements) from Wikipedia's "List of 2026 Indian Premier League personnel changes", cached and hand-editable in `data/curated/ipl_squads_2026.json` |
+| `team` | the 2026 IPL squads (retained + bought + replacements) from Wikipedia's "List of 2026 Indian Premier League personnel changes", cached and hand-editable in `data/curated/ipl_squads_2026.json` (which `scripts/ipl_squad_salaries.py` extends with each player's salary, acquisition, nationality and Cricsheet id, and the 2027-cycle trades and retirements, for Keep or release) |
 | `dob` | overrides → Wikidata (P569) → Wikipedia infobox → the older `wikidata_enrichment.json` |
 
 The LLM name check asks, 25 players a call, whether each candidate is how fans refer to the
@@ -114,8 +114,23 @@ verify) is written to `data/curated/player_master_review.json`. Settle a row by 
 value to `data/curated/player_overrides.json` (keyed by `cricsheet_id`, with `_name` and
 `_evidence`); overrides always win.
 
-Licences: Wikidata is CC0; Wikipedia-derived facts (infobox fields, the 2026 squads) are CC BY-SA
-4.0 and cited in the master's `_sources`; Cricsheet is ODC-By.
+**Captaincy** (`data/curated/ipl_captains.json`, hand-editable; `scripts/ipl_captains.py`, pages cached
+in `data/curated/ipl_captain_pages/` pinned to a revision). IPL: each franchise article's captains
+table (captain, from, to, matches), filled in from "List of Indian Premier League captains" (more
+current): a one-team captain missing from his franchise's table gets a stint from the list (the
+defunct sides have no table), and a latest stint that ends before the list's last year is extended to
+it. 97 stints, all matched to a Cricsheet id (Wikipedia title first). Rising Pune Supergiant and
+Gujarat Lions are missing: their captains led other sides too and the list doesn't split the years.
+International: the men's Test, ODI and T20I tables of each Test nation's "List of … national cricket
+captains" (11 nations; Ireland has no such page): 1,296 rows, 85% matched (the rest mostly pre-2000).
+A stint covers every year from..to, except a stand-in (fewer than 4 matches a year): only its first
+and last years count, and a stand-in is never "last season's captain".
+`cricdex.scout.identity.captains.as_of(cid, season)` gives what was known before an auction
+(regular IPL captain last season, IPL seasons as captain, captained his country in the two years
+before), used by the market price; `summary(cid)` is the profile identity block's `captaincy`.
+
+Licences: Wikidata is CC0; Wikipedia-derived facts (infobox fields, the 2026 squads, the auction
+history, the captaincy) are CC BY-SA 4.0 and cited in each file's `_source`; Cricsheet is ODC-By.
 
 Out of scope (year-2 at the earliest): a grassroots **CricHeroes** tier —
 see [`ROADMAP.md`](ROADMAP.md#later). Cricbuzz and BCCI-domestic

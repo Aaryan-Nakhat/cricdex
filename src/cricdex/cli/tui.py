@@ -1872,10 +1872,10 @@ class CricDexApp(App):
             top_k = 8
         try:
             from cricdex.web_parity import (
-                est_value,
                 gem_threshold,
                 is_gem,
                 load_scout_index,
+                scout_price,
                 similar_to,
             )
 
@@ -1897,9 +1897,7 @@ class CricDexApp(App):
         role = role_sel or sel["role"]
         # a batting slot means nothing when matching as a bowler
         pos = "" if role == "bowler" else slot_sel
-        sel_price = est_value(
-            sel["value"], sel["role"], "ipl", sel.get("value_sd"), sel.get("target_balls")
-        )
+        sel_price = scout_price(sel, "ipl")
         gem_pool = idx.get(GEM_TIER, []) if GEM_TIER else []
         gem_med = gem_threshold(gem_pool)
         rows = []
@@ -1909,7 +1907,7 @@ class CricDexApp(App):
             sel, idx.get(tier, []), role, pos, top_k, country=country, fallback_country=fb
         )
         for r in found:
-            price = est_value(r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls"))
+            price = scout_price(r, tier)
             saving = sel_price - price if price < sel_price else 0.0
             rows.append(
                 {
@@ -1962,13 +1960,7 @@ class CricDexApp(App):
                     "standing": round(g["z"], 2),
                     "balls": g.get("balls", 0),
                     "est_cr": round(
-                        est_value(
-                            g["value"],
-                            g["role"],
-                            GEM_TIER,
-                            g.get("value_sd"),
-                            g.get("target_balls"),
-                        ),
+                        scout_price(g, GEM_TIER),
                         1,
                     ),
                 }

@@ -180,6 +180,87 @@ See [`AUCTION_MATH.md`](AUCTION_MATH.md).
 
 ---
 
+## keep
+
+```
+cricdex keep --team RCB [--keep NAME]… [--release NAME]… [--purse 125] [--need TAG=N]… [--sort surplus|price|onfield|outlook|salary|value|age|name] [--csv out.csv] [--check]
+```
+
+Keep or release, the retention calculator: one franchise's squad with each
+player's salary, value (± uncertainty), estimated auction price, surplus
+(price − salary), a Keep / Release / Borderline call with a one-line reason,
+then the squad if you follow it (purse left, open slots) and the role gaps
+(keepers, openers, death bowlers, spinners, overseas) with the cheapest
+players in the likely auction pool that fill them. The rules (purse, squad
+limits, deadline) come from [`config/competitions.toml`](../config/competitions.toml);
+assumed rules are listed under the table.
+
+- `--keep` / `--release` flip a player (part of the name is enough; a typo gets a did-you-mean).
+- `--need spinner=4` sets a role target (`keeper`, `opener`, `death`, `spinner`, `overseas`).
+- `--purse` overrides the purse (the 2027 figure isn't published; 125 cr is assumed).
+- The **3-season outlook** column is the player's Form forecast (the medians for the next three
+  seasons, the shape, P(regular) in the third); `--sort outlook` orders by its three-season average.
+- `--csv` writes the table (same columns as the page's Export CSV); `--check` shows the salary
+  data check against the published 2026 purses and the players we can't rate.
+
+Reads `site/public/data/ipl/keep.json` + `auction_pool.json`; the same
+calculator as the website's Keep or release page (`cricdex.web_parity.keep`,
+locked by `test_scripts/test_keep_parity.py`). Method:
+[METHODOLOGY §10](METHODOLOGY.md#10-keep-or-release).
+
+---
+
+## bidplan
+
+```
+cricdex bidplan --team RCB [--keep NAME]… [--release NAME]… [--purse 125] [--open 8] [--need NEED=N]…
+                [--max "NAME=CR"]… [--squad-max 25] [--squad-min 18] [--overseas-cap 8] [--trials 200]
+                [--register list.json] [--csv out.csv]
+```
+
+**Bid plan**, the auction bidding sheet: the squad going in (Keep or release's plan with your
+`--keep` / `--release` calls; every team opens at least `--open` places, default 8, lowest-valued players
+first), then the targets in priority order with the price rivals would likely pay (the simulator's
+calibrated rivals), the bid that is enough 9 times in 10, a **max bid** (his worth to the squad: the
+walk-away price), the chance of landing him at or under it and how often the plan lands him, the **fallback chain** per role,
+and the squad that follows (strength now and expected, spend, the likely buys, role needs met, anything
+still missing, and "reconsider keeping" for any of your releases worth more to the squad than his salary:
+the plan never buys back its own releases). About 5–15 seconds (200 rival auctions in Python).
+
+- `--need spinner=4` sets a role need (`keeper`, `opener`, `death`, `spinner`, `pace`).
+- `--max "Rashid Khan=12"` sets your own max bid for a pool player (0 = never bid); repeatable.
+- `--register` uses the official auction list (`[{"id": cricsheet id, "base_price": cr}]`) instead of the
+  inferred pool; the export's `auction_register.json` is used by default when there is one.
+- `--csv` writes the targets (same columns as the page's Export CSV).
+
+Reads `site/public/data/ipl/keep.json` + `auction_pool.json`; the same optimiser as the website's Bid plan
+page (`cricdex.web_parity.bidplan`, locked by `test_scripts/test_bidplan_parity.py`). Method and the replay
+of the 2025 and 2026 auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-beta).
+
+---
+
+## forecast
+
+```bash
+cricdex forecast "Virat Kohli" [--json]
+cricdex forecast --team RCB [--json]
+```
+
+**Form forecast**: a player's `value` (runs per 100 balls above the average ball) over the next three
+IPL seasons, starting from his current level. For one player, per role: his current level and career
+rating, his last seasons, the plain-English outlook ("About +5 next season (current level +11), likely to
+hold that for two seasons, then decline (+2 by 2029)"), and per season the median, the 80% range of his
+level, the 80% range of one season at his usual workload, and P(regular) (120+ balls that season). With
+`--team`, the squad on one table: current level, career rating, the three medians, their average,
+P(regular) in the third season and the outlook flag, sorted by the average. Part of a name is enough; among
+namesakes the one with a forecast is picked.
+
+Reads `site/public/data/ipl/forecast.json` (written by `scripts/export_site.py` for the IPL, or `scripts/form_forecast.py export`). Retired
+players and players without an IPL season in the last two have no forecast. Method and backtest:
+[METHODOLOGY §11](METHODOLOGY.md#11-form-forecast).
+
+---
+
 ## dashboard
 
 ```

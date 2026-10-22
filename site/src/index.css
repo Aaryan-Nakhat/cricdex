@@ -185,3 +185,38 @@
   border: 2px solid transparent;
   background-clip: padding-box;
 }
+
+/* Print / PDF (Bid plan's "Print / PDF"): the page content only, on white */
+@media print {
+  header,
+  aside,
+  .print\:hidden,
+  button[aria-label="Open menu"] {
+    display: none !important;
+  }
+  :root,
+  :root[data-theme="dark"] {
+    --bg: 255 255 255;
+    --surface: 248 250 252;
+    --card: 255 255 255;
+    --border: 210 216 224;
+    --fg: 15 23 42;
+    --muted: 84 98 115;
+    --faint: 137 150 166;
+    --accent: 5 150 105;
+    --accent-glow: 4 120 87;
+    --gold: 180 120 6;
+    --willow: 77 124 15;
+    --ball: 220 38 38;
+  }
+  body {
+    background: #fff !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .card {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+}

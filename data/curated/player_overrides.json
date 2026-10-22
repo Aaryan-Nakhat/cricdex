@@ -46,5 +46,10 @@
   "dob": "1992-04-02",
   "_name": "Tom Latham",
   "_evidence": "Wikidata id match landed on a namesake (dob 1923); Tom Latham (NZ) was born 2 April 1992 (ESPNcricinfo profile)"
+ },
+ "23eeb873": {
+  "_name": "Deepak Chahar",
+  "dob": "1992-08-07",
+  "_evidence": "Wikidata gives 1972-08-07 (a typo); Deepak Chahar was born 7 August 1992 (ESPNcricinfo profile)"
  }
 }

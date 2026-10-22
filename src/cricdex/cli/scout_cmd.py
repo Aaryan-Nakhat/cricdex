@@ -38,10 +38,10 @@ def look_alikes(
 ) -> None:
     from cricdex import leagues
     from cricdex.web_parity import (
-        est_value,
         gem_threshold,
         is_gem,
         load_scout_index,
+        scout_price,
         similar_to,
     )
     from cricdex.web_parity.scout import BAND_LABEL, COUNTRY_MODES, SAME_SLOT, slot_band
@@ -77,9 +77,7 @@ def look_alikes(
         "overseas": f"not {sel.get('country') or '?'}",
         "all": "all",
     }[country]
-    sel_price = est_value(
-        sel["value"], sel["role"], "ipl", sel.get("value_sd"), sel.get("target_balls")
-    )
+    sel_price = scout_price(sel, "ipl")
     gem_lg = leagues.gem_pool()
     gem_tier = gem_lg.tier if gem_lg else None
     gem_med = gem_threshold(idx.get(gem_tier, [])) if gem_tier else None
@@ -107,7 +105,7 @@ def look_alikes(
             sel, idx[tier], use_role, use_pos, top_k, country=country, fallback_country=fb
         )
         for r in found:
-            price = est_value(r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls"))
+            price = scout_price(r, tier)
             saving = sel_price - price if price < sel_price else 0.0
             rows.append(
                 {

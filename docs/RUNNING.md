@@ -69,6 +69,75 @@ UI: dashboard page **Auction** (web-identical). After a run, look up any
 player (retained / sold / unsold) via the post-sim search. See
 [`AUCTION_MATH.md`](AUCTION_MATH.md).
 
+### Keep or release (retentions)
+
+The retention calculator for one franchise, shared with the web page
+**Keep or release** via `cricdex.web_parity.keep`:
+
+```bash
+cricdex keep --team RCB
+cricdex keep --team CSK --release "MS Dhoni" --keep "Shivam Dube" --need spinner=4 --csv csk.csv
+```
+
+It reads `site/public/data/ipl/keep.json`, which `scripts/export_site.py` writes with the IPL
+collection (`-c ipl`). The inputs it is built from:
+
+- the cycle's rules: `config/competitions.toml` (`uv run python -m cricdex.competitions check`);
+- the squads and salaries: `data/curated/ipl_squads_2026.json`, refreshed from Wikipedia by
+  `uv run python scripts/ipl_squad_salaries.py` (hand edits are kept unless `--force`);
+- captaincy: `data/curated/ipl_captains.json`, from Wikipedia by `uv run python scripts/ipl_captains.py
+  [--fetch]` (hand edits with `"edited": true` are kept);
+- the market-price model: `config/price_model.json`, fitted to `data/curated/ipl_auction_history.json`
+  (`uv run python scripts/ipl_auction_history.py [--fetch]`) by `uv run python scripts/ipl_price_model.py
+  fits` (the IPL re-fitted before every auction: ~45 min the first time, cached and resumable; run it as
+  a scheduled task on a laptop that sleeps) and then `... ipl_price_model.py fit` (seconds to minutes).
+
+After editing either, re-export the IPL collection:
+
+```bash
+uv run python scripts/export_site.py -c ipl --skip-prep
+```
+
+### Bid plan (the auction bidding sheet)
+
+Built on Keep or release's data (no extra export): the page **Bid plan**, or
+
+```bash
+cricdex bidplan --team RCB
+cricdex bidplan --team CSK --release "Prashant Veer" --need spinner=4 --max "Rashid Khan=12" --csv csk.csv
+```
+
+When the official auction list is published (after the 15 November retentions), write it to
+`data/curated/ipl_auction_register.json` as `[{"id": "<cricsheet id>", "base_price": 2.0}, …]` (also update
+`data/curated/ipl_squads_2026.json` with the real retentions) and re-export the IPL
+(`scripts/export_site.py -c ipl --skip-prep`): the page and the CLI then plan on exactly those players.
+The replay of the 2025 and 2026 auctions (about 12 minutes; resumable per team):
+
+```bash
+uv run python scripts/bidplan_backtest.py --work /tmp/bidplan --out bidplan_report.json
+```
+
+It needs the walk-forward fits of `scripts/ipl_price_model.py fits` (cached).
+
+### Form forecast (next three seasons)
+
+Each IPL player's value projected over the next three seasons (profile section, `cricdex forecast
+"<name>"`, `cricdex forecast --team RCB`; method: [METHODOLOGY §11](METHODOLOGY.md#11-form-forecast)):
+
+```bash
+uv run python scripts/form_forecast.py fits --seeds 42      # the ratings at every season end (shares
+                                                            # ipl_price_model.py's cache; ~1 h if empty)
+uv run python scripts/form_forecast.py build                # → data/metrics/forecast_ipl.json (~1 min)
+uv run python scripts/form_forecast.py export               # → site/public/data/ipl/forecast.json
+uv run python scripts/form_forecast.py fits --seeds 43,44 --last 2024   # only for the 3-seed backtest
+uv run python scripts/form_forecast.py backtest             # → data/metrics/forecast_backtest_ipl.json
+```
+
+`build` reads the current ratings (`data/metrics/scout_ratings_ipl.json`), so run it after the IPL is
+refit, then `export` (or re-export the IPL with `scripts/export_site.py -c ipl`, which writes
+`forecast.json` and the Keep or release "3-season outlook" from `data/metrics/forecast_ipl.json`). The fits are long and resumable: on a laptop that sleeps, run `fits` as a scheduled
+task and watch its `--log` file.
+
 ### Other useful targets
 
 ```bash

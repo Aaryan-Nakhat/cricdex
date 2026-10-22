@@ -8,6 +8,176 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Bid plan: the auction bidding sheet (roadmap Tier A 26b)
+
+- **New page, Bid plan** (`/bidplan`, Scout group, next to Keep or release) and **`cricdex bidplan --team
+  RCB`**: the squad and purse from Keep or release (its URL state, so your keep / release calls carry
+  over; Keep or release has a "Plan the auction bids" button), the other nine teams bidding 200 times in
+  the Auction room's simulator for the price to beat, and an optimiser that picks the targets adding the
+  most squad strength (best XI under the 4-overseas rule, depth, role needs incl. pace) for the purse. Per
+  target: priority, rivals' median price, max bid (gain ÷ λ, capped by the purse left after the likely
+  buys), P(≤ max bid), how often the plan lands him; fallback chains per role; the likely squad, expected
+  strength / spend, needs met and still missing. Editable: purse, squad max / min, overseas cap, places
+  each team opens (default 8), role needs, your own max bid per player, rival runs; all in the URL; CSV
+  export and a print / PDF view. `cricdex.web_parity.bidplan` ⇄ `site/src/lib/bidplan.ts`, locked by
+  `test_scripts/test_bidplan_parity.py` (synthetic leagues + all ten real teams). Method: METHODOLOGY §12.
+- **The pool as data**: `data/curated/ipl_auction_register.json` (the official list once published) is
+  exported as `ipl/auction_register.json` and replaces the inferred pool on the page and the CLI
+  (`--register` for a file of your own).
+- **Auction simulator calibrated to real auctions** (owner's call: "the obvious must fit reality"):
+  `scripts/auction_calibrate.py` replays the 2022 mega and 2023 / 2024 mini auctions (walk-forward values and
+  price models, real retentions and purses, sold lots + unsold alternatives) and fits the rivals' bidding:
+  a level per auction type (0.86 mega, 1.04 mini), a concave curve on the market price (^0.75), a player's
+  last IPL price as a reference (weight 0.3; `anchor_price` on a row), a demand shock per lot per run (ln sd
+  1.0) and market tightness (money left ÷ market value of the best unsold players for the places left).
+  Out of time (2025, 2026) the simulated 10–90% range holds 77% / 46% of real prices (was 28% / 12%) and the
+  dearest simulated lots come out at 1.09× / 1.07× real (was 2.44× / 1.55×); the 2025 mega auction still
+  ran ~1.5× above the simulation on contested lots. Neutral settings reproduce the old room
+  (`opts["calib"]`). The Auction room keeps every team at 20+ players with ~5 cr left. AUCTION_MATH Part 3b.
+- **No buying back your own releases**: the plan never bids for a player its team releases; a release worth
+  more to the squad than his salary is listed as "reconsider keeping". A "usually enough" column (the bid
+  that wins him in 9 runs of 10) sits next to the max bid (the walk-away price).
+- **Replay of the 2025 mega and 2026 mini auctions**: `scripts/bidplan_backtest.py` (walk-forward values
+  and price models, real retentions and purses, the pool with unsold alternatives, calibrated rivals, plans
+  played against the real prices, squads scored on the next season). Same spend: level with the real squads
+  in 2025 (4 of 10 ahead, mean +2) and worse in 2026 (2 of 10); rival price to beat vs real: MAE ln 0.60 /
+  0.68, rank correlation 0.80 / 0.50, real inside the 20–80% range 55% / 52% (METHODOLOGY §12, with a
+  reality-check table of well-known lots).
+- The simulator's `one_trial` ⇄ `oneTrial` take an optional sale callback (the winning bid; Bid plan's
+  price to beat). `open` added to Keep or release's `auto_release` kinds (Bid plan only).
+
+### Form forecast: value over the next three seasons (roadmap Tier A 11b)
+
+- **`cricdex.scout.forecast`** + **`scripts/form_forecast.py`** (`fits` → `backtest` → `build` → `export`):
+  every IPL player's season value 2008–2026 in the rating's own currency and his career rating at every
+  season end (walk-forward refits, the price model's cache).
+- **Starts from the current level** (owner's call: the first version anchored on the career rating and had
+  Kohli at −1 after +31 / +16 / +30). A local-level Kalman filter per role (true level drifting with age,
+  debut prior, season noise ∝ 1 / balls; seven parameters by maximum likelihood on the seasons up to each
+  origin) gives every player's current level and its own 1–3-season forecast. A ridge regression per role
+  then maps a blend `w × career rating + (1 − w) × level forecast` (w chosen on validation origins 2014–18:
+  0.25 for batters, 1 for bowlers, whose career rating is the better current level) plus a residual age curve
+  to the value 1, 2 and 3 seasons later.
+- Survivorship corrected by inverse-probability weighting (a logistic model of being seen again); age
+  curves that rise past 32 (bowlers: selection the data can't see) are held flat, in the drift and the
+  residual; Lichtman's phantom-season bound and the survivors-only curve published alongside. 80% ranges for
+  his level and for one season (walk-forward calibrated); P(regular) (120+ balls) per horizon.
+- **Backtest** (data through 2021 / 2022 / 2023, scored on 2022–2026, 3 ADVI seeds, against the career rating,
+  the current level, career numbers, a naive age curve and last season): batters' error 21.6 / 21.4 / 20.5
+  runs per 100 balls at 1 / 2 / 3 seasons, the lowest of all (22.8 / 22.8 / 22.7 for the rating, 21.9 / 22.1
+  / 21.0 for the level alone), rank 0.20 / 0.16 / 0.14 (rating 0.22 / 0.17 / 0.10); bowlers tie the rating on
+  error and rank a little lower; one-season 80% ranges caught 72–82%; P(regular) Brier 0.12–0.15 against
+  0.14–0.18 and 0.19–0.22. Reality check of 15 stars against their last three seasons, each disagreement
+  explained (METHODOLOGY §11); walk-forward, batters 34+ with a three-season average of +20 or more posted +6
+  the next season on average while the forecast had them at +15.
+- **Player profile**: a "Form forecast" section (fan chart per role from the current level: median, level and
+  one-season 80% bands, P(regular) per season, his last seasons, the outlook badge and line), from
+  `site/public/data/ipl/forecast.json`, which `scripts/export_site.py` now writes for the IPL. **Keep or
+  release**: a sortable "3-season outlook" column (the three medians, the shape, P(regular) in 2029), in
+  `keep.json` (`forecast`), `web_parity/keep.py` ⇄ `site/src/lib/keep.ts` (`forecast_note`, parity-tested),
+  the CSV (`outlook_3y_avg`, `outlook_3y`) and `cricdex keep --sort outlook`. **CLI**: `cricdex forecast
+  "<name>"` and `cricdex forecast --team RCB`. Retired players get no forecast.
+- Tests: `tests/test_forecast.py` (the level model's causality and parameter recovery, projection math on
+  synthetic careers, the outlook text, the Keep outlook pick, the site file and backtest schemas) and the
+  Keep parity fixtures. Docs: METHODOLOGY §10–11, README, About, CLI, RUNNING, scripts README.
+
+### Prices fitted to real IPL auctions (roadmap Tier B #13, correctness #18)
+
+- **Group-aware calibration**: the calibration now has groups (overseas, capped Indian, uncapped Indian;
+  `price.groups` in `config/price_model.json`, ranges on the market features; `calibration_part` ⇄
+  `calibrationPart`, parity-tested): the shared quantile map plus each group's mean out-of-fold residual
+  as its shift (`--calibration quantile+group-offset`, the new default). Out of time (2025–26), by group
+  bias in ln: overseas +0.62 → +0.37, capped Indian +0.25 → −0.06, uncapped Indian −0.26 → +0.04; overall
+  mean |ln error| 0.706 → 0.703, median error 51% → 53%, rank corr. 0.745 → 0.731, 10 cr+ ratio
+  0.62 → 0.50. A separate map per group and shifts from the last two auctions were tested and are worse;
+  the overseas lean left (≈1.45×) moves between auctions and no earlier-years shift removes it. The upper
+  quartile now includes the group shift (residual sd 1.02, out of fold). Table by group: METHODOLOGY §6b.
+- **Legal default squads in Keep or release** (`fit_to_rules` ⇄ `fitToRules`, parity-tested, plus
+  `test_keep_default_plan_is_legal`): the default plan releases kept Borderline players (lowest surplus per
+  crore first; a Keep only when no Borderline is left) until the overseas cap and then the squad maximum
+  hold, never moving a player the user flipped; each gets "Released to fit the 8-overseas cap" / "the
+  25-player squad limit" in his reason and `auto_release` in the CSV. CSK, MI, KKR, SRH and RCB are now
+  legal by default (e.g. CSK releases Noor Ahmad and Dian Forrester for the overseas cap).
+  `auction_check --trials 300`: every team ≥ 20, 1.5 cr left on average.
+
+- **Auction history**: `scripts/ipl_auction_history.py` parses Wikipedia's per-season IPL personnel pages
+  2008–2026 (CC BY-SA 4.0, each pinned to a revision; raw wikitext + HTML cached in
+  `data/curated/ipl_auction_pages/`) into the hand-editable `data/curated/ipl_auction_history.json`:
+  1,647 sold lots (base price, price, buyer, previous team, set, RTM) and 1,046 retentions with salaries,
+  per-season auction date, mega / mini and purse (sourced or marked assumed). US$ prices (2008–2013)
+  converted at the Federal Reserve H.10 rate on the auction day. 97% of sold lots and 99% of retentions
+  matched to a Cricsheet id (title, name, initial + surname, close spelling). Wikipedia has no unsold lists.
+- **Market-price model**: `scripts/ipl_price_model.py fits` re-fits the IPL before every auction date
+  (cached, resumable); `fit` rebuilds each player as of his auction (value, caps and recent caps, age,
+  IPL balls / seasons / gap, role, overseas, mega) and fits a hurdle model: P(bought) logistic on the
+  not-retained IPL players of 2018–2026, ln(price / purse) by Huber regression on the 2018–2026 lots plus
+  mega retentions → `config/price_model.json` (shipped in the package). Out of time (train ≤ 2024, test
+  2025 mega + 2026 mini): mean |ln error| 0.68 against 0.78 for the old curve, rank correlation 0.74
+  against 0.63, P(bought) AUC 0.78 and calibrated; lots of 10 cr+ still predicted at ~0.44×.
+- **`market_price` ⇄ `marketPrice`** (`web_parity/pricing.py` ⇄ `site/src/lib/auction.ts`): the same
+  features and coefficients, parity-tested on fixed inputs and every pool row. The pool's
+  `projected_value` is now the market price (`onfield_value` = the old curve, `p_bought` added); Scout's
+  est. prices use it (`scout_price` ⇄ `scoutPrice`); the export writes `ipl/price_model.json` and adds
+  `price_value`, `intl_caps`, `intl_caps_2y`, `ipl_balls`, `ipl_seasons`, `ipl_gap` (and `age`,
+  `is_overseas` in Scout) to pool, squad and Scout rows. Older exports fall back to the curve.
+- **Keep or release** prices each player at the market (median; the upper quartile, ≈1.9×, is the
+  "release only if even this is below the salary" figure), with **On-field worth** and the chance he's
+  bought as new columns (page, CLI, CSV). Kohli, Gaikwad, Samson, Hardik, Suryakumar and Green move from
+  Release to Borderline; Rohit, Narine, Klaasen and Cummins stay Release (age; captaincy isn't modelled).
+- **Auction room**: at most 36% of the 200 lots are overseas (`AUCTION_OVERSEAS_SHARE`, the 2024
+  shortlist's share); without it the market price filled two-thirds of the lots with overseas players and
+  squads stalled below 20. `auction_check --trials 300`: every team reaches 20, 1.4 cr of purse left on
+  average.
+- Docs: METHODOLOGY §6 (6a on-field worth, 6b market price) and §10, AUCTION_MATH Part 0, README, About.
+- **Captaincy data**: `scripts/ipl_captains.py` → `data/curated/ipl_captains.json` (hand-editable): IPL
+  captain stints from each franchise article's captains table, filled in from "List of Indian Premier
+  League captains" (97 stints, all matched), and men's Test / ODI / T20I captains from 11 Test nations'
+  captain lists (1,296 rows, 85% matched); Wikipedia, CC BY-SA, pages cached and pinned in
+  `data/curated/ipl_captain_pages/`. `cricdex.scout.identity.captains`: `as_of(cid, season)` (regular IPL
+  captain last season, seasons as captain, national captain in the two years before; stand-ins never
+  count as last season's captain) and `summary(cid)`.
+- **Captaincy in the price**: three new market features (`captain_ipl`, `captain_seasons`,
+  `captain_intl`); a regular IPL captain fetches about +22%. Out of time they don't improve the score
+  (reported). Shown as a **Captain** badge in Keep or release (with "the market pays captains a premium"
+  in the reason; `(C)` in `cricdex keep`), a **C** badge in the Auction room's squads, and IPL / national
+  captaincy badges in the profile identity block (`identity.captaincy`). Pool, squad and Scout rows carry
+  `captain_ipl_last`, `captain_ipl_seasons`, `captain_intl_2y`, `captain_teams`.
+- **Top-end calibration** (`calibrate` ⇄ `calibrate`, knots in `config/price_model.json`): the linear
+  predictor goes through a monotone quantile map fitted on out-of-fold predictions. Out of time (train
+  and calibrate ≤ 2024, test 2025–26): 10 cr+ lots 0.45× → 0.62× their price, median error 56% → 51%,
+  within ±50% 45% → 49%, rank corr. 0.741 → 0.745; mean |ln error| 0.674 → 0.706 and an upward lean (+0.19,
+  mostly overseas players, ~1.9×). Isotonic recalibration and Duan smearing were tested and rejected
+  (smearing over-prices the typical lot ~2–2.5×). The upper quartile now uses the out-of-fold residual
+  sd (1.06). `auction_check --trials 300`: every team ≥ 20, 1.2 cr left on average.
+
+### Keep or release: the retention calculator (roadmap Tier A #7)
+
+- **New page, Keep or release** (`/keep`, in the Scout group next to the Auction room) and **`cricdex keep
+  --team RCB`**: for each player in a franchise's squad, his salary against our estimated auction price
+  (the pool's curve: cautious estimate, IPL-evidence ceiling), surplus, a Keep / Release / Borderline call
+  with a one-line reason, age and outlook, and last season's raw numbers; then the squad if you follow it
+  (purse left, open slots, warnings) and the role gaps (keepers, openers, death bowlers, spinners, overseas)
+  filled cheapest-first from free agents plus the other teams' release calls. Any call can be flipped and
+  the purse / role targets changed (kept in the URL); CSV export on the page and with `--csv`.
+  `cricdex.web_parity.keep` ⇄ `site/src/lib/keep.ts`, locked by `test_scripts/test_keep_parity.py`
+  (synthetic squads covering every branch plus every real team). Method: METHODOLOGY §10.
+- **Competition rules as config**: `config/competitions.toml` + `cricdex.competitions` (validated like the
+  league registry; `python -m cricdex.competitions check`). One entry, `ipl_2027`: deadline 15 Nov 2026,
+  auction likely 16 Dec 2026 in Goa, 25-man squads with 8 overseas, no retention limit, kept players cost
+  their salary, no RTM, 18 cr overseas fee cap. Every rule cites a source or is listed as `assumed`
+  (purse: no 2027 figure published, 125 cr assumed; squad minimum 18; no minimum spend; replacements
+  keepable; the auction date). Ships inside the package like `leagues.toml`.
+- **Salaries in the squads file**: `scripts/ipl_squad_salaries.py` adds `salary_cr`, `acquired`,
+  `country` / `overseas` and `cricsheet_id` to every row of `data/curated/ipl_squads_2026.json` from
+  Wikipedia's 2026 personnel page (retained-list salaries, auction prices, replacement fees, trades), then
+  applies the 2027 page's moves (Pant ⇄ Kuldeep Yadav, Natarajan ⇄ Zeeshan Ansari, Rahane retired). 274
+  players, all with a salary; 252 matched to a Cricsheet id, 22 listed as unmatched. Mustafizur Rahman
+  marked released (BCCI request). The file also keeps the published 2026 pre-auction purses as a check
+  (six teams reproduce exactly).
+- **Exporter**: the IPL export writes `ipl/keep.json` (~100 KB). `_export_auction_pool` also returns the
+  same row for every squad player (thin records included), so a squad player's value is the pool's value;
+  `auction_pool.json`, `activity_index.json` and `scout_index.json` are byte-identical to before.
+
 Rebuilt the Scout and Auction rooms, then unified **every surface** (web,
 CLI, Textual TUI, Streamlit) onto a **single source of truth** — the React
 web app is canonical and the desktop surfaces mirror its analytical pages,

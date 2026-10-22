@@ -140,6 +140,15 @@ AUCTION_SIMULATE_INTRO = (
     "Same engine as the web (cricdex.web_parity), seeded + reproducible."
 )
 
+KEEP_INTRO = (
+    "Keep or release — for each player in the squad: his market price (a model fitted to every "
+    "IPL auction since 2009: value on a cautious estimate, caps, age, IPL experience; the % is the "
+    "chance he's bought if released) against his salary, with his on-field worth (the skill-only "
+    "curve) alongside. Surplus = market price - salary. Keep when the surplus clears the margin (0.5 cr or 15% of salary), release when "
+    "even his central estimate is that far below the salary, borderline in between. Then the purse "
+    "left after the kept salaries, the role gaps and the cheapest free agents who fill them."
+)
+
 # --- Scout ---------------------------------------------------------------
 
 TWINS_INTRO = (

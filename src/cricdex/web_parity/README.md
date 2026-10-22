@@ -7,10 +7,12 @@ so every surface shows identical results, trial for trial.
 
 | File | Mirrors | What's in it |
 |---|---|---|
-| `loader.py` | `site/src/lib/data.ts` | `load_auction_pool`, `load_retentions`, `load_scout_index`, `load_activity_index`: read `site/public/data/<collection>/*.json` (written by `scripts/export_site.py`) |
+| `loader.py` | `site/src/lib/data.ts` | `load_auction_pool`, `load_retentions`, `load_scout_index`, `load_activity_index`, `load_keep`: read `site/public/data/<collection>/*.json` (written by `scripts/export_site.py`) |
 | `pricing.py` | `site/src/lib/auction.ts` | `est_value` (skill → crore: `1.1 × e^(0.95 × value) × role weight`, clamped 0.3–27), `price_tier` (base-price bands), `TIER_PENALTY` (per-league discount) |
 | `scout.py` | `site/src/lib/scout.ts` | `similar_to` (same role, seam/spin for bowlers, similarity `1 − Δz / 2.5`), `gem_threshold` / `is_gem` |
+| `keep.py` | `site/src/lib/keep.ts` | Keep or release: `assess` (price on the pool's curve vs salary → Keep / Release / Borderline + reason), `market_for` (free agents + other teams' release calls), `evaluate` (purse left, slots, role gaps filled cheapest-first, warnings), `to_csv_rows`; locked by `test_scripts/test_keep_parity.py` |
 | `auction.py` | `site/src/lib/auction.ts` | `build_pool`, `ARCHETYPES`, `IPL_TEAMS_DEFAULT`, `default_retentions`, `simulate_auction` (retentions, budget-aware bidding, second-price clearing with a 27 cr cap, two-phase fill, ~300 seeded trials) |
+| `bidplan.py` | `site/src/lib/bidplan.ts` | Bid plan: `build_context` (Keep or release's plans, places opened, the pool or an official register), `rival_prices` (the simulator's rivals → price to beat per run), `strength` / `best_xi`, `plan` (the λ bidding rule, max bids, fallback chains, the likely squad), `to_csv_rows`; `follow_plan` (Python only, for `scripts/bidplan_backtest.py`); locked by `test_scripts/test_bidplan_parity.py` |
 
 ## Use it
 

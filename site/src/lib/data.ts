@@ -3,6 +3,7 @@
 // and refreshed on demand by the GitHub Action; the browser only displays.
 
 import { registerLeagues, type LeagueRegistry } from "./leagues";
+import { registerPriceModel, type PriceModel } from "./auction";
 
 const DATA_ROOT = `${import.meta.env.BASE_URL}data`;
 
@@ -79,6 +80,11 @@ export interface PlayerIdentity {
   bowling_category?: "seam" | "spin" | string | null;
   bowling_style?: string | null;
   primary_role?: string | null;
+  /** IPL and international captaincy (data/curated/ipl_captains.json), newest first */
+  captaincy?: {
+    ipl: { team: string; from: number; to: number; matches: number | null }[];
+    international: { country: string; format: string; from: number; to: number }[];
+  } | null;
 }
 
 /** The name to show a fan: display name when the export has one, else the scorecard name. */
@@ -211,8 +217,29 @@ export interface AuctionPoolRow {
   home_league?: string | null;
   age?: number | null;
   ipl_relevance?: number; // 1 = current IPL regular … lower = league-only / aged
+  // the market price's inputs (auction.ts `marketFeatures`); absent in exports before it
+  price_value?: number | null; // blended value before the IPL-relevance discount
+  intl_caps?: number | null; // men's T20I + ODI + Test matches
+  intl_caps_2y?: number | null; // ... in the two years before the auction
+  ipl_balls?: number | null; // IPL balls faced + bowled
+  ipl_seasons?: number | null;
+  ipl_gap?: number | null; // years from his last IPL match to the auction (null = never)
+  // captaincy known before the auction (market-price inputs) and the sides he led last season
+  captain_ipl_last?: number | null;
+  captain_ipl_seasons?: number | null;
+  captain_intl_2y?: number | null;
+  captain_teams?: string[] | null;
 }
-export const getAuctionPool = (c: string) => getJSON<AuctionPoolRow[]>(`${c}/auction_pool.json`);
+/** The auction pool, with the fitted market-price model (`<c>/price_model.json`) installed for
+ * `buildPool` / `marketPrice` before the rows arrive (a missing model leaves the on-field curve). */
+export const getAuctionPool = (c: string) =>
+  Promise.all([
+    getJSON<AuctionPoolRow[]>(`${c}/auction_pool.json`),
+    getJSON<PriceModel>(`${c}/price_model.json`).catch(() => null),
+  ]).then(([rows, model]) => {
+    if (model) registerPriceModel(model);
+    return rows;
+  });
 
 // Per-player cross-league activity, keyed by cricsheet_id (the breakdown behind
 // the auction's IPL-relevance weight). Any surface can join on it.
@@ -249,6 +276,14 @@ export interface ScoutPlayer {
   z: number; // standing on own role among the shown players of that role in the tier (mean 0, sd 1)
   balls: number; // exposure in this tier — powers the uncapped-gem flag
   last_match_date: string | null;
+  // the market price's inputs (auction.ts `scoutPrice`); absent in exports before it
+  is_overseas?: boolean | null;
+  age?: number | null;
+  intl_caps?: number | null;
+  intl_caps_2y?: number | null;
+  ipl_balls?: number | null;
+  ipl_seasons?: number | null;
+  ipl_gap?: number | null;
 }
 // One list per Scout pool, keyed by the pool's tier (leagues.json: "ipl", "smat", "bbl", …).
 export type ScoutIndex = Record<string, ScoutPlayer[]>;
@@ -353,3 +388,11 @@ export interface AgingData {
   players: Record<string, AgingPlayer>;
 }
 export const getAging = (c: string) => getJSON<AgingData>(`${c}/aging.json`);
+
+/** Keep or release (keep.json): the competition's rules + sources, every squad player with
+ * salary / value / tags / age / last season, and the pool free agents' tags. */
+export const getKeep = (c: string) => getJSON<import("./keep").KeepData>(`${c}/keep.json`);
+/** Bid plan: the official auction list once it is published (data/curated/ipl_auction_register.json, copied by the
+ * export as `<c>/auction_register.json`), else null: the plan then infers the pool. */
+export const getAuctionRegister = (c: string) =>
+  getJSON<import("./bidplan").RegisterEntry[]>(`${c}/auction_register.json`).catch(() => null);

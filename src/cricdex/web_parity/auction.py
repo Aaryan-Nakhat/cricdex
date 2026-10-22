@@ -12,20 +12,30 @@ mirroring the TS `SimOpts` (snake_cased).
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 
-from cricdex.web_parity.pricing import est_value, price_ceiling, price_tier
+from cricdex.web_parity.pricing import (
+    est_value,
+    has_market_inputs,
+    market_price,
+    price_ceiling,
+    price_tier,
+)
 
 # ---- pool pricing ----------------------------------------------------------
 
 
-def build_pool(rows: list[dict]) -> list[dict]:
-    """Price the auction pool (every active rated player). Adds crore pricing
-    to each row; sorts by projected value desc."""
+def build_pool(rows: list[dict], model: dict | None = None) -> list[dict]:
+    """Price the auction pool (every active rated player). Adds crore pricing to each row: the
+    market price when the model and its inputs are there (`projected_value`), with the on-field
+    curve's price alongside (`onfield_value`); sorts by projected value desc."""
     out: list[dict] = []
     for r in rows:
         # pool value already tier-penalised; priced on the cautious estimate (value_sd)
-        pv = est_value(r["value"], r["role"], "ipl", r.get("value_sd"), r.get("target_balls"))
+        onfield = est_value(r["value"], r["role"], "ipl", r.get("value_sd"), r.get("target_balls"))
+        mk = market_price(r, model=model) if has_market_inputs(r, model) else None
+        pv = mk["price"] if mk else onfield
         base = price_tier(pv)
         out.append(
             {
@@ -37,6 +47,10 @@ def build_pool(rows: list[dict]) -> list[dict]:
                 "team": r.get("team"),
                 "value": r["value"],
                 "projected_value": pv,
+                "onfield_value": onfield,
+                "p_bought": mk["p_bought"] if mk else None,
+                # the IPL sides he captained last season (the "Captain" badge), else None
+                "captain": " / ".join(r.get("captain_teams") or []) or None,
                 "base_price": base,
                 "vpc": pv / base,
                 # his price ceiling (rises with IPL balls): bidding can't clear him above it
@@ -159,6 +173,47 @@ def rng(seed: int) -> Callable[[], float]:
 
 # ---- the simulation --------------------------------------------------------
 
+# Rival willingness to pay, calibrated to real auctions (scripts/auction_calibrate.py; docs/AUCTION_MATH.md
+# Part 3b): a team's bid starts from his lot value = BID_LEVEL[cycle] × BID_PIVOT × (projected value /
+# BID_PIVOT) ^ BID_CURVE, times a demand shock e^(LOT_HYPE_SD × z) drawn once per lot per run and shared by
+# every team (how hot he is this time: real prices scatter about 2.7× around the market model's median).
+# Neutral (level 1, curve 1, sd 0, tightness 0, anchor 0, taste 0) is the uncalibrated room. `opts["calib"]` overrides them (the fit).
+# Fitted 2026-10-22 on the 2022 mega and 2023 / 2024 mini auctions (out of time: 2025, 2026).
+BID_LEVEL = {"mega": 0.864, "mini": 1.0368}
+BID_CURVE = 0.75
+BID_PIVOT = 1.0
+LOT_HYPE_SD = 1.0
+# Market tightness: every bid is also scaled by the money left with the teams that still have places,
+# over the market value of the best unsold players who would fill those places (clamped). Money chasing
+# few places (a mini auction) lifts prices; a lot of value still to come holds early bids back. 0 = off.
+TIGHTNESS = 1
+# Reference price: a player whose last IPL price is known (`anchor_price` on his row, cr: a released squad
+# player's salary, a replayed lot's previous price scaled to that purse) is valued
+# lot value^(1 − ANCHOR) × (level × last price)^ANCHOR: bidders remember what he went for. 0 = off.
+ANCHOR = 0.3
+# Team taste: each team's view of each lot also varies by e^(TASTE_SD × z), z drawn per team per lot (teams
+# rate players differently; in a second-price room that spread sets the typical price). 0 = off.
+TASTE_SD = 0.0
+TIGHT_MIN = 0.2
+TIGHT_MAX = 10.0
+SQRT3 = 1.7320508075688772
+
+
+def calibration(opts: dict) -> dict:
+    """The bidding calibration in force: the shipped constants, overridden by `opts["calib"]` keys
+    level_mega, level_mini, curve, sd. Mirror of `calibration` in auction.ts."""
+    c = opts.get("calib") or {}
+    return {
+        "level_mega": float(c.get("level_mega", BID_LEVEL["mega"])),
+        "level_mini": float(c.get("level_mini", BID_LEVEL["mini"])),
+        "curve": float(c.get("curve", BID_CURVE)),
+        "sd": float(c.get("sd", LOT_HYPE_SD)),
+        "tight": float(c.get("tight", TIGHTNESS)),
+        "anchor": float(c.get("anchor", ANCHOR)),
+        "taste": float(c.get("taste", TASTE_SD)),
+    }
+
+
 MIN_BASE = 0.3
 MIN_SQUAD = 20
 # No player clears above the real IPL record (Pant, 27 cr, 2025 mega auction).
@@ -214,7 +269,16 @@ def _fresh_state(b: dict) -> dict:
     }
 
 
-def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int) -> list[dict]:
+def one_trial(
+    bases: list[dict],
+    auction_pool: list[dict],
+    opts: dict,
+    seed: int,
+    on_sale: Callable[[dict, int, float, float], None] | None = None,
+) -> list[dict]:
+    """One mock auction. `on_sale(player, team index, winning max bid, price)` is called for each
+    sale when given (Bid plan reads the winning bid: the price a rival would have paid); a sale
+    in the final base-price pass reports his base price as the bid."""
     rand = rng(seed)
     states = [_fresh_state(b) for b in bases]
 
@@ -239,6 +303,52 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
     keyed.sort(key=lambda x: x[1], reverse=True)
     order = [x[0] for x in keyed]
     sold: set[str] = set()
+    # each lot's value to a bidder this run: the calibrated level and curve, times the shared demand shock
+    # (4 uniforms → an approximately normal z, in lot order, only when the shock is on)
+    cal = calibration(opts)
+    level = cal["level_mega"] if opts.get("mode", "mini") == "mega" else cal["level_mini"]
+    lot_value: dict[str, float] = {}
+    for p in order:
+        pv = p["projected_value"]
+        v = (
+            level * pv
+            if cal["curve"] == 1.0
+            else level * BID_PIVOT * math.pow(pv / BID_PIVOT, cal["curve"])
+        )
+        a = p.get("anchor_price")
+        if cal["anchor"] > 0 and a:
+            v = math.pow(v, 1.0 - cal["anchor"]) * math.pow(level * float(a), cal["anchor"])
+        if cal["sd"] > 0:
+            z = (rand() + rand() + rand() + rand() - 2.0) * SQRT3
+            v = v * math.exp(cal["sd"] * z)
+        lot_value[p["cricsheet_id"]] = v
+    tight = cal["tight"] > 0
+    by_value = (
+        sorted(order, key=lambda p: (-p["projected_value"], p["cricsheet_id"])) if tight else []
+    )
+
+    def tightness() -> float:
+        """Money left with the teams that have places ÷ the market value of the best unsold players
+        filling those places, clamped to TIGHT_MIN … TIGHT_MAX."""
+        money = 0.0
+        n_open = 0
+        for i, st in enumerate(states):
+            slots = opts["squad_size"] - filled_of(st)
+            if slots > 0:
+                n_open += slots
+                money += max(0.0, rem_purse_of(i))
+        value = 0.0
+        k = 0
+        for p in by_value:
+            if k >= n_open:
+                break
+            if p["cricsheet_id"] in sold:
+                continue
+            value += p["projected_value"]
+            k += 1
+        if value <= 0:
+            return 1.0
+        return min(TIGHT_MAX, max(TIGHT_MIN, money / value))
 
     def per_slot_of(i: int) -> float:
         slots_left = opts["squad_size"] - filled_of(states[i])
@@ -255,6 +365,7 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
                 if filled_of(states[i]) < opts["squad_size"]
             ]
             league_per_slot = sum(open_slots) / len(open_slots) if open_slots else 0.0
+            market = tightness() if tight else 1.0
             best_team = -1
             best_bid = 0.0
             second_bid = player["base_price"]
@@ -274,6 +385,10 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
                 )
                 overseas_bias = arc["overseas_appetite"] * 1.4 if player["is_overseas"] else 1
                 jitter = 1 + (rand() - 0.5) * 2 * arc["risk"]
+                if cal["taste"] > 0:
+                    jitter = jitter * math.exp(
+                        cal["taste"] * (rand() + rand() + rand() + rand() - 2.0) * SQRT3
+                    )
                 pressure = 1.0
                 if league_per_slot > 0:
                     pressure = min(
@@ -284,7 +399,8 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
                         ),
                     )
                 wtp = (
-                    player["projected_value"]
+                    lot_value[player["cricsheet_id"]]
+                    * market
                     * arc["aggression"]
                     * need
                     * overseas_bias
@@ -304,6 +420,8 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
                 price = min(PRICE_CAP, player["price_cap"], best_bid, second_bid * 1.02)
                 buy(best_team, player, max(player["base_price"], price))
                 sold.add(player["cricsheet_id"])
+                if on_sale is not None:
+                    on_sale(player, best_team, best_bid, max(player["base_price"], price))
 
     bid_round(MIN_SQUAD)  # everyone reaches the minimum first
     bid_round(opts["squad_size"])  # then top up toward the cap
@@ -328,16 +446,39 @@ def one_trial(bases: list[dict], auction_pool: list[dict], opts: dict, seed: int
         if pick >= 0:
             buy(pick, player, player["base_price"])
             sold.add(player["cricsheet_id"])
+            if on_sale is not None:
+                on_sale(player, pick, player["base_price"], player["base_price"])
     return states
 
 
 # Lots per auction: the most valuable unretained players (a real auction lists far more, most go unsold).
 AUCTION_LOTS = 200
+# At most this share of the lots is overseas, as on a real shortlist (2024: 119 overseas of 333,
+# Wikipedia's 2024 personnel page). The market price values overseas players higher, so without it
+# the top 200 would be two-thirds overseas and the eight-per-squad cap would leave squads unfilled.
+AUCTION_OVERSEAS_SHARE = 0.36
+
+
+def auction_lots(auction_pool: list[dict]) -> list[dict]:
+    """The lots: the most valuable unretained players (pool order), at most AUCTION_LOTS of them
+    and at most AUCTION_OVERSEAS_SHARE of those overseas. Mirror of `auctionLots` in auction.ts."""
+    max_os = round(AUCTION_LOTS * AUCTION_OVERSEAS_SHARE)
+    out: list[dict] = []
+    n_os = 0
+    for p in auction_pool:
+        if len(out) >= AUCTION_LOTS:
+            break
+        if p["is_overseas"]:
+            if n_os >= max_os:
+                continue
+            n_os += 1
+        out.append(p)
+    return out
 
 
 def simulate_auction(pool: list[dict], team_cfg: list[dict], opts: dict) -> dict:
     bases, auction_pool = _build_franchises(pool, team_cfg, opts)
-    use_pool = auction_pool[:AUCTION_LOTS]
+    use_pool = auction_lots(auction_pool)
     agg = [
         {
             "team": b["team"],

@@ -17,6 +17,9 @@ Subcommand groups, each mounted as its own typer app:
   cricdex aging [--role batting|bowling]    performance-vs-age curves
   cricdex scout look-alikes <name>          cross-competition look-alikes
   cricdex auction room                      real-rules IPL auction sim
+  cricdex keep --team RCB                   Keep or release: retention calculator
+  cricdex bidplan --team RCB                Bid plan: whom to bid for at the auction, and how high
+  cricdex forecast <name> | --team RCB      Form forecast: value over the next 3 seasons
   cricdex tui                               full Textual UI
   cricdex dashboard                         optional Streamlit dashboard (`--extra ui`)
 
@@ -34,10 +37,13 @@ from cricdex import __version__
 from cricdex.cli import (
     aging_cmd,
     auction_cmd,
+    bidplan_cmd,
     config_cmd,
     data_cmd,
+    forecast_cmd,
     form_cmd,
     init_cmd,
+    keep_cmd,
     matchups_cmd,
     metrics_cmd,
     partnerships_cmd,
@@ -111,6 +117,15 @@ app.command(
     name="partnerships", help="Batter-pair stands (best partnerships + a player's partners)."
 )(partnerships_cmd.partnerships)
 app.command(name="aging", help="Performance-vs-age curves (batting / bowling).")(aging_cmd.aging)
+app.command(name="keep", help="Keep or release: which players a franchise should retain, and why.")(
+    keep_cmd.keep
+)
+app.command(
+    name="bidplan", help="Bid plan: whom a franchise should bid for at the auction, and how high."
+)(bidplan_cmd.bidplan)
+app.command(name="forecast", help="Form forecast: a player's value over the next three seasons.")(
+    forecast_cmd.forecast
+)
 
 
 @app.command(name="dashboard", help="Launch the Streamlit dashboard.")

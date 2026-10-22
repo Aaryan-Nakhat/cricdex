@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { displayName, getAuctionPool, getLeagues, getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
 import { scoutPools, type LeagueRegistry, type ScoutGroup } from "@/lib/leagues";
-import { estValue, type PriceTier, type Role } from "@/lib/auction";
+import { scoutPrice, type PriceTier, type Role } from "@/lib/auction";
 import {
   similarTo,
   isGem,
@@ -164,7 +164,7 @@ function TierPanel({
         ) : (
           rows.map((p, i) => {
             const sim = p.sim;
-            const price = estValue(p.value, p.role, tier, p.value_sd, p.target_balls);
+            const price = scoutPrice(p, tier);
             const saving = selPrice != null && price < selPrice ? selPrice - price : 0;
             const gem = isGem(p, gemMedian);
             return (
@@ -267,7 +267,7 @@ function GemsBoard({
             <Badge tone="willow">standing {fmt(p.z, 2)}</Badge>
             <span className="text-[11px] text-muted">{p.balls} balls</span>
             <span className="stat-num ml-auto text-[11px] text-muted">
-              ≈{fmt(estValue(p.value, p.role, gemTier, p.value_sd, p.target_balls), 1)}cr
+              ≈{fmt(scoutPrice(p, gemTier), 1)}cr
             </span>
             {inPool.has(p.cricsheet_id) ? (
               <button
@@ -294,7 +294,7 @@ export function Scout() {
   const navigate = (path: string) => rawNavigate(path);
   const { options } = usePlayers("ipl"); // nice full-name search
   const idx = useAsync<ScoutIndex>(() => getScoutIndex("ipl"), []);
-  // the registry: which pools to show (and their price discounts — estValue needs it loaded)
+  // the registry: which pools to show (and their price discounts — scoutPrice needs it loaded)
   const reg = useAsync<LeagueRegistry>(() => getLeagues(), []);
   const tiers = useMemo(() => tierDefs(reg.data).filter((t) => idx.data && t.key in idx.data), [reg.data, idx.data]);
   const gemTier = reg.data?.gem_tier ?? null;
@@ -338,7 +338,7 @@ export function Scout() {
   );
 
   // the pick's own est. IPL price — the baseline the savings compare against
-  const selPrice = sel && reg.data ? estValue(sel.value, sel.role, "ipl", sel.value_sd, sel.target_balls) : null;
+  const selPrice = sel && reg.data ? scoutPrice(sel, "ipl") : null;
   const posDisabled = roleSel === "bowler";
   // batting slot: by default the pick's own band (top / middle / lower order); "any" or one exact slot on demand.
   // Meaningless for a bowler match, so it's dropped rather than kept filtering invisibly.

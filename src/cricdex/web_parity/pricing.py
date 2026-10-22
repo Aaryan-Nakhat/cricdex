@@ -6,7 +6,12 @@ prices and the Auction pool agree across web + desktop.
 
 from __future__ import annotations
 
+import json
 import math
+import os
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
 
 from cricdex import leagues
 
@@ -96,3 +101,185 @@ def est_value(
     adj = priced_value(value, value_sd) - TIER_PENALTY[tier]
     cap = price_ceiling(target_balls)
     return max(0.3, min(cap, PV_BASE * math.exp(PV_SCALE * adj) * ROLE_MULT[role]))
+
+
+# ---- market price: fitted to real IPL auction prices --------------------------------------------
+#
+# `est_value` above prices what a player does on the field (the hand-set curve, now called his
+# "on-field worth"). `market_price` is what the auction market pays for a player like him: a
+# hurdle model fitted to every IPL auction 2009-2026 (scripts/ipl_price_model.py, data from
+# data/curated/ipl_auction_history.json): ln(price / purse) from his cautious value, nationality,
+# international caps, age, IPL experience and the auction type, and, for a player with an IPL
+# record, the chance a franchise buys him at all. The coefficients live in config/price_model.json
+# (the site export copies it to data/<league>/price_model.json for the web); the feature
+# definitions below are mirrored exactly in site/src/lib/auction.ts (`marketFeatures`), and
+# test_scripts/test_web_parity.py checks both on fixed inputs. docs/METHODOLOGY.md §6.
+
+MARKET_AGE_CENTRE = 28.0
+MARKET_PV_MIN = -40.0
+MARKET_PV_MAX = 60.0
+MARKET_GAP_MAX = 6.0  # years since his last IPL match, capped
+# `high` = the upper quartile of what players like him fetch: the median × e^(0.674 × residual sd)
+MARKET_HIGH_Z = 0.674
+
+_MODEL_PATHS = (
+    Path(__file__).resolve().parents[3] / "config" / "price_model.json",
+    Path(__file__).resolve().parents[1] / "price_model.json",  # the copy shipped in the package
+)
+
+
+@lru_cache(maxsize=4)
+def load_price_model(path: str | None = None) -> dict | None:
+    """The fitted market-price model ($CRICDEX_PRICE_MODEL, else config/price_model.json, else the
+    package copy); None when there is none (prices then fall back to the on-field curve)."""
+    cands = [Path(path)] if path else []
+    env = os.environ.get("CRICDEX_PRICE_MODEL")
+    if env:
+        cands.append(Path(env))
+    cands += list(_MODEL_PATHS)
+    for p in cands:
+        if p.exists():
+            return json.loads(p.read_text(encoding="utf-8"))
+    return None
+
+
+def _num(x: Any) -> float | None:
+    return float(x) if isinstance(x, int | float) and math.isfinite(x) else None
+
+
+def market_features(row: dict, cycle: str) -> dict[str, float]:
+    """A player's market-model features from a pool / squad row. `row` keys: `price_value` (his
+    blended value before the IPL-relevance discount, runs per 100 balls; missing = unrated),
+    `value_sd`, `role`, `is_overseas` (or `overseas`), `intl_caps` (men's T20I + ODI + Test
+    matches), `intl_caps_2y` (those in the two years before the auction), `age`, `ipl_balls`,
+    `ipl_seasons`, `ipl_gap` (years since his last IPL match; missing = never played it), and the
+    captaincy known before the auction (scout/identity/captains.py): `captain_ipl_last` (captained
+    an IPL side the season before), `captain_ipl_seasons`, `captain_intl_2y` (captained his country
+    in the two calendar years before).
+    `cycle` = "mega" | "mini". Same definitions as `marketFeatures` in auction.ts."""
+    v = _num(row.get("price_value"))
+    rated = v is not None
+    pv = 0.0
+    if rated:
+        pv = min(MARKET_PV_MAX, max(MARKET_PV_MIN, priced_value(v, row.get("value_sd"))))
+    ov = row.get("is_overseas", row.get("overseas"))
+    ov = 1.0 if ov else 0.0
+    caps_n = _num(row.get("intl_caps")) or 0.0
+    caps = math.log1p(max(caps_n, 0.0))
+    recent = math.log1p(max(_num(row.get("intl_caps_2y")) or 0.0, 0.0))
+    capped_ind = (1.0 if caps_n > 0 else 0.0) * (1.0 - ov)
+    age = _num(row.get("age"))
+    a = (age - MARKET_AGE_CENTRE) if age is not None else 0.0
+    gap = _num(row.get("ipl_gap"))
+    never = 1.0 if gap is None else 0.0
+    role = row.get("role")
+    return {
+        "pv": pv,
+        "pv_pos_sq": (max(pv, 0.0) ** 2) / 100.0,
+        "unrated": 0.0 if rated else 1.0,
+        "overseas": ov,
+        "pv_x_overseas": pv * ov,
+        "caps": caps,
+        "caps_x_indian": caps * (1.0 - ov),
+        "pv_x_capped_indian": pv * capped_ind,
+        "recent_caps": recent,
+        "recent_caps_x_indian": recent * (1.0 - ov),
+        "age": a,
+        "age_sq": a * a / 10.0,
+        "age_missing": 0.0 if age is not None else 1.0,
+        "ipl_balls": math.log1p(max(_num(row.get("ipl_balls")) or 0.0, 0.0)),
+        "ipl_seasons": min(_num(row.get("ipl_seasons")) or 0.0, 15.0),
+        "never_ipl": never,
+        "ipl_gap": 0.0 if gap is None else min(max(gap, 0.0), MARKET_GAP_MAX),
+        "all_rounder": 1.0 if role == "all_rounder" else 0.0,
+        "keeper": 1.0 if role == "keeper" else 0.0,
+        "bowler": 1.0 if role == "bowler" else 0.0,
+        "mega": 1.0 if cycle == "mega" else 0.0,
+        "captain_ipl": 1.0 if (_num(row.get("captain_ipl_last")) or 0.0) > 0 else 0.0,
+        "captain_seasons": math.log1p(max(_num(row.get("captain_ipl_seasons")) or 0.0, 0.0)),
+        "captain_intl": 1.0 if (_num(row.get("captain_intl_2y")) or 0.0) > 0 else 0.0,
+    }
+
+
+def _linear(part: dict, f: dict[str, float]) -> float:
+    """intercept + Σ coef × feature, summed left to right in the model's feature order."""
+    t = float(part["intercept"])
+    for k, c in part["coef"].items():
+        t += float(c) * f[k]
+    return t
+
+
+def calibrate(part: dict, lin: float) -> float:
+    """The top-end calibration of the linear predictor (ln price / purse): a monotone piecewise-
+    linear map through `part["calibration"]` knots {x, y} (x increasing), continued beyond the
+    end knots at slope 1, plus `part["shift"]` (the retransformation term). No calibration → lin.
+    Mirror of `calibrate` in auction.ts."""
+    cal = part.get("calibration")
+    out = lin
+    if cal and cal.get("x"):
+        xs, ys = cal["x"], cal["y"]
+        n = len(xs)
+        if lin <= xs[0]:
+            out = lin + (ys[0] - xs[0])
+        elif lin >= xs[n - 1]:
+            out = lin + (ys[n - 1] - xs[n - 1])
+        else:
+            i = 0
+            while i < n - 2 and lin > xs[i + 1]:
+                i += 1
+            out = ys[i] + (lin - xs[i]) * (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i])
+    return out + float(part.get("shift") or 0.0)
+
+
+def calibration_part(part: dict, f: dict[str, float]) -> dict:
+    """The calibration that applies to a player: the first of `part["groups"]` whose `when` holds
+    (every {feature: [lo, hi]} with lo <= feature <= hi), else `part` itself. Groups let each kind
+    of player (overseas, capped Indian, uncapped Indian) have its own map and shift. Mirror of
+    `calibrationPart` in auction.ts."""
+    for g in part.get("groups") or []:
+        if all(lo <= f[k] <= hi for k, (lo, hi) in g["when"].items()):
+            return g
+    return part
+
+
+def market_price(
+    row: dict, competition: dict | None = None, model: dict | None = None
+) -> dict[str, float | None]:
+    """{"price": cr, "high": cr, "p_bought": 0-1 or None} — what the auction market pays for this
+    player (the model's median), the upper quartile of that (`high`), both clamped to [floor, the
+    IPL-evidence ceiling], and, for a player with an IPL record, the chance he's bought at all. `competition` = {"cycle", "purse"} (the model's own
+    default when missing). Mirror of `marketPrice` in auction.ts."""
+    model = model or load_price_model()
+    if model is None:
+        raise RuntimeError("no price model: run scripts/ipl_price_model.py fit")
+    comp = competition or model["competition"]
+    f = market_features(row, comp["cycle"])
+    cal = calibration_part(model["price"], f)
+    lin = calibrate(cal, _linear(model["price"], f))
+    cap = price_ceiling(row.get("target_balls"))
+    floor = float(model["floor_cr"])
+    price = max(floor, min(cap, float(comp["purse"]) * math.exp(lin)))
+    # the upper quartile: the calibrated prediction (group shift included) + 0.674 residual sd
+    high = float(comp["purse"]) * math.exp(lin + MARKET_HIGH_Z * float(model["price"]["resid_sd"]))
+    high = max(floor, min(cap, high))
+    p = None
+    if f["never_ipl"] == 0.0:
+        p = 1.0 / (1.0 + math.exp(-_linear(model["bought"], f)))
+    return {"price": price, "high": high, "p_bought": p}
+
+
+def has_market_inputs(row: dict, model: dict | None = None) -> bool:
+    """True when this row can take the market price: a model is loaded and the row carries its
+    inputs (an export from before the market model doesn't). Mirror of `hasMarketInputs`."""
+    return (model or load_price_model()) is not None and "price_value" in row
+
+
+def scout_price(r: dict, tier: PriceTier = "ipl", model: dict | None = None) -> float:
+    """A Scout row's estimated price in `tier`: the market price on his value less the tier's
+    discount when the model and the row's market inputs are there, else the on-field curve
+    (`est_value`). Mirror of `scoutPrice` in auction.ts."""
+    if (model or load_price_model()) is not None and "intl_caps" in r:
+        return market_price({**r, "price_value": r["value"] - TIER_PENALTY[tier]}, model=model)[
+            "price"
+        ]
+    return est_value(r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls"))

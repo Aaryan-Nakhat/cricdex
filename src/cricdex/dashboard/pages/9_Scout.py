@@ -17,7 +17,7 @@ import streamlit as st
 from cricdex import leagues
 from cricdex.common.display import display_name, player_label, stale_marker
 from cricdex.dashboard._widgets import load_players, provenance_banner
-from cricdex.web_parity import est_value, gem_threshold, is_gem, load_scout_index, similar_to
+from cricdex.web_parity import gem_threshold, is_gem, load_scout_index, scout_price, similar_to
 from cricdex.web_parity.loader import SITE_DATA
 from cricdex.web_parity.scout import BAND_LABEL, SAME_SLOT, slot_band
 
@@ -139,13 +139,7 @@ if gems:
                     "Standing": round(g["z"], 2),
                     "Balls": g.get("balls", 0),
                     "Est cr": round(
-                        est_value(
-                            g["value"],
-                            g["role"],
-                            GEM_TIER,
-                            g.get("value_sd"),
-                            g.get("target_balls"),
-                        ),
+                        scout_price(g, GEM_TIER),
                         1,
                     ),
                 }
@@ -189,9 +183,7 @@ country = c3.selectbox(
     help="Same = the pick's own country; overseas = every other country; all = anyone.",
 )
 
-sel_price = est_value(
-    sel["value"], sel["role"], "ipl", sel.get("value_sd"), sel.get("target_balls")
-)
+sel_price = scout_price(sel, "ipl")
 _kind = f" ({sel['bowling_category']})" if sel.get("bowling_category") else ""
 _band = BAND_LABEL.get(slot_band(sel.get("batting_position")), "")
 st.markdown(
@@ -210,7 +202,7 @@ def _similar(tier: str) -> list[dict]:
 def _tier_df(tier: str) -> pd.DataFrame:
     out = []
     for r in _similar(tier):
-        price = est_value(r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls"))
+        price = scout_price(r, tier)
         saving = sel_price - price if price < sel_price else 0.0
         out.append(
             {

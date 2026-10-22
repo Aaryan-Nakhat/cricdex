@@ -18,7 +18,7 @@ it predicts anything.
 
 <p align="center"><b><a href="https://aaryan-nakhat.github.io/cricdex/">Open the live site</a></b> · no install, runs in your browser</p>
 
-**[Auction room](#-run-the-ipl-mega-auction-yourself)** · **[Net Game Impact](#-who-really-won-it)** ·
+**[Auction room](#-run-the-ipl-mega-auction-yourself)** · **[Keep or release](#-keep-or-release-before-the-retention-deadline)** · **[Bid plan](#-bid-plan-for-the-auction-room-beta)** · **[Form forecast](#-form-forecast-the-next-three-seasons)** · **[Net Game Impact](#-who-really-won-it)** ·
 **[Bayesian ratings](#-skill-judged-by-who-it-came-against)** · **[Scout](#-same-mould-other-leagues)** ·
 **[Ten metrics](#-ten-numbers-a-scorecard-hides)** · **[The backtest](#-does-any-of-it-predict-anything)** ·
 **[How it works](#-how-it-works)** · **[Quickstart](#-quickstart)** · **[Docs](#-docs)**
@@ -46,10 +46,55 @@ you see **who lands each star, how often, and for how much**, and how every squa
   league in the registry (BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC, BPL, LPL and more),
   weighted by how relevant they are to the IPL right now.
 
-Prices are estimated from the skill model, calibrated to recent auctions, on a cautious estimate (value
-minus half its uncertainty) and under a ceiling that rises with IPL experience, so a short, hot record
-is priced below a proven one. They model how the room
-behaves, not the exact crore of a real sale. → [How the auction works](docs/AUCTION_MATH.md)
+Prices are **fitted to real IPL auction prices** (every sale and mega retention 2018–2026, from
+Wikipedia): what the market has paid for players like him, from his value on a cautious estimate, caps,
+age, IPL experience and captaincy, calibrated so the top end spreads like a real auction, plus the
+chance he's bought at all. Out of time (the 2025 and 2026 auctions) half the lots land within ±50% of
+their price and the 10 cr+ lots come out at about 0.6× on average (the earlier skill-only curve: 43% and
+0.35×); overseas players lean high, so the room models how an auction behaves, not the exact crore of a
+real sale. → [How the auction works](docs/AUCTION_MATH.md)
+
+## 🧾 Keep or release, before the retention deadline
+
+IPL 2027 retention lists are due on 15 November 2026 (as reported). Pick a franchise and see every player's
+salary against his market price (what players like him have fetched at real auctions, with his on-field
+worth alongside), a **Keep / Release / Borderline** call with the reason
+in one line, and the squad that follows: purse left, open slots, and the role gaps (keepers, openers, death
+bowlers, spinners, overseas) with the cheapest players in the likely pool who fill them. Flip any call, change
+the purse or a role target, export the table to CSV, or share the link. Squads and salaries come from
+Wikipedia's personnel pages (CC BY-SA); the cycle's rules live in
+[`config/competitions.toml`](config/competitions.toml), each one sourced or marked as an assumption (the 2027
+purse isn't published yet). In the terminal: `cricdex keep --team RCB`.
+→ [How it decides](docs/METHODOLOGY.md#10-keep-or-release)
+
+## 📋 Bid plan, for the auction room (beta)
+
+**Beta, not yet proven:** in replays of the real 2025 and 2026 auctions it beat the real franchise's squad for 4 and 2 of 10 teams. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
+purse from Keep or release (your own calls carry over), lets the other nine teams bid in the Auction room's
+simulator 200 times to see what each player would cost, and picks the targets that add the most to your
+best XI for the money: each with a **max bid**, the odds of landing him under it, and a **fallback chain**
+per role ("if he goes above 8 cr, the next spinner is worth up to 8.5"). Every assumption is editable, the
+link keeps them, and the sheet exports to CSV or prints. The rival bidding is calibrated to real auctions
+(2022–24, tested on 2025–26), a team never buys back its own releases (it flags "reconsider keeping"
+instead), and replayed on the 2025 and 2026 auctions its squads were level with the real ones in 2025 and
+worse in 2026: a starting sheet, not a forecast. In the terminal: `cricdex bidplan --team RCB`.
+→ [How it plans, and the replay](docs/METHODOLOGY.md#12-bid-plan-beta)
+
+
+## 🔮 Form forecast: the next three seasons
+
+A retention or a mega-auction contract buys a player's next three seasons, not his career. Every active IPL
+player's profile now projects his value (runs per 100 balls above average) for 2027, 2028 and 2029, **starting
+from his current level**: a state-space (Kalman) model of his true level, updated by each season he plays (big
+seasons count more than cameos, recent ones more than old ones), drifting with age. Then a median, an 80% range
+and the chance he is still a regular, with one plain-English line ("About +5 next season (current level +11),
+likely to hold that for two seasons, then decline"), and a reality check of 15 stars against their last three
+seasons, each disagreement explained. The age curve is corrected for the players who were dropped
+(survivorship). Backtested from 2021–23: for batters the lowest error of every baseline at every horizon; for
+bowlers a tie with the career rating (which the data says is already their best current level); P(regular) beats
+every baseline. Also the "3-season outlook" column in Keep or release. In the terminal: `cricdex forecast
+"Kohli"` or `cricdex forecast --team RCB`.
+→ [Method, survivorship and backtest](docs/METHODOLOGY.md#11-form-forecast)
 
 ## 📈 Who really won it?
 
@@ -88,7 +133,7 @@ better than B?") use both ranges, so a thin record can't win the argument on its
 
 Pick an IPL player. **Scout** finds players of the same role and type across every pool (IPL, SMAT,
 and each overseas league: BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC and more), ranks them by how they stand **within their own league**, and prices each
-one with the auction's own curve, so you see the budget swap and the saving. Uncapped prospects punching
+one at the auction's market price, so you see the budget swap and the saving. Uncapped prospects punching
 above their sample get a gem flag, and one click drafts a prospect into the auction room.
 → [Scout](docs/SCOUT.md)
 
@@ -128,7 +173,7 @@ league-adjusted numbers**: the only lean is for batters with the original five l
 in 78% of resamples, not significant), and no test survives the correction for six comparisons. Earlier
 versions of this page claimed a newcomer-batter edge; the first came from an unfair baseline, the second from
 the old way of adding up `value`, and neither survives. A single T20 season is mostly noise. Re-run it
-yourself with `scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`.
+yourself with `scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`. The Form forecast has its own backtest (projections from 2021–23 against four baselines, `scripts/form_forecast.py backtest`): batters 21.6 / 21.4 / 20.5 runs-per-100 error one / two / three seasons ahead against 22.8 / 22.8 / 22.7 for the career rating, bowlers a tie with the rating.
 → [The backtest in detail](docs/METHODOLOGY.md#8-does-it-predict-the-backtest)
 
 ## 🧠 How it works
@@ -163,8 +208,8 @@ uv run cricdex data ingest metrics -c ipl      # leaderboards + rebuilds the sit
 uv run cricdex leaderboard ngi -c ipl --top 15 # your first query
 ```
 
-Bare `cricdex` opens the terminal UI, `cricdex dashboard` the Streamlit app, and `cricdex auction room`
-runs the auction in your terminal. Docker: [`docs/DOCKER.md`](docs/DOCKER.md). Every command:
+Bare `cricdex` opens the terminal UI, `cricdex dashboard` the Streamlit app, `cricdex auction room`
+runs the auction in your terminal and `cricdex keep --team RCB` the retention calculator. Docker: [`docs/DOCKER.md`](docs/DOCKER.md). Every command:
 [`docs/CLI.md`](docs/CLI.md). Step by step: [`docs/FIRST_RUN.md`](docs/FIRST_RUN.md).
 
 ## 📚 Docs
@@ -197,4 +242,7 @@ docs/            methodology, reference and project docs; docs/media holds the R
 ## Credits and license
 
 Ball-by-ball data and the People Register come from [Cricsheet](https://cricsheet.org/), with thanks;
-dates of birth and photos from [Wikidata](https://www.wikidata.org/). CricDex is MIT licensed.
+dates of birth and photos from [Wikidata](https://www.wikidata.org/). IPL squads, salaries and every
+auction's prices 2008–2026 come from Wikipedia's IPL personnel pages (CC BY-SA 4.0; the derived
+`data/curated/ipl_auction_history.json` and squads file are CC BY-SA too), and US$ auction prices are
+converted at the Federal Reserve's H.10 rates (public domain). CricDex's code is MIT licensed.

@@ -26,7 +26,7 @@ def _read(path: Path) -> Any:
         raise FileNotFoundError(
             f"{path} not found — run `uv run python scripts/export_site.py` first."
         )
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_auction_pool(collection: str = "ipl", base: Path | str | None = None) -> list[dict]:
@@ -50,3 +50,16 @@ def load_activity_index(collection: str = "ipl", base: Path | str | None = None)
     weight. Empty dict if not exported yet."""
     path = _base(base) / collection / "activity_index.json"
     return json.loads(path.read_text()) if path.exists() else {}
+
+
+def load_keep(collection: str = "ipl", base: Path | str | None = None) -> dict:
+    """Keep or release: the competition's rules, every squad player (salary, value, tags, age,
+    last season) and the pool free agents' tags."""
+    return _read(_base(base) / collection / "keep.json")
+
+
+def load_auction_register(collection: str = "ipl", base: Path | str | None = None) -> list | None:
+    """Bid plan: the official auction list once published ([{id, base_price}], copied by the
+    export from data/curated/<league>_auction_register.json), else None (the pool is inferred)."""
+    path = _base(base) / collection / "auction_register.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None

@@ -1,6 +1,159 @@
 {
  "_note": "Parsed automatically; edit by hand if a row is wrong (a rerun keeps this file unless --force). `cricsheet_id` is filled by the player-master build.",
+ "_salary_source": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829 of 2026-09-19T08:26:22Z: retained-list salaries, auction prices (lakhs / 100), replacement fees and the traded table. https://en.wikipedia.org/wiki/List_of_2026_Indian_Premier_League_personnel_changes",
  "_source": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829 of 2026-09-19T08:26:22Z: https://en.wikipedia.org/wiki/List_of_2026_Indian_Premier_League_personnel_changes",
+ "_unmatched": [
+  {
+   "name": "Macneil Noronha",
+   "team": "CSK"
+  },
+  {
+   "name": "Sahil Parekh",
+   "team": "DC"
+  },
+  {
+   "name": "Tejasvi Singh",
+   "team": "KKR"
+  },
+  {
+   "name": "Daksh Kamra",
+   "team": "KKR"
+  },
+  {
+   "name": "Mukul Choudhary",
+   "team": "LSG"
+  },
+  {
+   "name": "Naman Tiwari",
+   "team": "LSG"
+  },
+  {
+   "name": "Mohammad Izhar",
+   "team": "MI"
+  },
+  {
+   "name": "Ruchit Ahir",
+   "team": "MI"
+  },
+  {
+   "name": "Pyla Avinash",
+   "team": "PBKS"
+  },
+  {
+   "name": "Harnoor Pannu",
+   "team": "PBKS"
+  },
+  {
+   "name": "Vishal Nishad",
+   "team": "PBKS"
+  },
+  {
+   "name": "Satvik Deswal",
+   "team": "RCB"
+  },
+  {
+   "name": "Vicky Ostwal",
+   "team": "RCB"
+  },
+  {
+   "name": "Mangesh Yadav",
+   "team": "RCB"
+  },
+  {
+   "name": "Vihaan Malhotra",
+   "team": "RCB"
+  },
+  {
+   "name": "Kanishk Chouhan",
+   "team": "RCB"
+  },
+  {
+   "name": "Aman Rao",
+   "team": "RR"
+  },
+  {
+   "name": "Emanjot Chahal",
+   "team": "RR"
+  },
+  {
+   "name": "Onkar Tarmale",
+   "team": "SRH"
+  },
+  {
+   "name": "Amit Kumar",
+   "team": "SRH"
+  },
+  {
+   "name": "Krains Fuletra",
+   "team": "SRH"
+  },
+  {
+   "name": "RS Ambrish",
+   "team": "SRH"
+  }
+ ],
+ "changes_since_season": {
+  "_source": "Wikipedia, 'List of 2027 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1381191916 of 2026-10-20T15:57:25Z: https://en.wikipedia.org/wiki/List_of_2027_Indian_Premier_League_personnel_changes",
+  "applied": [
+   {
+    "from": "LSG",
+    "kind": "trade",
+    "name": "Rishabh Pant",
+    "salary_cr": 15.0,
+    "to": "DC",
+    "wiki_title": "Rishabh Pant"
+   },
+   {
+    "from": "DC",
+    "kind": "trade",
+    "name": "Kuldeep Yadav",
+    "salary_cr": 13.5,
+    "to": "LSG",
+    "wiki_title": "Kuldeep Yadav"
+   },
+   {
+    "from": "DC",
+    "kind": "trade",
+    "name": "T. Natarajan",
+    "salary_cr": 5.0,
+    "to": "SRH",
+    "wiki_title": "T. Natarajan"
+   },
+   {
+    "from": "SRH",
+    "kind": "trade",
+    "name": "Zeeshan Ansari",
+    "salary_cr": 0.4,
+    "to": "DC",
+    "wiki_title": "Zeeshan Ansari"
+   },
+   {
+    "date": "30 July 2026",
+    "evidence": null,
+    "kind": "retired",
+    "name": "Ajinkya Rahane",
+    "team": "KKR",
+    "wiki_title": "Ajinkya Rahane"
+   }
+  ]
+ },
+ "purse_check_2026": {
+  "_note": "Each team's purse entering the 2026 auction as published (125 cr less the retained salaries), to check the salaries above: `cricdex keep --check` compares them.",
+  "_source": "IPLT20.com, 'TATA IPL 2026 Player Retentions Announced', 2025-11-15: https://www.iplt20.com/news/4247/tata-ipl-2026-player-retentions-announced (and ESPNcricinfo, 'IPL 2026: how the squads stack up')",
+  "purse": 125.0,
+  "remaining": {
+   "CSK": 43.4,
+   "DC": 21.8,
+   "GT": 12.9,
+   "KKR": 64.3,
+   "LSG": 22.95,
+   "MI": 2.75,
+   "PBKS": 11.5,
+   "RCB": 16.4,
+   "RR": 16.05,
+   "SRH": 25.5
+  }
+ },
  "retired": [
   {
    "date": "27 August 2025",
@@ -28,1443 +181,2892 @@
  "squads": {
   "CSK": [
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "45a43fe2",
     "name": "Ruturaj Gaikwad",
+    "overseas": false,
+    "salary_cr": 18.0,
     "status": "retained",
     "wiki_title": "Ruturaj Gaikwad"
    },
    {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "a4cc73aa",
     "name": "Sanju Samson",
+    "overseas": false,
+    "salary_cr": 18.0,
     "status": "retained",
     "wiki_title": "Sanju Samson"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "a4e37e47",
     "name": "Shivam Dube",
+    "overseas": false,
+    "salary_cr": 12.0,
     "status": "retained",
     "wiki_title": "Shivam Dube"
    },
    {
+    "acquired": "retained",
+    "country": "AFG",
+    "cricsheet_id": "efc04be7",
     "name": "Noor Ahmad",
+    "overseas": true,
+    "salary_cr": 10.0,
     "status": "retained",
     "wiki_title": "Noor Ahmad"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "a2f46292",
     "name": "Khaleel Ahmed",
+    "overseas": false,
+    "salary_cr": 4.8,
     "status": "retained",
     "wiki_title": "Khaleel Ahmed",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "4a8a2e3b",
     "name": "MS Dhoni",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "MS Dhoni"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "fcc21ace",
     "name": "Anshul Kamboj",
+    "overseas": false,
+    "salary_cr": 3.4,
     "status": "retained",
     "wiki_title": "Anshul Kamboj"
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "844e79d1",
     "name": "Dewald Brevis",
+    "overseas": true,
+    "salary_cr": 2.2,
     "status": "retained",
     "wiki_title": "Dewald Brevis"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "cc61ee8f",
     "name": "Gurjapneet Singh",
+    "overseas": false,
+    "salary_cr": 2.2,
     "status": "retained",
     "wiki_title": "Gurjapneet Singh"
    },
    {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "9eb1455b",
     "name": "Nathan Ellis",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "retained",
     "wiki_title": "Nathan Ellis",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "ENG",
+    "cricsheet_id": "59559bc2",
     "name": "Jamie Overton",
+    "overseas": true,
+    "salary_cr": 1.5,
     "status": "retained",
     "wiki_title": "Jamie Overton",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "765a4731",
     "name": "Mukesh Choudhary",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Mukesh Choudhary"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "dee07622",
     "name": "Ramakrishna Ghosh",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Ramakrishna Ghosh",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "7a8bd078",
     "name": "Shreyas Gopal",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Shreyas Gopal"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "b2b4f545",
     "name": "Ayush Mhatre",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Ayush Mhatre",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "cf59b3f0",
     "name": "Urvil Patel",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Urvil Patel"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "f088b960",
     "name": "Sarfaraz Khan",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "bought",
     "wiki_title": "Sarfaraz Khan (cricketer)"
    },
    {
+    "acquired": "auction",
+    "country": "NZL",
+    "cricsheet_id": "e84ac20c",
     "name": "Matt Henry",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Matt Henry (cricketer)"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "2ed569a0",
     "name": "Rahul Chahar",
+    "overseas": false,
+    "salary_cr": 5.2,
     "status": "bought",
     "wiki_title": "Rahul Chahar"
    },
    {
+    "acquired": "auction",
+    "country": "WIN",
+    "cricsheet_id": "4d7f517e",
     "name": "Akeal Hosein",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Akeal Hosein"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "e148e6bd",
     "name": "Prashant Veer",
+    "overseas": false,
+    "salary_cr": 14.2,
     "status": "bought",
     "wiki_title": "Prashant Veer"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "7b679de5",
     "name": "Kartik Sharma",
+    "overseas": false,
+    "salary_cr": 14.2,
     "status": "bought",
     "wiki_title": "Kartik Sharma"
    },
    {
+    "acquired": "auction",
+    "country": "NZL",
+    "cricsheet_id": "30f92334",
     "name": "Zak Foulkes",
+    "overseas": true,
+    "salary_cr": 0.75,
     "status": "bought",
     "wiki_title": "Zak Foulkes"
    },
    {
+    "acquired": "auction",
+    "country": "AUS",
+    "cricsheet_id": "a90e53ec",
     "name": "Matthew Short",
+    "overseas": true,
+    "salary_cr": 1.5,
     "status": "bought",
     "wiki_title": "Matthew Short"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "378daa89",
     "name": "Aman Khan",
+    "overseas": false,
+    "salary_cr": 0.4,
     "status": "bought",
     "wiki_title": "Aman Khan"
    },
    {
+    "acquired": "replacement",
+    "country": "AUS",
+    "cricsheet_id": "83c3e8e3",
     "name": "Spencer Johnson",
+    "overseas": true,
     "replaced": "Nathan Ellis",
+    "salary_cr": 1.5,
     "status": "replacement",
     "wiki_title": "Spencer Johnson (cricketer)"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "country_note": "set by hand: an Indian domestic player (no flag on the page, no country in the player master)",
+    "cricsheet_id": "030f3089",
     "name": "Kuldip Yadav",
+    "overseas": false,
     "replaced": "Khaleel Ahmed",
+    "salary_cr": 0.3,
     "status": "replacement",
     "wiki_title": "Kuldip Yadav"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "cricsheet_id": "4bd09374",
     "name": "Akash Madhwal",
+    "overseas": false,
     "replaced": "Ayush Mhatre",
+    "salary_cr": 0.3,
     "status": "replacement",
     "wiki_title": "Akash Madhwal"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "country_note": "set by hand: an Indian domestic player (no flag on the page, no country in the player master)",
     "name": "Macneil Noronha",
+    "overseas": false,
     "replaced": "Ramakrishna Ghosh",
+    "salary_cr": 0.3,
     "status": "replacement",
     "wiki_title": "Macneil Noronha"
    },
    {
+    "acquired": "replacement",
+    "country": "ZAF",
+    "cricsheet_id": "23393635",
     "name": "Dian Forrester",
+    "overseas": true,
     "replaced": "Jamie Overton",
+    "salary_cr": 0.75,
     "status": "replacement",
     "wiki_title": "Dian Forrester"
    }
   ],
   "DC": [
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "2e171977",
     "name": "Axar Patel",
+    "overseas": false,
+    "salary_cr": 16.5,
     "status": "retained",
     "wiki_title": "Axar Patel"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "b17e2f24",
     "name": "KL Rahul",
+    "overseas": false,
+    "salary_cr": 14.0,
     "status": "retained",
     "wiki_title": "KL Rahul"
    },
    {
-    "name": "Kuldeep Yadav",
-    "status": "retained",
-    "wiki_title": "Kuldeep Yadav"
-   },
-   {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "3fb19989",
     "name": "Mitchell Starc",
+    "overseas": true,
+    "salary_cr": 11.75,
     "status": "retained",
     "wiki_title": "Mitchell Starc"
    },
    {
-    "name": "T. Natarajan",
-    "status": "retained",
-    "wiki_title": "T. Natarajan"
-   },
-   {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "85b3fab2",
     "name": "Tristan Stubbs",
+    "overseas": true,
+    "salary_cr": 10.0,
     "status": "retained",
     "wiki_title": "Tristan Stubbs"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "2cffab74",
     "name": "Mukesh Kumar",
+    "overseas": false,
+    "salary_cr": 8.0,
     "status": "retained",
     "wiki_title": "Mukesh Kumar (cricketer)"
    },
    {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "fb2d1dda",
     "name": "Nitish Rana",
+    "overseas": false,
+    "salary_cr": 4.2,
     "status": "retained",
     "wiki_title": "Nitish Rana"
    },
    {
+    "acquired": "retained",
+    "cid_note": "matched by hand: player master 'Abishek Porel' (DC); the page spells it Abhishek",
+    "country": "IND",
+    "cricsheet_id": "ad3b6e95",
     "name": "Abhishek Porel",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "Abhishek Porel"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "84d9c311",
     "name": "Ashutosh Sharma",
+    "overseas": false,
+    "salary_cr": 3.8,
     "status": "retained",
     "wiki_title": "Ashutosh Sharma (cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "f89d3b11",
     "name": "Sameer Rizvi",
+    "overseas": false,
+    "salary_cr": 0.95,
     "status": "retained",
     "wiki_title": "Sameer Rizvi"
    },
    {
+    "acquired": "retained",
+    "country": "LKA",
+    "cricsheet_id": "327b58d3",
     "name": "Dushmantha Chameera",
+    "overseas": true,
+    "salary_cr": 0.75,
     "status": "retained",
     "wiki_title": "Dushmantha Chameera"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "944533a5",
     "name": "Karun Nair",
+    "overseas": false,
+    "salary_cr": 0.5,
     "status": "retained",
     "wiki_title": "Karun Nair"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "fb5f69e4",
     "name": "Madhav Tiwari",
+    "overseas": false,
+    "salary_cr": 0.4,
     "status": "retained",
     "wiki_title": "Madhav Tiwari"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "31ee319e",
     "name": "Ajay Mandal",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Ajay Mandal"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "51ec3919",
     "name": "Tripurana Vijay",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Tripurana Vijay"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "5ffc0565",
     "name": "Vipraj Nigam",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Vipraj Nigam"
    },
    {
+    "acquired": "auction",
+    "country": "ZAF",
+    "cricsheet_id": "d67d5f00",
     "name": "David Miller",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "David Miller (South African cricketer)"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "8b3e9c7c",
     "name": "Prithvi Shaw",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "bought",
     "wiki_title": "Prithvi Shaw"
    },
    {
+    "acquired": "auction",
+    "country": "ENG",
+    "cricsheet_id": "5f26f677",
     "name": "Ben Duckett",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Ben Duckett",
     "withdrawn": true
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "7c3c0337",
     "name": "Auqib Nabi",
+    "overseas": false,
+    "salary_cr": 8.4,
     "status": "bought",
     "wiki_title": "Auqib Nabi"
    },
    {
+    "acquired": "auction",
+    "country": "LKA",
+    "cricsheet_id": "8ee36b18",
     "name": "Pathum Nissanka",
+    "overseas": true,
+    "salary_cr": 4.0,
     "status": "bought",
     "wiki_title": "Pathum Nissanka"
    },
    {
+    "acquired": "auction",
+    "country": "NZL",
+    "cricsheet_id": "68c56d09",
     "name": "Kyle Jamieson",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Kyle Jamieson"
    },
    {
+    "acquired": "auction",
+    "country": "ZAF",
+    "cricsheet_id": "f834dcfc",
     "name": "Lungi Ngidi",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Lungi Ngidi"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Sahil Parekh",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Sahil Parekh (cricketer)"
    },
    {
+    "acquired": "replacement",
+    "country": "ENG",
+    "cricsheet_id": "0ecb4de6",
     "name": "Rehan Ahmed",
+    "overseas": true,
     "replaced": "Ben Duckett",
+    "salary_cr": 0.75,
     "status": "replacement",
     "wiki_title": "Rehan Ahmed"
+   },
+   {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "919a3be2",
+    "name": "Rishabh Pant",
+    "overseas": false,
+    "salary_cr": 15.0,
+    "status": "retained",
+    "trade": {
+     "from": "LSG",
+     "salary_before_cr": 27.0
+    },
+    "wiki_title": "Rishabh Pant"
+   },
+   {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "36619795",
+    "name": "Zeeshan Ansari",
+    "overseas": false,
+    "salary_cr": 0.4,
+    "status": "retained",
+    "trade": {
+     "from": "SRH",
+     "salary_before_cr": 0.4
+    },
+    "wiki_title": "Zeeshan Ansari"
    }
   ],
   "GT": [
    {
+    "acquired": "retained",
+    "country": "AFG",
+    "cricsheet_id": "5f547c8b",
     "name": "Rashid Khan",
+    "overseas": true,
+    "salary_cr": 18.0,
     "status": "retained",
     "wiki_title": "Rashid Khan"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "b4b99816",
     "name": "Shubman Gill",
+    "overseas": false,
+    "salary_cr": 16.5,
     "status": "retained",
     "wiki_title": "Shubman Gill"
    },
    {
+    "acquired": "retained",
+    "country": "ENG",
+    "cricsheet_id": "99b75528",
     "name": "Jos Buttler",
+    "overseas": true,
+    "salary_cr": 15.75,
     "status": "retained",
     "wiki_title": "Jos Buttler"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "2f49c897",
     "name": "Mohammed Siraj",
+    "overseas": false,
+    "salary_cr": 12.25,
     "status": "retained",
     "wiki_title": "Mohammed Siraj"
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "e62dd25d",
     "name": "Kagiso Rabada",
+    "overseas": true,
+    "salary_cr": 10.75,
     "status": "retained",
     "wiki_title": "Kagiso Rabada"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "85e0cf10",
     "name": "Prasidh Krishna",
+    "overseas": false,
+    "salary_cr": 9.5,
     "status": "retained",
     "wiki_title": "Prasidh Krishna"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "d5130a30",
     "name": "Sai Sudharsan",
+    "overseas": false,
+    "salary_cr": 8.5,
     "status": "retained",
     "wiki_title": "Sai Sudharsan"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "39a2dfa8",
     "name": "Rahul Tewatia",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "Rahul Tewatia"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "7dcb9bc9",
     "name": "Shahrukh Khan",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "Shahrukh Khan (cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "f19ccfad",
     "name": "Washington Sundar",
+    "overseas": false,
+    "salary_cr": 3.2,
     "status": "retained",
     "wiki_title": "Washington Sundar"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "c7a995d3",
     "name": "Sai Kishore",
+    "overseas": false,
+    "salary_cr": 2.0,
     "status": "retained",
     "wiki_title": "Sai Kishore"
    },
    {
+    "acquired": "retained",
+    "country": "NZL",
+    "cricsheet_id": "9a46c4e5",
     "name": "Glenn Phillips",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "retained",
     "wiki_title": "Glenn Phillips (cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "12314277",
     "name": "Arshad Khan",
+    "overseas": false,
+    "salary_cr": 1.3,
     "status": "retained",
     "wiki_title": "Arshad Khan (Indian cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "99258814",
     "name": "Gurnoor Brar",
+    "overseas": false,
+    "salary_cr": 1.3,
     "status": "retained",
     "wiki_title": "Gurnoor Brar"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "5bb1a1c4",
     "name": "Ishant Sharma",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "retained",
     "wiki_title": "Ishant Sharma"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "81049310",
     "name": "Jayant Yadav",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "retained",
     "wiki_title": "Jayant Yadav"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "57ca01b3",
     "name": "Kumar Kushagra",
+    "overseas": false,
+    "salary_cr": 0.65,
     "status": "retained",
     "wiki_title": "Kumar Kushagra"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "c8f5f961",
     "name": "Anuj Rawat",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Anuj Rawat"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "025c4400",
     "name": "Manav Suthar",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Manav Suthar"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "3cea23da",
     "name": "Nishant Sindhu",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Nishant Sindhu"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "50c09020",
     "name": "Ashok Sharma",
+    "overseas": false,
+    "salary_cr": 0.9,
     "status": "bought",
     "wiki_title": "Ashok Sharma (cricketer)"
    },
    {
+    "acquired": "auction",
+    "country": "WIN",
+    "cricsheet_id": "0f721006",
     "name": "Jason Holder",
+    "overseas": true,
+    "salary_cr": 7.0,
     "status": "bought",
     "wiki_title": "Jason Holder"
    },
    {
+    "acquired": "auction",
+    "country": "ENG",
+    "cricsheet_id": "25f7b7d6",
     "name": "Tom Banton",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Tom Banton",
     "withdrawn": true
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "cfa4bd2b",
     "name": "Prithvi Raj",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Prithvi Raj (cricketer)"
    },
    {
+    "acquired": "auction",
+    "country": "ENG",
+    "cricsheet_id": "65b6943c",
     "name": "Luke Wood",
+    "overseas": true,
+    "salary_cr": 0.75,
     "status": "bought",
     "wiki_title": "Luke Wood (cricketer)"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "country_note": "set by hand: an Indian domestic player (no flag on the page, no country in the player master)",
+    "cricsheet_id": "fa2f1dde",
     "name": "Kulwant Khejroliya",
+    "overseas": false,
     "replaced": "Prithvi Raj Yarra",
+    "salary_cr": 0.3,
     "status": "replacement",
     "wiki_title": "Kulwant Khejroliya"
    },
    {
+    "acquired": "replacement",
+    "country": "ZAF",
+    "cricsheet_id": "ef9acbcc",
     "name": "Connor Esterhuizen",
+    "overseas": true,
     "replaced": "Tom Banton",
+    "salary_cr": 0.75,
     "status": "replacement",
     "wiki_title": "Connor Esterhuizen"
    }
   ],
   "KKR": [
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "0a509d6b",
     "name": "Rinku Singh",
+    "overseas": false,
+    "salary_cr": 13.0,
     "status": "retained",
     "wiki_title": "Rinku Singh (cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "WIN",
+    "cricsheet_id": "9d430b40",
     "name": "Sunil Narine",
+    "overseas": true,
+    "salary_cr": 12.0,
     "status": "retained",
     "wiki_title": "Sunil Narine"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "5b7ab5a9",
     "name": "Varun Chakravarthy",
+    "overseas": false,
+    "salary_cr": 12.0,
     "status": "retained",
     "wiki_title": "Varun Chakravarthy"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "77b1aa15",
     "name": "Harshit Rana",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "Harshit Rana",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "be24ead0",
     "name": "Ramandeep Singh",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "Ramandeep Singh (cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "d7017798",
     "name": "Angkrish Raghuvanshi",
+    "overseas": false,
+    "salary_cr": 3.0,
     "status": "retained",
     "wiki_title": "Angkrish Raghuvanshi"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "7c3b3b78",
     "name": "Vaibhav Arora",
+    "overseas": false,
+    "salary_cr": 1.8,
     "status": "retained",
     "wiki_title": "Vaibhav Arora"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "29e95537",
     "name": "Ajinkya Rahane",
+    "overseas": false,
+    "retired": "30 July 2026",
+    "salary_cr": 1.5,
     "status": "retained",
     "wiki_title": "Ajinkya Rahane"
    },
    {
+    "acquired": "retained",
+    "country": "WIN",
+    "cricsheet_id": "650d5e49",
     "name": "Rovman Powell",
+    "overseas": true,
+    "salary_cr": 1.5,
     "status": "retained",
     "wiki_title": "Rovman Powell"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "93b4fc78",
     "name": "Manish Pandey",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "retained",
     "wiki_title": "Manish Pandey"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "81c08fa3",
     "name": "Umran Malik",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "retained",
     "wiki_title": "Umran Malik"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "e4cdf230",
     "name": "Anukul Roy",
+    "overseas": false,
+    "salary_cr": 0.4,
     "status": "retained",
     "wiki_title": "Anukul Roy"
    },
    {
+    "acquired": "auction",
+    "country": "AUS",
+    "cricsheet_id": "eaa76d3c",
     "name": "Cameron Green",
+    "overseas": true,
+    "salary_cr": 25.2,
+    "salary_note": "Bid 25.20 cr; as an overseas mini-auction buy he is paid at most 18 cr and the rest goes to the BCCI. salary_cr keeps the 25.20 the franchise paid (assumed to be the purse cost of keeping him).",
     "status": "bought",
     "wiki_title": "Cameron Green"
    },
    {
+    "acquired": "auction",
+    "country": "NZL",
+    "cricsheet_id": "ba5e1069",
     "name": "Rachin Ravindra",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Rachin Ravindra"
    },
    {
+    "acquired": "auction",
+    "country": "NZL",
+    "cricsheet_id": "bf74b130",
     "name": "Finn Allen",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Finn Allen"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "0a67aec0",
     "name": "Akash Deep",
+    "overseas": false,
+    "salary_cr": 1.0,
     "status": "bought",
     "wiki_title": "Akash Deep",
     "withdrawn": true
    },
    {
+    "acquired": "auction",
+    "country": "LKA",
+    "cricsheet_id": "64839cb3",
     "name": "Matheesha Pathirana",
+    "overseas": true,
+    "salary_cr": 18.0,
     "status": "bought",
     "wiki_title": "Matheesha Pathirana",
     "withdrawn": true
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Tejasvi Singh",
+    "overseas": false,
+    "salary_cr": 3.0,
     "status": "bought",
     "wiki_title": "Tejasvi Singh"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "5d2eea49",
     "name": "Kartik Tyagi",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Kartik Tyagi"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "c695b423",
     "name": "Prashant Solanki",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Prashant Solanki"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "77255a9e",
     "name": "Rahul Tripathi",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "bought",
     "wiki_title": "Rahul Tripathi"
    },
    {
+    "acquired": "auction",
+    "country": "NZL",
+    "cricsheet_id": "4663bd23",
     "name": "Tim Seifert",
+    "overseas": true,
+    "salary_cr": 1.5,
     "status": "bought",
     "wiki_title": "Tim Seifert"
    },
    {
+    "acquired": "auction",
+    "country": "BGD",
+    "cricsheet_id": "0a8fce53",
     "name": "Mustafizur Rahman",
+    "overseas": true,
+    "salary_cr": 9.2,
     "status": "bought",
     "wiki_title": "Mustafizur Rahman",
-    "withdrawn": true
+    "withdrawn": "Released by KKR at the BCCI's request (3 January 2026)"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "d7cdefa9",
     "name": "Sarthak Ranjan",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Sarthak Ranjan"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Daksh Kamra",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Daksh Kamra"
    },
    {
+    "acquired": "replacement",
+    "country": "ZWE",
+    "cricsheet_id": "449f4e3c",
     "name": "Blessing Muzarabani",
+    "overseas": true,
     "replaced": "Mustafizur Rahman",
+    "salary_cr": 0.75,
     "status": "replacement",
     "wiki_title": "Blessing Muzarabani"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "cricsheet_id": "21d4e29b",
     "name": "Navdeep Saini",
+    "overseas": false,
     "replaced": "Harshit Rana",
+    "salary_cr": 0.75,
     "status": "replacement",
     "wiki_title": "Navdeep Saini"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "country_note": "set by hand: an Indian domestic player (no flag on the page, no country in the player master)",
+    "cricsheet_id": "11061889",
     "name": "Saurabh Dubey",
+    "overseas": false,
     "replaced": "Akash Deep",
+    "salary_cr": 0.3,
     "status": "replacement",
     "wiki_title": "Saurabh Dubey (Maharashtra cricketer)"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "country_note": "set by hand: an Indian domestic player (no flag on the page, no country in the player master)",
+    "cricsheet_id": "a689af4b",
     "name": "Luvnith Sisodia",
+    "overseas": false,
     "replaced": "Matheesha Pathirana",
+    "salary_cr": 0.3,
     "status": "replacement",
     "wiki_title": "Luvnith Sisodia"
    }
   ],
   "LSG": [
    {
-    "name": "Rishabh Pant",
-    "status": "retained",
-    "wiki_title": "Rishabh Pant"
-   },
-   {
+    "acquired": "retained",
+    "country": "WIN",
+    "cricsheet_id": "3241e3fd",
     "name": "Nicholas Pooran",
+    "overseas": true,
+    "salary_cr": 21.0,
     "status": "retained",
     "wiki_title": "Nicholas Pooran"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "b1ad996b",
     "name": "Mayank Yadav",
+    "overseas": false,
+    "salary_cr": 11.0,
     "status": "retained",
     "wiki_title": "Mayank Yadav"
    },
    {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "8cf9814c",
     "name": "Mohammed Shami",
+    "overseas": false,
+    "salary_cr": 10.0,
     "status": "retained",
     "wiki_title": "Mohammed Shami"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "eef2536f",
     "name": "Avesh Khan",
+    "overseas": false,
+    "salary_cr": 9.75,
     "status": "retained",
     "wiki_title": "Avesh Khan"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "8e514b4c",
     "name": "Abdul Samad",
+    "overseas": false,
+    "salary_cr": 4.2,
     "status": "retained",
     "wiki_title": "Abdul Samad (Indian cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "872b03f7",
     "name": "Ayush Badoni",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "Ayush Badoni"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "c33d8116",
     "name": "Mohsin Khan",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "Mohsin Khan (Indian cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "3d8feaf8",
     "name": "Mitchell Marsh",
+    "overseas": true,
+    "salary_cr": 3.4,
     "status": "retained",
     "wiki_title": "Mitchell Marsh",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "f9e6e7ef",
     "name": "Shahbaz Ahmed",
+    "overseas": false,
+    "salary_cr": 2.4,
     "status": "retained",
     "wiki_title": "Shahbaz Ahmed (cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "6a26221c",
     "name": "Aiden Markram",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "retained",
     "wiki_title": "Aiden Markram"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "cf0ccafa",
     "name": "Manimaran Siddharth",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "retained",
     "wiki_title": "Manimaran Siddharth"
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "35f173a0",
     "name": "Matthew Breetzke",
+    "overseas": true,
+    "salary_cr": 0.75,
     "status": "retained",
     "wiki_title": "Matthew Breetzke"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "b483905d",
     "name": "Akash Singh",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Akash Singh (cricketer, born 2002)"
    },
    {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "44aac2f0",
     "name": "Arjun Tendulkar",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Arjun Tendulkar"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "2d140b79",
     "name": "Arshin Kulkarni",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Arshin Kulkarni"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "ebcfef83",
     "name": "Himmat Singh",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Himmat Singh (cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "13fc5c6d",
     "name": "Digvesh Rathi",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Digvesh Rathi"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "80b2fb19",
     "name": "Prince Yadav",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Prince Yadav"
    },
    {
+    "acquired": "auction",
+    "country": "LKA",
+    "cricsheet_id": "a97c8ec2",
     "name": "Wanindu Hasaranga",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Wanindu Hasaranga",
     "withdrawn": true
    },
    {
+    "acquired": "auction",
+    "country": "ZAF",
+    "cricsheet_id": "acdc62f5",
     "name": "Anrich Nortje",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Anrich Nortje"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Mukul Choudhary",
+    "overseas": false,
+    "salary_cr": 2.6,
     "status": "bought",
     "wiki_title": "Mukul Choudhary"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Naman Tiwari",
+    "overseas": false,
+    "salary_cr": 1.0,
     "status": "bought",
     "wiki_title": "Naman Tiwari"
    },
    {
+    "acquired": "auction",
+    "country": "AUS",
+    "cricsheet_id": "989889ff",
     "name": "Josh Inglis",
+    "overseas": true,
+    "salary_cr": 8.6,
     "status": "bought",
     "wiki_title": "Josh Inglis"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "d8d67045",
     "name": "Akshat Raghuwanshi",
+    "overseas": false,
+    "salary_cr": 2.2,
     "status": "bought",
     "wiki_title": "Akshat Raghuwanshi"
    },
    {
+    "acquired": "replacement",
+    "country": "ZAF",
+    "cricsheet_id": "e5437608",
     "name": "George Linde",
+    "overseas": true,
     "replaced": "Wanindu Hasaranga",
+    "salary_cr": 1.0,
     "status": "replacement",
     "wiki_title": "George Linde"
+   },
+   {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "8d2c70ad",
+    "name": "Kuldeep Yadav",
+    "overseas": false,
+    "salary_cr": 13.5,
+    "status": "retained",
+    "trade": {
+     "from": "DC",
+     "salary_before_cr": 13.25
+    },
+    "wiki_title": "Kuldeep Yadav"
    }
   ],
   "MI": [
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "462411b3",
     "name": "Jasprit Bumrah",
+    "overseas": false,
+    "salary_cr": 18.0,
     "status": "retained",
     "wiki_title": "Jasprit Bumrah"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "dbe50b21",
     "name": "Hardik Pandya",
+    "overseas": false,
+    "salary_cr": 16.35,
     "status": "retained",
     "wiki_title": "Hardik Pandya"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "271f83cd",
     "name": "Suryakumar Yadav",
+    "overseas": false,
+    "salary_cr": 16.35,
     "status": "retained",
     "wiki_title": "Suryakumar Yadav"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "740742ef",
     "name": "Rohit Sharma",
+    "overseas": false,
+    "salary_cr": 16.3,
     "status": "retained",
     "wiki_title": "Rohit Sharma"
    },
    {
+    "acquired": "retained",
+    "country": "NZL",
+    "cricsheet_id": "a818c1be",
     "name": "Trent Boult",
+    "overseas": true,
+    "salary_cr": 12.5,
     "status": "retained",
     "wiki_title": "Trent Boult"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "23eeb873",
     "name": "Deepak Chahar",
+    "overseas": false,
+    "salary_cr": 9.25,
     "status": "retained",
     "wiki_title": "Deepak Chahar"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "b0482a1d",
     "name": "Tilak Varma",
+    "overseas": false,
+    "salary_cr": 8.0,
     "status": "retained",
     "wiki_title": "Tilak Varma"
    },
    {
+    "acquired": "retained",
+    "country": "ENG",
+    "cricsheet_id": "9caf69a1",
     "name": "Will Jacks",
+    "overseas": true,
+    "salary_cr": 5.25,
     "status": "retained",
     "wiki_title": "Will Jacks"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "fffa744b",
     "name": "Naman Dhir",
+    "overseas": false,
+    "salary_cr": 5.25,
     "status": "retained",
     "wiki_title": "Naman Dhir"
    },
    {
+    "acquired": "retained",
+    "country": "AFG",
+    "cricsheet_id": "9ca68676",
     "name": "Allah Ghazanfar",
+    "overseas": true,
+    "salary_cr": 4.8,
     "status": "retained",
     "wiki_title": "Allah Ghazanfar"
    },
    {
+    "acquired": "trade",
+    "country": "WIN",
+    "cricsheet_id": "d014d5ac",
     "name": "Sherfane Rutherford",
+    "overseas": true,
+    "salary_cr": 2.6,
     "status": "retained",
     "wiki_title": "Sherfane Rutherford"
    },
    {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "1abb78f8",
     "name": "Shardul Thakur",
+    "overseas": false,
+    "salary_cr": 2.0,
     "status": "retained",
     "wiki_title": "Shardul Thakur"
    },
    {
+    "acquired": "retained",
+    "country": "NZL",
+    "cricsheet_id": "e4a0deae",
     "name": "Mitchell Santner",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "retained",
     "wiki_title": "Mitchell Santner",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "e66732f8",
     "name": "Ryan Rickelton",
+    "overseas": true,
+    "salary_cr": 1.0,
     "status": "retained",
     "wiki_title": "Ryan Rickelton"
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "172dff15",
     "name": "Corbin Bosch",
+    "overseas": true,
+    "salary_cr": 0.75,
     "status": "retained",
     "wiki_title": "Corbin Bosch"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "bafd0398",
     "name": "Robin Minz",
+    "overseas": false,
+    "salary_cr": 0.65,
     "status": "retained",
     "wiki_title": "Robin Minz"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "ba6b2f91",
     "name": "Raj Angad Bawa",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Raj Angad Bawa",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "d45c29b1",
     "name": "Ashwani Kumar",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Ashwani Kumar (cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "5b615e7c",
     "name": "Raghu Sharma",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Raghu Sharma (cricketer)"
    },
    {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "a9fd84fb",
     "name": "Mayank Markande",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Mayank Markande"
    },
    {
+    "acquired": "auction",
+    "country": "ZAF",
+    "cricsheet_id": "372455c4",
     "name": "Quinton de Kock",
+    "overseas": true,
+    "salary_cr": 1.0,
     "status": "bought",
     "wiki_title": "Quinton de Kock",
     "withdrawn": true
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "9e6032fa",
     "name": "Danish Malewar",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Danish Malewar"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "2b801189",
     "name": "Mayank Rawat",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Mayank Rawat"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Mohammad Izhar",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Mohammad Izhar"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "d6cd318e",
     "name": "Atharva Ankolekar",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Atharva Ankolekar",
     "withdrawn": true
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "country_note": "set by hand: an Indian domestic player (no flag on the page, no country in the player master)",
+    "cricsheet_id": "e48a4814",
     "name": "Krish Bhagat",
+    "overseas": false,
     "replaced": "Atharva Ankolekar",
+    "salary_cr": 0.3,
     "status": "replacement",
     "wiki_title": "Krish Bhagat"
    },
    {
+    "acquired": "replacement",
+    "country": "ZAF",
+    "cricsheet_id": "0b60eb09",
     "name": "Keshav Maharaj",
+    "overseas": true,
     "replaced": "Mitchell Santner",
+    "salary_cr": 0.75,
     "status": "replacement",
     "wiki_title": "Keshav Maharaj"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "cricsheet_id": "da934ee8",
     "name": "Mahipal Lomror",
+    "overseas": false,
     "replaced": "Quinton de Kock",
+    "salary_cr": 0.5,
     "status": "replacement",
     "wiki_title": "Mahipal Lomror"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "country_note": "set by hand: an Indian domestic player (no flag on the page, no country in the player master)",
     "name": "Ruchit Ahir",
+    "overseas": false,
     "replaced": "Raj Angad Bawa",
+    "salary_cr": 0.3,
     "status": "replacement",
     "wiki_title": "Ruchit Ahir"
    }
   ],
   "PBKS": [
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "85ec8e33",
     "name": "Shreyas Iyer",
+    "overseas": false,
+    "salary_cr": 26.75,
     "status": "retained",
     "wiki_title": "Shreyas Iyer"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "244048f6",
     "name": "Arshdeep Singh",
+    "overseas": false,
+    "salary_cr": 18.0,
     "status": "retained",
     "wiki_title": "Arshdeep Singh"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "57ee1fde",
     "name": "Yuzvendra Chahal",
+    "overseas": false,
+    "salary_cr": 18.0,
     "status": "retained",
     "wiki_title": "Yuzvendra Chahal"
    },
    {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "d9273ee7",
     "name": "Marcus Stoinis",
+    "overseas": true,
+    "salary_cr": 11.0,
     "status": "retained",
     "wiki_title": "Marcus Stoinis"
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "81c36ee9",
     "name": "Marco Jansen",
+    "overseas": true,
+    "salary_cr": 7.0,
     "status": "retained",
     "wiki_title": "Marco Jansen"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "26989d80",
     "name": "Shashank Singh",
+    "overseas": false,
+    "salary_cr": 5.5,
     "status": "retained",
     "wiki_title": "Shashank Singh"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "d1a60072",
     "name": "Nehal Wadhera",
+    "overseas": false,
+    "salary_cr": 4.2,
     "status": "retained",
     "wiki_title": "Nehal Wadhera"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "9418198b",
     "name": "Prabhsimran Singh",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "Prabhsimran Singh"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "b5797845",
     "name": "Priyansh Arya",
+    "overseas": false,
+    "salary_cr": 3.8,
     "status": "retained",
     "wiki_title": "Priyansh Arya"
    },
    {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "f2c936d7",
     "name": "Mitchell Owen",
+    "overseas": true,
+    "salary_cr": 3.0,
     "status": "retained",
     "wiki_title": "Mitchell Owen"
    },
    {
+    "acquired": "retained",
+    "country": "AFG",
+    "cricsheet_id": "8f6dd463",
     "name": "Azmatullah Omarzai",
+    "overseas": true,
+    "salary_cr": 2.4,
     "status": "retained",
     "wiki_title": "Azmatullah Omarzai"
    },
    {
+    "acquired": "retained",
+    "country": "NZL",
+    "cricsheet_id": "2f9d0389",
     "name": "Lockie Ferguson",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "retained",
     "wiki_title": "Lockie Ferguson"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "54e52590",
     "name": "Vijaykumar Vyshak",
+    "overseas": false,
+    "salary_cr": 1.8,
     "status": "retained",
     "wiki_title": "Vijaykumar Vyshak"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "4b31f3a3",
     "name": "Yash Thakur",
+    "overseas": false,
+    "salary_cr": 1.6,
     "status": "retained",
     "wiki_title": "Yash Thakur"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "c05edf8e",
     "name": "Harpreet Brar",
+    "overseas": false,
+    "salary_cr": 1.5,
     "status": "retained",
     "wiki_title": "Harpreet Brar"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "0494fa6e",
     "name": "Vishnu Vinod",
+    "overseas": false,
+    "salary_cr": 0.95,
     "status": "retained",
     "wiki_title": "Vishnu Vinod"
    },
    {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "3b53243a",
     "name": "Xavier Bartlett",
+    "overseas": true,
+    "salary_cr": 0.8,
     "status": "retained",
     "wiki_title": "Xavier Bartlett"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
     "name": "Pyla Avinash",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Pyla Avinash"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
     "name": "Harnoor Pannu",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Harnoor Pannu"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "d621b427",
     "name": "Musheer Khan",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Musheer Khan"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "970ddd24",
     "name": "Suryansh Shedge",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Suryansh Shedge"
    },
    {
+    "acquired": "auction",
+    "country": "AUS",
+    "cricsheet_id": "e1b9f3a9",
     "name": "Ben Dwarshuis",
+    "overseas": true,
+    "salary_cr": 4.4,
     "status": "bought",
     "wiki_title": "Ben Dwarshuis"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "ed5a5510",
     "name": "Praveen Dubey",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Praveen Dubey"
    },
    {
+    "acquired": "auction",
+    "country": "AUS",
+    "cricsheet_id": "fe366f34",
     "name": "Cooper Connolly",
+    "overseas": true,
+    "salary_cr": 3.0,
     "status": "bought",
     "wiki_title": "Cooper Connolly"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Vishal Nishad",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Vishal Nishad"
    }
   ],
   "RCB": [
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "ba607b88",
     "name": "Virat Kohli",
+    "overseas": false,
+    "salary_cr": 21.0,
     "status": "retained",
     "wiki_title": "Virat Kohli"
    },
    {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "03806cf8",
     "name": "Josh Hazlewood",
+    "overseas": true,
+    "salary_cr": 12.5,
     "status": "retained",
     "wiki_title": "Josh Hazlewood"
    },
    {
+    "acquired": "retained",
+    "country": "ENG",
+    "cricsheet_id": "3d284ca3",
     "name": "Phil Salt",
+    "overseas": true,
+    "salary_cr": 11.5,
     "status": "retained",
     "wiki_title": "Phil Salt"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "c740ea83",
     "name": "Rajat Patidar",
+    "overseas": false,
+    "salary_cr": 11.0,
     "status": "retained",
     "wiki_title": "Rajat Patidar"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "800d2d97",
     "name": "Jitesh Sharma",
+    "overseas": false,
+    "salary_cr": 11.0,
     "status": "retained",
     "wiki_title": "Jitesh Sharma"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "2e81a32d",
     "name": "Bhuvneshwar Kumar",
+    "overseas": false,
+    "salary_cr": 10.75,
     "status": "retained",
     "wiki_title": "Bhuvneshwar Kumar"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "b8527c3d",
     "name": "Rasikh Salam",
+    "overseas": false,
+    "salary_cr": 6.0,
     "status": "retained",
     "wiki_title": "Rasikh Salam"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "5b8c830e",
     "name": "Krunal Pandya",
+    "overseas": false,
+    "salary_cr": 5.75,
     "status": "retained",
     "wiki_title": "Krunal Pandya"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "7210d461",
     "name": "Yash Dayal",
+    "overseas": false,
+    "salary_cr": 5.0,
     "status": "retained",
     "wiki_title": "Yash Dayal",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "f1f99156",
     "name": "Tim David",
+    "overseas": true,
+    "salary_cr": 3.0,
     "status": "retained",
     "wiki_title": "Tim David"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "9440ef41",
     "name": "Suyash Sharma",
+    "overseas": false,
+    "salary_cr": 2.6,
     "status": "retained",
     "wiki_title": "Suyash Sharma"
    },
    {
+    "acquired": "retained",
+    "country": "ENG",
+    "cricsheet_id": "3c55c703",
     "name": "Jacob Bethell",
+    "overseas": true,
+    "salary_cr": 2.6,
     "status": "retained",
     "wiki_title": "Jacob Bethell",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "2c25d4f5",
     "name": "Devdutt Padikkal",
+    "overseas": false,
+    "salary_cr": 2.0,
     "status": "retained",
     "wiki_title": "Devdutt Padikkal"
    },
    {
+    "acquired": "retained",
+    "country": "LKA",
+    "cricsheet_id": "ee1b6c27",
     "name": "Nuwan Thushara",
+    "overseas": true,
+    "salary_cr": 1.6,
     "status": "retained",
     "wiki_title": "Nuwan Thushara",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "WIN",
+    "cricsheet_id": "c5aef772",
     "name": "Romario Shepherd",
+    "overseas": true,
+    "salary_cr": 1.5,
     "status": "retained",
     "wiki_title": "Romario Shepherd"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "983f2f61",
     "name": "Swapnil Singh",
+    "overseas": false,
+    "salary_cr": 0.5,
     "status": "retained",
     "wiki_title": "Swapnil Singh"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "82c10dac",
     "name": "Abhinandan Singh",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Abhinandan Singh"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "a24be938",
     "name": "Venkatesh Iyer",
+    "overseas": false,
+    "salary_cr": 7.0,
     "status": "bought",
     "wiki_title": "Venkatesh Iyer"
    },
    {
+    "acquired": "auction",
+    "country": "NZL",
+    "cricsheet_id": "dadbdb68",
     "name": "Jacob Duffy",
+    "overseas": true,
+    "salary_cr": 2.0,
     "status": "bought",
     "wiki_title": "Jacob Duffy"
    },
    {
+    "acquired": "auction",
+    "country": "ENG",
+    "cricsheet_id": "ff154ecd",
     "name": "Jordan Cox",
+    "overseas": true,
+    "salary_cr": 0.75,
     "status": "bought",
     "wiki_title": "Jordan Cox (cricketer)"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Satvik Deswal",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Satvik Deswal"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Vicky Ostwal",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Vicky Ostwal"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Mangesh Yadav",
+    "overseas": false,
+    "salary_cr": 5.2,
     "status": "bought",
     "wiki_title": "Mangesh Yadav"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Vihaan Malhotra",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Vihaan Malhotra"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Kanishk Chouhan",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Kanishk Chouhan"
    },
    {
+    "acquired": "replacement",
+    "country": "ENG",
+    "cricsheet_id": "402f8494",
     "name": "Richard Gleeson",
+    "overseas": true,
     "replaced": "Nuwan Thushara",
+    "salary_cr": 1.6,
     "status": "replacement",
     "wiki_title": "Richard Gleeson"
    }
   ],
   "RR": [
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "6c19c6e5",
     "name": "Yashasvi Jaiswal",
+    "overseas": false,
+    "salary_cr": 18.0,
     "status": "retained",
     "wiki_title": "Yashasvi Jaiswal"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "04a418e8",
     "name": "Riyan Parag",
+    "overseas": false,
+    "salary_cr": 14.0,
     "status": "retained",
     "wiki_title": "Riyan Parag"
    },
    {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "fe93fd9d",
     "name": "Ravindra Jadeja",
+    "overseas": false,
+    "salary_cr": 14.0,
     "status": "retained",
     "wiki_title": "Ravindra Jadeja"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "bcf325d2",
     "name": "Dhruv Jurel",
+    "overseas": false,
+    "salary_cr": 14.0,
     "status": "retained",
     "wiki_title": "Dhruv Jurel"
    },
    {
+    "acquired": "retained",
+    "country": "ENG",
+    "cricsheet_id": "5574750c",
     "name": "Jofra Archer",
+    "overseas": true,
+    "salary_cr": 12.5,
     "status": "retained",
     "wiki_title": "Jofra Archer"
    },
    {
+    "acquired": "retained",
+    "country": "WIN",
+    "cricsheet_id": "48a1d7b7",
     "name": "Shimron Hetmyer",
+    "overseas": true,
+    "salary_cr": 11.0,
     "status": "retained",
     "wiki_title": "Shimron Hetmyer"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "46a9bea1",
     "name": "Tushar Deshpande",
+    "overseas": false,
+    "salary_cr": 6.5,
     "status": "retained",
     "wiki_title": "Tushar Deshpande"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "ce820073",
     "name": "Sandeep Sharma",
+    "overseas": false,
+    "salary_cr": 4.0,
     "status": "retained",
     "wiki_title": "Sandeep Sharma"
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "465aa633",
     "name": "Nandre Burger",
+    "overseas": true,
+    "salary_cr": 3.5,
     "status": "retained",
     "wiki_title": "Nandre Burger"
    },
    {
+    "acquired": "trade",
+    "country": "ENG",
+    "cricsheet_id": "e94915e6",
     "name": "Sam Curran",
+    "overseas": true,
+    "salary_cr": 2.4,
     "status": "retained",
     "wiki_title": "Sam Curran",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "107c26fb",
     "name": "Kwena Maphaka",
+    "overseas": true,
+    "salary_cr": 1.5,
     "status": "retained",
     "wiki_title": "Kwena Maphaka"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "470f446b",
     "name": "Vaibhav Sooryavanshi",
+    "overseas": false,
+    "salary_cr": 1.1,
     "status": "retained",
     "wiki_title": "Vaibhav Sooryavanshi"
    },
    {
+    "acquired": "trade",
+    "country": "ZAF",
+    "cricsheet_id": "f0af99a7",
     "name": "Donovan Ferreira",
+    "overseas": true,
+    "salary_cr": 1.0,
     "status": "retained",
     "wiki_title": "Donovan Ferreira"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "6b2ff18f",
     "name": "Shubham Dubey",
+    "overseas": false,
+    "salary_cr": 0.8,
     "status": "retained",
     "wiki_title": "Shubham Dubey"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "4885bbe6",
     "name": "Yudhvir Singh",
+    "overseas": false,
+    "salary_cr": 0.35,
     "status": "retained",
     "wiki_title": "Yudhvir Singh (cricketer)"
    },
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "60aa2db3",
     "name": "Lhuan-dre Pretorius",
+    "overseas": true,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Lhuan-dre Pretorius"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "df064e1a",
     "name": "Ravi Bishnoi",
+    "overseas": false,
+    "salary_cr": 7.2,
     "status": "bought",
     "wiki_title": "Ravi Bishnoi"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "92500ad5",
     "name": "Sushant Mishra",
+    "overseas": false,
+    "salary_cr": 0.9,
     "status": "bought",
     "wiki_title": "Sushant Mishra"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "02dfebbe",
     "name": "Yash Raj Punja",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Yash Raj Punja"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "1e030637",
     "name": "Vignesh Puthur",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Vignesh Puthur"
    },
    {
+    "acquired": "auction",
+    "country": "NZL",
+    "cricsheet_id": "350bb1b1",
     "name": "Adam Milne",
+    "overseas": true,
+    "salary_cr": 2.4,
     "status": "bought",
     "wiki_title": "Adam Milne"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "2e78f685",
     "name": "Kuldeep Sen",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "bought",
     "wiki_title": "Kuldeep Sen"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Aman Rao",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Aman Rao (cricketer, born 2004)"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "548516a6",
     "name": "Ravi Singh",
+    "overseas": false,
+    "salary_cr": 0.95,
     "status": "bought",
     "wiki_title": "Ravi Singh (cricketer, born 2001)",
     "withdrawn": true
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "133bbd61",
     "name": "Brijesh Sharma",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Brijesh Sharma"
    },
    {
+    "acquired": "replacement",
+    "country": "LKA",
+    "cricsheet_id": "3ff033bb",
     "name": "Dasun Shanaka",
+    "overseas": true,
     "replaced": "Sam Curran",
+    "salary_cr": 2.0,
     "status": "replacement",
     "wiki_title": "Dasun Shanaka"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "country_note": "set by hand: an Indian domestic player (no flag on the page, no country in the player master)",
     "name": "Emanjot Chahal",
+    "overseas": false,
     "replaced": "Ravi Singh",
+    "salary_cr": 0.3,
     "status": "replacement",
     "wiki_title": "Emanjot Chahal"
    }
   ],
   "SRH": [
    {
+    "acquired": "retained",
+    "country": "ZAF",
+    "cricsheet_id": "235c2bb6",
     "name": "Heinrich Klaasen",
+    "overseas": true,
+    "salary_cr": 23.0,
     "status": "retained",
     "wiki_title": "Heinrich Klaasen"
    },
    {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "ded9240e",
     "name": "Pat Cummins",
+    "overseas": true,
+    "salary_cr": 18.0,
     "status": "retained",
     "wiki_title": "Pat Cummins"
    },
    {
+    "acquired": "retained",
+    "country": "AUS",
+    "cricsheet_id": "12b610c2",
     "name": "Travis Head",
+    "overseas": true,
+    "salary_cr": 14.0,
     "status": "retained",
     "wiki_title": "Travis Head"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "f29185a1",
     "name": "Abhishek Sharma",
+    "overseas": false,
+    "salary_cr": 14.0,
     "status": "retained",
     "wiki_title": "Abhishek Sharma"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "752f7486",
     "name": "Ishan Kishan",
+    "overseas": false,
+    "salary_cr": 11.25,
     "status": "retained",
     "wiki_title": "Ishan Kishan"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "f986ca1a",
     "name": "Harshal Patel",
+    "overseas": false,
+    "salary_cr": 8.0,
     "status": "retained",
     "wiki_title": "Harshal Patel"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "aad0c365",
     "name": "Nitish Kumar Reddy",
+    "overseas": false,
+    "salary_cr": 6.0,
     "status": "retained",
     "wiki_title": "Nitish Kumar Reddy"
    },
    {
+    "acquired": "retained",
+    "country": "LKA",
+    "cricsheet_id": "5750bcb4",
     "name": "Eshan Malinga",
+    "overseas": true,
+    "salary_cr": 1.2,
     "status": "retained",
     "wiki_title": "Eshan Malinga"
    },
    {
+    "acquired": "retained",
+    "country": "ENG",
+    "cricsheet_id": "cad40f5e",
     "name": "Brydon Carse",
+    "overseas": true,
+    "salary_cr": 1.0,
     "status": "retained",
     "wiki_title": "Brydon Carse",
     "withdrawn": true
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "1e66c162",
     "name": "Jaydev Unadkat",
+    "overseas": false,
+    "salary_cr": 1.0,
     "status": "retained",
     "wiki_title": "Jaydev Unadkat"
    },
    {
+    "acquired": "retained",
+    "country": "LKA",
+    "cricsheet_id": "08548b13",
     "name": "Kamindu Mendis",
+    "overseas": true,
+    "salary_cr": 0.75,
     "status": "retained",
     "wiki_title": "Kamindu Mendis"
    },
    {
-    "name": "Zeeshan Ansari",
-    "status": "retained",
-    "wiki_title": "Zeeshan Ansari"
-   },
-   {
+    "acquired": "retained",
+    "cid_note": "matched by hand: Cricsheet 'R Smaran', 6 IPL 2026 matches (SRH); no Wikidata link",
+    "country": "IND",
+    "cricsheet_id": "c1e53c3f",
     "name": "Smaran Ravichandran",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Smaran Ravichandran"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "a3b0600d",
     "name": "Aniket Verma",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Aniket Verma"
    },
    {
+    "acquired": "retained",
+    "country": "IND",
+    "cricsheet_id": "25228673",
     "name": "Harsh Dubey",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Harsh Dubey"
    },
    {
+    "acquired": "auction",
+    "country": "ENG",
+    "cricsheet_id": "50c6bc2b",
     "name": "Liam Livingstone",
+    "overseas": true,
+    "salary_cr": 13.0,
     "status": "bought",
     "wiki_title": "Liam Livingstone"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "c38d3503",
     "name": "Shivam Mavi",
+    "overseas": false,
+    "salary_cr": 0.75,
     "status": "bought",
     "wiki_title": "Shivam Mavi",
     "withdrawn": true
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "7b44eb3e",
     "name": "Shivang Kumar",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Shivang Kumar"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "d7423da1",
     "name": "Salil Arora",
+    "overseas": false,
+    "salary_cr": 1.5,
     "status": "bought",
     "wiki_title": "Salil Arora"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "280fff14",
     "name": "Sakib Hussain",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Sakib Hussain"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Onkar Tarmale",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Onkar Tarmale"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Amit Kumar",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Amit Kumar (cricketer, born 2002)"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
+    "cricsheet_id": "ece7b6b3",
     "name": "Praful Hinge",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Praful Hinge"
    },
    {
+    "acquired": "auction",
+    "country": "IND",
     "name": "Krains Fuletra",
+    "overseas": false,
+    "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Krains Fuletra"
    },
    {
+    "acquired": "auction",
+    "country": "AUS",
+    "cricsheet_id": "f787e0eb",
     "name": "Jack Edwards",
+    "overseas": true,
+    "salary_cr": 3.0,
     "status": "bought",
     "wiki_title": "Jack Edwards (cricketer, born 2000)",
     "withdrawn": true
    },
    {
+    "acquired": "replacement",
+    "country": "ENG",
+    "cricsheet_id": "6c79c098",
     "name": "David Payne",
+    "overseas": true,
     "replaced": "Jack Edwards",
+    "salary_cr": 1.5,
     "status": "replacement",
     "wiki_title": "David Payne (cricketer)",
     "withdrawn": true
    },
    {
+    "acquired": "replacement",
+    "country": "LKA",
+    "cricsheet_id": "de7d833e",
     "name": "Dilshan Madushanka",
+    "overseas": true,
     "replaced": "Brydon Carse",
+    "salary_cr": 0.75,
     "status": "replacement",
     "wiki_title": "Dilshan Madushanka"
    },
    {
+    "acquired": "replacement",
+    "country": "ZAF",
+    "cricsheet_id": "3204c99f",
     "name": "Gerald Coetzee",
+    "overseas": true,
     "replaced": "David Payne",
+    "salary_cr": 2.0,
     "status": "replacement",
     "wiki_title": "Gerald Coetzee"
    },
    {
+    "acquired": "replacement",
+    "country": "IND",
+    "country_note": "set by hand: an Indian domestic player (no flag on the page, no country in the player master)",
     "name": "RS Ambrish",
+    "overseas": false,
     "replaced": "Shivam Mavi",
+    "salary_cr": 0.45,
     "status": "replacement",
     "wiki_title": "RS Ambrish"
+   },
+   {
+    "acquired": "trade",
+    "country": "IND",
+    "cricsheet_id": "ce794613",
+    "name": "T. Natarajan",
+    "overseas": false,
+    "salary_cr": 5.0,
+    "status": "retained",
+    "trade": {
+     "from": "DC",
+     "salary_before_cr": 10.75
+    },
+    "wiki_title": "T. Natarajan"
    }
   ]
- }
+ },
+ "trades": [
+  {
+   "from": "LSG",
+   "name": "Shardul Thakur",
+   "salary_cr": 2.0,
+   "to": "MI",
+   "wiki_title": "Shardul Thakur"
+  },
+  {
+   "from": "GT",
+   "name": "Sherfane Rutherford",
+   "salary_cr": 2.6,
+   "to": "MI",
+   "wiki_title": "Sherfane Rutherford"
+  },
+  {
+   "from": "CSK",
+   "name": "Ravindra Jadeja",
+   "salary_cr": 14.0,
+   "to": "RR",
+   "wiki_title": "Ravindra Jadeja"
+  },
+  {
+   "from": "CSK",
+   "name": "Sam Curran",
+   "salary_cr": 2.4,
+   "to": "RR",
+   "wiki_title": "Sam Curran"
+  },
+  {
+   "from": "RR",
+   "name": "Sanju Samson",
+   "salary_cr": 18.0,
+   "to": "CSK",
+   "wiki_title": "Sanju Samson"
+  },
+  {
+   "from": "SRH",
+   "name": "Mohammed Shami",
+   "salary_cr": 10.0,
+   "to": "LSG",
+   "wiki_title": "Mohammed Shami"
+  },
+  {
+   "from": "DC",
+   "name": "Donovan Ferreira",
+   "salary_cr": 1.0,
+   "to": "RR",
+   "wiki_title": "Donovan Ferreira"
+  },
+  {
+   "from": "RR",
+   "name": "Nitish Rana",
+   "salary_cr": 4.2,
+   "to": "DC",
+   "wiki_title": "Nitish Rana"
+  },
+  {
+   "from": "KKR",
+   "name": "Mayank Markande",
+   "salary_cr": 0.3,
+   "to": "MI",
+   "wiki_title": "Mayank Markande"
+  },
+  {
+   "from": "MI",
+   "name": "Arjun Tendulkar",
+   "salary_cr": 0.3,
+   "to": "LSG",
+   "wiki_title": "Arjun Tendulkar"
+  }
+ ]
 }

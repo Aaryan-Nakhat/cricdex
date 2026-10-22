@@ -752,6 +752,7 @@ function Simulate({
                     <span className="text-accent-glow">{nm(p)}</span>
                     <Badge tone={ROLE_TONE[p.role]}>{p.role.replace("_", "-")}</Badge>
                     {p.is_overseas && <Plane className="h-3 w-3 text-willow" />}
+                    {p.captain && <span title={`Captained ${p.captain} last season`}><Badge tone="gold">C</Badge></span>}
                   </button>
                 ))}
               </div>
@@ -765,6 +766,7 @@ function Simulate({
                     <span className="text-fg">{nm(p)}</span>
                     <Badge tone={ROLE_TONE[p.role]}>{p.role.replace("_", "-")}</Badge>
                     {p.is_overseas && <Plane className="h-3 w-3 text-willow" />}
+                    {p.captain && <span title={`Captained ${p.captain} last season`}><Badge tone="gold">C</Badge></span>}
                   </button>
                 ))}
               </div>

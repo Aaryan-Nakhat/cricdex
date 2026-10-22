@@ -115,8 +115,10 @@ disagreements left for a human are in `data/curated/player_master_review.json`.
 - [x] 17. Cross-league valuation takes the max over leagues with hand-set tier penalties (Yash Thakur 1.65
   from SMAT vs −0.33 IPL; Unadkat 1.37 vs −0.14). Pool by precision so IPL evidence dominates; later fit
   league effects jointly.
-- [ ] 18. The price curve isn't fitted to any sale data, and one curve serves batting and bowling. Fit to
-  real auction prices (roadmap 13).
+- [x] 18. The price curve isn't fitted to any sale data, and one curve serves batting and bowling. Fit to
+  real auction prices (roadmap 13). *Done 2026-10-21: the market price (METHODOLOGY §6b) is fitted to
+  the 2018–2026 auctions and is the price everywhere; the curve stays as "on-field worth"; a quantile
+  calibration lifts the 10 cr+ lots from ~0.45× to ~0.62× of their price.*
 
 **Tags, flags and data hygiene**
 - [x] 19. Wrong AI role/bowling tags in `data/curated/player_taxonomy.json`: Digvesh Rathi tagged right-arm
@@ -211,9 +213,15 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   correct credit for extras and run-outs. *Done 2026-10-19: correctness 6–11, plus fielder credit.*
 - [x] 6. NegBin dispersion fix plus a role-level prior mean, then re-run both backtests (S). *Done 2026-10-19:
   both backtests re-run (METHODOLOGY §8).*
-- [ ] 7. Current squads, salaries and purses JSON plus a retention calculator (M): hand-built from the
+- [x] 7. Current squads, salaries and purses JSON plus a retention calculator (M): hand-built from the
   Wikipedia 2026 personnel-changes page; retain/release value minus cost, purse left, replacement cost per
-  role. Check the official 2027 retention rules first.
+  role. Check the official 2027 retention rules first. *Done 2026-10-21: **Keep or release** (`cricdex
+  keep`, the site page): salaries for all 274 squad players (`scripts/ipl_squad_salaries.py`, 2027 trades
+  and retirements applied), the cycle's rules as data in `config/competitions.toml` (each rule sourced or
+  marked assumed; the 2027 purse isn't published, 125 cr assumed), price vs salary → Keep / Release /
+  Borderline with a reason, purse left, role gaps filled from free agents plus other teams' release calls,
+  web ⇄ Python parity (METHODOLOGY §10). Open: the 22 squad players with no ball-by-ball can't be rated;
+  four teams' salaries don't reproduce their published 2026 purses (CSK 2.0, DC 3.45, KKR 6.0, RR 4.0 cr).*
 - [ ] 8. "True" strike rate and economy (S–M): runs against the same-match, same-phase baseline, on boards
   and profiles.
 - [x] 9. Cross-league pooling (S–M): precision-weighted with IPL evidence dominating, instead of the max.
@@ -221,13 +229,34 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
 - [ ] 11. Uncertainty everywhere (M): sample-size badges, minimum-sample defaults per window,
   Empirical-Bayes shrunk values, an n-balls badge and shrunk estimate on head-to-heads.
 
+- [x] 11b. Form forecast (M): each player's value over the next three seasons with an 80% range and
+  P(regular), for retention and mega-auction contracts. *Done 2026-10-21: `cricdex.scout.forecast` +
+  `scripts/form_forecast.py` (walk-forward ratings at every season end, regression to the mean + an age curve
+  with an inverse-probability survivorship correction, walk-forward-calibrated ranges); a "Form forecast"
+  section on the player profile, `cricdex forecast "<name>"` / `--team`; backtest from 2021–23 against
+  four baselines (METHODOLOGY §11). 2026-10-22: starts from each player's current level (a Kalman
+  level model with age drift, blended with the career rating by weights chosen on validation), a 15-player
+  reality check in §11, and the "3-season outlook" column in Keep or release (page, CLI, CSV, parity).*
 **Tier B: before the mid-December 2026 mini-auction**
 - [ ] 12. The IPL 2027 mini-auction room in its real state (M): real squads, released players, remaining
   purses, capped/uncapped base rules, RTM if the 2027 rules allow it, lots run by sets, the registered list
-  when published, manual availability and injury flags.
-- [ ] 13. Auction price model fitted to real IPL prices (M): Wikipedia personnel pages 2008–2026 (CC BY-SA;
+  when published, manual availability and injury flags. *Next step: competition rules are now config
+  (`config/competitions.toml`, `cricdex.competitions`, used by Keep or release); wire the auction simulator
+  (purse, squad limits, overseas cap, retention cost; still hard-coded IPL constants in `auction.ts` ⇄
+  `auction.py` and `AUCTION_TARGET` in `export_site.py`) to that file, and start its Mini mode from the real
+  squads and the purses Keep or release computes. SA20 / ILT20 / MLC / WPL cycles are further entries.*
+- [x] 13. Auction price model fitted to real IPL prices (M): Wikipedia personnel pages 2008–2026 (CC BY-SA;
   pre-2014 prices in US$); hurdle model — P(sold) logistic, log(price) hedonic on value, role, overseas,
   capped, age, base price, mega/mini; sale probability plus a price interval; out-of-time test.
+  *Done 2026-10-21: `scripts/ipl_auction_history.py` → `data/curated/ipl_auction_history.json` (1,647
+  sold lots, 1,046 retentions, 97–99% matched); `scripts/ipl_price_model.py` (as-of-auction IPL refits,
+  P(bought) logistic + Huber ln(price / purse), mega retentions included) → `config/price_model.json`;
+  out of time (2025 + 2026) MAE 0.68 ln against 0.78 for the old curve, rank corr. 0.74 against 0.63;
+  `market_price` ⇄ `marketPrice` in the pool, Keep or release and Scout. *2026-10-21 (later): captaincy
+  (`scripts/ipl_captains.py` → `data/curated/ipl_captains.json`, IPL + international, as-of-auction
+  features) and an out-of-fold quantile calibration of the top end (10 cr+ lots 0.45× → 0.62×, within
+  ±50% 45% → 49%, mean |ln error| 0.67 → 0.71, overseas over-priced ~1.9×). Next: an unsold list (none on
+  Wikipedia), the overseas lean, the base-price choice model.*
 - [ ] 14. Bowler-type × batting-hand matchup grid with shrinkage (S–M): right-arm pace, left-arm pace,
   off-break, leg-break, slow left-arm, left-arm wrist spin, vs LHB/RHB, by phase, with n-badges.
 - [ ] 15. Opposition dossier PDF (M): opponent plus venue → probable XI, each batter's weak bowler types by
@@ -258,6 +287,16 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   bowls overs 17–20.
 - [ ] 26. Auction value as wins added (M): replace the hand-set need 1.5/0.7 with marginal wins to a squad's
   best XI; calibrate team personalities against real auction moments.
+  *2026-10-21: the marginal-strength-to-the-best-XI measure exists now (Bid plan's `strength`, runs per
+  100 balls, not yet wins); the simulator's rivals still use need 1.5/0.7. Open.*
+- [x] 26b. Bid plan (M): an auction bidding-plan optimiser for one franchise: rivals simulated for the price to
+  beat, targets by marginal squad strength per crore, max bids, fallback chains per role, every assumption
+  editable. *Done 2026-10-21/22: page Bid plan + `cricdex bidplan`, web ⇄ Python parity; the auction
+  simulator's bidding calibrated to the 2022–24 auctions and tested on 2025–26 (`scripts/auction_calibrate.py`,
+  AUCTION_MATH Part 3b); no buying back own releases ("reconsider keeping" instead); the 2025 and 2026
+  auctions replayed (`scripts/bidplan_backtest.py`: level with the real squads in 2025, worse in 2026).
+  Next: the official 2027 auction list when published, Form forecast's three-season outlook for multi-year
+  buys, rivals that react to our buys, team personalities learned from real bids (#26).*
 - [ ] 27. Better evaluation (M): held-out ball-level log-likelihood, a split-half noise ceiling, calibration
   of P(A>B) and interval coverage, 3 ADVI seeds, a fair newcomer baseline with Holm-adjusted p,
   year-to-year stability of the bespoke metrics.
@@ -278,7 +317,8 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
 - [ ] 33. Weather and dew (Open-Meteo plus Wikidata venue coordinates; free for non-commercial use only) and
   a hand-curated boundary-size table (M).
 - [ ] 34. Research models (M–L): time-varying skill (random walk), correlated priors, within-player aging;
-  keep each only if held-out fit improves.
+  keep each only if held-out fit improves. *Within-player aging with a survivorship correction ships in the
+  Form forecast (11b, METHODOLOGY §11); not yet inside the rating model.*
 - [ ] 35. Non-IPL auction and draft rooms (L): WPL, ILT20, MLC, SA20.
 
 ### Product review (owner, 2026-10-17)

@@ -8,6 +8,7 @@ import { getProfile, getCohorts, displayName, type Profile, type PlayerRow } fro
 import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, ErrorBox, Empty, Badge, StatTile, Segmented, InfoTip, StaleBadge } from "@/components/ui";
 import { MetricInfo } from "@/components/MetricInfo";
+import { FormForecast } from "@/components/FormForecast";
 import { METRIC_BY_SLUG, fmtMetric } from "@/lib/metrics";
 import { BAT_STATS, BOWL_STATS, fmtStat, standardStats } from "@/lib/standard";
 import { useUrlState } from "@/lib/useUrlState";
@@ -259,6 +260,19 @@ function Identity({
             {idn?.team && <Badge tone="gold">{idn.team}</Badge>}
             {idn?.capped === true && <Badge tone="accent">capped</Badge>}
             {idn?.capped === false && <Badge>uncapped</Badge>}
+            {idn?.captaincy?.ipl?.[0] && (
+              <span title="IPL captaincy (Wikipedia)"><Badge tone="gold">
+                IPL captain {idn.captaincy.ipl[0].team} {idn.captaincy.ipl[0].from}
+                {idn.captaincy.ipl[0].to !== idn.captaincy.ipl[0].from ? `–${idn.captaincy.ipl[0].to}` : ""}
+              </Badge></span>
+            )}
+            {idn?.captaincy?.international?.[0] && (
+              <span title="International captaincy (Wikipedia)"><Badge tone="gold">
+                {idn.captaincy.international[0].country} {idn.captaincy.international[0].format.toUpperCase()} captain{" "}
+                {idn.captaincy.international[0].from}
+                {idn.captaincy.international[0].to !== idn.captaincy.international[0].from ? `–${idn.captaincy.international[0].to}` : ""}
+              </Badge></span>
+            )}
           </div>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -466,6 +480,9 @@ export function PlayerProfile() {
               </Card>
             )}
           </div>
+
+          {/* form forecast: value over the next three seasons (IPL) */}
+          <FormForecast collection={collection} cid={cid} />
 
           {/* novel metrics */}
           {metrics && Object.entries(metrics).some(([, m]) => m && Object.keys(m).length > 0) && (

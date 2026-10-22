@@ -213,6 +213,13 @@ sd-sum value, don't survive. Full tables, the sensitivity runs and the caveats: 
 - Players present only as bowler (or only as batter) get one role row; all-rounders get two rows.
 - Each league is fitted alone; cross-league comparison rests on the registry's tier discounts.
 
+## Form forecast (built on these ratings)
+
+`cricdex.scout.forecast` projects `value` over the next three IPL seasons from the rating as it stood
+at each season end (the walk-forward fits above), age (with a survivorship correction) and how ratings
+regress season to season; 80% ranges and P(regular). Method, backtest and limits:
+[METHODOLOGY §11](../../../../docs/METHODOLOGY.md#11-form-forecast); script: `scripts/form_forecast.py`.
+
 ## Next
 
 - A joint multi-league fit with league effects (replacing the hand-set tier discounts).

@@ -12,6 +12,12 @@ import {
   simulateAuction,
   estValue,
   IPL_TEAMS_DEFAULT,
+  marketFeatures,
+  marketPrice,
+  registerPriceModel,
+  scoutPrice,
+  type MarketInputs,
+  type PriceModel,
   type PriceTier,
   type Role,
 } from "../src/lib/auction.ts";
@@ -20,9 +26,20 @@ import type { ScoutPlayer } from "../src/lib/data.ts";
 import { registerLeagues, scoutPools, type LeagueRegistry } from "../src/lib/leagues.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const dataDir = join(here, "..", "public", "data", "ipl");
+// CRICDEX_SITE_DATA points the harness at another export (a scratch one), as it does the Python side
+const dataDir = join(process.env.CRICDEX_SITE_DATA || join(here, "..", "public", "data"), "ipl");
 const load = (f: string) => JSON.parse(readFileSync(join(dataDir, f), "utf8"));
 
+// The market-price model: the test passes config/price_model.json in CRICDEX_PRICE_MODEL_JSON so
+// both sides price with the same coefficients; else the exported copy (if any).
+const modelPath = process.env.CRICDEX_PRICE_MODEL_JSON || join(dataDir, "price_model.json");
+let model: PriceModel | null = null;
+try {
+  model = JSON.parse(readFileSync(modelPath, "utf8")) as PriceModel;
+} catch {
+  model = null;
+}
+registerPriceModel(model);
 const pool = buildPool(load("auction_pool.json"));
 const ret = load("retentions.json");
 const scout = load("scout_index.json");
@@ -63,7 +80,7 @@ for (const tier of tiers) {
   scoutOut[tier] = similarTo(sel, scout[tier] as ScoutPlayer[], sel.role, "").map((p) => ({
     id: p.cricsheet_id,
     sim: p.sim,
-    price: estValue(p.value, p.role, tier, p.value_sd, p.target_balls),
+    price: scoutPrice(p, tier),
   }));
 }
 // Same-type matching + slot + country filters: every bowling all-rounder with a known country and slot
@@ -99,6 +116,15 @@ const ESTIMATE_CASES: [number, string, string, number | null, number | null][] =
   [40.0, "all_rounder", "smat", 9.0, null],
   [-30, "bowler", "bbl", 7.0, 0],
   [10, "bowler", "cpl", null, 600],
+];
+// mirrored in test_web_parity.py: market-model inputs on fixed rows (incl. missing fields)
+const MARKET_CASES: [MarketInputs, "mega" | "mini", number][] = [
+  [{ price_value: 13.6, value_sd: 2.75, role: "batter", is_overseas: false, intl_caps: 555, age: 38.1, ipl_balls: 8400, ipl_seasons: 19, ipl_gap: 0.55, target_balls: 6926, captain_ipl_last: 0, captain_ipl_seasons: 10, captain_intl_2y: 0 }, "mini", 125],
+  [{ price_value: 59.7, value_sd: 12.5, role: "batter", is_overseas: false, intl_caps: 0, age: 15.7, ipl_balls: 449, ipl_seasons: 2, ipl_gap: 0.55, target_balls: 449 }, "mini", 125],
+  [{ price_value: 23.2, value_sd: 2.7, role: "bowler", overseas: false, intl_caps: 210, age: 32.9, ipl_balls: 3100, ipl_seasons: 12, ipl_gap: 0.55, target_balls: 3000, captain_ipl_last: 1, captain_ipl_seasons: 1, captain_intl_2y: 1 }, "mega", 120],
+  [{ price_value: 6.0, value_sd: 9.0, role: "all_rounder", is_overseas: true, intl_caps: 40, age: 27.2, ipl_balls: 0, ipl_seasons: 0, ipl_gap: null, target_balls: 0 }, "mini", 125],
+  [{ price_value: null, role: "keeper", is_overseas: false, intl_caps: null, age: null, ipl_balls: null, ipl_seasons: null, ipl_gap: 3.2 }, "mega", 90],
+  [{ price_value: -45, value_sd: 20, role: "bowler", is_overseas: true, intl_caps: 3, age: 41, ipl_balls: 120, ipl_seasons: 1, ipl_gap: 9.5, target_balls: 120 }, "mini", 125],
 ];
 const out = {
   retentions,
@@ -139,5 +165,13 @@ const out = {
   gems,
   // the cautious price on fixed inputs (value, role, tier, sd), including a missing sd
   estCases: ESTIMATE_CASES.map(([v, role, tier, sd, balls]) => estValue(v, role as Role, tier, sd, balls)),
+  // the market model on fixed inputs (features + price + P(bought)); null when there is no model
+  marketCases: model
+    ? MARKET_CASES.map(([row, cycle, purse]) => ({
+        features: marketFeatures(row, cycle),
+        ...marketPrice(row, { cycle, purse }),
+      }))
+    : null,
+  poolPrices: pool.map((p) => [p.cricsheet_id, p.projected_value, p.onfield_value, p.p_bought, p.captain]),
 };
 process.stdout.write(JSON.stringify(out));
