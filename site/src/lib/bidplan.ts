@@ -13,19 +13,17 @@
 //    overseas room; λ chosen to maximise the mean strength over the runs; the gain counts the
 //    likely buys still to come (a lookahead iterated to a fixed point).
 // 4. The plan: each target's max bid = his gain to the likely squad / λ (capped by the purse left
-//    after the rest of the likely buys, and the 27 cr record), plus a fallback chain per role.
+//    after the rest of the likely buys), plus a fallback chain per role.
 import {
   IPL_TEAMS_DEFAULT,
-  PRICE_CAP,
   auctionLots,
   oneTrial,
-  priceCeiling,
   priceTier,
   type FranchiseBase,
   type PoolPlayer,
   type Role,
 } from "./auction.ts";
-import { cr, evaluate, fmtNum, playerKey, type AssessedPlayer, type Decision, type KeepData, type KeepRules } from "./keep.ts";
+import { cr, evaluate, fmtNum, playerKey, purseCharged, type AssessedPlayer, type Decision, type KeepData, type KeepRules } from "./keep.ts";
 
 // ---- the squad-strength model ----
 export const XI_SIZE = 11;
@@ -208,7 +206,6 @@ export interface Lot {
   projected_value: number;
   p_bought: number | null;
   base_price: number;
-  price_cap: number;
   tags: string;
   from_team: string | null;
   /** his last IPL price (cr), when known: the simulator's reference price */
@@ -238,7 +235,7 @@ export interface BidContext {
 }
 
 function availRow(
-  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; projected_value: number; p_bought?: number | null; base_price: number; price_cap: number },
+  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; projected_value: number; p_bought?: number | null; base_price: number },
   tags: string,
   fromTeam: string | null,
 ): Lot {
@@ -253,7 +250,6 @@ function availRow(
     projected_value: r.projected_value,
     p_bought: r.p_bought ?? null,
     base_price: r.base_price,
-    price_cap: r.price_cap,
     tags: t,
     from_team: fromTeam,
   };
@@ -273,7 +269,6 @@ function squadRowAsLot(p: AssessedPlayer) {
     projected_value: price,
     p_bought: p.p_bought ?? null,
     base_price: priceTier(price),
-    price_cap: priceCeiling(p.target_balls),
   };
 }
 
@@ -342,7 +337,8 @@ export function buildContext(
     const kept = res.players.filter((p) => p.kept);
     const salaryKept = fsum(kept.map((p) => Number(p.salary)));
     const pieces = kept.map((p) => piece(p.key, p.name, p.value, p.role, !!p.overseas, p.tags || ""));
-    const purseLeft = Number(compRules.purse) - salaryKept;
+    // what the kept players cost the purse (salaries; 2025 retentions by the retention slabs)
+    const purseLeft = Number(compRules.purse) - purseCharged(kept, compRules);
     for (const p of res.players) if (!p.kept && p.id && p.value !== null && p.value !== undefined) released.push(p);
     if (t === team) ours = { players: res.players, kept: pieces, purse_left: purseLeft, salary_kept: salaryKept, warnings: res.warnings };
     else rivals.push({ team: t, personality: pers[t] ?? "Balanced", kept: pieces, purse_left: purseLeft });
@@ -438,7 +434,7 @@ export function rivalPrices(ctx: BidContext, trials: number = TRIALS): number[][
   for (let t = 0; t < trials; t++) {
     oneTrial(bases, lots, opts, 1000 + t * 7919, (player, _team, bestBid) => {
       const i = index.get(player.cricsheet_id) as number;
-      const beat = Math.min(PRICE_CAP, player.price_cap, bestBid * 1.02);
+      const beat = bestBid * 1.02;
       out[i][t] = Math.max(Number(player.base_price), beat);
     });
   }
@@ -752,7 +748,7 @@ export function plan(
     const reserve = Math.max(0, sqMin - ctx.kept.length - rest.length - 1) * MIN_SLOT_PRICE;
     const budget = Number(ctx.purse_left) - fsum(rest.map((j) => expPaid.get(j) as number)) - reserve;
     const byValue = Math.max(0, g / lam);
-    const mb = Math.min(PRICE_CAP, Math.max(0, budget), byValue);
+    const mb = Math.min(Math.max(0, budget), byValue);
     return [mb, g, mb < byValue];
   };
 
@@ -820,7 +816,7 @@ export function plan(
   cands.forEach((c, i) => {
     if (!c.own || !salaryOf.has(c.id) || !c.rated) return;
     const g = gainWithout(new Set([i]), i);
-    const worth = Math.min(PRICE_CAP, Math.max(0, g / lam));
+    const worth = Math.max(0, g / lam);
     const sq = salaryOf.get(c.id) as AssessedPlayer;
     const sal = Number(sq.salary);
     if (worth >= sal) reconsider.push({ id: c.id, name: sq.name, salary: sal, worth, gain: g, auto_release: sq.auto_release ?? null });

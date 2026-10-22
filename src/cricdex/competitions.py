@@ -97,6 +97,7 @@ class Competition:
     rtm_cards: int = 0
     retained_cost: str = "salary"
     retention_slabs: tuple[float, ...] = ()
+    uncapped_retention_slab: float = 0.0
     replacements_retainable: bool = True
     overseas_fee_cap: float = 0.0
     min_purse_spend_share: float = 0.0
@@ -120,6 +121,10 @@ class Competition:
             "max_retained": self.max_retained,
             "max_overseas_retained": self.max_overseas_retained,
             "replacements_retainable": self.replacements_retainable,
+            # what a kept player costs the purse (web_parity/keep.py `retention_costs`)
+            "retained_cost": self.retained_cost,
+            "retention_slabs": list(self.retention_slabs),
+            "uncapped_retention_slab": self.uncapped_retention_slab,
         }
 
 
@@ -169,7 +174,7 @@ def _competition(raw: dict[str, Any], where: str, check_league: bool = True) -> 
         d[k] = _iso(d[k], f"{w}: {k}")
     if d["retention_deadline"] > d["auction_date"]:
         raise CompetitionError(f"{w}: the retention deadline falls after the auction")
-    for k in ("purse", "overseas_fee_cap", "min_purse_spend_share"):
+    for k in ("purse", "overseas_fee_cap", "min_purse_spend_share", "uncapped_retention_slab"):
         if k in d:
             d[k] = float(d[k])
     if d["purse"] <= 0:
@@ -320,6 +325,20 @@ def squad_rows(comp: Competition, squads: dict[str, Any] | None = None) -> dict[
             keep.append(r)
         out[team] = keep
     return out
+
+
+def slab_holder(squads: dict[str, Any], team: str, row: dict) -> str | None:
+    """ "capped" / "uncapped" when `row` is a player `team` retained at the cycle's mega auction and
+    still holds that retention (the squads file's `mega_retentions_2025`), else None. A player who
+    joined by trade costs his salary at his new team (the slab stays with the retaining one).
+    METHODOLOGY §10; web_parity/keep.py `slab_charge`."""
+    block = ((squads.get("mega_retentions_2025") or {}).get("teams") or {}).get(team) or {}
+    if row.get("acquired") == "trade" or (row.get("trade") or {}).get("from") not in (None, team):
+        return None
+    for kind in ("capped", "uncapped"):
+        if row.get("name") in (block.get(kind) or []):
+            return kind
+    return None
 
 
 def site_payload(comp: Competition) -> dict[str, Any]:

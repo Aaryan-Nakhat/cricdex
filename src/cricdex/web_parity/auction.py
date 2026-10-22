@@ -19,7 +19,6 @@ from cricdex.web_parity.pricing import (
     est_value,
     has_market_inputs,
     market_price,
-    price_ceiling,
     price_tier,
 )
 
@@ -53,8 +52,6 @@ def build_pool(rows: list[dict], model: dict | None = None) -> list[dict]:
                 "captain": " / ".join(r.get("captain_teams") or []) or None,
                 "base_price": base,
                 "vpc": pv / base,
-                # his price ceiling (rises with IPL balls): bidding can't clear him above it
-                "price_cap": price_ceiling(r.get("target_balls")),
             }
         )
     out.sort(key=lambda p: p["projected_value"], reverse=True)
@@ -138,6 +135,83 @@ def slab_cost(i: int) -> float:
     return SLABS[i] if i < len(SLABS) else 4
 
 
+def _lsum(xs) -> float:
+    """Left-to-right float sum, as JS `reduce` does (Python 3.12's `sum` compensates, which can differ
+    in the last bit and, in a close bid, flip a sale)."""
+    t = 0.0
+    for x in xs:
+        t += x
+    return t
+
+
+def retention_inputs(data: dict | None) -> dict:
+    """The real 2025 retentions (retentions.json) as simulator inputs: {"mega_ids": team → ids,
+    "real_prices": id → price, "retention_slabs", "slab_holders": id → capped / uncapped,
+    "fixed_retained": team → [{salary, slab_holder}] (retentions outside the pool)}. Mirror of
+    `retentionInputs` in auction.ts."""
+    data = data or {}
+    mega_ids: dict[str, list[str]] = {}
+    prices: dict[str, float] = {}
+    holders: dict[str, str] = {}
+    for team, rows in (data.get("mega") or {}).items():
+        mega_ids[team] = [r["cricsheet_id"] for r in rows]
+        for r in rows:
+            prices[r["cricsheet_id"]] = r["price"]
+            if r.get("slab_holder"):
+                holders[r["cricsheet_id"]] = r["slab_holder"]
+    fixed = {
+        team: [
+            {"salary": r["salary"], "slab_holder": r.get("slab_holder") or "capped"} for r in rows
+        ]
+        for team, rows in (data.get("unpooled") or {}).items()
+    }
+    return {
+        "mega_ids": mega_ids,
+        "real_prices": prices,
+        "retention_slabs": data.get("slabs"),
+        "slab_holders": holders,
+        "fixed_retained": fixed,
+    }
+
+
+def retention_spend(team: str, retained: list[dict], opts: dict) -> tuple[float, list[float]]:
+    """(what a team's retentions cost the purse, each retained player's share). Mini: 0 (the squad is
+    already paid for). Mega: each at his real retention price (else the slab for his position); with
+    `opts["retention_slabs"]` ({"capped": [...], "uncapped": x}) the team's retentions together cost
+    the slab rule (keep.slab_charge: max(the slabs, their salaries)), capped / uncapped from
+    `opts["slab_holders"]` (absent = capped), plus `opts["fixed_retained"][team]` (real retentions
+    outside the pool, still charged); each player's share is the charge less the charge without him
+    (keep.retention_costs). Mirror of `retentionSpend` in auction.ts."""
+    from cricdex.web_parity.keep import slab_charge
+
+    if opts["mode"] == "mini":
+        return 0.0, [0.0] * len(retained)
+    sal = [
+        float(opts["real_prices"].get(p["cricsheet_id"], slab_cost(i)))
+        for i, p in enumerate(retained)
+    ]
+    slabs = opts.get("retention_slabs")
+    if not slabs:
+        t = 0.0
+        for x in sal:
+            t += x
+        return t, sal
+    hk = opts.get("slab_holders") or {}
+    holders = [
+        {"salary": s, "slab_holder": hk.get(p["cricsheet_id"], "capped")}
+        for p, s in zip(retained, sal, strict=True)
+    ]
+    for h in (opts.get("fixed_retained") or {}).get(team, []):
+        holders.append({"salary": float(h["salary"]), "slab_holder": h.get("slab_holder")})
+    rules = {"retention_slabs": slabs["capped"], "uncapped_retention_slab": slabs["uncapped"]}
+    total = slab_charge(holders, rules) if holders else 0.0
+    each = [
+        total - slab_charge([h for j, h in enumerate(holders) if j != k], rules)
+        for k in range(len(retained))
+    ]
+    return total, each
+
+
 def default_retentions(
     pool: list[dict], team_cfg: list[dict], mode: str, mega_ids: dict[str, list[str]]
 ) -> dict[str, list[str]]:
@@ -178,11 +252,12 @@ def rng(seed: int) -> Callable[[], float]:
 # BID_PIVOT) ^ BID_CURVE, times a demand shock e^(LOT_HYPE_SD × z) drawn once per lot per run and shared by
 # every team (how hot he is this time: real prices scatter about 2.7× around the market model's median).
 # Neutral (level 1, curve 1, sd 0, tightness 0, anchor 0, taste 0) is the uncalibrated room. `opts["calib"]` overrides them (the fit).
-# Fitted 2026-10-22 on the 2022 mega and 2023 / 2024 mini auctions (out of time: 2025, 2026).
-BID_LEVEL = {"mega": 0.864, "mini": 1.0368}
+# Fitted 2026-10-22 on the 2022 mega and 2023 / 2024 mini auctions (out of time: 2025, 2026); refitted the
+# same day for the censored (Tobit) market price, and again for the top-end rework (no price cap, slab-rule retentions).
+BID_LEVEL = {"mega": 0.72, "mini": 1.493}
 BID_CURVE = 0.75
 BID_PIVOT = 1.0
-LOT_HYPE_SD = 1.0
+LOT_HYPE_SD = 0.8
 # Market tightness: every bid is also scaled by the money left with the teams that still have places,
 # over the market value of the best unsold players who would fill those places (clamped). Money chasing
 # few places (a mini auction) lifts prices; a lot of value still to come holds early bids back. 0 = off.
@@ -190,7 +265,7 @@ TIGHTNESS = 1
 # Reference price: a player whose last IPL price is known (`anchor_price` on his row, cr: a released squad
 # player's salary, a replayed lot's previous price scaled to that purse) is valued
 # lot value^(1 − ANCHOR) × (level × last price)^ANCHOR: bidders remember what he went for. 0 = off.
-ANCHOR = 0.3
+ANCHOR = 0.6
 # Team taste: each team's view of each lot also varies by e^(TASTE_SD × z), z drawn per team per lot (teams
 # rate players differently; in a second-price room that spread sets the typical price). 0 = off.
 TASTE_SD = 0.0
@@ -216,8 +291,8 @@ def calibration(opts: dict) -> dict:
 
 MIN_BASE = 0.3
 MIN_SQUAD = 20
-# No player clears above the real IPL record (Pant, 27 cr, 2025 mega auction).
-PRICE_CAP = 27.0
+# No price cap: a team can bid at most what its purse leaves after MIN_BASE for each place it still
+# has to fill (`spendable`, the IPL's purse rule), and the lot clears at the second-highest bid.
 # Budget pressure: a team with more purse per open slot than the league bids
 # harder (and a stretched one softer) — (ratio ** EXP), clamped.
 PRESSURE_EXP = 0.5
@@ -232,14 +307,13 @@ def _build_franchises(pool: list[dict], team_cfg: list[dict], opts: dict):
     for cfg in team_cfg:
         ids = opts["retentions"].get(cfg["team"], [])
         retained = [by_id[i] for i in ids if i in by_id]
-        retain_spend = 0.0
         retain_overseas = 0
-        for i, p in enumerate(retained):
+        for p in retained:
             retained_ids.add(p["cricsheet_id"])
-            if opts["mode"] != "mini":
-                retain_spend += opts["real_prices"].get(p["cricsheet_id"], slab_cost(i))
             if p["is_overseas"]:
                 retain_overseas += 1
+        # Mega: retentions draw from the purse by the slab rule; mini: free (already paid for)
+        retain_spend = retention_spend(cfg["team"], retained, opts)[0]
         bases.append(
             {
                 "team": cfg["team"],
@@ -364,7 +438,7 @@ def one_trial(
                 for i in range(len(states))
                 if filled_of(states[i]) < opts["squad_size"]
             ]
-            league_per_slot = sum(open_slots) / len(open_slots) if open_slots else 0.0
+            league_per_slot = _lsum(open_slots) / len(open_slots) if open_slots else 0.0
             market = tightness() if tight else 1.0
             best_team = -1
             best_bid = 0.0
@@ -417,7 +491,7 @@ def one_trial(
                 elif wtp > second_bid:
                     second_bid = wtp
             if best_team >= 0:
-                price = min(PRICE_CAP, player["price_cap"], best_bid, second_bid * 1.02)
+                price = min(best_bid, second_bid * 1.02)
                 buy(best_team, player, max(player["base_price"], price))
                 sold.add(player["cricsheet_id"])
                 if on_sale is not None:
@@ -484,7 +558,7 @@ def simulate_auction(pool: list[dict], team_cfg: list[dict], opts: dict) -> dict
             "team": b["team"],
             "personality": b["personality"],
             "retained": len(b["retained"]),
-            "ret_val": sum(p["projected_value"] for p in b["retained"]),
+            "ret_val": _lsum(p["projected_value"] for p in b["retained"]),
             "bought": 0,
             "spend": 0.0,
             "value": 0.0,
@@ -507,7 +581,7 @@ def simulate_auction(pool: list[dict], team_cfg: list[dict], opts: dict) -> dict
         for i, st in enumerate(states):
             agg[i]["bought"] += len(st["bought"])
             agg[i]["spend"] += st["spent"]
-            agg[i]["value"] += agg[i]["ret_val"] + sum(p["projected_value"] for p in st["bought"])
+            agg[i]["value"] += agg[i]["ret_val"] + _lsum(p["projected_value"] for p in st["bought"])
             agg[i]["overseas"] += st["overseas"]
             for k, p in enumerate(st["bought"]):
                 m = marquee_wins.get(p["cricsheet_id"])
@@ -550,12 +624,9 @@ def simulate_auction(pool: list[dict], team_cfg: list[dict], opts: dict) -> dict
     # outcomes = retained (in team order) then every auctioned player (pool order)
     outcomes: list[dict] = []
     for b in bases:
+        costs = retention_spend(b["team"], b["retained"], opts)[1]
         for i, p in enumerate(b["retained"]):
-            cost = (
-                opts["real_prices"].get(p["cricsheet_id"], slab_cost(i))
-                if opts["mode"] != "mini"
-                else 0
-            )
+            cost = costs[i]
             outcomes.append(
                 {
                     "cricsheet_id": p["cricsheet_id"],

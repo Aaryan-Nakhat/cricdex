@@ -167,6 +167,13 @@ XI_CASES = [
 ]  # fmt: skip
 
 
+def _keep_model() -> dict | None:
+    from cricdex.web_parity.keep import load_keep_model
+
+    load_keep_model.cache_clear()
+    return load_keep_model()
+
+
 def _model() -> dict | None:
     from cricdex.web_parity.pricing import load_price_model
 
@@ -268,7 +275,7 @@ def _node(cases: list[dict]) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         fx = Path(tmp) / "bidplan_fixture.json"
         fx.write_text(
-            json.dumps({"cases": cases, "model": _model(), "xi_cases": XI_CASES,
+            json.dumps({"cases": cases, "model": _model(), "keep_model": _keep_model(), "xi_cases": XI_CASES,
                         "xi_needs": XI_NEEDS, "sim_cases": _sim_cases()}),
             encoding="utf-8",
         )  # fmt: skip

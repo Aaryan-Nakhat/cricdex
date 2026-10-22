@@ -34,14 +34,15 @@ taxonomy (role, bowling type, batting slot, country).
 - Ratings backtests: established IPL players and IPL newcomers rated from other leagues
   (`scripts/backtest_ratings.py`, `scripts/backtest_newcomers.py`).
 - Head-to-head probabilities from the rating uncertainty.
-- Style twins (cosine k-NN: 13 axes for batters, 3 for bowlers) and co-faced cohorts on every profile.
+- Style twins (per-role ball-by-ball style axes against par, robust z, same role and bowling type; METHODOLOGY §5a) and co-faced cohorts on every profile.
 
 **Rooms and pages**
 - **Scout**: cross-league look-alikes across IPL, SMAT, BBL, SA20, CPL and T20 Blast, with estimated price,
   saving versus the pick, a gem flag, role and batting-slot filters, and one-click draft into the auction.
 - **Auction room**: real-rules IPL auction Monte-Carlo with a cross-league pool, IPL-relevance weighting,
-  editable Mega / Mini retentions, team personalities, budget-aware bidding, second-price clearing with a
-  27 cr cap, two-phase fill and a post-auction player search.
+  editable Mega / Mini retentions charged by the 2025 slab rule, team personalities, budget-aware bidding,
+  second-price clearing within each team's purse (no price cap since 2026-10-22), two-phase fill and a
+  post-auction player search.
 - Matchups, Phase, Form, Partnerships, Aging, Venues, Records (with On This Day), Player Profile and
   Compare pages.
 
@@ -136,9 +137,11 @@ disagreements left for a human are in `data/curated/player_master_review.json`.
   so the min-matches filter does nothing. Compute `matches` within the window.
 - [ ] 24. Pressure Conversion samples are tiny (median 11 balls; #1 Saini on 2/7; last-year board 4 rows at
   0%). Redefine, add Empirical-Bayes shrinkage and intervals, or hide it.
-- [ ] 25. Style twins use cosine on unscaled, mean-imputed features (`style_twin.py::_vectorise`; Mayank
+- [x] 25. Style twins use cosine on unscaled, mean-imputed features (`style_twin.py::_vectorise`; Mayank
   Agarwal's twins are DJ Bravo, JR Hopes, MF Maharoof). Z-score, per-role feature sets, eyeball 20 famous
-  players.
+  players. *Done 2026-10-22: rebuilt from the ball-by-ball (slot, phase tempo vs par, boundaries / dots,
+  spin vs pace, risk; bowlers: phase usage, economy by phase, strike, wicket types, pace / arm), robust z
+  with shrinkage, same-role and bowling-type gates; Mayank → Samson, Uthappa, Kishan (METHODOLOGY §5a).*
 - [ ] 26. IPL-ineligible Pakistani players in Scout pools (30, including Mohammad Amir as a Bumrah
   look-alike in the README), and capped players (Unadkat, Thakur) in the "uncapped SMAT" pool. Add
   eligibility and capped filters.
@@ -370,6 +373,84 @@ Scout:
   metric, rating and board by the registry id (`players_<col>`) instead of the name. *Done 2026-10-17: `common/sql.py::keyed_balls` (per-match registry ids) everywhere; tests/test_namesakes.py. Re-counted on the current data, among players who batted or bowled: 38 names in men's T20Is, 7 in the BPL, 7 in SMAT, 3 in the PSL, 1 each in the IPL and The Hundred.*
 - [ ] F2. Site data is now 217 MB (a profile for every player). Do roadmap item 39 soon: move the data
   snapshot out of `main` into a data branch the deploy reads, overwritten on each refresh.
+
+### Open issues (owner, 2026-10-22)
+
+All to fix. Order: data fixes and price model first, then Bid plan, then visuals and a rebuild.
+
+- [ ] I1. README auction / Scout images were rendered before the market price model — refresh every visual
+  from current data (last, after the price fixes).
+- [ ] I2. Bid plan (beta) doesn't beat real franchises in replay (4/10 in 2025, 2/10 in 2026); target lists
+  overlap across teams because the plan is a price-taker. Make rivals react to the plan's targets
+  (equilibrium across teams) and re-validate; drop "beta" only when the replay beats the real franchises.
+- [ ] I3. Star prices still low out of time (lots ≥10 cr predicted at ~0.5× their price). *Re-examined
+  2026-10-22, not ticked:* the ratio is regression to the mean, not a fixable level. Lots picked by their
+  real price sit above any model; a model whose prices were exactly right on average would show 0.30×
+  (0.22–0.41) on the same lots, and the new recipe shows 0.39× (the old map's 0.50× came from over-pricing
+  the top: its 20 dearest predictions per auction fetched 0.65× their price; now 0.77×). Twenty-odd
+  interactions, isotonic / quantile / per-group maps and an overseas × mega term were tried; none prices
+  the 2025 stars higher without over-pricing everyone it ranks near them. Venkatesh Iyer, Chahal,
+  Bhuvneshwar, the 2025 overseas pacers and the 2026 uncapped 14.2 cr buys stay beyond pre-auction facts
+  (METHODOLOGY §6b reality table). Open question for the owner: accept "median + range" for stars, or add
+  a non-data input (marquee sets, scouting). *Reworked 2026-10-22 (audit items 2–4):* mega retentions are
+  now floors in a censored (Tobit) fit and the recipe is chosen on auctions up to 2024, then tested once:
+  level on 2025–26 lots (0.654), retained stars priced at 0.60× their retention (0.54×); the Indian top
+  end rises (Shreyas Iyer, Arshdeep, Pant, Gill, Bumrah) but the old stars (Kohli, Rohit) stay low, and
+  the 27 cr / evidence ceiling now binds for 8 pool players. The prior market price helps P(bought) only.
+  *Top end reworked the same evening (audit item 3):* the cause was the retained stars' floors pushing the
+  linear index up (lots alone priced Gill at 22, with the floors 104), not a squared term; the price now
+  goes through a monotone out-of-fold calibration with a fitted top slope (0.51), the value is held to its
+  training support, the ceiling is gone, and nobody in the 2027 pool passes 27 (Gill 25.8). Chosen by the
+  stated protocol (held-out lot error; the code had been using the log-likelihood), tested once: lot error
+  level (0.661), top 20 0.87 (0.76). A literal purse bound (second-richest spendable purse, ~79 cr in
+  2025) never binds; a fitted saturation put its cap at the purse itself. The Afghanistan caps source is
+  done (METHODOLOGY §1). Still open: a brand / following input for the 35+ stars if a sourced one exists;
+  the retained stars price at ~0.5× their retention (Keep now models the keeping instead).
+- [x] I4. Overseas prices ~1.45× too high out of time (overseas price level swings between auctions).
+  *Fixed 2026-10-22:* four calibration groups at their median (overseas split by mega / mini auction):
+  out of time 1.10× (median +0.12 ln, was +0.50); leaving each auction out, overseas mega −0.05 and mini
+  +0.03 in median (were +0.32 / −0.17). The level still swings: 2026 walking forward +0.23 in mean, −0.01
+  in median. A 2025–27 rules-cycle overseas term was tried and rejected (worse 2026 median).
+- [ ] I5. IPL 2027 purse and auction date are assumptions — confirm from official / press sources.
+  *Checked 2026-10-22: no 2027 purse published anywhere (only the 157 cr salary cap); the auction is still
+  "reported" for 16 Dec, ITC Grand Goa; retention lists due 15 Nov. Both stay `assumed` with dated sources in
+  `config/competitions.toml`. Re-check when the retention lists and remaining purses come out (15 Nov).*
+  *Rules re-checked 2026-10-22: 2027 is the last mini auction of the 2025–27 cycle (keep anyone at his
+  contract, no RTM); the overseas fee cap limits the fee, not the bid; the 2025 retention slabs are assumed
+  to carry into 2027 (owner's call), charged as in 2026 (rule reproduces all 20 published 2025–26 purses).*
+- [x] I6. 22 squad players have no ball-by-ball data (unrated); CSK, DC, KKR, RR purses don't reconcile from
+  Wikipedia salaries — reconcile against official remaining-purse figures and give unrated players a
+  sourced prior. *Done 2026-10-22: all ten purses reconcile exactly (2025 retention-slab charge, DNA India;
+  Vipraj Nigam 0.5 not 0.3), pre- and post-auction; 3 of the 22 matched by ESPNcricinfo key (Mukul
+  Choudhary, Tejasvi Singh, Sahil Parakh), the other 19 priced from the market model as "no match data"
+  (METHODOLOGY §10).*
+- [x] I7. SMAT data ends Dec 2024 (prospects judged on stale form) — check for newer open data; otherwise make
+  staleness explicit in every SMAT-based number. *Done 2026-10-22: Cricsheet lists SMAT 2024-25 groups and
+  2025-26 as missing, no other open source; pool / Keep rows carry `stale_share` + `stale_note`, shown on
+  Auction, Bid plan, `cricdex auction` and the Keep reason (METHODOLOGY §9). Re-check Cricsheet each refresh.*
+- [x] I8. Captaincy gaps: Rising Pune Supergiant, Gujarat Lions, Ireland. *Done 2026-10-22: season articles
+  for RPS / GL, "List of Ireland cricket captains" for Ireland (IDENTITY.md).*
+- [x] I9. Afghanistan internationals missing (Rashid Khan, Noor Ahmad, Gurbaz and the rest counted as
+  uncapped). *Done 2026-10-22:* Cricsheet withholds every match featuring Afghanistan since Nov 2024 (a
+  protest, its own article); caps restored from Cricsheet's archive as kept by the Wayback Machine (to Feb
+  2023) and the revision history of Wikipedia's Afghanistan cap lists, checked against the archive where
+  both exist (`scout/identity/withheld.py`, METHODOLOGY §1). Every other nation present. Afghanistan's
+  T20I ball-by-ball can't be rebuilt (no Afghan T20I ratings; T20Is feed no price or pool value).
+- [x] I10. Keep or release's call is hand-set (0.5 cr / 15% margins, the age-35 rule) and was never checked
+  against real retentions (audit item 1). *Done 2026-10-22:* the call is the chance a franchise keeps a
+  player like him, a logistic model of every real deadline 2018–2026 (price vs cost, 3-season forecast,
+  captain / seasons there / home-grown, status), chosen on 2018–2024 and tested once on 2025–26: 78% of
+  calls as the franchise made them (82% of stars) against 71% (70%) for the old rule
+  (`scripts/keep_backtest.py`, METHODOLOGY §10). Open: the mega-year calls under-keep (2025 allowed 6
+  retentions, the training years 3–4); the model can't tell which stars a franchise lets go in a mini year
+  (2026 stars' balanced accuracy 0.49); it inherits franchises' habits rather than optimising.
+- [x] I11. The Auction room's 2025 replay charged retentions at their salaries (KKR 57 cr, not 69).
+  *Done 2026-10-22:* charged by the 2025 slab rule (`retention_spend` ⇄ `retentionSpend`), including the
+  real retentions too new to rate; reproduces all ten published 2025 purses.
+- [ ] I13. Bid plan's replay table and the auction calibration ran on the morning's price recipe; Bid plan's
+  replays (`scripts/bidplan_backtest.py`) are due a re-run on the new recipe (the calibration was re-run).
+- [x] I12. Style twins still give odd matches (item 25) — rebuild the similarity features and check 20 famous
+  players by eye. *Done 2026-10-22: see item 25; 20 players read by eye, `tests/test_style_twins.py`.*
 
 ### Guardrails
 

@@ -1,4 +1,4 @@
-"""CLI: find the closest style-twins of a player by k-NN over CricMetrics.
+"""CLI: find a player's style twins (how he bats / bowls; see cricdex.scout.search.style_twin).
 
 Examples:
     uv run python scripts/style_twin.py "MS Dhoni" --collection ipl
@@ -24,7 +24,7 @@ def find(
 ) -> None:
     df = twin.style_twin(name, role=role, k=k, collection=collection)
     if df.is_empty():
-        logger.warning("no neighbours — collection metrics may be missing")
+        logger.warning("no style twins — the collection may have no ball-by-ball data")
         raise typer.Exit(code=1)
     typer.echo(f"\n=== Style-twins of {name} ({role}, {collection}, top {k}) ===\n")
     typer.echo(df.to_pandas().to_string(index=False))

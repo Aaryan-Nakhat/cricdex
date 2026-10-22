@@ -36,12 +36,19 @@ from typing import Any
 
 from cricdex.web_parity.auction import (
     IPL_TEAMS_DEFAULT,
-    PRICE_CAP,
     auction_lots,
     one_trial,
 )
-from cricdex.web_parity.keep import cr, evaluate, fmt_num, fsum, player_key, squad_of
-from cricdex.web_parity.pricing import price_ceiling, price_tier
+from cricdex.web_parity.keep import (
+    cr,
+    evaluate,
+    fmt_num,
+    fsum,
+    player_key,
+    purse_charged,
+    squad_of,
+)
+from cricdex.web_parity.pricing import price_tier
 
 # ---- the squad-strength model ---------------------------------------------------------------------
 
@@ -239,7 +246,6 @@ def _avail_row(r: dict, tags: str, from_team: str | None) -> dict:
         "projected_value": r["projected_value"],
         "p_bought": r.get("p_bought"),
         "base_price": r["base_price"],
-        "price_cap": r["price_cap"],
         "tags": t,
         "from_team": from_team,
     }
@@ -250,7 +256,7 @@ def _avail_row(r: dict, tags: str, from_team: str | None) -> dict:
 
 def _squad_row_as_lot(p: dict) -> dict:
     """A released squad player who isn't in the exported pool: priced as Keep or release priced
-    him (market price), base-price band and ceiling from that."""
+    him (market price), base-price band from that."""
     price = float(p["price"])
     return {
         "cricsheet_id": p["id"],
@@ -261,7 +267,6 @@ def _squad_row_as_lot(p: dict) -> dict:
         "projected_value": price,
         "p_bought": p.get("p_bought"),
         "base_price": price_tier(price),
-        "price_cap": price_ceiling(p.get("target_balls")),
     }
 
 
@@ -336,7 +341,8 @@ def build_context(
                   p.get("tags") or "")
             for p in kept
         ]  # fmt: skip
-        purse_left = float(comp_rules["purse"]) - salary_kept
+        # what the kept players cost the purse (salaries; 2025 retentions by the retention slabs)
+        purse_left = float(comp_rules["purse"]) - purse_charged(kept, comp_rules)
         for p in res["players"]:
             if not p["kept"] and p.get("id") and p.get("value") is not None:
                 released.append(p)
@@ -428,8 +434,8 @@ def build_context(
 
 def rival_prices(ctx: dict, trials: int = TRIALS) -> list[list[float]]:
     """For each available player (ctx["available"] order) and each run: the price we would have to
-    beat, i.e. the highest rival's bid × 1.02 (the simulator's clearing step), clamped to the
-    27 cr record and his price ceiling, at least his base price; his base price when no rival bid
+    beat, i.e. the highest rival's bid × 1.02 (the simulator's clearing step; a rival bids at most
+    his spendable purse), at least his base price; his base price when no rival bid
     (or he wasn't among the simulator's lots). Runs t = 0 … trials − 1 use the Auction room's
     seeds (1000 + 7919 t)."""
     rules = ctx["rules"]
@@ -462,7 +468,7 @@ def rival_prices(ctx: dict, trials: int = TRIALS) -> list[list[float]]:
 
         def on_sale(player: dict, team_i: int, best_bid: float, price: float, _t: int = t) -> None:
             i = index[player["cricsheet_id"]]
-            beat = min(PRICE_CAP, player["price_cap"], best_bid * 1.02)
+            beat = best_bid * 1.02
             out[i][_t] = max(float(player["base_price"]), beat)
 
         one_trial(bases, lots, opts, 1000 + t * 7919, on_sale)
@@ -706,14 +712,14 @@ def plan(
 
     def max_bid(drop: set[int], i: int) -> tuple[float, float, bool]:
         """(max bid, gain, purse-bound): his gain on the likely squad without `drop`, over λ;
-        at most the 27 cr record and what the purse leaves after the rest of the likely buys
+        at most what the purse leaves after the rest of the likely buys
         at their average prices (keeping 0.3 cr a place to reach the squad minimum)."""
         g = gain_without(drop, i)
         rest = [j for j in likely if j not in drop]
         reserve = max(0, sq_min - len(ctx["kept"]) - len(rest) - 1) * MIN_SLOT_PRICE
         budget = float(ctx["purse_left"]) - fsum([exp_paid[j] for j in rest]) - reserve
         by_value = max(0.0, g / lam)
-        mb = min(PRICE_CAP, max(0.0, budget), by_value)
+        mb = min(max(0.0, budget), by_value)
         return mb, g, mb < by_value
 
     targets = []
@@ -785,7 +791,7 @@ def plan(
         if not c["own"] or c["id"] not in salary_of or not c["rated"]:
             continue
         g = gain_without({i}, i)
-        worth = min(PRICE_CAP, max(0.0, g / lam))
+        worth = max(0.0, g / lam)
         sq = salary_of[c["id"]]
         sal = float(sq["salary"])
         if worth >= sal:

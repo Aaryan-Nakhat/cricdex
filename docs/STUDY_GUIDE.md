@@ -21,7 +21,7 @@ results, read [`METHODOLOGY.md`](METHODOLOGY.md) first.
 4. The 10 novel cricket metrics — formula + intuition each
 5. Bayesian scout ratings — hierarchical NegBin + dismissal Binomial + context terms, NumPyro, ADVI vs NUTS
 6. NGI / Net Game Impact — XGBoost win-prob (monotone, beta-calibrated, out-of-fold) + ΔWP credit
-7. Scout — cross-competition look-alikes + cosine style twins
+7. Scout — cross-competition look-alikes + style twins
 8. Auction room — real-rules Monte-Carlo, shared with the web via web_parity
 9. Wikidata bridge — P2697 statsguru ID + Entity API workaround
 10. Surfaces — web (canonical) + CLI / TUI / Streamlit / API at parity
@@ -47,7 +47,7 @@ scrapes:
 3. **Scout** — cross-competition look-alikes across every Scout pool
    in the league registry (IPL, SMAT, BBL, SA20, CPL, T20 Blast, PSL,
    ILT20, The Hundred, MLC and more) ranked by within-tier Bayesian
-   skill-standing z-score, plus cosine style-twins on the Player
+   skill-standing z-score, plus style twins on the Player
    Profile. File-driven (DuckDB + exported JSON; no graph database).
 4. **Auction room** — a real-rules IPL auction Monte-Carlo over a
    cross-collection pool with editable retentions, overseas cap,
@@ -92,7 +92,7 @@ src/cricdex/
 ├── scout/
 │   ├── ingest/            Cricsheet → DuckDB; people_register.py; Wikidata enrichment
 │   ├── ratings/           NumPyro hierarchical Bayes (dismissal-aware) + head-to-head
-│   ├── search/            Cosine style-twin
+│   ├── search/            Style twins
 │   └── cohort.py          co-faced cohort (plain DuckDB SQL)
 ├── web_parity/            Python port of the web's TS auction + scout
 └── venues/                Per-venue conditions (innings totals, phase rates)
@@ -914,14 +914,19 @@ The scout index emits per-player `balls` for the gem cutoff. The CLI
 entry point is `cricdex scout look-alikes`; the same view ships on the
 web, Streamlit, and the TUI **Scout** tab.
 
-### 7.3 Cosine style-twins (Player Profile)
+### 7.3 Style twins (Player Profile)
 
 Separately from the cross-competition look-alikes, every Player Profile
-shows **cosine style-twins** — feature-space nearest neighbours over
-the metric + rating vector (`scout/search/`): 13 axes for batters (12
-metric axes + Bayes scoring skill), 3 for bowlers (pressure conversion,
-pressure volume, Bayes economy skill). These are purely descriptive
-("who has a similar shot/skill profile"). The profile also shows a
+shows **style twins** (`scout/search/style_twin.py`): the players whose
+game looks most like his, built from the ball-by-ball. Batters: slot,
+powerplay / death share, tempo by phase against par, boundaries, dots,
+rotation, six share, spin against pace, risk, batting hand. Bowlers:
+powerplay / death share, economy by phase against par, strike, dots,
+boundaries, wicket types, pace and arm. Robust z-scores after
+shrinking thin samples, fixed weights, an evidence bar, and gates (an
+opener's twins are openers; a seamer's are seamers; a wrist spinner's
+are wrist spinners first). "% alike" = 100 × (1 − weighted RMS z-gap ÷
+2). Purely descriptive: style, not quality. Full method: METHODOLOGY §5a. The profile also shows a
 **co-faced cohort** (`scout/cohort.py`): batters who faced the most of
 the same bowlers, or bowlers who bowled to the most of the same batters,
 computed in plain DuckDB SQL (it replaced the old graph traversal).
@@ -1006,8 +1011,11 @@ must reach the base price. `budget` is the team's purse
 per open slot vs the league average (square root, clamped 0.75–1.6), so
 a team sitting on a big purse bids harder instead of leaving it unspent.
 The highest max bid wins but pays just **above the second-highest**
-(`min(own max, 1.02 × second, 27)`, never below base: second-price
-clearing, capped at 27 cr, the real record). A
+(`min(own max, 1.02 × second)`, never below base: second-price
+clearing; no price cap since 2026-10-22, the spendable purse is the
+only bound). The room prices the pool with the market model (6b), whose
+top end follows the market's own out-of-fold response (no ceiling); the
+curve here is the older on-field worth. A
 **two-phase fill** runs the auction so the pool is shared fairly: round
 1 fills every team to a 20-man minimum, round 2 tops up toward the 25
 cap, and a safety pass guarantees no team is left below 20.

@@ -93,7 +93,7 @@ polite batches (rerun = only what's missing; `--force` refetches, `--no-fetch` w
 | `display_name` | overrides → LLM check of the candidate → Wikidata English label (by ESPNcricinfo id, P2697) → shortest full-word People Register variant → scorecard name |
 | `full_name` | overrides → Wikipedia infobox `full_name` → Wikidata birth name (P1477) → longest register variant |
 | `aliases` | every name we know: scorecard names in each league, register variants, Wikidata label and aliases, full name |
-| `capped`, `first_international` | Cricsheet men's T20I (ingested), ODI and Test archives (downloaded, only `info.players` read, never exported) |
+| `capped`, `first_international` | Cricsheet men's T20I (ingested), ODI and Test archives (downloaded, only `info.players` read, never exported); Cricsheet withholds every match featuring Afghanistan (since Nov 2024), so those come from `withheld.py`: Cricsheet's archive as kept by the Wayback Machine (to Feb 2023) and the revision history of Wikipedia's Afghanistan cap lists (METHODOLOGY §1) |
 | `primary_role` | overrides → the ball data when it is decisive (overs per match, batting position, stumpings across every exported league) → Wikipedia infobox role → LLM taxonomy |
 | `bowling_style` / `bowling_arm` / `bowling_category` | overrides → Wikipedia infobox bowling → LLM taxonomy |
 | `batting_hand` | overrides → Wikipedia infobox batting → Wikidata playing hand → LLM taxonomy |
@@ -114,15 +114,33 @@ verify) is written to `data/curated/player_master_review.json`. Settle a row by 
 value to `data/curated/player_overrides.json` (keyed by `cricsheet_id`, with `_name` and
 `_evidence`); overrides always win.
 
+**Squad players with no obvious match** (issue I6, 22 Oct 2026). Of the 22 IPL squad players left
+unmatched, three had played IPL 2026 under initials and were matched through the People Register's
+ESPNcricinfo key against the key in the player's Wikipedia infobox: "MD Choudhary" = Mukul Choudhary
+(cricinfo 1354217; the LLM name check had renamed him "Mukesh Choudhary", CSK's different player),
+"T Dahiya" = Tejasvi Singh Dahiya (1460372; the check had guessed "Tanish"), and "SU Parakh" = Sahil
+Parakh ("Parekh" on Wikipedia; his IPL debut of 27 Apr 2026 for DC is the id's first match). Each is an
+override with evidence, and the squads file carries the id. The other 19 were searched in every
+registry league and the People Register (surname spelling variants such as Oswal / Ostwal, Chauhan /
+Chouhan, Parikh / Parekh, "Harnoor Singh" for Harnoor Pannu, and initials + surname): a same-surname
+candidate either played for another side years earlier with an old cricinfo id (AR Kumar, AG Rao) or
+for another country (NK Tiwari of Cyprus, Izhar Hussain of Switzerland), so none is a match. They have
+no Cricsheet match yet; Keep or release prices them from the market instead of rating them.
+
 **Captaincy** (`data/curated/ipl_captains.json`, hand-editable; `scripts/ipl_captains.py`, pages cached
 in `data/curated/ipl_captain_pages/` pinned to a revision). IPL: each franchise article's captains
 table (captain, from, to, matches), filled in from "List of Indian Premier League captains" (more
 current): a one-team captain missing from his franchise's table gets a stint from the list (the
 defunct sides have no table), and a latest stint that ends before the list's last year is extended to
-it. 97 stints, all matched to a Cricsheet id (Wikipedia title first). Rising Pune Supergiant and
-Gujarat Lions are missing: their captains led other sides too and the list doesn't split the years.
+it. Rising Pune Supergiant and Gujarat Lions (2016-17), whose captains led other sides too (the list
+doesn't split their years), come from each season article's infobox `captain` (MS Dhoni RPS 2016, Steve
+Smith RPS 2017, Suresh Raina GL 2016 and 2017; `matches` = the team's matches that season in the ball
+data). 101 stints, all matched to a Cricsheet id (Wikipedia title first).
 International: the men's Test, ODI and T20I tables of each Test nation's "List of … national cricket
-captains" (11 nations; Ireland has no such page): 1,296 rows, 85% matched (the rest mostly pre-2000).
+captains" (12 nations; Ireland's page is "List of Ireland cricket captains"): 1,318 rows, 85% matched (the
+rest mostly pre-2000); Ireland's 22 all match. One page error is fixed by hand (`"edited": true`,
+`replaces_from`): the Ireland list gives William Porterfield's T20I captaincy as 2005-2007, before Ireland's
+first T20I; he led from 2008 to June 2018 (ESPNcricinfo, 6 Jun 2018).
 A stint covers every year from..to, except a stand-in (fewer than 4 matches a year): only its first
 and last years count, and a stand-in is never "last season's captain".
 `cricdex.scout.identity.captains.as_of(cid, season)` gives what was known before an auction

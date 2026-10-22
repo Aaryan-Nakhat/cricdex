@@ -25,6 +25,7 @@ from cricdex.web_parity.auction import (
     IPL_TEAMS_DEFAULT,
     build_pool,
     default_retentions,
+    retention_inputs,
     simulate_auction,
 )
 from cricdex.web_parity.loader import (
@@ -61,6 +62,7 @@ __all__ = [
     "load_retentions",
     "load_scout_index",
     "norm_country",
+    "retention_inputs",
     "similar_to",
     "simulate_auction",
 ]

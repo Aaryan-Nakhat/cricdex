@@ -1,8 +1,12 @@
 """Keep or release: the franchise retention calculator. EXACT mirror of `site/src/lib/keep.ts`.
 
-For every player in a franchise's squad it sets our estimated auction price (the auction pool's
-price curve: cautious estimate, IPL-evidence ceiling) against his salary, and recommends Keep,
-Release or Borderline with a one-line reason. For the squad it adds up the purse left after the
+For every player in a franchise's squad it gives the chance a franchise keeps a player like him at
+the retention deadline (`keep_probability`: a logistic model of what franchises actually did at every
+deadline 2018-2026, fitted and backtested by scripts/keep_backtest.py, config/keep_model.json), from
+his market price against what keeping him costs, his three-season Form forecast, his ties to the
+franchise (captain, seasons there, home-grown) and his status (capped Indian, overseas, age, IPL
+balls, a buy at the last auction), and recommends Keep, Release or Borderline with a one-line
+reason. For the squad it adds up the purse left after the
 kept salaries, the open slots, the role gaps (keepers, openers, death bowlers, spinners, overseas)
 and what filling each gap from the current auction pool would cost.
 
@@ -14,19 +18,20 @@ fails if any number or sentence differs. The method in plain words: docs/METHODO
 
 from __future__ import annotations
 
+import json
 import math
+import os
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from cricdex.web_parity.pricing import PRICE_TIERS, est_value, has_market_inputs, market_price
 
-# A recommendation needs a gap of at least this much between price and salary (cr): the larger of
-# KEEP_MARGIN_MIN and KEEP_MARGIN_SHARE × salary. Inside it the player is fairly paid (Borderline).
-KEEP_MARGIN_MIN = 0.5
-KEEP_MARGIN_SHARE = 0.15
-# A value sd at least this wide (runs per 100 balls) counts as a thin record in the reason.
-THIN_SD = 6.0
-# From this age a Keep becomes Borderline unless the surplus is at least twice the margin.
-AGE_DECLINE = 35
+# The default plan keeps a player when the chance a franchise keeps a player like him is at least
+# KEEP_CALL (the backtest's decision rule: more likely kept than not). Within BORDER_BAND of it the
+# call is shown as Borderline (a close call either way); above, Keep; below, Release.
+KEEP_CALL = 0.5
+BORDER_BAND = 0.15
 # The cheapest a squad slot can be filled for (the lowest base-price band, cr).
 MIN_SLOT_PRICE = PRICE_TIERS[0]
 
@@ -89,10 +94,6 @@ def has_tag(p: dict, tag: str) -> bool:
     return TAG_LETTER[tag] in (p.get("tags") or "")
 
 
-def margin(salary: float) -> float:
-    return max(KEEP_MARGIN_MIN, KEEP_MARGIN_SHARE * salary)
-
-
 FORECAST_FLAG = {
     "hold": "holds",
     "improve": "improves",
@@ -122,18 +123,14 @@ def forecast_note(p: dict) -> str:
     )
 
 
-def outlook(age: float | None) -> str:
-    if age is None:
-        return "Age unknown."
-    if age < 24:
-        return "Young: likely to improve."
-    if age < 30:
-        return "Prime years."
-    if age < 33:
-        return "Holding: most players hold their level to about 33."
-    if age < AGE_DECLINE:
-        return "Past 32: values usually start to slip."
-    return f"{AGE_DECLINE}+: expect decline; a short-term keep at best."
+def outlook(p: dict) -> str:
+    """His age and the Form forecast's shape (METHODOLOGY §11), no rule of thumb."""
+    age = p.get("age")
+    a = "Age unknown" if age is None else f"{math.floor(age)} years old"
+    f = p.get("forecast")
+    if not f:
+        return f"{a}; too few balls for a forecast."
+    return f"{a}; the Form forecast {FORECAST_FLAG.get(f['flag'], f['flag'])}."
 
 
 def form_note(p: dict, form: dict | None) -> str:
@@ -167,9 +164,212 @@ def captain_label(p: dict) -> str | None:
     return " / ".join(teams) if teams else None
 
 
-def assess(p: dict, form: dict | None = None) -> dict[str, Any]:
-    """One player's numbers and recommendation. `p` is a keep.json squad row."""
+# A rating that rests at least this much on a league whose data has stopped (SMAT on Cricsheet ends
+# in Dec 2024) says so in the reason (issue I7).
+STALE_REASON_MIN = 0.1
+
+
+def stale_sentence(p: dict) -> str:
+    """ " 85% of his rating rests on SMAT data to Dec 2024 (stale)." or "" (below STALE_REASON_MIN
+    or no stale league). From the export's `stale_share` / `stale_note`. Mirror of keep.ts."""
+    share = p.get("stale_share") or 0.0
+    note = p.get("stale_note")
+    if not note or share < STALE_REASON_MIN:
+        return ""
+    return f" {math.floor(100 * share + 0.5)}% of his rating rests on {note} (stale)."
+
+
+# A squad player with no ball-by-ball record anywhere (no Cricsheet match): shown in place of his
+# value, and his price is the market model's prior for a player like him (issue I6).
+NO_DATA_LABEL = "no match data — priced from the market"
+
+
+def no_data_kind(p: dict) -> str:
+    """Who the market prior is for, in words: "an overseas player" / "a capped Indian" / "an
+    uncapped Indian" (from the row's `overseas` and `intl_caps`)."""
+    if p.get("overseas"):
+        return "an overseas player"
+    return "a capped Indian" if (p.get("intl_caps") or 0) > 0 else "an uncapped Indian"
+
+
+# ---- what keeping a player costs the purse ----------------------------------------------------------
+#
+# `retained_cost = "salary"`: his contract salary. `retained_cost = "slabs"`: a player retained at the
+# cycle's mega auction (`slab_holder` "capped" / "uncapped", from the squads file) is charged by the
+# retention slabs instead: the team's slab holders together cost the first n capped slabs (18, 14, 11,
+# 18, 14 cr in 2025-27) plus the uncapped slab (4 cr) per uncapped one, or their salaries if those
+# add up to more (the KKR / RCB arithmetic of the 2025 retentions; it reproduces every team's
+# published 2025 and 2026 purse). Everyone else costs his salary. METHODOLOGY §10.
+
+
+def uses_slabs(rules: dict[str, Any]) -> bool:
+    return rules.get("retained_cost") == "slabs"
+
+
+def slab_charge(holders: list[dict], rules: dict[str, Any]) -> float:
+    """What a team's kept slab holders cost the purse together: max(Σ the first n capped slabs + the
+    uncapped slab × n uncapped, Σ their salaries). A capped holder past the end of the slab list costs
+    his salary (can't happen under the 2025-27 rules: at most 5 capped). Mirror of `slabCharge`."""
+    slabs = rules.get("retention_slabs") or []
+    u = float(rules.get("uncapped_retention_slab") or 0.0)
+    total = 0.0
+    sal = 0.0
+    i = 0
+    for p in holders:
+        if p.get("slab_holder") == "capped":
+            total += float(slabs[i]) if i < len(slabs) else float(p["salary"])
+            i += 1
+    for p in holders:
+        if p.get("slab_holder") == "uncapped":
+            total += u
+    for p in holders:
+        sal += float(p["salary"])
+    return max(total, sal)
+
+
+def purse_charged(kept: list[dict], rules: dict[str, Any]) -> float:
+    """What the kept players cost the purse: their salaries, with the slab holders charged together
+    by `slab_charge` when the cycle charges slabs. Mirror of `purseCharged`."""
+    if not uses_slabs(rules):
+        return fsum(float(p["salary"]) for p in kept)
+    holders = [p for p in kept if p.get("slab_holder")]
+    rest = fsum(float(p["salary"]) for p in kept if not p.get("slab_holder"))
+    return rest + (slab_charge(holders, rules) if holders else 0.0)
+
+
+def retention_costs(squad: list[dict], rules: dict[str, Any]) -> dict[str, float]:
+    """player_key → what keeping him costs the purse: his salary, or for a slab holder what releasing
+    him alone would free (the team's slab charge with every holder kept, less the charge without
+    him). With the slabs counted in order, releasing any capped holder frees the last capped slab in
+    use (or his salary, when the salaries are what the purse counts). Mirror of `retentionCosts`."""
+    out = {player_key(p): float(p["salary"]) for p in squad}
+    if not uses_slabs(rules):
+        return out
+    holders = [p for p in squad if p.get("slab_holder")]
+    if not holders:
+        return out
+    full = slab_charge(holders, rules)
+    for p in holders:
+        k = player_key(p)
+        out[k] = full - slab_charge([q for q in holders if player_key(q) != k], rules)
+    return out
+
+
+def cost_sentence(p: dict, cost: float) -> str:
+    """ " Keeping him costs 15 cr of purse, not his 21 cr salary: ..." for a slab holder whose cost
+    differs from his salary, else ""."""
     salary = float(p["salary"])
+    if not p.get("slab_holder") or abs(cost - salary) < 0.005:
+        return ""
+    return (
+        f" One of {p.get('team')}'s 2025 retentions, charged to the purse at the retention slabs: "
+        f"keeping him costs {cr(cost)} cr, not his {cr_exact(salary)} cr salary."
+    )
+
+
+# ---- the chance a franchise keeps him ----------------------------------------------------------------
+
+_KEEP_MODEL_PATHS = (
+    Path(__file__).resolve().parents[3] / "config" / "keep_model.json",
+    Path(__file__).resolve().parents[1] / "keep_model.json",  # the copy shipped in the package
+)
+
+
+@lru_cache(maxsize=4)
+def load_keep_model(path: str | None = None) -> dict | None:
+    """The fitted retention model ($CRICDEX_KEEP_MODEL, else config/keep_model.json, else the package
+    copy); None when there is none (every call is then Borderline)."""
+    cands = [Path(path)] if path else []
+    env = os.environ.get("CRICDEX_KEEP_MODEL")
+    if env:
+        cands.append(Path(env))
+    cands += list(_KEEP_MODEL_PATHS)
+    for c in cands:
+        if c.exists():
+            return json.loads(c.read_text(encoding="utf-8"))
+    return None
+
+
+def keep_features(
+    market: float,
+    cost: float,
+    mega: bool,
+    forecast_avg3: float | None,
+    forecast_p_regular: float | None,
+    captain_here: bool,
+    seasons_here: int,
+    home_grown: bool,
+    capped_indian: bool,
+    overseas: bool,
+    age: float | None,
+    ipl_balls: float | None,
+    bought_prev: bool,
+) -> dict[str, float]:
+    """The retention model's inputs (scripts/keep_backtest.py fits it on the same function):
+    ln(market price / what keeping him costs), ln(cost), the mega-auction flag, the 3-season Form
+    forecast (average / 10, the chance he is a regular in its third season, a no-forecast flag),
+    captain of this franchise last season, ln(1 + IPL seasons played for it), home-grown (his first
+    IPL side), capped Indian, overseas, age ((age − 28) / 5 and (age − 33)+ / 3), ln(1 + IPL balls)
+    / 5, bought at the last auction, and mega × the price ratio. Mirror of `keepFeatures` in
+    keep.ts."""
+    c = cost if cost and cost > 0 else 1e-3
+    lr = math.log(max(market, 1e-3) / c)
+    mg = 1.0 if mega else 0.0
+    return {
+        "log_ratio": lr,
+        "mega": mg,
+        "forecast": (forecast_avg3 / 10.0) if forecast_avg3 is not None else 0.0,
+        "forecast_regular": forecast_p_regular if forecast_p_regular is not None else 0.0,
+        "no_forecast": 0.0 if forecast_avg3 is not None else 1.0,
+        "captain_here": 1.0 if captain_here else 0.0,
+        "seasons_here": math.log1p(max(seasons_here or 0, 0)),
+        "home_grown": 1.0 if home_grown else 0.0,
+        "capped_indian": 1.0 if capped_indian else 0.0,
+        "overseas": 1.0 if overseas else 0.0,
+        "age": ((age - 28.0) / 5.0) if age is not None else 0.0,
+        "age_over_33": (max(0.0, age - 33.0) / 3.0) if age is not None else 0.0,
+        "ipl_balls": math.log1p(max(ipl_balls or 0.0, 0.0)) / 5.0,
+        "bought_prev": 1.0 if bought_prev else 0.0,
+        "log_cost": math.log(c),
+        "mega_x_log_ratio": mg * lr,
+    }
+
+
+def keep_probability(f: dict[str, float], model: dict) -> float:
+    """The chance a franchise keeps him: σ(intercept + Σ coef × feature), summed in the model's
+    order. Mirror of `keepProbability` in keep.ts."""
+    t = float(model["intercept"])
+    for k, c in model["coef"].items():
+        t += float(c) * f[k]
+    return 1.0 / (1.0 + math.exp(-t))
+
+
+def call_of(p_keep: float) -> str:
+    """Keep / Borderline / Release from the chance he is kept (KEEP_CALL ± BORDER_BAND)."""
+    if p_keep >= KEEP_CALL + BORDER_BAND:
+        return "keep"
+    if p_keep < KEEP_CALL - BORDER_BAND:
+        return "release"
+    return "borderline"
+
+
+def _ties(p: dict) -> list[str]:
+    team = p.get("team") or ""
+    out = []
+    if team and team in (p.get("captain_teams") or []):
+        out.append(f"captained {team} last season")
+    if p.get("home_grown"):
+        out.append("home-grown")
+    n = int(p.get("seasons_here") or 0)
+    if n >= 1:
+        out.append(f"{n} season{'' if n == 1 else 's'} with {team}")
+    return out
+
+
+def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict[str, Any]:
+    """One player's numbers and recommendation. `p` is a keep.json squad row; `cost` is what keeping
+    him costs the purse (`retention_costs`; his salary when not given)."""
+    salary = float(p["salary"]) if cost is None else float(cost)
     value = p.get("value")
     out: dict[str, Any] = {
         "price": None,
@@ -177,90 +377,93 @@ def assess(p: dict, form: dict | None = None) -> dict[str, Any]:
         "onfield": None,
         "p_bought": None,
         "surplus": None,
-        "outlook": outlook(p.get("age")),
+        "p_keep": None,
+        "default_keep": True,
+        "outlook": outlook(p),
         "form_note": form_note(p, form),
         "forecast_note": forecast_note(p),
         "forecast_avg3": (p.get("forecast") or {}).get("avg3"),
         "captain": captain_label(p),
+        "cost": salary,
     }
-    if value is None:
-        out["rec"] = "borderline"
-        out["reason"] = (
-            f"Not enough balls in our data to rate him: decide on scouting (he costs {cr_exact(salary)} cr)."
-        )
-        return out
-    role, sd, balls = p["role"], p.get("value_sd"), p.get("target_balls")
-    # the market price (fitted to real auctions) when the model and its inputs are there; the
-    # on-field curve's price is kept alongside ("on-field worth")
-    onfield = est_value(value, role, "ipl", sd, balls)
-    price = onfield
-    central = est_value(value, role, "ipl", 0.0, balls)
-    p_bought = None
+    out["no_data"] = False
     mkt = has_market_inputs(p)
-    if mkt:
-        # median market price on the cautious estimate; the upper figure is the upper quartile of
-        # what players like him fetch, on his central value
+    lead = ""
+    if value is None:
+        if not mkt:
+            out["rec"] = "borderline"
+            out["reason"] = (
+                f"Not enough balls in our data to rate him: decide on scouting (he costs {cr_exact(salary)} cr)."
+            ) + cost_sentence(p, salary)
+            return out
+        # no ball-by-ball record at all: a sourced prior, never a made-up rating. The market model
+        # prices "a player like him" from what is known without match data (overseas or not, caps,
+        # age, no IPL record)
         mk = market_price(p)
-        price, p_bought = mk["price"], mk["p_bought"]
-        central = market_price({**p, "value_sd": 0})["high"]
-    surplus = price - salary
-    m = margin(salary)
-    age = p.get("age")
-    if surplus >= m:
-        if age is not None and age >= AGE_DECLINE and surplus < 2 * m:
-            rec = "borderline"
-            reason = (
-                f"Worth about {cr(price)} cr against {cr_exact(salary)}, but at {math.floor(age)} his "
-                f"value usually falls from here."
-            )
-        else:
-            rec = "keep"
-            reason = (
-                f"Worth about {cr(price)} cr at auction, paid {cr_exact(salary)}: "
-                f"{cr(surplus)} cr of surplus."
-            )
-    elif central - salary <= -m:
-        rec = "release"
-        reason = (
-            (
-                f"Paid {cr_exact(salary)} cr but players like him fetch about {cr(price)} "
-                f"({cr(central)} in the top quarter): releasing frees {cr_exact(salary)} cr."
-            )
-            if mkt
-            else (
-                f"Paid {cr_exact(salary)} cr but worth about {cr(central)} even on his central "
-                f"estimate: releasing frees {cr_exact(salary)} cr."
+        price, central, onfield, p_bought = mk["price"], mk["high"], None, None
+        out["no_data"] = True
+        # an auction price well above the prior is market evidence our data can't see: say so
+        # instead of calling him overpaid
+        above = p.get("acquired") == "auction" and float(p["salary"]) > central
+        lead = (
+            f"{NO_DATA_LABEL[0].upper()}{NO_DATA_LABEL[1:]}: {no_data_kind(p)} with no match record "
+            f"fetches about {cr(price)} cr ({cr(central)} in the top quarter) against {cr_exact(salary)}"
+            + (
+                "; franchises bid him well above that at the auction, so they saw something our "
+                "data can't."
+                if above
+                else "."
             )
         )
-    elif central - salary >= m:
-        rec = "borderline"
-        if (sd or 0.0) >= THIN_SD:
-            reason = (
-                f"Thin record: worth {cr(price)} to {cr(central)} cr against {cr_exact(salary)}; "
-                f"keep if you trust the upside."
-            )
-        else:
-            reason = (
-                f"Close call: worth {cr(price)} ({'median' if mkt else 'cautious'}) to "
-                f"{cr(central)} cr{' (top quarter)' if mkt else ''} against "
-                f"{cr_exact(salary)}; a keep if you back the higher figure."
-            )
     else:
+        role, sd, balls = p["role"], p.get("value_sd"), p.get("target_balls")
+        # the market price (fitted to real auctions) when the model and its inputs are there; the
+        # on-field curve's price is kept alongside ("on-field worth")
+        onfield = est_value(value, role, "ipl", sd, balls)
+        price = onfield
+        central = est_value(value, role, "ipl", 0.0, balls)
+        p_bought = None
+        if mkt:
+            # median market price; the upper figure is the upper quartile of what players like him
+            # fetch, on his central value
+            mk = market_price(p)
+            price, p_bought = mk["price"], mk["p_bought"]
+            central = market_price({**p, "value_sd": 0})["high"]
+    model = load_keep_model()
+    fc = p.get("forecast") or {}
+    ties = _ties(p)
+    tie_text = f" ({', '.join(ties)})" if ties else ""
+    if model is None:
         rec = "borderline"
-        reason = (
-            f"Fairly paid: players like him fetch {cr(price)} to {cr(central)} cr (top quarter) "
-            f"against {cr_exact(salary)}."
-            if mkt
-            else f"Fairly paid: worth about {cr(price)} cr against {cr_exact(salary)}."
+        reason = (lead + " " if lead else "") + (
+            f"Worth about {cr(price)} cr at auction against {cr_exact(salary)} to keep; no "
+            f"retention model is loaded, so no call."
         )
-    if mkt and out["captain"]:
-        reason += f" Captained {out['captain']} last season: the market pays captains a premium."
+        p_keep = None
+    else:
+        f = keep_features(
+            price, salary, False, fc.get("avg3"), fc.get("p_regular_last"),
+            (p.get("team") or "") in (p.get("captain_teams") or []), int(p.get("seasons_here") or 0),
+            bool(p.get("home_grown")), (p.get("intl_caps") or 0) > 0 and not p.get("overseas"),
+            bool(p.get("overseas")), p.get("age"), p.get("ipl_balls"), p.get("acquired") == "auction",
+        )  # fmt: skip
+        p_keep = keep_probability(f, model)
+        rec = call_of(p_keep)
+        pct = math.floor(100 * p_keep + 0.5)
+        reason = (lead + " " if lead else "") + (
+            f"Worth about {cr(price)} cr at auction against {cr_exact(salary)} to keep{tie_text}: "
+            f"franchises kept {pct}% of players like him at their retention deadlines (2018-2026)."
+        )
+    reason += stale_sentence(p)
+    reason += cost_sentence(p, salary)
     out.update(
         price=price,
         price_central=central,
         onfield=onfield,
         p_bought=p_bought,
-        surplus=surplus,
+        surplus=price - salary,
+        p_keep=p_keep,
+        default_keep=True if p_keep is None else p_keep >= KEEP_CALL,
         rec=rec,
         reason=reason,
     )
@@ -303,15 +506,24 @@ def market_for(
     pool: list[dict],
     tags: dict[str, str],
     form: dict | None = None,
+    rules: dict[str, Any] | None = None,
 ) -> list[dict]:
     """The auction pool a team will shop in: today's free agents plus the players our calls send
-    back from the other squads (their Release recommendations), each at our estimated price."""
+    back from the other squads (their Release recommendations), each at our estimated price.
+    `rules` (the competition's) sets what keeping each of them costs (`retention_costs`)."""
     out = free_agents(pool, tags)
+    costs: dict[str, float] = {}
+    if rules is not None:
+        teams: dict[str, list[dict]] = {}
+        for p in players:
+            teams.setdefault(p.get("team") or "", []).append(p)
+        for t in sorted(teams):
+            costs.update(retention_costs(teams[t], rules))
     for p in players:
         if p.get("team") == team or p.get("value") is None:
             continue
-        a = assess(p, form)
-        if a["rec"] != "release":
+        a = assess(p, form, costs.get(player_key(p)))
+        if a["default_keep"]:
             continue
         t = p.get("tags") or ""
         if p.get("overseas") and "x" not in t:
@@ -332,17 +544,15 @@ def market_for(
 
 def _fit_order(p: dict) -> tuple:
     """Who goes first when the default plan is over a limit: Borderline before Keep, then the
-    lowest surplus per crore of salary (an unrated player first), then the key."""
+    lowest chance a franchise keeps him (an unpriced player first), then the key."""
     tier = 0 if p["rec"] == "borderline" else 1
-    s = p.get("surplus")
-    sal = float(p["salary"])
-    ratio = -math.inf if s is None else (s / sal if sal > 0 else s)
-    return (tier, ratio, p["key"])
+    pk = p.get("p_keep")
+    return (tier, -math.inf if pk is None else pk, p["key"])
 
 
 def fit_to_rules(players: list[dict], rules: dict[str, Any]) -> None:
     """Make the default plan legal: while the kept overseas players are over the overseas cap (or the
-    overseas retention limit), release kept overseas Borderline players, lowest surplus per crore first
+    overseas retention limit), release kept overseas Borderline players, lowest chance kept first
     (a Keep only once no Borderline is left); then the same for the squad maximum (or the retention
     limit) over every kept player. A player the user decided on is never moved. Each one released here
     gets `auto_release` ("overseas" | "squad") and a sentence on his reason. In place.
@@ -393,14 +603,15 @@ def evaluate(
 
     `squad` = its keep.json rows; `market` = `free_agents(...)` (already priced); `rules` = the
     competition's rules; `decisions` = {player_key: "keep" | "release"} overrides of the default
-    (Keep and Borderline are kept, Release is released); `needs` overrides DEFAULT_NEEDS and the
+    (kept when the chance a franchise keeps a player like him is at least KEEP_CALL); `needs` overrides DEFAULT_NEEDS and the
     overseas target."""
     decisions = decisions or {}
     players = []
+    costs = retention_costs(squad, rules)
     for p in squad:
-        a = assess(p, form)
         key = player_key(p)
-        default_keep = a["rec"] != "release"
+        a = assess(p, form, costs[key])
+        default_keep = a["default_keep"]
         d = decisions.get(key)
         kept = default_keep if d not in ("keep", "release") else d == "keep"
         players.append(
@@ -412,9 +623,10 @@ def evaluate(
     kept = [p for p in players if p["kept"]]
     released = [p for p in players if not p["kept"]]
     salary_kept = fsum(float(p["salary"]) for p in kept)
+    charged = purse_charged(kept, rules)
     overseas_kept = sum(1 for p in kept if p.get("overseas"))
     purse = float(rules["purse"])
-    purse_left = purse - salary_kept
+    purse_left = purse - charged
     slots_left = int(rules["squad_max"]) - len(kept)
     overseas_slots = int(rules["overseas_max"]) - overseas_kept
 
@@ -497,7 +709,9 @@ def evaluate(
     if mo and overseas_kept > mo:
         warnings.append(f"Keeping {overseas_kept} overseas: the rules allow {mo}.")
     if purse_left < 0:
-        warnings.append(f"Kept salaries exceed the {cr(purse)} cr purse by {cr(-purse_left)} cr.")
+        warnings.append(
+            f"Kept players cost more than the {cr(purse)} cr purse by {cr(-purse_left)} cr."
+        )
     elif purse_left - replacement_cost < to_min * MIN_SLOT_PRICE:
         warnings.append(
             f"After the replacements there isn't enough purse to reach {rules['squad_min']} "
@@ -516,6 +730,8 @@ def evaluate(
         "released": len(released),
         "overseas_kept": overseas_kept,
         "salary_kept": salary_kept,
+        # what the kept players cost the purse (salaries, or retention slabs; `purse_charged`)
+        "purse_charged": charged,
         "salary_released": fsum(float(p["salary"]) for p in released),
         "purse": purse,
         "purse_left": purse_left,
@@ -538,7 +754,8 @@ def to_csv_rows(res: dict) -> list[list[str]]:
     """The table as CSV rows (the page's "Export CSV" writes the same columns)."""
     head = [
         "player", "team", "role", "overseas", "age", "acquired", "salary_cr", "value",
-        "value_sd", "price_cr", "onfield_cr", "p_bought", "surplus_cr", "recommendation",
+        "value_sd", "cost_cr", "price_cr", "onfield_cr", "p_bought", "surplus_cr", "p_keep",
+        "recommendation",
         "decision", "auto_release", "reason", "outlook", "form", "outlook_3y_avg", "outlook_3y",
     ]  # fmt: skip
     rows = [head]
@@ -554,10 +771,12 @@ def to_csv_rows(res: dict) -> list[list[str]]:
                 fmt_num(float(p["salary"]), 2),
                 "" if p.get("value") is None else fmt_num(p["value"], 1),
                 "" if p.get("value_sd") is None else fmt_num(p["value_sd"], 1),
+                fmt_num(float(p["cost"]), 2),
                 "" if p.get("price") is None else fmt_num(p["price"], 2),
                 "" if p.get("onfield") is None else fmt_num(p["onfield"], 2),
                 "" if p.get("p_bought") is None else fmt_num(p["p_bought"], 2),
                 "" if p.get("surplus") is None else fmt_num(p["surplus"], 2),
+                "" if p.get("p_keep") is None else fmt_num(p["p_keep"], 2),
                 p["rec"],
                 "keep" if p["kept"] else "release",
                 p.get("auto_release") or "",

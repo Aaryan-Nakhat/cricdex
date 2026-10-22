@@ -5,11 +5,10 @@ import { useAsync } from "@/lib/useAsync";
 import { getAuctionPool, getKeep } from "@/lib/data";
 import { buildPool } from "@/lib/auction";
 import {
-  AGE_DECLINE,
+  BORDER_BAND,
   DEFAULT_NEEDS,
-  KEEP_MARGIN_MIN,
+  KEEP_CALL,
   FORECAST_FLAG,
-  KEEP_MARGIN_SHARE,
   TAG_LABEL,
   TAG_ORDER,
   cr,
@@ -24,13 +23,14 @@ import {
   type Decision,
   type KeepData,
   type Tag,
+  NO_DATA_LABEL,
 } from "@/lib/keep";
 import { useUrlParams, useUrlState } from "@/lib/useUrlState";
 import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StatTile } from "@/components/ui";
 import { cn, profilePath } from "@/lib/utils";
 
-type SortKey = "surplus" | "price" | "onfield" | "outlook" | "salary" | "value" | "age" | "name";
-const SORTS: SortKey[] = ["surplus", "price", "onfield", "outlook", "salary", "value", "age", "name"];
+type SortKey = "kept" | "surplus" | "price" | "onfield" | "outlook" | "salary" | "value" | "age" | "name";
+const SORTS: SortKey[] = ["kept", "surplus", "price", "onfield", "outlook", "salary", "value", "age", "name"];
 
 const REC_TONE = { keep: "willow", release: "ball", borderline: "gold" } as const;
 const REC_LABEL = { keep: "Keep", release: "Release", borderline: "Borderline" } as const;
@@ -97,32 +97,42 @@ function HowItWorks({ data }: { data: KeepData }) {
         </p>
         <p>
           <b className="text-fg">Market price</b> is what players like him have fetched at real IPL auctions: a
-          model fitted to every sale and mega retention 2018–2026 (Wikipedia's personnel pages) on his value,
-          international caps (all, and in the last two years), age, IPL experience, captaincy and the auction
-          type, calibrated so its top end spreads like a real auction (a regular IPL captain last season,
-          badged here, fetches about 22% more). It
-          uses a <b>cautious</b> value (value − ½ × uncertainty) and can't pass a ceiling that rises with IPL
-          balls (13.5 cr with none, 27 cr from 600). Under it, the chance a franchise buys a player like him if
-          he's released. Out of time it is off by a factor of about 1.7 on a typical player, the 10 cr+ lots
-          come out at about 0.6× their price, and overseas players lean high. <b className="text-fg">On-field worth</b> is the older
+          model fitted to every sale 2018–2026 (Wikipedia's personnel pages) on his value, international caps
+          (all, and in the last two years), age, IPL experience, captaincy and the auction type, with each
+          mega-auction retention counted as a <b>floor</b> (the franchise paid at least that to keep him, so his
+          worth is at least that), at the median for his kind of player. It uses a <b>cautious</b> value
+          (value − ½ × uncertainty). At the top it follows what the market really paid for the dearest lots
+          (a monotone calibration fitted out of fold), not a straight-line extrapolation, so it needs no
+          ceiling. Under it, the chance a franchise buys a player like him if he's released (which also
+          weighs the price he last fetched). Chosen on auctions up to 2024 and tested once on 2025–26, it is
+          off by a factor of about 1.9 on a typical player. <b className="text-fg">On-field worth</b> is the older
           skill-only curve (4.03 × e^(0.0743 × cautious value) × role weight), shown for comparison only.
         </p>
-        <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs leading-relaxed text-fg">{`market price = purse × e^(fitted ln share of the purse)     (0.3 cr to the ceiling)
+        <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs leading-relaxed text-fg">{`market price = purse × e^(calibrated ln share of the purse)   (at least 0.3 cr)
 upper figure = the upper quartile of that ≈ 2 × market price
-surplus      = market price − salary
-margin       = the larger of ${KEEP_MARGIN_MIN} cr and ${Math.round(KEEP_MARGIN_SHARE * 100)}% of his salary`}</pre>
+cost         = what keeping him takes from the purse: his salary, or for a 2025
+               retention what releasing him would free (retention slabs)
+P(kept)      = the chance a franchise keeps a player like him, from market price
+               vs cost, his 3-season Form forecast, his ties to the franchise and
+               his status (fitted on every retention deadline 2018-2026)`}</pre>
         <p>
-          <b className="text-fg">The call.</b> <Badge tone="willow">Keep</Badge> when the surplus clears the margin
-          (he'd cost more to buy back than he's paid). <Badge tone="ball">Release</Badge> when even the upper
-          figure is a margin below his salary, so the call doesn't hang on the model's spread.{" "}
-          <Badge tone="gold">Borderline</Badge> in between: fairly paid (his salary inside the range), or a
-          close call or thin record whose two figures sit on either side. A player aged {AGE_DECLINE}+ needs twice the margin to
-          be a Keep. A player we can't rate (too few balls in our data) is Borderline: scout him.
+          <b className="text-fg">The call</b> is what franchises actually do. A model fitted to every real
+          retention deadline since 2018 (who each franchise kept from its squad, and who it let go) gives the
+          chance a franchise keeps a player like him, from: his market price against what keeping him costs;
+          his three-season Form forecast (its average and the chance he is still a regular); whether he
+          captained the side last season, his seasons there and whether it was his first IPL side; whether he
+          is a capped Indian or overseas, his age, his IPL balls, whether he was bought at the last auction,
+          and how much he costs. <Badge tone="willow">Keep</Badge> at {Math.round((KEEP_CALL + BORDER_BAND) * 100)}% or more,{" "}
+          <Badge tone="ball">Release</Badge> below {Math.round((KEEP_CALL - BORDER_BAND) * 100)}%,{" "}
+          <Badge tone="gold">Borderline</Badge> in between (a close call); the default plan keeps him from{" "}
+          {Math.round(KEEP_CALL * 100)}%. Chosen on the deadlines up to 2024 and tested once on 2025 and 2026, it
+          made the franchise's own call for 78% of the players (82% of the stars), against 71% (70%) for the
+          old rule that set the price against the salary with a fixed margin; keeping everyone the rules
+          allow scores 75% (75%), so the gain is in telling which stars go. A player we can't price at all (too few balls, no market inputs) is Borderline: scout him.
         </p>
         <p>
-          <b className="text-fg">Age and outlook</b> are at the auction date, from the player master's date of birth
-          (about a third of players have one). Under 24 usually improving, 24–29 prime, 30–32 holding, 33–34 slipping,{" "}
-          {AGE_DECLINE}+ declining: a rule of thumb, shown next to the call.
+          <b className="text-fg">Age and outlook</b> are at the auction date, from the player master's date of birth,
+          with the shape of his Form forecast (holds, improves, declines).
         </p>
         <p>
           <b className="text-fg">Last season</b> is the raw {f?.season ?? "latest"} IPL numbers, not the model: strike rate
@@ -130,8 +140,13 @@ margin       = the larger of ${KEEP_MARGIN_MIN} cr and ${Math.round(KEEP_MARGIN_
           {f ? ` (league ${fmtNum(f.bowl_econ, 1)})` : ""} and wickets for bowlers, from 30 balls up.
         </p>
         <p>
-          <b className="text-fg">The squad.</b> Purse left = the purse − the salaries you keep (in a mini year a kept
-          player stays on his contract). Open slots = the squad maximum − kept. Each <b>role gap</b> (keepers,
+          <b className="text-fg">The squad.</b> Purse left = the purse − what the players you keep cost it. In a
+          mini year a kept player stays on his contract; a player his franchise retained at the 2025 mega auction
+          is charged by the retention slabs instead (18, 14, 11, 18, 14 cr for the 1st–5th capped, 4 cr
+          uncapped; the team's retentions together cost the first slabs for as many as it keeps, or their
+          salaries if those add up to more; that is how every team's 2025 and 2026 purse was charged).{" "}
+          <b className="text-gold">Assumed</b> for 2027: the 2025 slabs carry on until the BCCI publishes the 2027
+          rules. So keeping one costs what releasing him alone would free. Open slots = the squad maximum − kept. Each <b>role gap</b> (keepers,
           openers, death bowlers, spinners, overseas) is your target minus the kept players with that tag. It is
           filled from the likely <b>auction pool</b>: today's free agents plus the players our calls release from
           the other nine squads, cheapest first (at our estimated price), among those at least as good as the best
@@ -142,7 +157,7 @@ margin       = the larger of ${KEEP_MARGIN_MIN} cr and ${Math.round(KEEP_MARGIN_
         </p>
         <p className="rounded-lg border border-willow/20 bg-willow/5 px-3 py-2 text-xs">
           <b className="text-willow">Honest caveat:</b> the market price is fitted to real auctions but is rough
-          and sees no captaincy, fitness or brand, so the useful part is the comparison (who is paid well above
+          and sees no fitness or brand, so the useful part is the comparison (who is paid well above
           or below what players like him fetch), not the exact crore. Every
           assumption is editable: flip any player, change the purse or a role target, and the squad numbers update.
         </p>
@@ -162,7 +177,13 @@ function Rules({ data }: { data: KeepData }) {
     { key: "overseas_max", value: `${c.overseas_max} overseas` },
     { key: "max_retained", value: c.max_retained ? String(c.max_retained) : "none: keep any number" },
     { key: "rtm_cards", value: c.rtm_cards ? String(c.rtm_cards) : "none in a mini auction" },
-    { key: "retained_cost", value: c.retained_cost === "salary" ? "his current salary, out of the purse" : "retention slabs" },
+    {
+      key: "retained_cost",
+      value:
+        c.retained_cost === "salary"
+          ? "his current salary, out of the purse"
+          : `his salary; a 2025 retention by the slabs (${(c.retention_slabs ?? []).map((x) => cr(x)).join(" / ")} cr capped, ${cr(c.uncapped_retention_slab ?? 0)} uncapped)`,
+    },
     { key: "overseas_fee_cap", value: c.overseas_fee_cap ? `${cr(c.overseas_fee_cap)} ${c.unit} paid to an overseas buy` : "none" },
     { key: "replacements_retainable", value: c.replacements_retainable ? "yes" : "no" },
     { key: "min_purse_spend_share", value: c.min_purse_spend_share ? `${Math.round(c.min_purse_spend_share * 100)}%` : "no rule" },
@@ -232,7 +253,7 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
   const comp = data.competition;
   const teams = data.teams;
   const [team] = useUrlState<string>("team", teams[0] ?? "", { valid: teams, replace: false });
-  const [sort, setSort] = useUrlState<SortKey>("sort", "surplus", { valid: SORTS });
+  const [sort, setSort] = useUrlState<SortKey>("sort", "kept", { valid: SORTS });
   const { params, update } = useUrlParams();
   const keepIds = useMemo(() => splitIds(params.get("keep") ?? ""), [params]);
   const relIds = useMemo(() => splitIds(params.get("rel") ?? ""), [params]);
@@ -249,8 +270,8 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
   const [copied, setCopied] = useState(false);
 
   const market = useMemo(
-    () => marketFor(team, data.players, buildPool(pool), data.pool_tags, data.form),
-    [team, data.players, pool, data.pool_tags, data.form],
+    () => marketFor(team, data.players, buildPool(pool), data.pool_tags, data.form, comp.rules),
+    [team, data.players, pool, data.pool_tags, data.form, comp.rules],
   );
   const squad = useMemo(() => data.players.filter((p) => p.team === team), [data.players, team]);
   const decisions = useMemo(() => {
@@ -301,7 +322,7 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
 
   const rows = useMemo(() => {
     const val = (p: AssessedPlayer): number | null =>
-      sort === "surplus" ? p.surplus : sort === "price" ? p.price : sort === "onfield" ? p.onfield : sort === "outlook" ? p.forecast_avg3 : sort === "salary" ? p.salary : sort === "value" ? p.value : sort === "age" ? p.age : null;
+      sort === "kept" ? p.p_keep : sort === "surplus" ? p.surplus : sort === "price" ? p.price : sort === "onfield" ? p.onfield : sort === "outlook" ? p.forecast_avg3 : sort === "salary" ? p.salary : sort === "value" ? p.value : sort === "age" ? p.age : null;
     return [...res.players].sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
       const x = val(a);
@@ -350,7 +371,9 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
         {daysLeft >= 0 ? ` (${daysLeft} day${daysLeft === 1 ? "" : "s"} away)` : " (passed)"}; the auction is{" "}
         {assumed.has("auction_date") ? "likely " : ""}on <b className="text-fg">{dateLabel(comp.auction_date)}</b> in{" "}
         {comp.auction_venue}. A mini year: keep as many as you like (up to {comp.squad_max}, {comp.overseas_max} overseas),
-        each at his current salary out of a <b className="text-fg">{cr(comp.rules.purse)} cr</b> purse
+        each at his current salary (a 2025 retention at his retention slab
+        {assumed.has("retained_cost") && <>, <span className="text-gold">assumed</span> to carry into 2027</>}) out of a{" "}
+        <b className="text-fg">{cr(comp.rules.purse)} cr</b> purse
         {assumed.has("purse") && <> (<span className="text-gold">assumed</span>: no 2027 figure published)</>}, and no
         right-to-match card to buy anyone back.
       </Card>
@@ -391,7 +414,7 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
       </Card>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Purse left" value={`${cr(res.purse_left)} cr`} hint={`${cr(res.purse)} − ${cr(res.salary_kept)} kept salaries`} />
+        <StatTile label="Purse left" value={`${cr(res.purse_left)} cr`} hint={`${cr(res.purse)} − ${cr(res.purse_charged)} for the kept players`} />
         <StatTile label="Kept / released" value={`${res.kept} / ${res.released}`} hint={`${res.overseas_kept} overseas kept · frees ${cr(res.salary_released)} cr`} />
         <StatTile label="Slots open" value={`${res.slots_left}`} hint={`${res.overseas_slots_left} overseas · squad ${comp.rules.squad_min}–${comp.rules.squad_max}`} />
         <StatTile label="After filling gaps" value={`${cr(res.purse_after_replacements)} cr`} hint={(() => { const n = res.gaps.reduce((s, g) => s + g.picks.length, 0); return `${cr(res.replacement_cost)} cr on ${n} replacement${n === 1 ? "" : "s"}`; })()} />
@@ -423,6 +446,7 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
                 <SortTh k="onfield" className="text-right">On-field worth</SortTh>
                 <SortTh k="surplus" className="text-right">Surplus</SortTh>
                 <SortTh k="outlook" className="text-right">3-season outlook</SortTh>
+                <SortTh k="kept" className="text-right">Kept by franchises</SortTh>
                 <th className="th">Call</th>
                 <th className="th">Decision</th>
                 <th className="th">Why</th>
@@ -453,6 +477,11 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
                   </td>
                   <td className="td stat-num text-right">
                     {crExact(p.salary)}
+                    {Math.abs(p.cost - Number(p.salary)) >= 0.005 && (
+                      <div className="text-[11px] font-normal text-muted" title="A 2025 retention: keeping him costs what releasing him alone would free under the retention slabs">
+                        costs {cr(p.cost)}
+                      </div>
+                    )}
                     {p.note && (
                       <InfoTip title="About this salary" className="ml-1 align-middle">
                         {p.note}
@@ -460,7 +489,7 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
                     )}
                   </td>
                   <td className="td stat-num whitespace-nowrap text-right">
-                    {p.value === null ? <span className="text-muted">—</span> : <>{fmtNum(p.value, 1)} <span className="text-muted">± {fmtNum(p.value_sd ?? 0, 1)}</span></>}
+                    {p.value === null ? <span className="text-muted">{p.no_data ? NO_DATA_LABEL : "—"}</span> : <>{fmtNum(p.value, 1)} <span className="text-muted">± {fmtNum(p.value_sd ?? 0, 1)}</span></>}
                   </td>
                   <td className="td stat-num whitespace-nowrap text-right">
                     {p.price === null ? "—" : cr(p.price)}
@@ -485,6 +514,9 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
                     ) : (
                       <span className="text-muted">—</span>
                     )}
+                  </td>
+                  <td className="td stat-num text-right" title="The chance a franchise keeps a player like him at the retention deadline (a model of every real deadline 2018-2026)">
+                    {p.p_keep === null ? "—" : `${Math.round(100 * p.p_keep)}%`}
                   </td>
                   <td className="td"><Badge tone={REC_TONE[p.rec]}>{REC_LABEL[p.rec]}</Badge></td>
                   <td className="td">
@@ -579,12 +611,21 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
           <p>
             Data check: {team}'s purse entering the 2026 auction was published as {cr(check.published)} cr; our salaries give{" "}
             {cr(check.ours)} cr
-            {Math.abs(check.ours - check.published) < 0.01 ? " (they agree)." : ` (off by ${cr(Math.abs(check.ours - check.published))} cr: a salary on the source page differs from what the team paid).`}
+            {(check.slab ?? 0) > 0 && (
+              <>
+                {" "}less {cr(check.slab ?? 0)} cr the purse still counts for 2025 retentions (charged at the fixed retention slab, not
+                the salary) = {cr(check.ours - (check.slab ?? 0))} cr
+              </>
+            )}
+            {Math.abs(check.ours - (check.slab ?? 0) - check.published) < 0.01
+              ? " (they agree)."
+              : ` (off by ${cr(Math.abs(check.ours - (check.slab ?? 0) - check.published))} cr: a salary on the source page differs from what the team paid).`}
           </p>
         )}
         {unmatched.length > 0 && (
           <p>
-            Not in our ball-by-ball data, so not rated: {unmatched.map((u) => u.name).join(", ")}.
+            Not in our ball-by-ball data (no match on Cricsheet yet), so priced from the market (uncapped Indian, age,
+            no record) instead of rated: {unmatched.map((u) => u.name).join(", ")}.
           </p>
         )}
         <p>Recommendations are a model's view for discussion, not advice. Ratings data to the end of the 2026 IPL.</p>

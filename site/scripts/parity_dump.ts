@@ -9,14 +9,19 @@ import { dirname, join } from "node:path";
 import {
   buildPool,
   defaultRetentions,
+  retentionInputs,
+  retentionSpend,
   simulateAuction,
   estValue,
   IPL_TEAMS_DEFAULT,
   marketFeatures,
   marketPrice,
+  calibrate,
+  linkShare,
   registerPriceModel,
   scoutPrice,
   type MarketInputs,
+  type PoolPlayer,
   type PriceModel,
   type PriceTier,
   type Role,
@@ -54,12 +59,8 @@ const tiers = scoutPools(registry)
   .filter((t) => t in scout);
 const gemTier = registry.gem_tier;
 
-const megaIds: Record<string, string[]> = {};
-const realPrices: Record<string, number> = {};
-for (const [team, rows] of Object.entries(ret.mega as Record<string, { cricsheet_id: string; price: number }[]>)) {
-  megaIds[team] = rows.map((r) => r.cricsheet_id);
-  for (const r of rows) realPrices[r.cricsheet_id] = r.price;
-}
+const ri = retentionInputs(ret);
+const megaIds = ri.megaIds;
 
 const teams = IPL_TEAMS_DEFAULT;
 const retentions = defaultRetentions(pool, teams, "mega", megaIds);
@@ -70,7 +71,10 @@ const res = simulateAuction(pool, teams, {
   trials: 40,
   mode: "mega",
   retentions,
-  realPrices,
+  realPrices: ri.realPrices,
+  retentionSlabs: ri.retentionSlabs,
+  slabHolders: ri.slabHolders,
+  fixedRetained: ri.fixedRetained,
 });
 
 // Scout: deterministic pick = lexicographically-first IPL id.
@@ -119,14 +123,43 @@ const ESTIMATE_CASES: [number, string, string, number | null, number | null][] =
 ];
 // mirrored in test_web_parity.py: market-model inputs on fixed rows (incl. missing fields)
 const MARKET_CASES: [MarketInputs, "mega" | "mini", number][] = [
-  [{ price_value: 13.6, value_sd: 2.75, role: "batter", is_overseas: false, intl_caps: 555, age: 38.1, ipl_balls: 8400, ipl_seasons: 19, ipl_gap: 0.55, target_balls: 6926, captain_ipl_last: 0, captain_ipl_seasons: 10, captain_intl_2y: 0 }, "mini", 125],
+  [{ price_value: 13.6, value_sd: 2.75, role: "batter", is_overseas: false, intl_caps: 555, age: 38.1, ipl_balls: 8400, ipl_seasons: 19, ipl_gap: 0.55, target_balls: 6926, captain_ipl_last: 0, captain_ipl_seasons: 10, captain_intl_2y: 0, prior_share: 0.175, prior_years: 2, prior_retained: true }, "mini", 125],
   [{ price_value: 59.7, value_sd: 12.5, role: "batter", is_overseas: false, intl_caps: 0, age: 15.7, ipl_balls: 449, ipl_seasons: 2, ipl_gap: 0.55, target_balls: 449 }, "mini", 125],
-  [{ price_value: 23.2, value_sd: 2.7, role: "bowler", overseas: false, intl_caps: 210, age: 32.9, ipl_balls: 3100, ipl_seasons: 12, ipl_gap: 0.55, target_balls: 3000, captain_ipl_last: 1, captain_ipl_seasons: 1, captain_intl_2y: 1 }, "mega", 120],
+  [{ price_value: 23.2, value_sd: 2.7, role: "bowler", overseas: false, intl_caps: 210, age: 32.9, ipl_balls: 3100, ipl_seasons: 12, ipl_gap: 0.55, target_balls: 3000, captain_ipl_last: 1, captain_ipl_seasons: 1, captain_intl_2y: 1, prior_share: 0.9, prior_years: 9, prior_retained: false }, "mega", 120],
   [{ price_value: 6.0, value_sd: 9.0, role: "all_rounder", is_overseas: true, intl_caps: 40, age: 27.2, ipl_balls: 0, ipl_seasons: 0, ipl_gap: null, target_balls: 0 }, "mini", 125],
   [{ price_value: null, role: "keeper", is_overseas: false, intl_caps: null, age: null, ipl_balls: null, ipl_seasons: null, ipl_gap: 3.2 }, "mega", 90],
-  [{ price_value: -45, value_sd: 20, role: "bowler", is_overseas: true, intl_caps: 3, age: 41, ipl_balls: 120, ipl_seasons: 1, ipl_gap: 9.5, target_balls: 120 }, "mini", 125],
+  [{ price_value: -45, value_sd: 20, role: "bowler", is_overseas: true, intl_caps: 3, age: 41, ipl_balls: 120, ipl_seasons: 1, ipl_gap: 9.5, target_balls: 120, prior_share: 0, prior_years: 3, prior_retained: true }, "mini", 125],
+  [{ price_value: 18.5, value_sd: 3.1, role: "keeper", is_overseas: true, intl_caps: 160, intl_caps_2y: 30, age: 33.5, ipl_balls: 2600, ipl_seasons: 9, ipl_gap: 0.6, target_balls: 2500, prior_share: 0.0001, prior_years: 1 }, "mega", 120],
 ];
+// mirrored in test_web_parity.py: the calibration (knots + hi_slope) and the link on fixed parts
+const CAL_PART = {
+  intercept: 0,
+  coef: {},
+  calibration: { x: [-4, -3, -1.5], y: [-4.2, -3.1, -2.2], hi_slope: 0.4 },
+  shift: -0.1,
+};
+const CAL_CASES = [-6, -4, -3.5, -1.5, -1.0, 0.5];
+const SAT_PART = { intercept: 0, coef: {}, link: { kind: "sat" as const, cap_share: 0.3 } };
+const LINK_CASES = [-40, -5, -1, 0, 2, 30];
+// mirrored in test_web_parity.py: a team's retentions under the slab rule (KKR's 2025 list: four
+// capped and two uncapped at retention, 57 cr of salaries, 69 cr charged)
+const SLAB_OPTS = {
+  purse: 120, squadSize: 25, overseasCap: 8, trials: 1, mode: "mega" as const, retentions: {},
+  realPrices: { a: 13, b: 12, c: 12, d: 12, e: 4 } as Record<string, number>,
+  retentionSlabs: { capped: [18, 14, 11, 18, 14], uncapped: 4 },
+  slabHolders: { a: "capped", b: "capped", c: "capped", d: "capped", e: "uncapped" } as Record<string, string>,
+  fixedRetained: { KKR: [{ salary: 4, slab_holder: "uncapped" }] },
+};
+const SLAB_PLAYERS = ["a", "b", "c", "d", "e"].map((id) => ({ cricsheet_id: id }) as unknown as PoolPlayer);
 const out = {
+  calCases: CAL_CASES.map((x) => calibrate(CAL_PART, x)),
+  linkCases: LINK_CASES.map((x) => linkShare(SAT_PART, x)),
+  slabSpend: [
+    retentionSpend("KKR", SLAB_PLAYERS, SLAB_OPTS),
+    retentionSpend("KKR", SLAB_PLAYERS.slice(0, 3), SLAB_OPTS),
+    retentionSpend("XYZ", SLAB_PLAYERS, { ...SLAB_OPTS, retentionSlabs: null }),
+    retentionSpend("KKR", SLAB_PLAYERS, { ...SLAB_OPTS, mode: "mini" as const }),
+  ],
   retentions,
   poolSize: res.poolSize,
   auctioned: res.auctioned,
@@ -168,7 +201,7 @@ const out = {
   // the market model on fixed inputs (features + price + P(bought)); null when there is no model
   marketCases: model
     ? MARKET_CASES.map(([row, cycle, purse]) => ({
-        features: marketFeatures(row, cycle),
+        features: marketFeatures(row, cycle, (model as PriceModel).price.pv_max),
         ...marketPrice(row, { cycle, purse }),
       }))
     : null,

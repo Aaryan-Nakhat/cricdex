@@ -25,7 +25,7 @@ backlog, and BCCI-domestic scrapes are out of scope (Cricsheet-only).
 | Role / bowling type (seam-spin) / batting slot / country | LLM taxonomy (an LLM via LiteLLM, `LLM_MODEL`; shown as "AI-classified") | ✅ — 2,525 players |
 | Semi-pro (SMAT) | Cricsheet `indian_domestic_male` | ✅ ingested (Ranji / Hazare removed — out of scope) |
 | Grassroots (CricHeroes) | CricHeroes scrape / partner API | year-2 ([`ROADMAP.md`](ROADMAP.md#later)) |
-| Style-twin (k-NN over rating vector) | feature-space nearest neighbours | ✅ — on every profile |
+| Style twins (how he bats / bowls; METHODOLOGY §5a) | weighted nearest neighbours, same role and bowling type | ✅ — on every profile |
 | Scout look-alikes (all surfaces) | **One implementation** (`cricdex.web_parity` ⇄ `site/src/pages/Scout.tsx`, locked by `test_web_parity.py` in CI) shipped identically on the React site, Streamlit, CLI (`cricdex scout look-alikes`) and the TUI **Scout** tab: pick an active IPL player → similar IPL peers, then uncapped SMAT, then overseas BBL / SA20 / CPL / T20 Blast (within-tier skill-standing z-score), with per-row est. crore price + saving-vs-pick (budget swap), an uncapped-**gem** flag, role/batting-slot filters, and one-click **draft** into the Auction room | ✅ |
 
 ## End-to-end pipeline today

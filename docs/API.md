@@ -46,7 +46,7 @@ FastAPI app at `cricdex.api.main:app`, served on port 8080 inside the
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/v1/players/{name}?collection=` | Full profile: IDs + Wikidata + career + every metric + Bayes + style twins. `name` is the exact Cricsheet scorecard name (`V Kohli`); an unknown name is a 404 with the closest names. |
-| GET | `/v1/players/{name}/style-twins?role=&k=&collection=` | k-NN over the metric+rating vector (cosine style twins). |
+| GET | `/v1/players/{name}/style-twins?role=&k=&collection=` | Style twins: same role and bowling type, closest on slot, phase tempo, boundaries / dots, spin vs pace, risk (batters) or phase usage, economy / strike by phase, wicket types (bowlers). Rows: `name`, `cricsheet_id`, `distance` (1 − alike), `alike` (0–100). METHODOLOGY §5a. |
 | POST | `/v1/compare` body `{players, collection}` | Side-by-side comparison rows (a bare JSON list). |
 
 ### Metrics

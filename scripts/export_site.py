@@ -561,6 +561,8 @@ def _price_inputs(con: duckdb.DuckDBPyConnection, ref_date: str | None, season: 
         cap = captains.as_of(cid, season) if season else {}
         return {
             **{k: cap.get(k) for k in CAPTAIN_KEYS if season},
+            # the market's last verdict on him before the next auction (pricing.prior_verdict)
+            **(_prior_inputs(cid or "", season) if season else {}),
             "intl_caps": n_caps,
             "intl_caps_2y": n_caps - _bisect.bisect_left(ds, lo_s),
             "ipl_balls": balls.get(cid or "", 0),
@@ -569,6 +571,26 @@ def _price_inputs(con: duckdb.DuckDBPyConnection, ref_date: str | None, season: 
         }
 
     return get
+
+
+_VERDICTS: dict[str, dict] = {}
+
+
+def _prior_inputs(key: str, season: int) -> dict:
+    """{prior_share, prior_years, prior_retained} for a player (Cricsheet id, or "wiki:<title>" for
+    one with no match data) before `season`'s auction: his last auction price or mega-auction
+    retention in data/curated/<target>_auction_history.json (pricing.market_verdicts; the price
+    model is trained on the same)."""
+    from cricdex.web_parity import pricing as _pricing
+
+    if "v" not in _VERDICTS:
+        f = CURATED_DIR / f"{AUCTION_TARGET}_auction_history.json"
+        hist = json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
+        _VERDICTS["v"] = _pricing.market_verdicts(hist) if hist else {}
+    pv = _pricing.prior_verdict(_VERDICTS["v"].get(key, []), season)
+    if pv["prior_share"] is not None:
+        pv["prior_share"] = round(pv["prior_share"], 6)
+    return pv
 
 
 def _export_price_model(out_dir: Path, col: str) -> bool:
@@ -633,6 +655,8 @@ def _export_auction_pool(
     # dominates whenever it exists, and one hot spell in a weaker or provisional league can't
     # outrank a real IPL record (taking the best league did exactly that). Best role wins.
     acc: dict[tuple[str, str], list[float]] = {}  # (cid, role) -> [Σw, Σw·value]
+    # (cid, role) -> {league: Σw}: which leagues the blend rests on (the stale-evidence share)
+    w_col: dict[tuple[str, str], dict[str, float]] = {}
     target_rows: dict[tuple[str, str], tuple[float, int, float]] = {}  # target (value, balls, sd)
     names: dict[str, str | None] = {}
     max_balls: dict[str, int] = {}
@@ -653,6 +677,8 @@ def _export_auction_pool(
             a = acc.setdefault((cid, r.get("role") or ""), [0.0, 0.0])
             a[0] += w
             a[1] += w * (v - pen)
+            wc = w_col.setdefault((cid, r.get("role") or ""), {})
+            wc[col] = wc.get(col, 0.0) + w
             if col == AUCTION_TARGET:
                 target_rows[(cid, r.get("role") or "")] = (v, int(r.get("balls") or 0), sd)
     best: dict[str, dict] = {}
@@ -664,12 +690,15 @@ def _export_auction_pool(
         own = target_rows.get((cid, role))
         if own and own[1] >= AUCTION_TRUST_BALLS:
             val, vsd = own[0], own[2]
+            wbc = {AUCTION_TARGET: 1.0}
         else:
             val, vsd = swx / sw, (1.0 / sw) ** 0.5
+            wbc = dict(w_col.get((cid, role)) or {})
         # his IPL balls in this role set the price ceiling (pricing.price_ceiling)
         tb = own[1] if own else 0
         if cid not in best or val > best[cid]["value"]:
-            best[cid] = {"value": val, "value_sd": vsd, "target_balls": tb, "name": names.get(cid)}
+            best[cid] = {"value": val, "value_sd": vsd, "target_balls": tb, "name": names.get(cid),
+                         "w_by_col": wbc}  # fmt: skip
     # drop tiny-sample players (inflated value); the squads' rows are kept aside for Keep or release
     extras = {cid: b for cid, b in best.items() if cid in extra_cids}
     best = {cid: b for cid, b in best.items() if max_balls.get(cid, 0) >= AUCTION_MIN_BALLS}
@@ -724,6 +753,7 @@ def _export_auction_pool(
     }
     asof = max((d for ds in in_pool_dates.values() for d in ds), default=None)
     stale_league = {c: _is_stale(max(ds, default=None), asof) for c, ds in in_pool_dates.items()}
+    league_asof = {c: max(ds, default=None) for c, ds in in_pool_dates.items()}
     asof_d = _dt.date.fromisoformat(asof) if asof else None
     cutoff = (asof_d - _dt.timedelta(days=AUCTION_RECENCY_DAYS)).isoformat() if asof_d else None
 
@@ -844,6 +874,9 @@ def _export_auction_pool(
             "profile_collection": AUCTION_TARGET if li else home,
             # every league his value rests on is stale (e.g. SMAT only)
             "stale": bool(played) and all(stale_league.get(r["league"]) for r in played),
+            # the share of his value's evidence (blend weight) from a stale league, and which
+            # ("SMAT data to Dec 2024"); 0 / None when none of it is (issue I7)
+            **_stale_evidence(b.get("w_by_col") or {}, stale_league, league_asof),
             "last_match_date": ld,
             "last_ipl": li,
             "home_league": home,
@@ -861,8 +894,31 @@ def _export_auction_pool(
     return len(out), extra_rows
 
 
+def _stale_evidence(
+    w_by_col: dict[str, float], stale_league: dict[str, bool], league_asof: dict[str, str | None]
+) -> dict:
+    """{"stale_share": the share of a player's value evidence (his blend weights by league) from
+    leagues whose data has stopped (SMAT on Cricsheet ends 15 Dec 2024), "stale_note": "SMAT data to
+    Dec 2024" (None when the share is 0)}. Rounded to 3 places."""
+    import datetime as _dt
+
+    tot = sum(w_by_col.values())
+    st = {c: w for c, w in w_by_col.items() if stale_league.get(c)}
+    if not tot or not st:
+        return {"stale_share": 0.0, "stale_note": None}
+    notes = []
+    for c in sorted(st, key=lambda c: -st[c]):
+        d = league_asof.get(c)
+        when = _dt.date.fromisoformat(d[:10]).strftime("%b %Y") if d else "an early date"
+        notes.append(f"{leagues.short(c)} data to {when}")
+    return {"stale_share": round(sum(st.values()) / tot, 3), "stale_note": " / ".join(notes)}
+
+
 # the per-player market-price inputs `_price_inputs` adds to pool, squad and Scout rows
-PRICE_INPUT_KEYS = ("intl_caps", "intl_caps_2y", "ipl_balls", "ipl_seasons", "ipl_gap")
+PRICE_INPUT_KEYS = (
+    "intl_caps", "intl_caps_2y", "ipl_balls", "ipl_seasons", "ipl_gap",
+    "prior_share", "prior_years", "prior_retained",
+)  # fmt: skip
 # captaincy known before the next auction (scout/identity/captains.as_of): market-price inputs, and
 # `captain_teams` (the IPL sides he led last season) for the "Captain" badge
 CAPTAIN_KEYS = ("captain_ipl_last", "captain_ipl_seasons", "captain_intl_2y", "captain_teams")
@@ -976,6 +1032,28 @@ def _keep_squad_cids(col: str) -> set[str]:
     return out
 
 
+ROLES_KEEP = ("batter", "keeper", "all_rounder", "bowler")
+
+
+def _keep_no_data_inputs() -> dict:
+    """Market-price inputs for a squad player with no Cricsheet match at all (issue I6): unrated
+    (`price_value` None), no international or IPL match (he'd be in the People Register and the
+    ball data if he had one), no captaincy. The market model then prices "a player like him" (Keep
+    or release shows it as `NO_DATA_LABEL`, never as a rating)."""
+    return {
+        "price_value": None,
+        "intl_caps": 0,
+        "intl_caps_2y": 0,
+        "ipl_balls": 0,
+        "ipl_seasons": 0,
+        "ipl_gap": None,
+        "captain_ipl_last": 0,
+        "captain_ipl_seasons": 0,
+        "captain_intl_2y": 0,
+        "captain_teams": [],
+    }
+
+
 def _export_keep(
     con: duckdb.DuckDBPyConnection,
     col: str,
@@ -1004,9 +1082,23 @@ def _export_keep(
     dob = _dob_by_cid(taxonomy)
     at = _dt.date.fromisoformat(comp.auction_date)
     role_map = {"wk_batter": "keeper", "allrounder": "all_rounder", "bowler": "bowler"}
+    # franchise ties for the retention model (keep.py `keep_features`): IPL seasons with this side
+    # before the deadline, and whether it was his first IPL side
+    from cricdex.scout.identity import sources as _src
+
+    team_seasons = _src.ipl_team_seasons(con) if col == "ipl" else {}
+
+    def _ties(cid: str | None, team: str) -> dict:
+        h = [x for x in team_seasons.get(cid or "", []) if x[0] < comp.season]
+        return {
+            "seasons_here": len({y for y, t in h if t == team}),
+            "home_grown": bool(h) and h[0][1] == team,
+        }
 
     def _age(cid: str | None) -> float | None:
-        d = dob.get(cid or "")
+        return _age_from(dob.get(cid or ""))
+
+    def _age_from(d: str | None) -> float | None:
         if not d:
             return None
         try:
@@ -1021,7 +1113,13 @@ def _export_keep(
             cid = r.get("cricsheet_id")
             rec = taxonomy.get(cid or "", {})
             rr = rated.get(cid or "")
-            role = (rr or {}).get("role") or role_map.get(rec.get("primary_role") or "", "batter")
+            role = (
+                (rr or {}).get("role")
+                or role_map.get(rec.get("primary_role") or "")
+                # a player with no match data: the role his auction listing gives (squads file)
+                or (r.get("role") if r.get("role") in ROLES_KEEP else None)
+                or "batter"
+            )
             country = r.get("country") or rec.get("country")
             if r.get("overseas") is not None:
                 overseas = bool(r["overseas"])
@@ -1034,6 +1132,9 @@ def _export_keep(
                     "team": team,
                     "salary": r.get("salary_cr"),
                     "acquired": r.get("acquired"),
+                    # a 2025 mega-auction retention still with his franchise: charged by the
+                    # retention slabs ("capped" / "uncapped"; competitions.slab_holder)
+                    "slab_holder": competitions.slab_holder(squads_file, team, r),
                     "overseas": overseas,
                     "country": country,
                     "role": role,
@@ -1049,9 +1150,17 @@ def _export_keep(
                             if k in rr
                         }
                         if rr
-                        else {}
+                        else (
+                            {
+                                **_keep_no_data_inputs(),
+                                # his auction price, found by Wikipedia title (no Cricsheet id)
+                                **_prior_inputs(f"wiki:{r.get('wiki_title')}", comp.season),
+                            }
+                            if not cid
+                            else {}
+                        )
                     ),
-                    "age": _age(cid),
+                    "age": _age(cid) if cid else _age_from(r.get("dob")),
                     "tags": _keep_tags(rec, role, overseas, death, cid),
                     "form": form.get(cid or "") or None,
                     "withdrawn": r.get("withdrawn") or None,
@@ -1059,6 +1168,10 @@ def _export_keep(
                     "note": r.get("salary_note") or None,
                     "profile": (rr or {}).get("profile_collection") or ("ipl" if cid else None),
                     "forecast": forecast.keep_outlook(fc, cid, role),
+                    **_ties(cid, team),
+                    # how much of his value rests on a stale league (SMAT; issue I7)
+                    "stale_share": (rr or {}).get("stale_share") or 0.0,
+                    "stale_note": (rr or {}).get("stale_note"),
                 }
             )
             if not cid:
@@ -1087,8 +1200,14 @@ def _export_keep(
             sal = (r.get("trade") or {}).get("salary_before_cr", r.get("salary_cr"))
             if r.get("status") == "retained" and sal is not None:
                 ours[src] = ours.get(src, 0.0) + float(sal)
+    # `slab`: what the purse still counts beyond the salaries (2025 retention slabs; issue I6)
+    slab = check.get("slab_charge") or {}
     purse_check = {
-        t: {"published": v, "ours": round(float(check.get("purse", 0)) - ours.get(t, 0.0), 2)}
+        t: {
+            "published": v,
+            "ours": round(float(check.get("purse", 0)) - ours.get(t, 0.0), 2),
+            "slab": float(slab.get(t, 0.0)),
+        }
         for t, v in (check.get("remaining") or {}).items()
     }
     changes = squads_file.get("changes_since_season") or {}
@@ -1098,16 +1217,33 @@ def _export_keep(
         "salary_source": squads_file.get("_salary_source"),
         "changes_source": changes.get("_source"),
         "changes": changes.get("applied") or [],
-        "purse_check": {"source": check.get("_source"), "teams": purse_check},
+        "purse_check": {
+            "source": check.get("_source"),
+            "slab_source": check.get("_slab_source"),
+            "teams": purse_check,
+        },
         "unmatched": unmatched,
         "form": form_lg,
         "death_rule": {"share": KEEP_DEATH_SHARE, "min_balls": KEEP_DEATH_MIN_BALLS},
         "teams": sorted(squads),
         "players": players,
         "pool_tags": pool_tags,
+        # the retention model (config/keep_model.json; scripts/keep_backtest.py): keep.ts reads it
+        "keep_model": _keep_model_payload(),
     }
     _write(out_dir / "keep.json", out)
     return len(players)
+
+
+def _keep_model_payload() -> dict | None:
+    """What keep.ts needs of config/keep_model.json (intercept, coefficients, fit date), or None."""
+    from cricdex.web_parity.keep import load_keep_model
+
+    load_keep_model.cache_clear()
+    m = load_keep_model()
+    if not m:
+        return None
+    return {k: m[k] for k in ("intercept", "coef", "fitted", "trained_on") if k in m}
 
 
 # A league whose newest match is more than this many days older than the newest match anywhere is
@@ -1320,27 +1456,73 @@ def _export_retentions(players: list[dict], out_dir: Path) -> None:
         for n in (p["name"], p.get("display_name"), p.get("full_name"), *(p.get("aliases") or [])):
             if n:
                 by_name.setdefault(n.lower(), p)
+    # capped / uncapped AT RETENTION (the squads file's 2025 block), for the slab charge
+    from cricdex import competitions
+
+    comp = _target_competition(AUCTION_TARGET)
+    block = ((competitions.load_squads(comp).get("mega_retentions_2025") or {}).get("teams")) or {}
+    kind_of: dict[tuple[str, str], str] = {}
+    for team, b in block.items():
+        for kind in ("capped", "uncapped"):
+            for n in b.get(kind, []):
+                kind_of[(team, n.lower())] = kind
     mega: dict[str, list[dict]] = {}
+    unpooled: dict[str, list[dict]] = {}
     missing: list[str] = []
+    # the auction pool (written before this): a retention outside it can't be auctioned or released in
+    # the room, but still costs the purse
+    pool_f = out_dir / "auction_pool.json"
+    pool_ids = (
+        {r["cricsheet_id"] for r in json.loads(pool_f.read_text(encoding="utf-8"))}
+        if pool_f.exists()
+        else None
+    )
     for team, entries in MEGA_RETENTIONS_2025.items():
         rows = []
         for name, price in entries:
             p = by_name.get(name.lower())
+            disp = (p.get("display_name") or p["name"]) if p else name
+            kind = kind_of.get((team, disp.lower())) or kind_of.get((team, name.lower()))
+            if kind is None:
+                # a spelling difference between the lists ("Abishek" / "Abhishek Porel")
+                import difflib
+
+                close = difflib.get_close_matches(
+                    disp.lower(), [n for (t, n) in kind_of if t == team], n=1, cutoff=0.85
+                )
+                kind = kind_of[(team, close[0])] if close else None
+            if p and pool_ids is not None and p["cricsheet_id"] not in pool_ids:
+                p = None  # rated too thinly for the pool: charged, not auctioned
             if p:
                 rows.append(
                     {
                         "cricsheet_id": p["cricsheet_id"],
                         "name": p["name"],
-                        "display_name": p.get("display_name") or p["name"],
+                        "display_name": disp,
                         "price": price,
+                        "slab_holder": kind or "capped",
                     }
                 )
             else:
+                # not in the pool (too few balls to rate), still retained and charged
+                unpooled.setdefault(team, []).append(
+                    {"name": name, "salary": price, "slab_holder": kind or "capped"}
+                )
                 missing.append(f"{team}:{name}")
         mega[team] = rows
     if missing:
-        logger.info(f"retentions unmatched (below cutoff): {missing}")
-    _write(out_dir / "retentions.json", {"mega": mega})
+        logger.info(f"retentions outside the pool (charged, not auctioned): {missing}")
+    rules = comp.rules()
+    slabs = None
+    if rules.get("retention_slabs"):
+        slabs = {
+            "capped": [float(x) for x in rules["retention_slabs"]],
+            "uncapped": float(rules.get("uncapped_retention_slab") or 0.0),
+        }
+    _write(
+        out_dir / "retentions.json",
+        {"mega": mega, "unpooled": unpooled, "slabs": slabs, "competition": comp.key},
+    )
 
 
 def _current_teams(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, str]:
@@ -2292,10 +2474,11 @@ def export(
             meta["stale"] = _is_stale(meta.get("data_as_of"), newest)
             meta["newest_data_anywhere"] = newest
             if col == AUCTION_TARGET:
-                _export_retentions(players, out_dir)
                 n_pool, rated = _export_auction_pool(
                     con, out_dir, taxonomy, _current_teams(con, col), _keep_squad_cids(col)
                 )
+                # after the pool: a retention outside it is charged but not auctioned
+                _export_retentions(players, out_dir)
                 n_scout = _export_scout_index(con, out_dir, taxonomy)
                 n_keep = _export_keep(con, col, out_dir, taxonomy, rated, _keep_death_bowlers(con))
                 fc_src = METRIC_DIR / f"forecast_{col}.json"

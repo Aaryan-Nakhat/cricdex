@@ -23,8 +23,13 @@
 #   max_overseas_retained   (0 = no limit beyond `overseas_max`)
 #   rtm_cards           right-to-match cards at the auction (0 = none)
 #   retained_cost       "salary": a kept player costs his current contract out of the purse
-#                       "slabs": fixed retention slabs (mega years; `retention_slabs`)
-#   retention_slabs     list, only for "slabs"
+#                       "slabs": a player retained at the cycle's mega auction (`slab_holder` in the
+#                       squads file) is charged by the retention slabs: the team's slab holders
+#                       together cost the first n capped slabs + `uncapped_retention_slab` per
+#                       uncapped one, or their salaries if those add up to more; everyone else
+#                       costs his salary (web_parity/keep.py `slab_charge`)
+#   retention_slabs     capped slabs in retention order (cr), only for "slabs"
+#   uncapped_retention_slab   the uncapped slab (cr), only for "slabs"
 #   replacements_retainable   may a season replacement signing be kept?
 #   overseas_fee_cap    the most an overseas auction buy is paid (0 = no cap); the excess of his
 #                       bid goes to the board, not the player (the franchise still pays the bid)
@@ -50,6 +55,9 @@ auction_venue = "Goa, India"
 # No 2027 purse has been published. 125 cr is the 2026 purse, kept until one is announced. (The
 # 2025-27 regulations set the total salary cap at 146 / 151 / 157 cr for 2025 / 2026 / 2027 and the
 # purse went 120 -> 125 cr, so ~131 cr is a plausible guess; nothing confirms it.)
+# Checked again 2026-10-22 (issue I5): press reports of 18-19 Oct repeat the 157 cr salary cap and
+# the 2026 figure of 125 cr; none gives a 2027 auction purse from the BCCI or the franchises (one
+# site says 120, a preview guesses 130-140; neither cites anyone). So 125 stays, as an assumption.
 purse = 125.0
 squad_min = 18
 squad_max = 25
@@ -57,7 +65,15 @@ overseas_max = 8
 max_retained = 0
 max_overseas_retained = 0
 rtm_cards = 0
-retained_cost = "salary"
+# The owner's call (2026-10-22): the 2025 mega-auction slabs keep counting until the BCCI publishes
+# the 2027 rules ("assumed: 2025 mega-auction slabs until BCCI announces 2027 rules"). 2027 is the
+# last mini auction of the 2025-27 cycle (press, Oct 2026), where a kept player stays on his
+# contract; in the 2026 mini auction the purse still charged each 2025 retention at his slab (the
+# published 2026 purses of all 10 teams are reproduced only that way), so the slabs are assumed to
+# carry into 2027 for the players retained in 2025, and everyone else costs his salary.
+retained_cost = "slabs"
+retention_slabs = [18.0, 14.0, 11.0, 18.0, 14.0]
+uncapped_retention_slab = 4.0
 replacements_retainable = true
 overseas_fee_cap = 18.0
 min_purse_spend_share = 0.0
@@ -67,6 +83,7 @@ assumed = [
   "replacements_retainable",
   "min_purse_spend_share",
   "auction_date",
+  "retained_cost",
 ]
 
 [[competition.source]]
@@ -94,6 +111,22 @@ date = "2026-10-17"
 note = "'Likely': passed on informally, no formal notice yet. Venue Goa confirmed by the BCCI secretary (SportsDigest, 2026-09-23)."
 
 [[competition.source]]
+about = "auction_date"
+status = "reported"
+title = "When is IPL auction? Date, venue, rules for the Indian Premier League 2027 mini-auction (Sporting News, via Yahoo Sports): 'reported to be on Wednesday, December 16, 2026', franchise briefing December 15, ITC Grand Goa; lists due to the BCCI by November 15"
+url = "https://sports.yahoo.com/articles/ipl-auction-date-venue-rules-054708778.html"
+date = "2026-10-18"
+note = "Still 'reported' (an earlier plan said December 14). Business Standard (2026-10-19) calls 16 December at ITC Grand Goa tentative. Checked 2026-10-22 (issue I5): no BCCI / IPL notice of the date yet, so the date stays an assumption."
+
+[[competition.source]]
+about = "purse"
+status = "reported"
+title = "IPL 2027 auction purse: searched 2026-10-22, nothing published (Sporting News via Yahoo Sports, 2026-10-18: 'total salary cap for 2027 is 157 crore'; 2026 'each team had a 125 crore limit')"
+url = "https://sports.yahoo.com/articles/ipl-auction-date-venue-rules-054708778.html"
+date = "2026-10-18"
+note = "Searched the press (ESPN, Business Standard, Business Today, Sporting News, Cricbuzz-sourced reports) and iplt20.com news on 2026-10-22: no 2027 auction purse announced. 125 cr kept as an assumption; replace when the retention lists (15 Nov) come with the remaining-purse table."
+
+[[competition.source]]
 about = "auction_venue"
 status = "reported"
 title = "IPL 2027 auction set to take place in Goa in December (BCCI secretary Devajit Saikia)"
@@ -104,7 +137,7 @@ date = "2026-09-23"
 about = "purse"
 status = "official"
 title = "IPL Governing Council announces TATA IPL player regulations 2025-27"
-url = "https://www.iplt20.com/news/article/ipl-governing-council-announces-tata-ipl-player-regulations-2025-27"
+url = "https://www.iplt20.com/news/4109/ipl-governing-council-announces-tata-ipl-player-regulations-2025-27"
 date = "2024-09-28"
 note = "Purse 120 cr for 2025; total salary cap (purse + performance pay + match fees) 146 / 151 / 157 cr for 2025 / 2026 / 2027. No 2027 auction purse is stated."
 
@@ -155,19 +188,51 @@ date = "2025-12-09"
 
 [[competition.source]]
 about = "retained_cost"
+status = "reported"
+title = "IPL 2025 auction, retention rules: six retentions per team (slabs 18, 14, 11 cr for the first three capped players, 18 and 14 for the 4th and 5th, 4 cr for an uncapped player; 5 capped + 1 uncapped = 79 cr off the 120 cr purse)"
+url = "https://africa.espn.com/cricket/story/_/id/41492797/ipl-2025-auction-retention-rules-six-retentions-per-team-right-match-returns-impact-player-stay"
+date = "2024-09-28"
+note = "The slabs are not in the official iplt20 release (it gives only the six-retention / RTM rule); ESPNcricinfo quotes the regulations document. Assumed to carry into 2027 (owner's decision, 2026-10-22) until the BCCI publishes 2027 rules."
+
+[[competition.source]]
+about = "retained_cost"
+status = "reported"
+title = "IPL 2025 retentions: why KKR were deducted INR 69 crore despite spending INR 57 crore (the purse is debited the higher of the slab total and the actual retention spend)"
+url = "https://www.crictracker.com/cricket-news/ipl-2025-retentions-why-was-kkr-deducted-inr-69-crore-despite-spending-inr-57-crore/?amp=1"
+date = "2024-10-31"
+note = "No official wording of the 'higher of' rule was found; explainers only (also DNA India, 2024-11-03). Checked on the data: max(slab total, salary total) reproduces every team's published 2025 purse (Rajasthan Royals, 2024-11-21: RR 41, SRH 45, MI 45, KKR 51, CSK 55, GT 69, LSG 69, DC 73, RCB 83, PBKS 110.5 cr; RCB's 37 cr of salaries against 36 of slabs, KKR's 57 against 69) and, charging the 2025 retentions still on each squad, every team's published 2026 purse (`tests/test_competitions.py`)."
+
+[[competition.source]]
+about = "retained_cost"
+status = "reported"
+title = "Indian Premier League 2025 mega auction: IPL teams' remaining purse (Rajasthan Royals)"
+url = "https://www.rajasthanroyals.com/latest-news/indian-premier-league-2025-mega-auction-ipl-teams-remaining-purse"
+date = "2024-11-21"
+note = "The 2025 remaining purses the slab rule is checked against."
+
+[[competition.source]]
+about = "retained_cost"
 status = "official"
-title = "TATA IPL 2026 player retentions announced (remaining purse = purse - retained salaries)"
+title = "TATA IPL 2026 player retentions announced (remaining purse = purse - retained salaries, with the 2025 retentions at their slab)"
 url = "https://www.iplt20.com/news/4247/tata-ipl-2026-player-retentions-announced"
 date = "2025-11-15"
-note = "In a mini year a kept player stays on his contract; the remaining-purse table is the purse less those salaries. Our squads file reproduces it exactly for 6 of 10 teams (the rest differ by 2-6 cr: see `purse_check_2026` in the squads file)."
+note = "In a mini year a kept player stays on his contract; the remaining-purse table is the purse less those salaries, except that a player retained at the 2025 mega auction is still charged by the retention slabs. With that charge (and Vipraj Nigam's 2025 price corrected to 0.5 cr) our squads file reproduces the published 2026 table exactly for all 10 teams."
 
 [[competition.source]]
 about = "overseas_fee_cap"
 status = "reported"
-title = "IPL 2026 auction: KKR spend big (Cameron Green, bid 25.20 cr, is paid 18 cr)"
-url = "https://www.espn.com/cricket/story/_/id/47331627/ipl-2026-auction-kkr-spend-big-csk-break-tradition-mi-pbks-quiet-it"
-date = "2025-12-17"
-note = "An overseas mini-auction buy is paid at most the lower of the top retention price (18 cr) and the top mega-auction price; the excess goes to BCCI. Rule from the 2025-27 regulations (iplt20, 2024-09-28). The squads file keeps the bid as `salary_cr` (what the franchise paid)."
+title = "IPL 2025: two-year ban for overseas players pulling out after being picked at auction ('Any overseas player's auction fee at small auction will be lower of the highest retention price and the highest auction price at the mega auction'; the excess goes to the BCCI for players' welfare; the full price is charged to the team's purse)"
+url = "https://africa.espn.com/cricket/story/_/id/41502788/ipl-2025-two-year-ban-overseas-players-pulling-being-picked-auction"
+date = "2024-09-29"
+note = "ESPNcricinfo quoting the regulations document; not in the iplt20 release. The cap limits the player's FEE, not the bid: bidding goes on, and the franchise's purse is debited the full bid. Cap = min(18 cr top retention slab, 27 cr top 2025 mega price) = 18 cr."
+
+[[competition.source]]
+about = "overseas_fee_cap"
+status = "reported"
+title = "Why Cameron Green won Rs 25.20 crore but took home Rs 18 crore (KKR's purse debited the full 25.20 cr; 7.2 cr to BCCI player welfare)"
+url = "https://www.businesstoday.in/latest/trends/photo/why-cameron-green-won-rs2520-crore-but-took-home-rs18-crore-506904-2025-12-16"
+date = "2025-12-16"
+note = "Also IANS (2025-12-16). The squads file keeps the bid as `salary_cr` (what the franchise's purse paid); the price model prices the bid. Whether the cap applies again in 2027 isn't reported; the regulation covers 2025-27, so it is kept."
 
 [[competition.source]]
 about = "replacements_retainable"
@@ -196,5 +261,5 @@ note = "Pant (LSG -> DC, 15 cr) for Kuldeep Yadav (DC -> LSG, 13.5 cr); T Natara
 about = "general"
 status = "official"
 title = "IPL player regulations 2025-27: two-season ban for a bought player who pulls out; overseas players must register for the mega auction to enter the next mini auctions; uncapped = no international XI / central contract in the previous 5 calendar years"
-url = "https://www.iplt20.com/news/article/ipl-governing-council-announces-tata-ipl-player-regulations-2025-27"
+url = "https://www.iplt20.com/news/4109/ipl-governing-council-announces-tata-ipl-player-regulations-2025-27"
 date = "2024-09-28"

@@ -3,10 +3,13 @@ file Keep or release reads (data/curated/ipl_squads_2026.json)."""
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from cricdex import competitions
 from cricdex.competitions import RULE_FIELDS, CompetitionError, parse
+from cricdex.config import DATA_DIR as DATA
 
 MINIMAL = """
 schema = 1
@@ -172,17 +175,77 @@ def test_retired_and_released_players_are_not_keepable(ipl):
     assert "Rishabh Pant" in {r["name"] for r in sq["squads"]["DC"]}  # traded LSG -> DC for 2027
 
 
-def test_salaries_reproduce_most_published_purses(ipl):
-    """125 cr − the retained salaries = each team's published purse entering the 2026 auction:
-    exact for most teams (the rest are listed in the docs as known differences)."""
+def test_salaries_reproduce_the_published_purses(ipl):
+    """125 cr − the retained salaries − the 2025 retention-slab charge = each team's published purse
+    entering the 2026 auction, exactly, for all ten teams; and the published pre-auction purse less
+    our auction prices = the published purse left after the auction (issue I6)."""
     _, sq = ipl
     chk = sq["purse_check_2026"]
+    slab = chk.get("slab_charge") or {}
     ours: dict[str, float] = {}
+    bought: dict[str, float] = {}
     for team, rows in sq["squads"].items():
         for r in rows:
             src = (r.get("trade") or {}).get("from") or team
             sal = (r.get("trade") or {}).get("salary_before_cr", r["salary_cr"])
             if r.get("status") == "retained":
                 ours[src] = ours.get(src, 0.0) + sal
-    exact = [t for t, v in chk["remaining"].items() if abs(chk["purse"] - ours[t] - v) < 0.01]
-    assert len(exact) >= 6, exact
+            elif r.get("status") == "bought":
+                bought[src] = bought.get(src, 0.0) + sal
+    for t, v in chk["remaining"].items():
+        assert abs(chk["purse"] - ours[t] - slab.get(t, 0.0) - v) < 0.01, t
+    for t, v in chk["remaining_after_auction"].items():
+        assert abs(chk["remaining"][t] - bought[t] - v) < 0.01, t
+    # the slab only ever adds to what the purse counts (a fixed charge at least the salary in sum)
+    assert all(v > 0 for v in slab.values())
+
+
+def test_slab_rule_reproduces_2025_and_2026_purses(ipl):
+    """The retention-slab mechanism, not a hand-entered charge: the purse counts a team's 2025 mega
+    retentions together as max(the first n capped slabs + 4 cr per uncapped one, their salaries).
+    That reproduces every team's published purse entering the 2025 mega auction and, charging the
+    2025 retentions still on each squad on 15 Nov 2025, the 2026 one (and the hand-kept per-team
+    `slab_charge`)."""
+    from cricdex.web_parity.keep import slab_charge
+
+    c, sq = ipl
+    rules = c.rules()
+    assert rules["retained_cost"] == "slabs" and rules["retention_slabs"] == [18, 14, 11, 18, 14]
+    mr = sq["mega_retentions_2025"]
+    hist = json.loads((DATA / "curated" / "ipl_auction_history.json").read_text(encoding="utf-8"))
+    sal25 = {
+        (r["team"], r["name"]): r["salary_cr"] for r in hist["retentions"] if r["season"] == 2025
+    }
+    for t, v in mr["teams"].items():
+        holders = [
+            {"name": n, "salary": sal25[(t, n)], "slab_holder": k}
+            for k in ("capped", "uncapped")
+            for n in v[k]
+        ]
+        assert (
+            abs(mr["purse_2025"] - slab_charge(holders, rules) - mr["remaining_2025"][t]) < 0.01
+        ), t
+    chk = sq["purse_check_2026"]
+    for t, published in chk["remaining"].items():
+        holders, other = [], 0.0
+        for team, rows in sq["squads"].items():
+            for r in rows:
+                src = (r.get("trade") or {}).get("from") or team
+                if src != t or r.get("status") != "retained":
+                    continue
+                sal = (r.get("trade") or {}).get("salary_before_cr", r["salary_cr"])
+                # a move since the season (Kuldeep Yadav, DC -> LSG) was still a DC retention then
+                then = {
+                    **r,
+                    "trade": None,
+                    "acquired": "retained" if r.get("trade") else r.get("acquired"),
+                }
+                k = competitions.slab_holder(sq, t, then)
+                if k:
+                    holders.append({"name": r["name"], "salary": sal, "slab_holder": k})
+                else:
+                    other += sal
+        charged = other + (slab_charge(holders, rules) if holders else 0.0)
+        assert abs(chk["purse"] - charged - published) < 0.01, t
+        salaries = other + sum(h["salary"] for h in holders)
+        assert abs(charged - salaries - chk.get("slab_charge", {}).get(t, 0.0)) < 0.01, t

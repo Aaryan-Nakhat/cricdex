@@ -68,9 +68,11 @@ const SECTIONS: Section[] = [
         mainly on how fast he scores. Prices are <strong>fitted to real IPL auction prices</strong>{" "}
         (2018–2026 sales and mega retentions, from Wikipedia): from a cautious estimate of the value
         (value minus half its uncertainty), international caps, age, IPL experience and captaincy,
-        calibrated so the top end spreads like a real auction, under a ceiling that rises with IPL balls
-        (13.5 cr with none, 27 cr from about two seasons). Out of time half the lots land within ±50% of
-        their price and the 10 cr+ lots come out at about 0.6× on average; overseas players lean high. The
+        priced at the median for his kind of player (overseas in a mega or a mini auction, capped or
+        uncapped Indian). At the top the price follows what the market really paid for its dearest lots (a
+        monotone calibration fitted out of fold), so no ceiling is needed. Out of time half the lots land
+        within ±50% of their price and the 20 dearest predictions of each auction fetch about 0.87× them
+        on average. The
         skill-only curve is kept alongside as each player's <em>on-field worth</em>. Crucially it reports not just a point
         estimate but the <strong>uncertainty</strong> around it — which is what powers the head-to-head
         probabilities.
@@ -124,7 +126,8 @@ const SECTIONS: Section[] = [
         personality (marquee-chaser, value-hunter, overseas-heavy…), hundreds of times, filling 20–25-man
         squads under the purse + overseas cap. A team with more money left per open slot than the rest
         bids harder (so a side that retained little actually spends its purse), and the winner pays just
-        above the second-highest bid, never more than <strong>27 cr</strong> — the real record. The bidding is
+        above the second-highest bid, never more than its purse allows (the purse less the base price of every
+        place it still has to fill). The bidding is
         calibrated to real auctions (2022–24, tested on 2025–26): a fitted level per auction type, money spread
         beyond the stars, a player's last price remembered, a demand shock per lot, and more money chasing fewer
         places lifting every bid. You see
@@ -140,13 +143,17 @@ const SECTIONS: Section[] = [
     body: (
       <>
         Before the retention deadline (IPL 2027: 15 November 2026, as reported) a franchise decides whom to keep.
-        For every player in its squad we set his <strong>salary</strong> against his <strong>market
-        price</strong> (what players like him have fetched at real IPL auctions, with the chance he's bought
-        if released; his on-field worth is shown alongside; last season's captains carry a badge and the
-        premium the market pays them), so <strong>surplus = market price −
-        salary</strong>. Keep when the surplus clears a margin (0.5 cr or 15% of the salary), release when even
-        the upper quartile of what players like him fetch is that far under it, borderline in between; a
-        player of 35+ needs twice the margin. Then the squad that follows: purse left after the kept salaries, open slots, and the role gaps
+        For every player in its squad we set what keeping him <strong>costs</strong> (his salary; for a player
+        retained at the 2025 mega auction, the 2025 retention slabs, assumed to carry into 2027) against his{" "}
+        <strong>market price</strong> (what players like him have fetched at real IPL auctions, each retention
+        counted as a floor on a star's worth, with the chance he's bought if released; his on-field worth is
+        shown alongside; last season's captains carry a badge and the premium the market pays them). The call
+        is <strong>what franchises actually do</strong>: the chance a franchise keeps a player like him, from a
+        model fitted to every real retention deadline 2018–2026 (his market price against his cost, his
+        three-season Form forecast, his ties to the side: captain, seasons there, home-grown; capped Indian or
+        overseas, age, IPL balls). Chosen on the deadlines up to 2024 and tested once on 2025–26, it made the
+        franchise's own call for 78% of players (82% of stars). Keep at 65%+, release under 35%, borderline in
+        between. Then the squad that follows: purse left after what the kept players cost, open slots, and the role gaps
         (keepers, openers, death bowlers, spinners, overseas) filled from the likely auction pool, free agents
         plus the players our calls release elsewhere. Squads and salaries come from Wikipedia's personnel pages
         (CC BY-SA); the rules are data in <code>config/competitions.toml</code>, each one sourced or marked as an

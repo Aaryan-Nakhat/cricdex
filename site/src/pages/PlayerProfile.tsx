@@ -597,7 +597,7 @@ function TwinList({
               {c && <span className="text-[11px] text-muted">{c}</span>}
             </span>
             {rel !== null && (
-              <span className="ml-3 h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-border/60" title="How close, relative to the closest twin">
+              <span className="ml-3 h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-border/60" title={Number.isFinite(dist) ? `${Math.round(Math.max(0, 1 - dist) * 100)}% alike (bar: relative to the closest twin)` : "How close, relative to the closest twin"}>
                 <span className="block h-full rounded-full bg-grad" style={{ width: `${Math.max(8, rel * 100)}%` }} />
               </span>
             )}

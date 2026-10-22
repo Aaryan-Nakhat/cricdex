@@ -101,12 +101,18 @@ def run(
                 "overseas": (country != "IND") if country else None,
             }
             for k in FIELDS:
+                # a salary corrected by hand against another source carries `salary_note`: it
+                # stays even with --force (e.g. Vipraj Nigam, 0.5 not Wikipedia's 0.3; issue I6)
+                if k == "salary_cr" and row.get("salary_note") and row.get(k) is not None:
+                    continue
                 if vals[k] is not None and (force or row.get(k) is None):
                     row[k] = vals[k]
             if row.get("salary_cr") is None:
                 no_salary.append(f"{code}: {row.get('name')}")
             if not row.get("cricsheet_id"):
                 unmatched.append({"team": code, "name": row.get("name")})
+    # (`purse_check_2026` — the published purses, retention-slab charges and post-auction figures —
+    # is hand-kept in the file and left as it is)
     squads["trades"] = parsed["trades"]
 
     # ---- moves since the season: the next cycle's trades and retirements

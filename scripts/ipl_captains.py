@@ -9,7 +9,11 @@ Reads (CC BY-SA 4.0, each page pinned to the revision read and cached raw in
   team(s), used for the defunct franchises whose articles have no captains table (Deccan Chargers,
   Kochi Tuskers Kerala, Pune Warriors India, Rising Pune Supergiant, Gujarat Lions);
 - each Test nation's "List of <country> national cricket captains": the men's Test, ODI and T20I captains
-  with the years they captained.
+  with the years they captained (Ireland's page is "List of Ireland cricket captains");
+- the season articles of the two-season franchises Rising Pune Supergiant and Gujarat Lions (2016-17):
+  the infobox `captain` of each season (all three of their captains also led another franchise, so the
+  IPL captains list can't say which years were theirs). `matches` is the team's matches that season in
+  our ball-by-ball data (the infobox names the season's captain, not his match count).
 
 and writes the hand-editable `data/curated/ipl_captains.json`: `ipl` and `international` stints
 {player, wiki_title, team | country + format, from, to, matches, cricsheet_id}. A stint covers every year
@@ -73,7 +77,21 @@ NATION_PAGES = {
     "WIN": "List of West Indies cricket captains",
     "AFG": "List of Afghanistan national cricket captains",
     "ZIM": "List of Zimbabwe national cricket captains",
+    "IRL": "List of Ireland cricket captains",
 }
+# season articles of the franchises with no captains table whose captains led other sides too
+SEASON_PAGES = {
+    ("RPS", 2016): "2016 Rising Pune Supergiant season",
+    ("RPS", 2017): "2017 Rising Pune Supergiant season",
+    ("GL", 2016): "2016 Gujarat Lions season",
+    ("GL", 2017): "2017 Gujarat Lions season",
+}
+# their names in Cricsheet's IPL data (for the season's match count)
+SEASON_TEAM_NAMES = {
+    "RPS": ("Rising Pune Supergiant", "Rising Pune Supergiants"),
+    "GL": ("Gujarat Lions",),
+}
+_CAPTAIN = re.compile(r"\|\s*captain\s*=\s*\[\[([^\]|]+)(?:\|([^\]]+))?\]\]", re.I)
 # list-code abbreviations on the IPL captains list ("Team(s)": "CSK RPS")
 LIST_CODES = {"DC": "DC", "DD": "DC", "KXIP": "PBKS", "PBKS": "PBKS", "RCB": "RCB", "DCH": "DCH",
               "KTK": "KTK", "PWI": "PWI", "RPS": "RPS", "GL": "GL", "CSK": "CSK", "MI": "MI",
@@ -251,6 +269,47 @@ def parse_nation(country: str, html: str) -> list[dict]:
     return out
 
 
+def parse_season(code: str, year: int, wikitext: str) -> dict | None:
+    """The season's captain from a season article's infobox (`| captain = [[Title|Name]]`)."""
+    m = _CAPTAIN.search(wikitext)
+    if not m:
+        return None
+    title = m.group(1).strip()
+    return {"player": (m.group(2) or re.sub(r"\s*\(.*\)$", "", title)).strip(),
+            "wiki_title": title, "team": code, "from": year, "to": year, "matches": None,
+            "source": f"season_{code}_{year}"}  # fmt: skip
+
+
+def _season_matches(code: str, year: int) -> int | None:
+    """The team's matches that season in our IPL ball-by-ball data (None without the database)."""
+    import duckdb
+
+    try:
+        with duckdb.connect(
+            str(DATA_DIR / "cricsheet" / "cricsheet.duckdb"), read_only=True
+        ) as con:
+            names = SEASON_TEAM_NAMES[code]
+            q = (
+                "SELECT COUNT(DISTINCT match_id) FROM balls_ipl WHERE match_date LIKE ? AND "
+                f"(batting_team IN ({','.join('?' * len(names))}) OR "
+                f"bowling_team IN ({','.join('?' * len(names))}))"
+            )
+            n = con.execute(q, [f"{year}-%", *names, *names]).fetchone()[0]
+            return int(n) or None
+    except duckdb.Error:
+        return None
+
+
+def _fetch_wikitext(key: str, title: str) -> None:
+    """Cache a page's wikitext (pinned: the revision id is kept next to it)."""
+    text, rev = sources.fetch_ipl_personnel_text(title)
+    (PAGES / f"{key}.wiki").write_text(text, encoding="utf-8")
+    meta = {"title": title, "revid": rev["revid"], "ts": rev["ts"],
+            "url": "https://en.wikipedia.org/wiki/" + title.replace(" ", "_")}  # fmt: skip
+    (PAGES / f"{key}.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
+    time.sleep(1)
+
+
 def _fetch(key: str, title: str) -> None:
     text, rev = sources.fetch_ipl_personnel_text(title)
     with sources._client() as cx:
@@ -275,20 +334,32 @@ def _meta(key: str) -> dict:
 @app.command()
 def run(
     fetch: bool = typer.Option(False, "--fetch", help="Re-download the Wikipedia pages."),
+    fetch_missing: bool = typer.Option(
+        False, "--fetch-missing", help="Download only the pages not cached yet."
+    ),
 ) -> None:
     PAGES.mkdir(parents=True, exist_ok=True)
-    if fetch:
+    if fetch or fetch_missing:
         for code, title in TEAM_PAGES.items():
-            _fetch(f"team_{code}", title)
-        _fetch("ipl", IPL_LIST)
+            if fetch or not (PAGES / f"team_{code}.html").exists():
+                _fetch(f"team_{code}", title)
+        if fetch or not (PAGES / "ipl.html").exists():
+            _fetch("ipl", IPL_LIST)
         for c, title in NATION_PAGES.items():
-            _fetch(c, title)
+            if fetch or not (PAGES / f"{c}.html").exists():
+                _fetch(c, title)
+        for (code, year), title in SEASON_PAGES.items():
+            if fetch or not (PAGES / f"season_{code}_{year}.wiki").exists():
+                _fetch_wikitext(f"season_{code}_{year}", title)
     match = Matcher(master.load())
     old = sources.read_json(OUT, {})
     kept = [r for r in (old.get("ipl") or []) + (old.get("international") or []) if r.get("edited")]
+    # a hand-edited row replaces the parsed row with the same key, or with `replaces_from` as its
+    # first year (a page error fixed by hand, e.g. Porterfield's T20I years on Ireland's list)
     keys = {
-        (r.get("team") or r.get("country"), r.get("format"), r.get("player"), r["from"])
+        (r.get("team") or r.get("country"), r.get("format"), r.get("player"), y)
         for r in kept
+        for y in {r["from"], r.get("replaces_from", r["from"])}
     }
 
     ipl: list[dict] = []
@@ -297,6 +368,13 @@ def run(
         if p.exists():
             ipl += parse_team(code, p.read_text(encoding="utf-8"))
     ipl = reconcile(ipl, ipl_list_rows((PAGES / "ipl.html").read_text(encoding="utf-8")))
+    # RPS / GL: one stint per season from the season articles (their captains led other sides too)
+    for code, year in SEASON_PAGES:
+        p = PAGES / f"season_{code}_{year}.wiki"
+        row = parse_season(code, year, p.read_text(encoding="utf-8")) if p.exists() else None
+        if row and not any(r["team"] == code and r["from"] <= year <= r["to"] for r in ipl):
+            row["matches"] = _season_matches(code, year)
+            ipl.append(row)
     intl: list[dict] = []
     for c in NATION_PAGES:
         p = PAGES / f"{c}.html"
@@ -311,18 +389,22 @@ def run(
 
     sources_meta = {"teams": {c: _meta(f"team_{c}") for c in TEAM_PAGES if (PAGES / f"team_{c}.json").exists()},
                     "ipl_list": _meta("ipl"),
-                    "nations": {c: _meta(c) for c in NATION_PAGES if (PAGES / f"{c}.json").exists()}}  # fmt: skip
+                    "nations": {c: _meta(c) for c in NATION_PAGES if (PAGES / f"{c}.json").exists()},
+                    "seasons": {f"{c} {y}": _meta(f"season_{c}_{y}") for (c, y) in SEASON_PAGES
+                                if (PAGES / f"season_{c}_{y}.json").exists()}}  # fmt: skip
     out = {
         "_source": (
             "Wikipedia (CC BY-SA 4.0): each IPL franchise's article (captains table), 'List of Indian "
-            "Premier League captains', and each Test nation's list of national cricket captains; "
+            "Premier League captains', each Test nation's list of national cricket captains, and the "
+            "2016-17 season articles of Rising Pune Supergiant and Gujarat Lions (infobox captain); "
             "revisions in `sources`. Parsed by scripts/ipl_captains.py."
         ),
         "_licence": "CC BY-SA 4.0 (derived from Wikipedia); share-alike applies to this file",
         "_note": (
             "A stint covers every year from..to, except one with fewer than "
             f"{STAND_IN_PER_YEAR} matches a year (a stand-in: first and last years only). Set "
-            '"edited": true on a row to keep a hand edit through a re-parse.'
+            '"edited": true on a row to keep a hand edit through a re-parse ("replaces_from": the '
+            "parsed row's first year, when the edit corrects a page's years)."
         ),
         "sources": sources_meta,
         "ipl": sorted(ipl, key=lambda r: (r["team"], r["from"], r["player"])),

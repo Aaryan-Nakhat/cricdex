@@ -17,7 +17,7 @@ import typer
 from cricdex.cli import _copy, _render
 from cricdex.cli._shared import EXIT_USER_ERROR, console, die
 
-SORTS = ("surplus", "price", "onfield", "outlook", "salary", "value", "age", "name")
+SORTS = ("kept", "surplus", "price", "onfield", "outlook", "salary", "cost", "value", "age", "name")
 REC_STYLE = {"keep": "green", "release": "red", "borderline": "yellow"}
 
 
@@ -57,7 +57,7 @@ def keep(
         "--need",
         help="Role target, e.g. --need spinner=4 (keeper, opener, death, spinner, overseas).",
     ),
-    sort: str = typer.Option("surplus", "--sort", help=f"One of {', '.join(SORTS)}."),
+    sort: str = typer.Option("kept", "--sort", help=f"One of {', '.join(SORTS)}."),
     csv_path: Path | None = typer.Option(
         None, "--csv", help="Also write the table to this CSV file."
     ),
@@ -67,6 +67,7 @@ def keep(
 ) -> None:
     from cricdex.web_parity import build_pool, load_auction_pool
     from cricdex.web_parity.keep import (
+        NO_DATA_LABEL,
         TAG_ORDER,
         cr,
         cr_exact,
@@ -113,18 +114,22 @@ def keep(
         decisions[player_key(_find(squad, n))] = "keep"
     for n in release_names:
         decisions[player_key(_find(squad, n))] = "release"
-    market = market_for(code, data["players"], pool, data.get("pool_tags") or {}, data.get("form"))
+    market = market_for(
+        code, data["players"], pool, data.get("pool_tags") or {}, data.get("form"), rules
+    )
     res = evaluate(squad, market, rules, decisions, needs, data.get("form"))
 
     def sort_key(p: dict):
         if sort == "name":
             return (p["name"],)
         v = {
+            "kept": p.get("p_keep"),
             "surplus": p["surplus"],
             "price": p["price"],
             "onfield": p["onfield"],
             "outlook": p.get("forecast_avg3"),
             "salary": p["salary"],
+            "cost": p["cost"],
             "value": p["value"],
             "age": p["age"],
         }[sort]
@@ -150,7 +155,10 @@ def keep(
                 "role": p["role"].replace("_", "-"),
                 "age": None if p.get("age") is None else math.floor(p["age"]),
                 "salary": cr_exact(p["salary"]),
-                "value": None
+                # what keeping him takes from the purse: his salary, or for a 2025 retention the
+                # retention slabs (web_parity/keep.py `retention_costs`)
+                "cost": None if abs(p["cost"] - float(p["salary"])) < 0.005 else cr(p["cost"]),
+                "value": (NO_DATA_LABEL if p.get("no_data") else None)
                 if p.get("value") is None
                 else f"{fmt_num(p['value'], 1)} ± {fmt_num(p['value_sd'], 1)}",
                 "market": None
@@ -160,6 +168,8 @@ def keep(
                 "on-field": None if p.get("onfield") is None else cr(p["onfield"]),
                 "surplus": None if p["surplus"] is None else cr(p["surplus"]),
                 "3-season outlook": p.get("forecast_note") or None,
+                # the chance a franchise keeps a player like him (web_parity/keep.py keep_probability)
+                "kept %": None if p.get("p_keep") is None else fmt_num(100 * p["p_keep"], 0),
                 "call": f"[{REC_STYLE[p['rec']]}]{p['rec']}[/]",
                 "decision": ("keep" if p["kept"] else "release")
                 + (" *" if p["overridden"] else ""),
@@ -174,6 +184,7 @@ def keep(
         {
             "purse": f"{cr(res['purse'])} cr",
             "kept salaries": f"{cr(res['salary_kept'])} cr",
+            "purse charged": f"{cr(res['purse_charged'])} cr",
             "purse left": f"{cr(res['purse_left'])} cr",
             "slots left": f"{res['slots_left']} ({res['overseas_slots_left']} overseas)",
             "replacements": f"{cr(res['replacement_cost'])} cr",
@@ -218,13 +229,19 @@ def keep(
                     "team": t,
                     "published": v["published"],
                     "ours": v["ours"],
-                    "diff": round(v["ours"] - v["published"], 2),
+                    "slab": v.get("slab") or 0.0,
+                    "diff": round(v["ours"] - (v.get("slab") or 0.0) - v["published"], 2),
                 }
                 for t, v in sorted((pc.get("teams") or {}).items())
             ],
-            title="Purse entering the 2026 auction: published vs our salaries",
+            title=(
+                "Purse entering the 2026 auction: published vs 125 - our salaries - the 2025 "
+                "retention-slab charge"
+            ),
         )
         c.print(f"[dim]{pc.get('source') or ''}[/dim]")
+        if pc.get("slab_source"):
+            c.print(f"[dim]Slab: {pc['slab_source']}[/dim]")
         if data.get("unmatched"):
             c.print(
                 "[dim]Not rated (no Cricsheet match): "

@@ -19,7 +19,7 @@ import {
 import { useAsync } from "@/lib/useAsync";
 import { getAuctionPool, getAuctionRegister, getKeep, type AuctionPoolRow } from "@/lib/data";
 import { buildPool } from "@/lib/auction";
-import { cr, fmtNum, toCsv, type Decision, type KeepData } from "@/lib/keep";
+import { cr, fmtNum, STALE_REASON_MIN, toCsv, type Decision, type KeepData } from "@/lib/keep";
 import {
   DEFAULT_NEEDS,
   DEPTH_N,
@@ -41,7 +41,7 @@ import {
   type RegisterEntry,
 } from "@/lib/bidplan";
 import { useUrlParams } from "@/lib/useUrlState";
-import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StatTile } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StatTile, StaleShareBadge } from "@/components/ui";
 import { Combobox } from "@/components/Combobox";
 import { cn, profilePath } from "@/lib/utils";
 
@@ -135,7 +135,7 @@ function HowItWorks({ res }: { res: Plan | null }) {
         </p>
         <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs leading-relaxed text-fg">{`strength = best XI + ${DEPTH_WEIGHT} × depth − ${NEED_PENALTY} × role places short
 gain     = strength with him − strength without him
-max bid  = gain ÷ λ   (at most the purse left after the other likely buys, and 27 cr)`}</pre>
+max bid  = gain ÷ λ   (at most the purse left after the other likely buys)`}</pre>
         <p>
           <b className="text-fg">4. The bidding rule, and λ.</b> In each rival run the lots come up stars first; you bid for a
           player up to his gain divided by λ, an exchange rate in runs per crore, as long as the purse (keeping 0.3 cr for
@@ -322,13 +322,24 @@ function Planner({ data, raw, register }: { data: KeepData; raw: AuctionPoolRow[
     () => (ctx ? ctx.available.map((r) => ({ value: r.cricsheet_id, label: r.name, hint: `${ROLE_LABEL[r.role] ?? r.role}${r.from_team ? ` · from ${r.from_team}` : ""} · ${cr(r.projected_value)} cr` })) : []),
     [ctx],
   );
+  const staleOf = useMemo(() => new Map(raw.map((r) => [r.cricsheet_id, r])), [raw]);
   const nameLink = (id: string, name: string) => {
     const pc = profileOf.get(id);
     const where = pc ?? (squadIds.has(id) ? "ipl" : null);
-    return where ? (
+    const link = where ? (
       <Link to={profilePath(id, where)} className="font-medium text-fg hover:text-accent-glow">{name}</Link>
     ) : (
       <span className="font-medium text-fg">{name}</span>
+    );
+    // a rating resting on stale SMAT data says so (issue I7)
+    const r = staleOf.get(id);
+    return r?.stale_note && (r.stale_share ?? 0) >= STALE_REASON_MIN ? (
+      <>
+        {link}
+        <StaleShareBadge className="ml-1.5" share={r.stale_share ?? 0} note={r.stale_note} />
+      </>
+    ) : (
+      link
     );
   };
   const customised = !!(keepIds || relIds || needParam || maxParam || params.get("purse") || params.get("open") || params.get("smax") || params.get("smin") || params.get("os") || params.get("trials"));

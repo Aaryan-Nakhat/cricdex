@@ -35,6 +35,7 @@ import numpy as np
 import polars as pl
 import typer
 from loguru import logger
+from sklearn.base import BaseEstimator, RegressorMixin
 
 from cricdex import leagues
 from cricdex.config import DATA_DIR
@@ -246,6 +247,14 @@ def _relevance(last_ipl: str | None, age: float | None, country: str | None, dat
 def build_rows(refresh_caps: bool = False) -> tuple[list[dict], list[dict], dict, list[dict]]:
     """(price rows: every bought lot with a Cricsheet id; risk rows: the P(bought) risk set;
     history) — each row holds `market_features` inputs as of its auction plus the label."""
+    features_in, hist, apps = feature_fn(refresh_caps)
+    return _build_rows(features_in, hist, apps)
+
+
+def feature_fn(refresh_caps: bool = False):
+    """(features_in(cid, season, date, vals, country) → the `market_features` inputs of a player as
+    of an auction, the auction history, cid → IPL match dates). Shared by `build_rows` and
+    scripts/keep_backtest.py (the squads before each retention deadline)."""
     hist = json.loads(HISTORY.read_text(encoding="utf-8"))
     pm = master.load()
     caps = intl_appearances(refresh_caps)
@@ -260,6 +269,13 @@ def build_rows(refresh_caps: bool = False) -> tuple[list[dict], list[dict], dict
         if r.get("cricsheet_id") and r.get("salary_cr"):
             purse = hist["auctions"][str(r["season"])]["purse_cr"]
             paid.setdefault(r["cricsheet_id"], []).append((r["season"], r["salary_cr"], purse))
+    verdicts = pricing.market_verdicts(hist)
+    # each auction's lowest price (its lowest base price: 0.2 cr 2018-2024, 0.3 from 2025), the
+    # floor a prediction for that auction is clamped to when scored
+    floors: dict[int, float] = {}
+    for r in hist["lots"]:
+        if r.get("sold") and r.get("price_cr"):
+            floors[r["season"]] = min(floors.get(r["season"], math.inf), float(r["price_cr"]))
 
     def features_in(cid: str, season: int, date: str, vals: dict, country: str | None) -> dict:
         rec = pm.get(cid) if isinstance(pm.get(cid), dict) else {}
@@ -297,8 +313,15 @@ def build_rows(refresh_caps: bool = False) -> tuple[list[dict], list[dict], dict
             "ipl_gap": _years(date, last) if last else None,
             "last_ipl": last,
             "prev_share": prev_share,
+            "floor_cr": floors.get(season, 0.3),
+            # the market's last verdict on him before this auction (pricing.market_features)
+            **pricing.prior_verdict(verdicts.get(cid, []), season),
         }
 
+    return features_in, hist, apps
+
+
+def _build_rows(features_in, hist: dict, apps: dict) -> tuple:
     price_rows: list[dict] = []
     risk_rows: list[dict] = []
     ret_rows: list[dict] = []
@@ -329,9 +352,12 @@ def build_rows(refresh_caps: bool = False) -> tuple[list[dict], list[dict], dict
                     "team": r.get("team"),
                 }
             )
-        # mega-year retentions: what the franchise pays out of the purse to keep him (the purse
-        # deduction where it differs from his salary) — slab-set, so a floor on his worth to it
-        if cycle == "mega":
+        # retentions: keeping a player at a price reveals he is worth at least that to his
+        # franchise, so each is a floor (a censored observation; `fit --retentions censored`).
+        # Mega years: the agreed retention salary (slab-set, 18 / 14 / 11 cr in 2025); mini years
+        # with a complete retained list: his contract salary (an older auction price), which the
+        # franchise chose to keep paying rather than re-enter the auction.
+        if cycle == "mega" or season in FULL_RETENTION_SEASONS:
             for r in hist["retentions"]:
                 if r["season"] != season or r["kind"] != "retained" or not r.get("cricsheet_id"):
                     continue
@@ -350,6 +376,7 @@ def build_rows(refresh_caps: bool = False) -> tuple[list[dict], list[dict], dict
                         "base_share": None,
                         "team": r.get("team"),
                         "retained": 1.0,
+                        "retention_kind": cycle,
                     }
                 )
         if season not in FULL_RETENTION_SEASONS:
@@ -376,10 +403,65 @@ def build_rows(refresh_caps: bool = False) -> tuple[list[dict], list[dict], dict
 # ---- models -----------------------------------------------------------------------------------------
 
 
+# Tried, not shipped (the comparison rows in `fit`; docs/METHODOLOGY.md §6b), so computed for the
+# training rows only, never by the site:
+# * `mega_x_overseas`: an overseas player in a mega auction, as a regression term. The four
+#   calibration groups (overseas split by auction type) do the same job and scored as well.
+# * ERA, the 2025-27 player regulations (first used at the 2025 mega auction: an overseas player
+#   must register for the mega auction to enter the next minis, one who pulls out after being bought
+#   is banned for two seasons, an overseas mini-auction buy is paid at most 18 cr). The overseas
+#   level fell about 0.3 (ln) below its auction type's 2018-24 level in both auctions of the cycle,
+#   but a term fitted on 2025 made the 2026 overseas prices worse, not better, in median and mean
+#   absolute error (walk forward), so it isn't shipped.
+ERA = "overseas_x_rules_2025"
+ERA_FIRST_SEASON = 2025
+TRIED_FEATURES = ("mega_x_overseas", ERA)
+
+
+# The form of the candidate being evaluated (`_use_form`): whether the shipped clamps include the
+# IPL-evidence ceiling (the recipes before 2026-10-22 did), and the top of the value support the
+# priced value is held to (None = pricing.MARKET_PV_MAX; a number = winsorised at the largest value
+# of any training row: no extrapolation beyond the best player the market has priced).
+_FORM: dict = {"ceiling": True, "pv_max": None, "cal": "none+group-median-offset", "tail": 0.2}
+
+
+def _form_of(spec: tuple) -> dict:
+    return {
+        "ceiling": True, "winsor": False, "cal": "none+group-median-offset", "tail": TAIL_SHARE,
+        **(spec[4] if len(spec) > 4 else {}),
+    }  # fmt: skip
+
+
+def _pv_support(rows: list[dict]) -> float:
+    """The largest priced value (the cautious estimate, before any clamp) among `rows`."""
+    out = -math.inf
+    for r in rows:
+        v = r.get("price_value")
+        if v is not None:
+            out = max(out, pricing.priced_value(v, r.get("value_sd")))
+    return round(out, 3)
+
+
+def _use_form(spec: tuple, train: list[dict] | None = None) -> None:
+    form = _form_of(spec)
+    _FORM["ceiling"] = form["ceiling"]
+    _FORM["cal"] = form["cal"]
+    _FORM["tail"] = form["tail"]
+    _FORM["pv_max"] = _pv_support(train) if form["winsor"] and train else None
+
+
+def _features(r: dict) -> dict[str, float]:
+    """pricing.market_features for a history row, plus the tried-only terms."""
+    f = pricing.market_features(r, r["cycle"], pv_max=_FORM["pv_max"])
+    f["mega_x_overseas"] = f["overseas"] * f["mega"]
+    f[ERA] = f["overseas"] * (1.0 if r["season"] >= ERA_FIRST_SEASON else 0.0)
+    return f
+
+
 def _matrix(rows: list[dict], names: list[str], extra: tuple[str, ...] = ()) -> np.ndarray:
     X = []
     for r in rows:
-        f = pricing.market_features(r, r["cycle"])
+        f = _features(r)
         x = [f[k] for k in names]
         for e in extra:
             v = r.get(e)
@@ -391,10 +473,122 @@ def _matrix(rows: list[dict], names: list[str], extra: tuple[str, ...] = ()) -> 
     return np.asarray(X, dtype=float)
 
 
-def _fit_reg(kind: str, X: np.ndarray, y: np.ndarray, alpha: float):
+class TobitRidge(RegressorMixin, BaseEstimator):
+    """Linear regression with right-open censoring (a Tobit model), normal errors, L2 penalty.
+
+    An exact row says ln price = x·b + e; a censored row (a retention) says only ln price ≥ its
+    value: the franchise kept him at that price, so his worth is at least that (a floor, not a
+    price). Maximises Σ_exact ln φ(r/σ) − ln σ + Σ_censored ln Φ((x·b − c)/σ) − α/2 ‖b‖² (intercept
+    and σ unpenalised) by L-BFGS with the analytic gradient. `predict` is the median of the latent
+    ln price. On standardised features (inside a pipeline after StandardScaler).
+
+    `link` sets how the linear index η = x·b becomes the median ln share of the purse:
+    * "log": the median is η itself (ln price is linear in the features, without limit);
+    * "sat": the median is ln S + ln σ(η), σ the logistic function: below the top it is η + ln S
+      (the log-linear model), at the top it saturates at S, the most one franchise pays for one
+      player as a share of its purse. S is a parameter fitted with the rest (ML), bounded by the
+      purse itself (S ≤ 1: a bid can't exceed the purse, the IPL's own rule). The second-highest
+      bidder sets an auction price, and what he can commit to one lot is limited by the squad he
+      still has to fill from the same purse: the saturation is that budget limit (§6b)."""
+
+    def __init__(self, alpha: float = 1.0, link: str = "log"):
+        self.alpha = alpha
+        self.link = link
+
+    def fit(self, X: np.ndarray, y: np.ndarray, cens: np.ndarray | None = None):
+        from scipy.optimize import minimize
+        from scipy.special import expit, log_expit, log_ndtr
+
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y, dtype=float)
+        c = np.zeros(len(y), bool) if cens is None else np.asarray(cens, bool)
+        e = ~c
+        n, p = X.shape
+        sd0 = float(np.std(y[e])) if e.any() else 1.0
+        sat = self.link == "sat"
+
+        def nll(th: np.ndarray) -> tuple[float, np.ndarray]:
+            b0, b, ls = th[0], th[1 : p + 1], th[p + 1]
+            s = math.exp(ls)
+            eta = b0 + X @ b
+            mu = th[p + 2] + log_expit(eta) if sat else eta
+            g_mu = np.zeros(n)
+            g_ls = 0.0
+            f = 0.0
+            if e.any():
+                r = (y[e] - mu[e]) / s
+                f += float(np.sum(0.5 * r * r + ls))
+                g_mu[e] = -r / s
+                g_ls += float(np.sum(1.0 - r * r))
+            if c.any():
+                z = (mu[c] - y[c]) / s
+                lc = log_ndtr(z)
+                # φ/Φ (the inverse Mills ratio); -z for very negative z, where it tends to -z
+                zz = np.maximum(z, -30.0)
+                lam = np.where(
+                    z > -30.0,
+                    np.exp(-0.5 * zz * zz - 0.5 * math.log(2 * math.pi) - log_ndtr(zz)),
+                    -z,
+                )
+                f -= float(np.sum(lc))
+                g_mu[c] = -lam / s
+                g_ls += float(np.sum(lam * z))
+            f += 0.5 * self.alpha * float(b @ b)
+            g = np.empty(len(th))
+            g_eta = g_mu * expit(-eta) if sat else g_mu  # d ln σ(η) / dη = σ(−η)
+            g[0] = g_eta.sum()
+            g[1 : p + 1] = X.T @ g_eta + self.alpha * b
+            g[p + 1] = g_ls
+            if sat:
+                g[p + 2] = g_mu.sum()
+            return f, g
+
+        th0 = np.zeros(p + 3 if sat else p + 2)
+        th0[0] = float(np.mean(y[e])) if e.any() else float(np.mean(y))
+        th0[p + 1] = math.log(max(sd0, 1e-3))
+        bounds = None
+        if sat:
+            # start at S = the purse (where ln σ(η) ≈ η for the typical lot, the log-linear fit)
+            th0[p + 2] = 0.0
+            bounds = [(None, None)] * (p + 2) + [(math.log(1e-3), 0.0)]
+        res = minimize(
+            nll, th0, jac=True, method="L-BFGS-B", bounds=bounds, options={"maxiter": 10000}
+        )
+        self.intercept_ = float(res.x[0])
+        self.coef_ = res.x[1 : p + 1].copy()
+        self.scale_ = float(math.exp(res.x[p + 1]))
+        self.cap_share_ = float(math.exp(res.x[p + 2])) if sat else None
+        self.converged_ = bool(res.success)
+        return self
+
+    def eta(self, X: np.ndarray) -> np.ndarray:
+        return self.intercept_ + np.asarray(X, dtype=float) @ self.coef_
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        from scipy.special import log_expit
+
+        eta = self.eta(X)
+        return math.log(self.cap_share_) + log_expit(eta) if self.link == "sat" else eta
+
+
+def _cens(rows: list[dict]) -> np.ndarray:
+    """Which rows are censored (a retention under `--retentions censored`)."""
+    return np.array([bool(r.get("censored")) for r in rows], dtype=bool)
+
+
+def _fit_reg(kind: str, X: np.ndarray, y: np.ndarray, alpha: float, cens: np.ndarray | None = None):
     from sklearn.linear_model import HuberRegressor, QuantileRegressor, Ridge
-    from sklearn.pipeline import make_pipeline
+    from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import StandardScaler
+
+    if kind in ("tobit", "tobit-sat"):
+        link = "sat" if kind == "tobit-sat" else "log"
+        return Pipeline([("sc", StandardScaler()), ("est", TobitRidge(alpha, link))]).fit(
+            X, y, est__cens=cens
+        )
+    if cens is not None and cens.any():
+        raise ValueError(f"{kind} can't take censored rows: use kind 'tobit'")
+    from sklearn.pipeline import make_pipeline
 
     if kind == "ridge":
         est = Ridge(alpha=alpha)
@@ -405,66 +599,107 @@ def _fit_reg(kind: str, X: np.ndarray, y: np.ndarray, alpha: float):
     return make_pipeline(StandardScaler(), est).fit(X, y)
 
 
-def _price_metrics(pred_ln_cr: np.ndarray, y_ln_cr: np.ndarray) -> dict:
+TOP_PRE = 20  # the top end chosen before the auction: each auction's TOP_PRE dearest predictions
+
+
+def _price_metrics(
+    pred_ln_cr: np.ndarray, y_ln_cr: np.ndarray, rows: list[dict] | None = None
+) -> dict:
     err = pred_ln_cr - y_ln_cr
     ape = np.abs(np.exp(err) - 1.0)
     from scipy.stats import spearmanr
 
-    return {
+    out = {
         "n": int(len(err)),
         "mae_ln": round(float(np.mean(np.abs(err))), 3),
         "median_abs_pct": round(100 * float(np.median(ape)), 1),
         "within_50pct": round(100 * float(np.mean(ape <= 0.5)), 1),
         "bias_ln": round(float(np.mean(err)), 3),
-        "spearman": round(float(spearmanr(pred_ln_cr, y_ln_cr).statistic), 3),
-        # the lots that sold for 10 cr+: geometric-mean predicted / actual (1 = right on average)
+        "median_bias_ln": round(float(np.median(err)), 3),
+        "spearman": (
+            round(float(spearmanr(pred_ln_cr, y_ln_cr).statistic), 3) if len(err) > 2 else None
+        ),
+        # the lots that SOLD for 10 cr+: geometric-mean predicted / actual. Chosen by the outcome,
+        # so even a perfectly calibrated model comes out well below 1 (regression to the mean)
         "top10_ratio": (
             round(float(np.exp(np.mean(err[y_ln_cr >= math.log(10)]))), 3)
             if np.any(y_ln_cr >= math.log(10))
             else None
         ),
     }
+    if rows is not None:
+        # the top end chosen BEFORE the auction: in each auction the TOP_PRE lots the model prices
+        # highest; geometric-mean actual / predicted (1 = right on average; below 1 = over-priced)
+        top = []
+        for s in sorted({r["season"] for r in rows}):
+            idx = [i for i, r in enumerate(rows) if r["season"] == s]
+            top += sorted(idx, key=lambda i: -pred_ln_cr[i])[:TOP_PRE]
+        out["top_pre_ratio"] = round(float(np.exp(-np.mean(err[top]))), 3)
+    return out
 
 
-# ---- top-end calibration -------------------------------------------------------------------------
+# ---- calibration -----------------------------------------------------------------------------------
 
 CAL_MODES = (
     "none", "isotonic", "isotonic+smear", "quantile", "quantile+smear", "quantile-top",
     "quantile-top+smear", "quantile+group-offset", "group-quantile", "quantile+group-offset-recent",
-    "group-quantile+group-offset-recent",
+    "group-quantile+group-offset-recent", "quantile+group-median-offset",
+    "isotonic+group-median-offset", "none+group-median-offset",
+    "isotonic-tail+group-median-offset", "hinge+group-median-offset",
 )  # fmt: skip
+# The shipped calibration: no map, each group shifted by its median out-of-fold residual (so the
+# price is each kind of player's median). The quantile map (shipped until 2026-10-22) stretched the
+# top to match real prices' spread, which over-priced the lots it predicted highest (§6b).
+CALIBRATION = "none+group-median-offset"
 # "-recent": the group offsets from the last RECENT_SEASONS auctions only (the market moves: the
 # 2025-27 rules capped an overseas mini-auction buy's fee at 18 cr)
 RECENT_SEASONS = 2
 # The calibration groups (shipped in config/price_model.json; pricing.calibration_part): ranges on
-# market_features. caps = ln(1 + international caps), so caps > 0 = capped.
+# market_features. caps = ln(1 + international caps), so caps > 0 = capped. Overseas players are
+# split by auction type: their level differs between mega and mini auctions (§6b).
 CAL_GROUPS = [
+    {"name": "overseas_mega", "when": {"overseas": [1, 1], "mega": [1, 1]}},
+    {"name": "overseas_mini", "when": {"overseas": [1, 1], "mega": [0, 0]}},
+    {"name": "capped_indian", "when": {"overseas": [0, 0], "caps": [1e-9, 1e9]}},
+    {"name": "uncapped_indian", "when": {"overseas": [0, 0], "caps": [0, 0]}},
+]
+# the groups of the previous recipe (one overseas group), for the comparison rows
+CAL_GROUPS_3 = [
     {"name": "overseas", "when": {"overseas": [1, 1]}},
     {"name": "capped_indian", "when": {"overseas": [0, 0], "caps": [1e-9, 1e9]}},
     {"name": "uncapped_indian", "when": {"overseas": [0, 0], "caps": [0, 0]}},
 ]
 GROUP_KNOTS = 11
 CAL_KNOTS = 21
+TAIL_SHARE = (
+    0.2  # isotonic-tail: the top fifth of the out-of-fold lots sets the slope beyond the map
+)
 
 
-def _oof(kind: str, rows: list[dict], alpha: float, extra=(), names=None) -> np.ndarray:
+def _oof(
+    kind: str, rows: list[dict], alpha: float, extra=(), names=None, retained: bool = False
+) -> np.ndarray:
     """Out-of-fold linear predictions (ln price / purse) for the auction lots in `rows`: each season
-    predicted by a fit on every other season (retention rows train but are never predicted)."""
+    predicted by a fit on every other season (retention rows train but are predicted only when
+    `retained`: then only they are)."""
     names = names or PRICE_FEATURES
     out = np.full(len(rows), np.nan)
     for s in sorted({r["season"] for r in rows}):
         tr = [r for r in rows if r["season"] != s]
-        idx = [i for i, r in enumerate(rows) if r["season"] == s and not r.get("retained")]
+        idx = [i for i, r in enumerate(rows)
+               if r["season"] == s and bool(r.get("retained")) == retained]  # fmt: skip
         if not idx:
             continue
-        m = _fit_reg(kind, _matrix(tr, names, extra), np.array([r["y"] for r in tr]), alpha)
+        m = _fit_reg(
+            kind, _matrix(tr, names, extra), np.array([r["y"] for r in tr]), alpha, _cens(tr)
+        )
         out[idx] = m.predict(_matrix([rows[i] for i in idx], names, extra))
     return out
 
 
-def _group_of(r: dict) -> str | None:
+def _group_of(r: dict, groups: list[dict] | None = None) -> str | None:
     f = pricing.market_features(r, r["cycle"])
-    for g in CAL_GROUPS:
+    for g in groups or CAL_GROUPS:
         if all(lo <= f[k] <= hi for k, (lo, hi) in g["when"].items()):
             return g["name"]
     return None
@@ -477,14 +712,51 @@ def _quantile_map(lin: np.ndarray, y: np.ndarray, knots: int) -> dict:
     return {"x": [round(float(x), 6) for x in xs], "y": [round(float(v), 6) for v in ys]}
 
 
-def _fit_calibration(mode: str, lin: np.ndarray, y: np.ndarray, rows: list[dict]) -> dict:
-    """{"calibration": {x, y} or None, "shift": float} from out-of-fold predictions `lin` and the
-    actual ln shares `y`. isotonic: E[y | prediction], monotone (it undoes the regression to the
-    mean a shrunken fit leaves at the top); quantile: the predictions' quantiles mapped onto the
-    actual prices' (the same spread as real auctions); +smear: plus Duan's retransformation,
-    ln mean(e^residual), so the price is a mean rather than a median."""
+def _hinge_slope(lin: np.ndarray, y: np.ndarray, cens: tuple | None, knot: float) -> float:
+    """The slope β ∈ [0, 1] of the price on the prediction above `knot` (1 below it), by maximum
+    likelihood on the out-of-fold lots (exact: normal) and retentions (censored: P(price ≥ what he
+    was retained at)), with its own residual sd: the market's top-end response, estimated from the
+    lots that reached the auction AND the stars kept out of it (each a floor), so neither the
+    released players alone (who would flatten the top) nor the log-linear index (slope 1) sets it."""
+    from scipy.optimize import minimize
+    from scipy.special import log_ndtr
+
+    lc, yc = cens if cens is not None else (np.zeros(0), np.zeros(0))
+
+    def g(x: np.ndarray, b: float) -> np.ndarray:
+        return np.where(x > knot, knot + b * (x - knot), x)
+
+    def nll(th: np.ndarray) -> float:
+        b, ls = th[0], th[1]
+        sd = math.exp(ls)
+        r = (y - g(lin, b)) / sd
+        f = float(np.sum(0.5 * r * r + ls))
+        if len(lc):
+            f -= float(np.sum(log_ndtr((g(lc, b) - yc) / sd)))
+        return f
+
+    res = minimize(nll, np.array([1.0, math.log(max(float(np.std(y)), 1e-3))]),
+                   method="L-BFGS-B", bounds=[(0.0, 1.0), (None, None)])  # fmt: skip
+    return float(res.x[0])
+
+
+def _fit_calibration(
+    mode: str,
+    lin: np.ndarray,
+    y: np.ndarray,
+    rows: list[dict],
+    groups: list[dict] | None = None,
+    cens: tuple | None = None,
+) -> dict:
+    """{"calibration": {x, y} or None, "shift": float, "groups": [...]} from out-of-fold predictions
+    `lin` and the actual ln shares `y`. isotonic: E[y | prediction], monotone (it undoes the
+    regression to the mean a shrunken fit leaves at the top); quantile: the predictions' quantiles
+    mapped onto the actual prices' (the same spread as real auctions); none: no map; +smear: plus
+    Duan's retransformation, ln mean(e^residual), so the price is a mean rather than a median;
+    +group-offset / +group-median-offset: each group's mean / median residual as its own shift."""
     from sklearn.isotonic import IsotonicRegression
 
+    groups = groups or CAL_GROUPS
     part: dict = {"calibration": None, "shift": 0.0}
     q = np.linspace(0.0, 1.0, CAL_KNOTS)
     if mode.startswith("isotonic"):
@@ -493,6 +765,23 @@ def _fit_calibration(mode: str, lin: np.ndarray, y: np.ndarray, rows: list[dict]
         part["calibration"] = {
             "x": [round(float(x), 6) for x in xs],
             "y": [round(float(v), 6) for v in iso.predict(xs)],
+        }
+        if mode.startswith("isotonic-tail"):
+            # beyond the last knot (the highest out-of-fold prediction) the map continues at the slope
+            # real prices show on the prediction over the top fifth of the lots (least squares,
+            # held to [0, 1]): the market's own top-end response, not the log-linear index's slope 1
+            top = lin >= np.quantile(lin, 1.0 - TAIL_SHARE)
+            slope = float(np.polyfit(lin[top], y[top], 1)[0]) if top.sum() >= 3 else 1.0
+            part["calibration"]["hi_slope"] = round(min(1.0, max(0.0, slope)), 6)
+    elif mode.startswith("hinge"):
+        # a hinge: slope 1 up to the top fifth of the lots' predictions, slope β above it (fitted on
+        # lots and censored retentions, `_hinge_slope`), continued at β beyond (`hi_slope`)
+        knot = float(np.quantile(lin, 1.0 - _FORM["tail"]))
+        b = _hinge_slope(lin, y, cens, knot)
+        part["calibration"] = {
+            "x": [round(knot, 6), round(knot + 1.0, 6)],
+            "y": [round(knot, 6), round(knot + b, 6)],
+            "hi_slope": round(b, 6),
         }
     elif mode.startswith("quantile-top"):
         # the upper half only: above the median prediction, the predictions' quantiles are mapped
@@ -512,10 +801,10 @@ def _fit_calibration(mode: str, lin: np.ndarray, y: np.ndarray, rows: list[dict]
     elif mode.startswith("group-quantile"):
         # one quantile map per group (its own lots), the global map for anyone in no group
         part["calibration"] = _quantile_map(lin, y, CAL_KNOTS)
-        groups = [_group_of(r) for r in rows]
+        names = [_group_of(r, groups) for r in rows]
         part["groups"] = []
-        for g in CAL_GROUPS:
-            m = np.array([x == g["name"] for x in groups])
+        for g in groups:
+            m = np.array([x == g["name"] for x in names])
             if m.sum() >= 30:
                 part["groups"].append(
                     {**g, "calibration": _quantile_map(lin[m], y[m], GROUP_KNOTS), "shift": 0.0}
@@ -524,26 +813,31 @@ def _fit_calibration(mode: str, lin: np.ndarray, y: np.ndarray, rows: list[dict]
         # each group's own map, then its mean residual over the recent auctions as its shift
         res = y - _apply_cal(part, lin, rows)
         last = max(r["season"] for r in rows)
-        groups = [_group_of(r) for r in rows]
+        names = [_group_of(r, groups) for r in rows]
         for g in part["groups"]:
             m = np.array([x == g["name"] and r["season"] > last - RECENT_SEASONS
-                          for x, r in zip(groups, rows, strict=True)])  # fmt: skip
+                          for x, r in zip(names, rows, strict=True)])  # fmt: skip
             if m.sum():
                 g["shift"] = round(float(np.mean(res[m])), 6)
-    elif mode.endswith("+group-offset") or mode.endswith("+group-offset-recent"):
-        # the global map, then each group's mean out-of-fold residual as its own shift
+    elif (
+        mode.endswith("+group-offset")
+        or mode.endswith("+group-offset-recent")
+        or mode.endswith("+group-median-offset")
+    ):
+        # the global map (if any), then each group's mean (median) out-of-fold residual as its shift
         res = y - _apply_cal(part, lin, rows)
-        groups = [_group_of(r) for r in rows]
+        names = [_group_of(r, groups) for r in rows]
         last = max(r["season"] for r in rows)
         recent = mode.endswith("-recent")
+        stat = np.median if mode.endswith("+group-median-offset") else np.mean
         part["groups"] = []
-        for g in CAL_GROUPS:
+        for g in groups:
             m = np.array([x == g["name"] and (not recent or r["season"] > last - RECENT_SEASONS)
-                          for x, r in zip(groups, rows, strict=True)])  # fmt: skip
+                          for x, r in zip(names, rows, strict=True)])  # fmt: skip
             if m.sum():
                 part["groups"].append(
                     {**g, "calibration": part["calibration"],
-                     "shift": round(float(np.mean(res[m])), 6)}
+                     "shift": round(float(stat(res[m])), 6)}
                 )  # fmt: skip
     if mode.endswith("+smear"):
         resid = y - _apply_cal(part, lin, rows)
@@ -552,11 +846,23 @@ def _fit_calibration(mode: str, lin: np.ndarray, y: np.ndarray, rows: list[dict]
 
 
 def _clamp(pred_ln_cr: np.ndarray, rows: list[dict]) -> np.ndarray:
-    """The shipped price's clamps on a predicted ln crore: the 0.3 cr floor and the IPL-evidence
-    ceiling (pricing.price_ceiling), so the test scores what the site would show."""
-    lo = math.log(0.3)
-    hi = np.log([pricing.price_ceiling(r.get("target_balls")) for r in rows])
-    return np.minimum(np.maximum(pred_ln_cr, lo), hi)
+    """The shipped price's clamps on a predicted ln crore: the auction's floor (its lowest base
+    price: 0.3 cr from 2025, 0.2 before; until 2026-10-22 always 0.3, which put a ln(1.5) error on
+    every 0.2 cr lot of 2018-2024) and the IPL-evidence ceiling (pricing.price_ceiling), so the test
+    scores what the site would show."""
+    lo = np.log([r.get("floor_cr", 0.3) for r in rows])
+    out = np.maximum(pred_ln_cr, lo)
+    if not _FORM["ceiling"]:
+        return out
+    hi = np.log([_old_ceiling(r.get("target_balls")) for r in rows])
+    return np.minimum(out, hi)
+
+
+def _old_ceiling(target_balls) -> float:
+    """The IPL-evidence ceiling the site applied until 2026-10-22 (27 cr × (0.5 + 0.5 × min(1, IPL
+    balls / 600))), kept here only to score the earlier recipes as they were shipped."""
+    b = target_balls if isinstance(target_balls, int | float) and math.isfinite(target_balls) else 0
+    return 27.0 * (0.5 + 0.5 * min(1.0, max(b, 0) / 600))
 
 
 def _apply_cal(part: dict, lin: np.ndarray, rows: list[dict]) -> np.ndarray:
@@ -588,10 +894,13 @@ def _choose_alpha(kind: str, rows: list[dict], names: list[str], extra=()) -> fl
         errs = []
         for s in seasons:
             tr = [r for r in rows if r["season"] != s]
-            te = [r for r in rows if r["season"] == s]
+            # scored on the auction lots only: a retention is a floor, not a price
+            te = [r for r in rows if r["season"] == s and not r.get("retained")]
             if len(te) < 5:
                 continue
-            m = _fit_reg(kind, _matrix(tr, names, extra), np.array([r["y"] for r in tr]), alpha)
+            m = _fit_reg(
+                kind, _matrix(tr, names, extra), np.array([r["y"] for r in tr]), alpha, _cens(tr)
+            )
             errs += list(
                 np.abs(m.predict(_matrix(te, names, extra)) - np.array([r["y"] for r in te]))
             )
@@ -602,13 +911,23 @@ def _choose_alpha(kind: str, rows: list[dict], names: list[str], extra=()) -> fl
 
 
 def _raw_coef(model, names: list[str]) -> tuple[float, dict[str, float]]:
-    """Fold the scaler into the coefficients: intercept + Σ coef × raw feature."""
+    """Fold the scaler into the coefficients: intercept + Σ coef × raw feature (the linear index η;
+    `_link` says how η becomes the median ln share)."""
     sc, est = model[0], model[-1]
     beta = np.asarray(est.coef_, dtype=float).ravel()
     scale = np.where(sc.scale_ == 0, 1.0, sc.scale_)
     raw = beta / scale
     icpt = float(np.asarray(est.intercept_).ravel()[0]) - float(np.sum(raw * sc.mean_))
     return round(icpt, 6), {k: round(float(c), 6) for k, c in zip(names, raw, strict=True)}
+
+
+def _link(model) -> dict:
+    """The shipped `price.link` (pricing.link_share): {"kind": "log"} or {"kind": "sat",
+    "cap_share": S}."""
+    est = model[-1]
+    if getattr(est, "link", "log") == "sat":
+        return {"kind": "sat", "cap_share": round(float(est.cap_share_), 6)}
+    return {"kind": "log"}
 
 
 def _fit_logit(X: np.ndarray, y: np.ndarray, c: float):
@@ -661,214 +980,420 @@ BOUGHT_FEATURES = [
 AUCTIONS_DATES: dict[int, str] = {}
 
 
+def _calibration_for(
+    kind: str, train: list[dict], alpha: float, names: list[str], mode: str, groups, flag=()
+) -> dict:
+    """The calibration part of a recipe from the training seasons' own out-of-fold predictions
+    (lots; and, for "hinge", the censored retentions too), with `resid_sd`."""
+    y = np.array([r["y"] for r in train])
+    o = _oof(kind, train, alpha, flag, names=names)
+    ok = ~np.isnan(o)
+    rows_ok = [r for r, k in zip(train, ok, strict=True) if k]
+    cens = None
+    if mode.startswith("hinge"):
+        oc = _oof(kind, train, alpha, flag, names=names, retained=True)
+        okc = ~np.isnan(oc) & _cens(train)
+        cens = (oc[okc], y[okc])
+    part = _fit_calibration(mode, o[ok], y[ok], rows_ok, groups, cens=cens)
+    # the spread of a lot around its calibrated prediction, out of fold (the scale of the held-out
+    # log-likelihood; the shipped `resid_sd`)
+    part["resid_sd"] = float(np.std(y[ok] - _apply_cal(part, o[ok], rows_ok)))
+    return part
+
+
+def _recipe(
+    kind: str, train: list[dict], names: list[str], mode: str, groups: list[dict], flag=()
+) -> tuple:
+    """The whole price recipe on `train`: the regression (alpha by leave-one-auction-out) and its
+    calibration fitted on the training seasons' own out-of-fold predictions."""
+    alpha = _choose_alpha(kind, train, names, flag)
+    y = np.array([r["y"] for r in train])
+    m = _fit_reg(kind, _matrix(train, names, flag), y, alpha, _cens(train))
+    return m, _calibration_for(kind, train, alpha, names, mode, groups, flag)
+
+
+def _recipe_pred(m, part: dict, test: list[dict], names: list[str], flag=()) -> np.ndarray:
+    """ln crore as shipped: calibrated, × purse, clamped."""
+    lin = m.predict(_matrix(test, names, flag))
+    return _clamp(_apply_cal(part, lin, test) + np.log([r["purse"] for r in test]), test)
+
+
+def _scored(pred: np.ndarray, test: list[dict]) -> dict:
+    """Metrics overall, per auction and per calibration group (the four shipped groups)."""
+    y = np.log([r["price_cr"] for r in test])
+    out = _price_metrics(pred, y, test)
+    for s in sorted({r["season"] for r in test}):
+        idx = [i for i, r in enumerate(test) if r["season"] == s]
+        out[str(s)] = _price_metrics(pred[idx], y[idx], [test[i] for i in idx])
+    gs = [_group_of(r) for r in test]
+    for g in [*CAL_GROUPS, {"name": "overseas"}]:
+        if g["name"] == "overseas":
+            idx = [i for i, x in enumerate(gs) if x and x.startswith("overseas")]
+        else:
+            idx = [i for i, x in enumerate(gs) if x == g["name"]]
+        if idx:
+            out[g["name"]] = _price_metrics(pred[idx], y[idx], [test[i] for i in idx])
+    return out
+
+
+def _loao(kind: str, rows: list[dict], lots: list[dict], names, mode, groups, flag=()) -> dict:
+    """Leave one auction out: each auction 2019-2026 predicted by the recipe fitted on all the
+    others (later ones included), pooled."""
+    preds, tests = [], []
+    for s in sorted({r["season"] for r in lots}):
+        if s < 2019:
+            continue
+        m, part = _recipe(kind, [r for r in rows if r["season"] != s], names, mode, groups, flag)
+        te = [r for r in lots if r["season"] == s]
+        preds.append(_recipe_pred(m, part, te, names, flag))
+        tests += te
+    return _scored(np.concatenate(preds), tests)
+
+
+# ---- the selection protocol (issue I3 rework, 2026-10-22) -------------------------------------------
+#
+# The recipe is CHOSEN on auctions up to 2024 only, then scored on the 2025 mega and 2026 mini
+# auctions ONCE. Until 2026-10-22 about twenty recipes were compared on those same 2025-26 lots and
+# the best kept, which made the "out-of-time" score a best-of-twenty on the test set.
+#
+# Selection: leave one auction out over 2019-2024 (each auction predicted by the recipe fitted on the
+# other auctions up to 2024; mean absolute ln error on its lots), and, as a second view, a validation
+# split (fitted up to 2022, scored on the 2023 and 2024 mini auctions). The candidate with the lowest
+# leave-one-out error is chosen. The candidates are declared here, before any test number is seen.
+VALID_TRAIN_LAST = 2022
+SELECT_LAST = 2024
+PRIOR_FEATURES = ["prior", "no_prior", "prior_years", "prior_x_years", "prior_retained"]
+_NO_CAP = [f for f in PRICE_FEATURES if f not in CAPTAIN_FEATURES]
+_NO_SQ = [f for f in PRICE_FEATURES if f != "pv_pos_sq"]
+# name: (features, regression kind, mega-year retentions "exact" | "censored", mini-year retentions
+# censored too[, form: {"ceiling": the shipped clamp includes the IPL-evidence ceiling (default
+# True, as every recipe up to K was shipped), "winsor": the priced value held to its training
+# support}]). "tobit-sat": the saturating budget-limit link (TobitRidge). Candidates L-T were
+# declared on 2026-10-22 (top-end rework) before any of their test numbers was computed.
+CANDIDATES: dict[str, tuple] = {
+    "A  previous: Huber, mega retentions as prices": (PRICE_FEATURES, "huber", "exact", False),
+    "B  A without captaincy": (_NO_CAP, "huber", "exact", False),
+    "C  A + prior market price": (PRICE_FEATURES + PRIOR_FEATURES, "huber", "exact", False),
+    "D  C without captaincy": (_NO_CAP + PRIOR_FEATURES, "huber", "exact", False),
+    "E  C as Tobit, retentions still as prices": (
+        PRICE_FEATURES + PRIOR_FEATURES, "tobit", "exact", False),
+    "F  C as Tobit, mega retentions censored (floors)": (
+        PRICE_FEATURES + PRIOR_FEATURES, "tobit", "censored", False),
+    "G  F + mini-year retentions censored": (
+        PRICE_FEATURES + PRIOR_FEATURES, "tobit", "censored", True),
+    "H  G without captaincy": (_NO_CAP + PRIOR_FEATURES, "tobit", "censored", True),
+    "I  G without the prior (censoring alone)": (PRICE_FEATURES, "tobit", "censored", True),
+    "J  F without captaincy": (_NO_CAP + PRIOR_FEATURES, "tobit", "censored", False),
+    "K  F without the prior (censoring alone)": (PRICE_FEATURES, "tobit", "censored", False),
+    "L  K without the IPL-evidence ceiling (raw log-linear)": (
+        PRICE_FEATURES, "tobit", "censored", False, {"ceiling": False}),
+    "M  L, value held to its training support": (
+        PRICE_FEATURES, "tobit", "censored", False, {"ceiling": False, "winsor": True}),
+    "N  L with the saturating budget limit (S fitted)": (
+        PRICE_FEATURES, "tobit-sat", "censored", False, {"ceiling": False}),
+    "R  L with a monotone calibration and a fitted top tail": (
+        PRICE_FEATURES, "tobit", "censored", False,
+        {"ceiling": False, "cal": "isotonic-tail+group-median-offset"}),
+    "S  R, value held to its training support": (
+        PRICE_FEATURES, "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset"}),
+    "T  S without the quadratic value term": (
+        _NO_SQ, "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset"}),
+    # declared after the first selection run (2026-10-22): R-T's lots-only top map lost on the
+    # retentions' held-out likelihood (it priced the stars franchises kept below what they were
+    # kept at), so the top-end slope is fitted on lots AND censored retentions together
+    "U  L, value held to its training support, top-end hinge (top fifth)": (
+        PRICE_FEATURES, "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "hinge+group-median-offset", "tail": 0.2}),
+    "V  U with the hinge at the top tenth": (
+        PRICE_FEATURES, "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "hinge+group-median-offset", "tail": 0.1}),
+    "W  U with the hinge at the top twentieth": (
+        PRICE_FEATURES, "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "hinge+group-median-offset", "tail": 0.05}),
+}  # fmt: skip
+# P(bought): the previous features, and with the prior market price
+BOUGHT_CANDIDATES = {
+    "previous": BOUGHT_FEATURES,
+    "+ prior market price": BOUGHT_FEATURES + PRIOR_FEATURES,
+}
+
+
+def shipped_spec(model: dict | None = None) -> tuple:
+    """The candidate the shipped model was built from (its `evaluation.chosen`), for the scripts that
+    refit the recipe on earlier auctions (bidplan_backtest, auction_calibrate)."""
+    model = model or pricing.load_price_model() or {}
+    chosen = (model.get("evaluation") or {}).get("chosen")
+    if chosen not in CANDIDATES:
+        raise ValueError(f"the shipped price model names no known recipe ({chosen!r}): rerun `fit`")
+    return CANDIDATES[chosen]
+
+
+def fit_price_part(
+    price_rows: list[dict], ret_rows: list[dict], spec: tuple, first: int, before: int
+) -> dict:
+    """The `price` part of a model (pricing.market_price reads it) for the recipe `spec`, trained on
+    auctions `first` … `before` − 1 only: the walk-forward price model of scripts/bidplan_backtest.py,
+    auction_calibrate.py and keep_backtest.py."""
+    names, kind = spec[0], spec[1]
+    rows = [r for r in _rows_for(price_rows, ret_rows, first, spec) if r["season"] < before]
+    _use_form(spec, rows)
+    y = np.array([r["y"] for r in rows])
+    alpha = _choose_alpha(kind, rows, names)
+    m = _fit_reg(kind, _matrix(rows, names), y, alpha, _cens(rows))
+    cal = _calibration_for(kind, rows, alpha, names, _FORM["cal"], CAL_GROUPS)
+    icpt, coef = _raw_coef(m, names)
+    out = {"intercept": icpt, "coef": coef, "link": _link(m), **cal}
+    if _FORM["pv_max"] is not None:
+        out["pv_max"] = _FORM["pv_max"]
+    return out
+
+
+def _rows_for(price_rows: list[dict], ret_rows: list[dict], first: int, spec: tuple) -> list[dict]:
+    """The training rows of a candidate: every lot from `first`, the mega-year retentions (as prices
+    or censored) and, when asked, the mini-year retentions (censored)."""
+    mega, mini = spec[2], spec[3]
+    out = [r for r in price_rows if r["season"] >= first]
+    for r in ret_rows:
+        if r["season"] < first:
+            continue
+        if r["retention_kind"] == "mega":
+            out.append({**r, "censored": mega == "censored"})
+        elif mini:
+            out.append({**r, "censored": True})
+    return out
+
+
+def _evaluate_on(kind, names, train, test, mode=None, groups=None) -> dict:
+    m, part = _recipe(kind, train, names, mode or _FORM["cal"], groups or CAL_GROUPS)
+    return _scored(_recipe_pred(m, part, test, names), test)
+
+
+def _heldout_loglik(kind, rows, names, last, first_held=2018, mode=None) -> dict:
+    """Leave one auction out over `first_held`..`last` (auctions up to `last` only), scored by the
+    held-out log-likelihood of every lot (exact: normal density of its ln-price error) and every
+    mega-auction retention (censored: the chance the price is at least what he was retained at),
+    with each fit's own out-of-fold residual sd as the scale. A proper score for both kinds of
+    evidence; lots-only error can't see the retained players at all. Also the revealed-preference
+    check: the share of held-out retentions priced at or above their retention price."""
+    from scipy.stats import norm
+
+    rows = [r for r in rows if r["season"] <= last]
+    ll_lot: list[float] = []
+    ll_ret: list[float] = []
+    ratio: list[float] = []
+    for s in sorted({r["season"] for r in rows}):
+        if s < first_held:
+            continue
+        lots = [r for r in rows if r["season"] == s and not r.get("retained")]
+        rets = [r for r in rows if r["season"] == s and r.get("retention_kind") == "mega"]
+        if not lots and not rets:
+            continue
+        m, part = _recipe(
+            kind, [r for r in rows if r["season"] != s], names, mode or _FORM["cal"], CAL_GROUPS
+        )
+        sd = part["resid_sd"]
+        if lots:
+            e = _recipe_pred(m, part, lots, names) - np.log([r["price_cr"] for r in lots])
+            ll_lot += list(norm.logpdf(e / sd) - math.log(sd))
+        if rets:
+            z = (_recipe_pred(m, part, rets, names) - np.log([r["price_cr"] for r in rets])) / sd
+            ll_ret += list(norm.logcdf(z))
+            ratio += list(np.exp(z * sd))
+    n = len(ll_lot) + len(ll_ret)
+    return {
+        "loglik_per_obs": round((sum(ll_lot) + sum(ll_ret)) / n, 4),
+        "loglik_lots": round(float(np.mean(ll_lot)), 4),
+        "loglik_retentions": round(float(np.mean(ll_ret)), 4) if ll_ret else None,
+        "n_lots": len(ll_lot),
+        "n_retentions": len(ll_ret),
+        "retentions_median_model_over_paid": round(float(np.median(ratio)), 3) if ratio else None,
+        "retentions_share_at_or_above_paid": (
+            round(float(np.mean(np.array(ratio) >= 1.0)), 3) if ratio else None
+        ),
+    }
+
+
+def _loao_upto(kind, rows, names, last, mode=None) -> dict:
+    """Leave one auction out over 2019..`last`, using only auctions up to `last`."""
+    rows = [r for r in rows if r["season"] <= last]
+    preds, tests = [], []
+    for s in sorted({r["season"] for r in rows}):
+        if s < 2019:
+            continue
+        te = [r for r in rows if r["season"] == s and not r.get("retained")]
+        if not te:
+            continue
+        m, part = _recipe(
+            kind, [r for r in rows if r["season"] != s], names, mode or _FORM["cal"], CAL_GROUPS
+        )
+        preds.append(_recipe_pred(m, part, te, names))
+        tests += te
+    return _scored(np.concatenate(preds), tests)
+
+
+def _logit_loao(rows: list[dict], names: list[str], c: float) -> float:
+    from sklearn.metrics import log_loss
+
+    lls = []
+    for s in sorted({r["season"] for r in rows}):
+        a_ = [r for r in rows if r["season"] != s]
+        b_ = [r for r in rows if r["season"] == s]
+        lm = _fit_logit(_matrix(a_, names), np.array([r["bought"] for r in a_]), c)
+        pb = lm.predict_proba(_matrix(b_, names))[:, 1]
+        lls.append(log_loss([r["bought"] for r in b_], np.clip(pb, 1e-6, 1 - 1e-6), labels=[0, 1]))
+    return float(np.mean(lls))
+
+
+def _brief(m: dict) -> dict:
+    keys = ("n", "mae_ln", "median_abs_pct", "within_50pct", "spearman", "bias_ln",
+            "median_bias_ln", "top10_ratio", "top_pre_ratio")  # fmt: skip
+    out = {k: m.get(k) for k in keys}
+    for g in ("2025", "2026", "2023", "2024", *[c["name"] for c in CAL_GROUPS], "overseas"):
+        if g in m:
+            out[g] = {k: m[g].get(k) for k in ("n", "mae_ln", "bias_ln", "median_bias_ln")}
+    return out
+
+
 @app.command()
 def fit(
     first: int = typer.Option(
         2018, "--first", help="First auction season to train on (2018: the shipped fit)."
     ),
-    kind: str = typer.Option("huber", "--kind", help="ridge | huber | quantile (the shipped fit)"),
     out: Path = typer.Option(MODEL_PATH, "--out"),
     refresh_caps: bool = typer.Option(False, "--refresh-caps"),
     report: Path | None = typer.Option(None, "--report", help="Write the full evaluation here."),
-    calibration: str = typer.Option(
-        "quantile+group-offset",
-        "--calibration",
-        help="top-end calibration: " + " | ".join(CAL_MODES),
-    ),
-    retentions: str = typer.Option(
-        "plain",
-        "--retentions",
-        help="mega-year retention prices in the price fit: none | flag (with a `retained` "
-        "indicator, 0 when pricing) | plain (as if bought)",
+    only: str = typer.Option(
+        "", "--only", help="Comma-separated candidate letters to evaluate (default: all)."
     ),
 ) -> None:
-    """Build the auction-time features, evaluate out of time, refit on everything and export."""
+    """Choose the recipe on auctions up to 2024, score it once on 2025-26, refit on everything and
+    export to config/price_model.json."""
     AUCTIONS_DATES.update(auction_dates())
     missing = [s for s in range(max(first, 2009), 2027) if not ipl_fit_path(s).exists()]
     if missing:
         raise typer.BadParameter(f"IPL fits missing for {missing}: run `fits` first")
     price_rows, risk_rows, hist, ret_rows = build_rows(refresh_caps)
-    lots = [r for r in price_rows if r["season"] >= first]
-    rets_in = [r for r in ret_rows if r["season"] >= first] if retentions != "none" else []
-    price_rows = lots + rets_in
-    flag = ("retained",) if retentions == "flag" else ()
-    train = [r for r in price_rows if r["season"] not in TEST_SEASONS]
-    test = [r for r in lots if r["season"] in TEST_SEASONS]
-    y_te_cr = np.array([math.log(r["price_cr"]) for r in test])
-    ev: dict = {"price": {}, "bought": {}}
+    cands = {k: v for k, v in CANDIDATES.items() if not only or k.split()[0] in only.split(",")}
+    ev: dict = {"protocol": {
+        "selection": f"leave one auction out over 2019-{SELECT_LAST}, auctions <= {SELECT_LAST} "
+                     "only; lowest mean absolute ln error on the lots wins",
+        "validation": f"fitted <= {VALID_TRAIN_LAST}, scored on 2023 + 2024",
+        "test": "fitted <= 2024, scored on 2025 mega + 2026 mini, once, for the chosen recipe "
+                "(and the previous one, for reference)",
+    }, "selection": {}}  # fmt: skip
 
-    # ---- price | bought, out of time: train ≤ 2024, test the 2025 mega + 2026 mini auctions
-    for k in ("ridge", "huber", "quantile"):
-        for extra, label in (
-            ((), "market"),
-            (("prev_share",), "+prev salary"),
-            (("base_share",), "+base price"),
-        ):
-            alpha = _choose_alpha(k, train, PRICE_FEATURES, flag + extra)
-            m = _fit_reg(
-                k,
-                _matrix(train, PRICE_FEATURES, flag + extra),
-                np.array([r["y"] for r in train]),
-                alpha,
-            )
-            pred = _clamp(
-                m.predict(_matrix(test, PRICE_FEATURES, flag + extra))
-                + np.log([r["purse"] for r in test]),
-                test,
-            )
-            ev["price"][f"{k} {label}"] = {"alpha": alpha, **_price_metrics(pred, y_te_cr)}
-            for s in TEST_SEASONS:
-                idx = [i for i, r in enumerate(test) if r["season"] == s]
-                ev["price"][f"{k} {label}"][str(s)] = _price_metrics(pred[idx], y_te_cr[idx])
-    old = np.log([_old_curve(r) for r in test])
-    ev["price"]["old curve (on-field)"] = _price_metrics(old, y_te_cr)
-    for s in TEST_SEASONS:
-        idx = [i for i, r in enumerate(test) if r["season"] == s]
-        ev["price"]["old curve (on-field)"][str(s)] = _price_metrics(old[idx], y_te_cr[idx])
-    # a segment view of the shipped kind
-    alpha = _choose_alpha(kind, train, PRICE_FEATURES, flag)
-    m = _fit_reg(
-        kind, _matrix(train, PRICE_FEATURES, flag), np.array([r["y"] for r in train]), alpha
-    )
-    lin_te = m.predict(_matrix(test, PRICE_FEATURES, flag))
-    ln_purse = np.log([r["purse"] for r in test])
-    # top-end calibration, fitted on out-of-fold predictions of the training seasons only
-    y_tr = np.array([r["y"] for r in train])
-    oof = _oof(kind, train, alpha, flag)
-    ok = ~np.isnan(oof)
-    tr_ok = [r for r, k in zip(train, ok, strict=True) if k]
-    test_groups = [_group_of(r) for r in test]
-    ev["calibration"] = {}
-    ev["calibration_groups"] = {}
-    for mode in CAL_MODES:
-        part = _fit_calibration(mode, oof[ok], y_tr[ok], tr_ok)
-        pc = _clamp(_apply_cal(part, lin_te, test) + ln_purse, test)
-        ev["calibration"][mode] = _price_metrics(pc, y_te_cr)
-        for s_ in TEST_SEASONS:
-            idx = [i for i, r in enumerate(test) if r["season"] == s_]
-            ev["calibration"][mode][str(s_)] = _price_metrics(pc[idx], y_te_cr[idx])
-        ev["calibration_groups"][mode] = {}
-        for g in CAL_GROUPS:
-            idx = [i for i, x in enumerate(test_groups) if x == g["name"]]
-            if idx:
-                ev["calibration_groups"][mode][g["name"]] = _price_metrics(pc[idx], y_te_cr[idx])
-    # the same without the captaincy features
-    nocap = [f for f in PRICE_FEATURES if f not in CAPTAIN_FEATURES]
-    m_nc = _fit_reg(kind, _matrix(train, nocap, flag), y_tr, alpha)
-    oof_nc = _oof(kind, train, alpha, flag, names=nocap)
-    ok_nc = ~np.isnan(oof_nc)
-    for mode in ("none", calibration):
-        part = _fit_calibration(
-            mode, oof_nc[ok_nc], y_tr[ok_nc], [r for r, k in zip(train, ok_nc, strict=True) if k]
+    # ---- 1. selection, on auctions up to 2024 only
+    for label, spec in cands.items():
+        names, kind = spec[0], spec[1]
+        rows = _rows_for(price_rows, ret_rows, first, spec)
+        sel = [r for r in rows if r["season"] <= SELECT_LAST]
+        _use_form(spec, sel)
+        lo = _loao_upto(kind, sel, names, SELECT_LAST)
+        vtr = [r for r in sel if r["season"] <= VALID_TRAIN_LAST]
+        vte = [r for r in sel if r["season"] > VALID_TRAIN_LAST and not r.get("retained")]
+        va = _evaluate_on(kind, names, vtr, vte)
+        # the held-out log-likelihood needs every mega retention as a censored row, whatever the
+        # candidate trains on
+        ll = _heldout_loglik(kind, sel, names, SELECT_LAST)
+        ev["selection"][label] = {
+            "loglik_le_2024": ll, "loao_le_2024": _brief(lo), "validation_2023_24": _brief(va)
+        }  # fmt: skip
+        logger.info(
+            f"{label}: LL/obs {ll['loglik_per_obs']} (lots {ll['loglik_lots']}, retentions "
+            f"{ll['loglik_retentions']}, ret >= paid {ll['retentions_share_at_or_above_paid']}) | "
+            f"LOAO<=2024 MAE {lo['mae_ln']} top20 {lo['top_pre_ratio']} | "
+            f"valid 2023-24 MAE {va['mae_ln']} top20 {va['top_pre_ratio']}"
         )
-        pc = _clamp(
-            _apply_cal(part, m_nc.predict(_matrix(test, nocap, flag)), test) + ln_purse, test
-        )
-        ev["calibration"][mode + ", no captaincy"] = _price_metrics(pc, y_te_cr)
-    cal_tr = _fit_calibration(calibration, oof[ok], y_tr[ok], tr_ok)
-    pred = _clamp(_apply_cal(cal_tr, lin_te, test) + ln_purse, test)
-    segs = {
-        "capped Indian": lambda r: not r["is_overseas"] and r["intl_caps"] > 0,
-        "uncapped Indian": lambda r: not r["is_overseas"] and r["intl_caps"] == 0,
-        "overseas": lambda r: r["is_overseas"],
-        "price >= 10 cr": lambda r: r["price_cr"] >= 10,
-    }
-    ev["segments"] = {}
-    for nm, fn in segs.items():
-        idx = [i for i, r in enumerate(test) if fn(r)]
-        if idx:
-            ev["segments"][nm] = {
-                "model": _price_metrics(pred[idx], y_te_cr[idx]),
-                "old curve": _price_metrics(old[idx], y_te_cr[idx]),
-            }
-    ev["test_examples"] = sorted(
-        (
-            {"season": r["season"], "name": r["name"], "actual": r["price_cr"],
-             "model": round(float(math.exp(p)), 2), "old": round(float(math.exp(o)), 2)}
-            for r, p, o in zip(test, pred, old, strict=True)
-        ),
-        key=lambda x: -x["actual"],
-    )[:25]  # fmt: skip
+    # The declared rule (the protocol text above): the lowest leave-one-auction-out mean absolute ln
+    # error on the lots. Until 2026-10-22 (top-end rework) the code chose by the held-out
+    # log-likelihood instead, which counts each mega retention as P(price >= what he was kept at): a
+    # floor can't penalise a price far above it, so that score rewarded recipes that priced the
+    # stars franchises kept at several times their retention (Gill ~90 cr). It is still reported.
+    chosen = min(cands, key=lambda k: ev["selection"][k]["loao_le_2024"]["mae_ln"])
+    ev["chosen"] = chosen
+    logger.info(f"chosen: {chosen}")
+    names, kind = cands[chosen][0], cands[chosen][1]
+    rows = _rows_for(price_rows, ret_rows, first, cands[chosen])
 
-    # ---- P(bought), out of time
-    rtr = [r for r in risk_rows if r["season"] not in TEST_SEASONS]
+    # ---- 2. the test, once: fitted <= 2024, scored on 2025 + 2026; and walking forward to 2026
+    ev["test"] = {}
+    ref = next(iter(CANDIDATES))
+    for label in dict.fromkeys([chosen, ref]):
+        if label not in cands:
+            continue
+        spec = cands[label]
+        rr = _rows_for(price_rows, ret_rows, first, spec)
+        tr = [r for r in rr if r["season"] <= SELECT_LAST]
+        te = [r for r in rr if r["season"] in TEST_SEASONS and not r.get("retained")]
+        _use_form(spec, tr)
+        t = _brief(_evaluate_on(spec[1], spec[0], tr, te))
+        tr26 = [r for r in rr if r["season"] < 2026]
+        te26 = [r for r in rr if r["season"] == 2026 and not r.get("retained")]
+        _use_form(spec, tr26)
+        t["walk_forward_2026"] = _brief(_evaluate_on(spec[1], spec[0], tr26, te26))
+        ev["test"][label] = t
+
+    # ---- 3. P(bought): C by leave one auction out, features chosen the same way, tested once
+    rtr = [r for r in risk_rows if r["season"] <= SELECT_LAST]
     rte = [r for r in risk_rows if r["season"] in TEST_SEASONS]
-    best_c, best_ll = 1.0, math.inf
-    for c in (0.03, 0.1, 0.3, 1.0, 3.0):
-        lls = []
-        for s in sorted({r["season"] for r in rtr}):
-            a_ = [r for r in rtr if r["season"] != s]
-            b_ = [r for r in rtr if r["season"] == s]
-            lm = _fit_logit(_matrix(a_, BOUGHT_FEATURES), np.array([r["bought"] for r in a_]), c)
-            pb = lm.predict_proba(_matrix(b_, BOUGHT_FEATURES))[:, 1]
-            from sklearn.metrics import log_loss
-
-            lls.append(
-                log_loss([r["bought"] for r in b_], np.clip(pb, 1e-6, 1 - 1e-6), labels=[0, 1])
-            )
-        if np.mean(lls) < best_ll:
-            best_ll, best_c = float(np.mean(lls)), c
-    lm = _fit_logit(_matrix(rtr, BOUGHT_FEATURES), np.array([r["bought"] for r in rtr]), best_c)
-    pb = lm.predict_proba(_matrix(rte, BOUGHT_FEATURES))[:, 1]
+    ev["bought_selection"] = {}
+    best_b = (math.inf, None, None)
+    for bl, bn in BOUGHT_CANDIDATES.items():
+        for c in (0.03, 0.1, 0.3, 1.0, 3.0):
+            ll = _logit_loao(rtr, bn, c)
+            if ll < best_b[0]:
+                best_b = (ll, bl, c)
+            ev["bought_selection"][f"{bl}, C={c}"] = round(ll, 4)
+    _, b_label, best_c = best_b
+    bnames = BOUGHT_CANDIDATES[b_label]
+    lm = _fit_logit(_matrix(rtr, bnames), np.array([r["bought"] for r in rtr]), best_c)
+    pb = lm.predict_proba(_matrix(rte, bnames))[:, 1]
     yb = np.array([r["bought"] for r in rte], dtype=float)
-    ev["bought"] = {"C": best_c, "test": _logit_metrics(pb, yb)}
-    for s in TEST_SEASONS:
-        idx = [i for i, r in enumerate(rte) if r["season"] == s]
-        ev["bought"][str(s)] = _logit_metrics(pb[idx], yb[idx])
+    ev["bought"] = {"chosen": b_label, "C": best_c, "test": _logit_metrics(pb, yb)}
 
-    # ---- the shipped model: refit on every season from `first` (2025 and 2026 included)
-    alpha_all = _choose_alpha(kind, price_rows, PRICE_FEATURES, flag)
-    m_all = _fit_reg(
-        kind,
-        _matrix(price_rows, PRICE_FEATURES, flag),
-        np.array([r["y"] for r in price_rows]),
-        alpha_all,
-    )
-    oof_all = _oof(kind, price_rows, alpha_all, flag)
-    ok_all = ~np.isnan(oof_all)
-    y_all = np.array([r["y"] for r in price_rows])
-    rows_ok = [r for r, k in zip(price_rows, ok_all, strict=True) if k]
-    cal_all = _fit_calibration(calibration, oof_all[ok_all], y_all[ok_all], rows_ok)
-    # the spread of a lot's price around its calibrated prediction, out of fold (sets `high`)
-    resid = y_all[ok_all] - _apply_cal(cal_all, oof_all[ok_all], rows_ok)
-    icpt, coef = _raw_coef(m_all, PRICE_FEATURES + list(flag))
-    # a price is for a player entering the auction: `retained` = 0, so it drops out
-    ret_coef = coef.pop("retained", None)
+    # ---- 4. the shipped model: the chosen recipe refitted on every season from `first`
+    _use_form(cands[chosen], rows)
+    alpha_all = _choose_alpha(kind, rows, names)
+    y_all = np.array([r["y"] for r in rows])
+    m_all = _fit_reg(kind, _matrix(rows, names), y_all, alpha_all, _cens(rows))
+    # the calibration on the out-of-fold predictions; its resid_sd (a lot's spread around his
+    # calibrated prediction, out of fold) sets `high`
+    cal_all = _calibration_for(kind, rows, alpha_all, names, _FORM["cal"], CAL_GROUPS)
+    icpt, coef = _raw_coef(m_all, names)
     lm_all = _fit_logit(
-        _matrix(risk_rows, BOUGHT_FEATURES), np.array([r["bought"] for r in risk_rows]), best_c
+        _matrix(risk_rows, bnames), np.array([r["bought"] for r in risk_rows]), best_c
     )
-    bi, bc = _raw_coef(lm_all, BOUGHT_FEATURES)
-
-    # mega-year retentions: what the model would have priced each retained player at
-    rets = []
-    for r in hist["retentions"]:
-        if (
-            r["season"] in (2018, 2022, 2025)
-            and r["kind"] == "retained"
-            and r.get("cricsheet_id")
-            and r.get("salary_cr")
-        ):
-            rets.append(r)
+    bi, bc = _raw_coef(lm_all, bnames)
+    link = _link(m_all)
+    pv_max = _FORM["pv_max"]
+    rets = [
+        r for r in ret_rows if r["season"] in (2018, 2022, 2025) and r["retention_kind"] == "mega"
+    ]
     ev["mega_retentions"] = _retention_check(
-        rets, hist, {"intercept": icpt, "coef": coef, **cal_all}
+        rets, {"intercept": icpt, "coef": coef, "link": link, "pv_max": pv_max, **cal_all}
     )
 
-    seasons = sorted({r["season"] for r in price_rows})
+    seasons = sorted({r["season"] for r in rows})
+    n_ret = sum(1 for r in rows if r.get("retained"))
     model = {
         "schema": 1,
         "league": "ipl",
         "fitted": dt.date.today().isoformat(),
         "method": (
-            f"hurdle: P(bought) logistic (L2, C={best_c}); ln(price / purse | bought) {kind} "
-            f"regression (alpha={alpha_all}, standardised features, refolded to raw units); "
-            f"top-end calibration {calibration} on out-of-fold predictions"
+            f"hurdle: P(bought) logistic (L2, C={best_c}, features: {b_label}); ln(price / purse "
+            f"| bought) {kind} regression (alpha={alpha_all}, standardised features, refolded to raw "
+            f"units; recipe '{chosen.split(maxsplit=1)[1]}', chosen by leave one auction out on "
+            f"auctions <= {SELECT_LAST}); calibration {_FORM['cal']} on out-of-fold predictions "
+            "(groups: " + ", ".join(g["name"] for g in CAL_GROUPS) + ")"
         ),
         "trained_on": {
             "seasons": [seasons[0], seasons[-1]],
-            "price_rows": len(price_rows),
-            "retention_rows": len(rets_in),
-            "retentions": retentions,
-            "retained_coef": ret_coef,
+            "price_rows": len(rows),
+            "lots": len(rows) - n_ret,
+            "retention_rows": n_ret,
+            "censored_rows": int(_cens(rows).sum()),
             "bought_rows": len(risk_rows),
             "bought_seasons": list(FULL_RETENTION_SEASONS),
         },
@@ -881,36 +1406,33 @@ def fit(
         "price": {
             "intercept": icpt,
             "coef": coef,
-            # top-end calibration knots + shift (pricing.calibrate), fitted out of fold
+            # how the linear index becomes the median ln share (pricing.link_share)
+            "link": link,
+            # the priced value is held to the largest in the training rows (None: no hold)
+            **({"pv_max": pv_max} if pv_max is not None else {}),
+            # calibration (pricing.calibrate): knots (none shipped) + each group's shift, out of fold
             **cal_all,
-            "calibration_mode": calibration,
-            "resid_sd": round(float(np.std(resid)), 4),
+            "calibration_mode": _FORM["cal"],
+            "resid_sd": round(float(cal_all["resid_sd"]), 4),
         },
         "bought": {"intercept": bi, "coef": bc},
         "evaluation": {
-            "split": "train auctions <= 2024, test 2025 mega + 2026 mini (out of time)",
-            "price": {
-                k: {kk: vv for kk, vv in v.items() if not isinstance(vv, dict)}
-                for k, v in ev["price"].items()
-            },
-            "calibration": {
-                k: {kk: vv for kk, vv in v.items() if not isinstance(vv, dict)}
-                for k, v in ev["calibration"].items()
-            },
-            "bought": ev["bought"]["test"],
+            "protocol": ev["protocol"],
+            "chosen": chosen,
+            "selection": ev["selection"],
+            "test": ev["test"],
+            "bought": ev["bought"],
         },
-    }
+    }  # fmt: skip
     out.write_text(json.dumps(model, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     pricing.load_price_model.cache_clear()
     if report:
         report.write_text(json.dumps(ev, indent=1, ensure_ascii=False), encoding="utf-8")
-    print(json.dumps(ev["price"], indent=1))
-    print(json.dumps(ev["calibration"], indent=1))
-    print(json.dumps(ev["calibration_groups"], indent=1))
-    print(json.dumps(ev["segments"], indent=1))
-    print(json.dumps(ev["bought"], indent=1))
+    print(json.dumps({k: ev[k] for k in ("chosen", "test", "bought")}, indent=1))
     print(json.dumps(ev["mega_retentions"], indent=1))
-    print(f"wrote {out}: {len(price_rows)} priced lots, {len(risk_rows)} risk-set rows")
+    print(
+        f"wrote {out}: {len(rows)} price rows ({n_ret} retentions), {len(risk_rows)} risk-set rows"
+    )
 
 
 def _next_competition() -> dict:
@@ -921,39 +1443,19 @@ def _next_competition() -> dict:
     return {"cycle": c.cycle, "purse": float(c.purse), "key": c.key}
 
 
-def _retention_check(rets: list[dict], hist: dict, part: dict) -> dict:
-    """Mega-year retention salaries are slab-set (not bids), so they're left out of the fit; as a
-    check: the model's price for each retained player against what he was paid."""
-    pm = master.load()
-    caps = intl_appearances()
-    apps = ipl_appearances()
+def _retention_check(rets: list[dict], part: dict) -> dict:
+    """The mega-year retentions (rows from `build_rows`, features as of their auction): the model's
+    price for each retained player against what he was paid."""
     ratios = []
     for r in rets:
-        a = hist["auctions"][str(r["season"])]
-        date = a["date"]
-        vals = asof_values(r["season"], date)
-        cid = r["cricsheet_id"]
-        rec = pm.get(cid) if isinstance(pm.get(cid), dict) else {}
-        v = vals.get(cid)
-        ipl = [d for d in apps.get(cid, []) if d < date]
-        country = r.get("country") or normalise(rec.get("country"))
-        age = _years(date, str(rec["dob"])[:10]) if rec.get("dob") else None
-        row = {
-            "price_value": v["value"] if v else None, "value_sd": v["value_sd"] if v else None,
-            "target_balls": v["target_balls"] if v else 0, "ipl_balls": v["ipl_balls"] if v else 0,
-            "role": ROLE_MAP.get(rec.get("primary_role") or "", "batter"),
-            "is_overseas": bool(country) and country != "IND",
-            "intl_caps": bisect.bisect_left(caps.get(cid, []), date),
-            "intl_caps_2y": _recent(caps.get(cid, []), date), "age": age,
-            **_captaincy(cid, r["season"]),
-            "ipl_seasons": len({d[:4] for d in ipl}),
-            "ipl_gap": _years(date, ipl[-1]) if ipl else None,
-        }  # fmt: skip
-        f = pricing.market_features(row, "mega")
+        f = pricing.market_features(r, "mega", part.get("pv_max"))
         share = math.exp(
-            pricing.calibrate(pricing.calibration_part(part, f), pricing._linear(part, f))
+            pricing.calibrate(
+                pricing.calibration_part(part, f),
+                pricing.link_share(part, pricing._linear(part, f)),
+            )
         )
-        ratios.append(share * a["purse_cr"] / r["salary_cr"])
+        ratios.append(share * r["purse"] / r["price_cr"])
     ratios = np.array(ratios)
     return {
         "n": int(len(ratios)),

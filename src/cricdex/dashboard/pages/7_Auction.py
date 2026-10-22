@@ -108,8 +108,10 @@ def _age(cid: str):
     return a.get("age") if a else None
 
 
-mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
-real_prices = {r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows}
+from cricdex.web_parity.auction import retention_inputs  # noqa: E402
+
+_ri = retention_inputs(ret)  # the real 2025 lists, prices and the slab rule they cost
+mega_ids = _ri["mega_ids"]
 
 # ---- controls --------------------------------------------------------------
 mode = st.radio(
@@ -205,7 +207,10 @@ if st.button("🎲 Run simulation", type="primary"):
             "trials": int(trials),
             "mode": mode,
             "retentions": retentions,
-            "real_prices": real_prices,
+            "real_prices": _ri["real_prices"],
+            "retention_slabs": _ri["retention_slabs"],
+            "slab_holders": _ri["slab_holders"],
+            "fixed_retained": _ri["fixed_retained"],
         },
     )
     st.session_state["auction_result"] = (_settings, res)

@@ -341,6 +341,23 @@ export function Segmented<T extends string>({
   );
 }
 
+/** "SMAT data to Dec 2024 · 85% of rating" — a player whose value rests partly on a league whose data has stopped
+ * (the export's `stale_share` / `stale_note`, issue I7). */
+export function StaleShareBadge({ share, note, className }: { share: number; note: string; className?: string }) {
+  const pct = Math.round(100 * share);
+  return (
+    <span
+      title={`${pct}% of the evidence behind his rating comes from ${note}: that league's data has stopped updating, so this part may be out of date.`}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-md border border-gold/40 bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold text-gold",
+        className,
+      )}
+    >
+      {`${note} · ${pct}% of rating`}
+    </span>
+  );
+}
+
 /** "data to 15 Dec 2024 · stale" — for a league whose data has stopped updating (collections meta `stale`). */
 export function StaleBadge({ asOf, className }: { asOf?: string | null; className?: string }) {
   const d = asOf ? new Date(`${asOf}T00:00:00`) : null;

@@ -4,6 +4,7 @@
 
 import { registerLeagues, type LeagueRegistry } from "./leagues";
 import { registerPriceModel, type PriceModel } from "./auction";
+import { registerKeepModel, type KeepData } from "./keep";
 
 const DATA_ROOT = `${import.meta.env.BASE_URL}data`;
 
@@ -188,7 +189,12 @@ export const getProfile = (c: string, cid: string) =>
   getJSON<Profile>(`${c}/profiles/${cid}.json`);
 
 export interface RetentionData {
-  mega: Record<string, { cricsheet_id: string; name: string; price: number }[]>;
+  mega: Record<string, { cricsheet_id: string; name: string; price: number; slab_holder?: string }[]>;
+  /** real retentions outside the pool (too few balls to rate): still charged to the purse */
+  unpooled?: Record<string, { name: string; salary: number; slab_holder?: string }[]>;
+  /** the cycle's retention slabs (config/competitions.toml); absent in older exports */
+  slabs?: { capped: number[]; uncapped: number } | null;
+  competition?: string;
 }
 export const getRetentions = (c: string) => getJSON<RetentionData>(`${c}/retentions.json`);
 
@@ -201,6 +207,9 @@ export interface AuctionPoolRow {
   /** League where this player's profile lives. */
   profile_collection?: string | null;
   stale?: boolean;
+  /** share of his value's evidence from a stale league (SMAT), and which ("SMAT data to Dec 2024"). */
+  stale_share?: number | null;
+  stale_note?: string | null;
   value: number; // already IPL-relevance-decayed at export
   /** sd of that value (leagues blended by precision, translation uncertainty included); the
    * price uses value − PRICE_CAUTION_SD × value_sd. Absent in older exports (= 0). */
@@ -391,7 +400,12 @@ export const getAging = (c: string) => getJSON<AgingData>(`${c}/aging.json`);
 
 /** Keep or release (keep.json): the competition's rules + sources, every squad player with
  * salary / value / tags / age / last season, and the pool free agents' tags. */
-export const getKeep = (c: string) => getJSON<import("./keep").KeepData>(`${c}/keep.json`);
+export const getKeep = async (c: string) => {
+  const d = await getJSON<KeepData>(`${c}/keep.json`);
+  // the retention model the calls come from (keep.ts `assess`)
+  registerKeepModel(d.keep_model ?? null);
+  return d;
+};
 /** Bid plan: the official auction list once it is published (data/curated/ipl_auction_register.json, copied by the
  * export as `<c>/auction_register.json`), else null: the plan then infers the pool. */
 export const getAuctionRegister = (c: string) =>

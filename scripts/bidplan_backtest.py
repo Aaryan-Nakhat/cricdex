@@ -48,7 +48,7 @@ import ipl_price_model as ipm  # noqa: E402
 from cricdex.scout.identity import master  # noqa: E402
 from cricdex.web_parity import bidplan as bp  # noqa: E402
 from cricdex.web_parity.auction import IPL_TEAMS_DEFAULT  # noqa: E402
-from cricdex.web_parity.pricing import load_price_model, market_price, price_ceiling  # noqa: E402
+from cricdex.web_parity.pricing import load_price_model, market_price  # noqa: E402
 
 app = typer.Typer(add_completion=False)
 SEASONS = (2025, 2026)
@@ -58,28 +58,39 @@ TOP = 10
 
 
 def _fit_price_model(price_rows: list[dict], ret_rows: list[dict], season: int) -> dict:
-    """The shipped price recipe, trained on auctions 2018 … season − 1 only."""
-    kind, mode = "huber", "quantile+group-offset"
-    rows = [r for r in price_rows if 2018 <= r["season"] < season]
-    rows += [r for r in ret_rows if 2018 <= r["season"] < season]
-    names = ipm.PRICE_FEATURES
-    y = np.array([r["y"] for r in rows])
-    alpha = ipm._choose_alpha(kind, rows, names)
-    m = ipm._fit_reg(kind, ipm._matrix(rows, names), y, alpha)
-    oof = ipm._oof(kind, rows, alpha)
-    ok = ~np.isnan(oof)
-    rows_ok = [r for r, k in zip(rows, ok, strict=True) if k]
-    cal = ipm._fit_calibration(mode, oof[ok], y[ok], rows_ok)
-    resid = y[ok] - ipm._apply_cal(cal, oof[ok], rows_ok)
-    icpt, coef = ipm._raw_coef(m, names)
+    """The shipped price recipe (its features, regression and retention treatment), trained on
+    auctions 2018 … season − 1 only."""
+    spec = ipm.shipped_spec()
     shipped = load_price_model() or {}
     return {
         "floor_cr": 0.3,
         "competition": {"cycle": "mini", "purse": 125.0},
-        "price": {"intercept": icpt, "coef": coef, **cal, "resid_sd": float(np.std(resid))},
+        "price": ipm.fit_price_part(price_rows, ret_rows, spec, 2018, season),
         "bought": shipped.get("bought"),
         "trained_on": [2018, season - 1],
     }
+
+
+def _slab_extra(season: int, team: str, hist: dict) -> float:
+    """What the purse counted beyond the retained salaries under the 2025-27 retention slabs: the
+    team's 2025 mega-auction retentions (still with it, for 2026) cost max(the first n capped slabs +
+    4 cr per uncapped one, their salaries) (web_parity/keep.slab_charge; reproduces every team's
+    published 2025 and 2026 purse). 0 outside that cycle."""
+    if season not in (2025, 2026):
+        return 0.0
+    from cricdex import competitions
+    from cricdex.web_parity.keep import slab_charge
+
+    comp = competitions.get("ipl_2027")
+    sq = competitions.load_squads(comp)
+    block = ((sq.get("mega_retentions_2025") or {}).get("teams") or {}).get(team) or {}
+    kept = {(r["name"]): float(r["salary_cr"]) for r in hist["retentions"]
+            if r["season"] == season and r["team"] == team and r.get("salary_cr")}  # fmt: skip
+    holders = [{"salary": kept[n], "slab_holder": k} for k in ("capped", "uncapped")
+               for n in block.get(k, []) if n in kept]  # fmt: skip
+    if not holders:
+        return 0.0
+    return slab_charge(holders, comp.rules()) - sum(h["salary"] for h in holders)
 
 
 def _tags_fn():
@@ -181,7 +192,6 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
                 "projected_value": mk["price"],
                 "p_bought": mk["p_bought"],
                 "base_price": float(lot.get("base_price_cr") or 0.3),
-                "price_cap": price_ceiling(f.get("target_balls")),
                 "tags": tags(cid, role, ov),
                 "from_team": None,
                 "anchor_price": (f["prev_share"] * purse) if f.get("prev_share") else None,
@@ -213,7 +223,6 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
                 "projected_value": mk["price"],
                 "p_bought": mk["p_bought"],
                 "base_price": price_tier(mk["price"]),
-                "price_cap": price_ceiling(f.get("target_balls")),
                 "tags": tags(cid, role, ov),
                 "from_team": None,
                 "anchor_price": (f["prev_share"] * purse) if f.get("prev_share") else None,
@@ -239,6 +248,8 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
         t["cost"] += float(r.get("purse_deduction_cr") or r.get("salary_cr") or 0.0)
     for lot in lots:
         teams.setdefault(lot["team"], {"kept": [], "cost": 0.0})
+    for t, v in teams.items():
+        v["cost"] += _slab_extra(season, t, hist)
     return {"season": season, "date": date, "purse": purse, "cycle": cycle, "model": model,
             "avail": avail, "teams": teams, "lots": lots,
             "next": _next_season_values(season)}  # fmt: skip

@@ -9,7 +9,9 @@
 - **Wikipedia, IPL personnel page** (CC BY-SA) — the 2026 retained / sold / replacement lists and
   the retirements, from "List of 2026 Indian Premier League personnel changes".
 - **Cricsheet** (ODC-By) — men's ODI and Test archives, read only for `info.players` / registry /
-  dates to decide who is capped. Never ingested, never exported.
+  dates to decide who is capped. Never ingested, never exported. Cricsheet withholds every match
+  featuring Afghanistan (since Nov 2024); those appearances come from `withheld.py` (an archived
+  Cricsheet snapshot + Wikipedia's Afghanistan cap lists).
 
 Every fetcher is resumable: it skips what its cache already holds unless `force=True`.
 """
@@ -504,6 +506,12 @@ def build_caps(
         got = read_international_zip(path, fmt)
         logger.info(f"caps: {fmt} — {len(got)} player-matches from {path.name}")
         rows += got
+    # matches Cricsheet withholds (featuring Afghanistan): identity/withheld.py
+    from cricdex.scout.identity import withheld
+
+    got = withheld.load_rows()
+    logger.info(f"caps: withheld (Afghanistan) — {len(got)} player-matches")
+    rows += got
     out: dict[str, dict] = {}
     for pid, team, d, fmt in rows:
         if pid not in wanted:
@@ -521,7 +529,14 @@ def build_caps(
     for rec in out.values():
         rec.pop("_team_d", None)
     write_json(
-        CAPS_CACHE, {"_source": "Cricsheet men's T20I / ODI / Test XIs (info.players)", **out}
+        CAPS_CACHE,
+        {
+            "_source": (
+                "Cricsheet men's T20I / ODI / Test XIs (info.players); matches Cricsheet withholds "
+                "(featuring Afghanistan) from data/curated/withheld_internationals.json"
+            ),
+            **out,
+        },
     )
     return out
 
@@ -545,6 +560,38 @@ IPL_TEAM_CODES = {
     "Rajasthan Royals": "RR",
     "Lucknow Super Giants": "LSG",
 }
+
+# Every name an IPL franchise has played under on Cricsheet → today's code (renamed sides keep theirs;
+# defunct sides get their own: GL, RPS, DEC, PWI, KTK)
+IPL_TEAM_CODES_ALL = {
+    **IPL_TEAM_CODES,
+    "Delhi Daredevils": "DC",
+    "Kings XI Punjab": "PBKS",
+    "Gujarat Lions": "GL",
+    "Rising Pune Supergiant": "RPS",
+    "Rising Pune Supergiants": "RPS",
+    "Deccan Chargers": "DEC",
+    "Pune Warriors": "PWI",
+    "Kochi Tuskers Kerala": "KTK",
+}
+
+
+def ipl_team_seasons(con) -> dict[str, list[tuple[int, str]]]:
+    """cricsheet_id → [(IPL season, franchise code)] he played for, in order (from the ingested IPL
+    XIs): the franchise ties of Keep or release (seasons with this side, home-grown = his first
+    side; web_parity/keep.py `keep_features`)."""
+    rows = con.execute(
+        "SELECT DISTINCT CAST(SUBSTR(CAST(m.match_date AS VARCHAR), 1, 4) AS INT), p.team, "
+        "p.identifier FROM match_players_ipl p JOIN matches_ipl m USING (match_id) "
+        "WHERE p.identifier IS NOT NULL"
+    ).fetchall()
+    out: dict[str, list[tuple[int, str]]] = {}
+    for y, t, cid in rows:
+        out.setdefault(cid, []).append((int(y), IPL_TEAM_CODES_ALL.get(t, t)))
+    for v in out.values():
+        v.sort()
+    return out
+
 
 _SORTNAME = re.compile(r"\{\{\s*sortname\s*\|([^{}]*)\}\}", re.I)
 
@@ -887,7 +934,18 @@ def international_dates(con, raw_dir: Path | None = None) -> dict[str, list[str]
             path = download_zip(z, raw_dir)
         for pid, _team, d, _f in read_international_zip(path, fmt):
             seen.add((pid, d))
+    # matches Cricsheet withholds (featuring Afghanistan): identity/withheld.py
+    from cricdex.scout.identity import withheld
+
+    extra: list[tuple[str, str]] = []
+    for pid, _team, d, _f, src in withheld.load_rows(with_source=True):
+        if src == withheld.SNAPSHOT_SOURCE:
+            seen.add((pid, d))  # a real match date, like the archives above
+        else:
+            # dated at the Wikipedia revision that published it: several appearances can share
+            # a date, so they are kept one by one rather than de-duplicated by date
+            extra.append((pid, d))
     out: dict[str, list[str]] = {}
-    for pid, d in sorted(seen, key=lambda x: x[1]):
+    for pid, d in sorted([*seen, *extra], key=lambda x: x[1]):
         out.setdefault(pid, []).append(d)
     return out

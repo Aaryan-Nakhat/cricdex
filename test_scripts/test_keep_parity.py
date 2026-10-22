@@ -3,14 +3,16 @@ calculator (`site/src/lib/keep.ts`) on the same inputs — every price, surplus,
 sentence, purse figure, gap pick and CSV cell.
 
 Runs `site/scripts/keep_parity_dump.ts` under Node on fixed synthetic squads (every branch: keep,
-release, thin record, fairly paid, age, unrated, overrides, role targets, overseas room, a purse
-overrun) plus, when present, every real team from the exported keep.json. Skips if Node is
-unavailable (fails in CI, see conftest.py).
+release, borderline, unrated, overrides, role targets, overseas room, a purse overrun, franchise
+ties) plus, when present, every real team from the exported keep.json, and the retention model's
+features and probability on fixed inputs. Skips if Node is unavailable (fails in CI, see
+conftest.py).
 """
 
 from __future__ import annotations
 
 import json
+import math
 import shutil
 import subprocess
 import tempfile
@@ -27,6 +29,9 @@ from cricdex.web_parity.keep import (
     evaluate,
     fmt_num,
     free_agents,
+    keep_features,
+    keep_probability,
+    load_keep_model,
     market_for,
     to_csv_rows,
 )
@@ -109,7 +114,25 @@ SQUAD[4]["forecast"] = _fc([-2.5, -4.5, -6.0], "decline", 0.205)
 SQUAD[6]["forecast"] = _fc([20.0, 19.5, 0.4], "hold_then_decline", 0.475)
 SQUAD[11]["forecast"] = _fc([0.0, 2.6, 4.5], "improve", 0.5)
 
-# another franchise: its Release calls join the market AAA shops in
+# 2025 mega-auction retentions charged by the retention slabs (only under SLAB_RULES): four capped
+# (18 + 14 + 11 + 18 = 61 against 14 + 14 + 13.25 + 25.2 = 66.45 of salary, so the salaries count)
+# and one uncapped (4 against 0.3)
+for i, k in ((0, "capped"), (1, "capped"), (11, "capped"), (12, "capped"), (5, "uncapped")):
+    SQUAD[i]["slab_holder"] = k
+SLAB_RULES = {"retained_cost": "slabs", "retention_slabs": [18.0, 14.0, 11.0, 18.0, 14.0],
+              "uncapped_retention_slab": 4.0}  # fmt: skip
+
+# franchise ties (the retention model): a home-grown captain with seasons there, a one-season buy
+SQUAD[0].update(home_grown=True, seasons_here=8, captain_teams=["AAA"])
+SQUAD[6].update(seasons_here=1)
+SQUAD[11].update(home_grown=True, seasons_here=3)
+
+# a rating resting on stale SMAT data says so (issue I7): 0.845 rounds half up on both sides
+SQUAD[2].update(stale_share=0.845, stale_note="SMAT data to Dec 2024")
+SQUAD[8].update(stale_share=0.05, stale_note="SMAT data to Dec 2024")  # below the threshold
+
+# another franchise: its Release calls join the market AAA shops in (BBB's keeper is a capped
+# 2025 retention: under SLAB_RULES he costs the 18 cr slab, not his 12 cr salary)
 OTHERS = [
     _p(
         21, team="BBB", salary=12, value=9.0, role="keeper", tags="ko"
@@ -118,6 +141,7 @@ OTHERS = [
     _p(23, team="BBB", salary=1, value=10.0, role="bowler", tags="ds"),  # kept by BBB: not on sale
     _p(24, team="BBB", salary=9, value=None, cid=False),  # unrated: never on sale
 ]
+OTHERS[0]["slab_holder"] = "capped"
 
 
 def _pool_row(i, value, sd=3.0, role="bowler", overseas=False, team=None, balls=700):
@@ -171,6 +195,13 @@ MARKET_SQUAD = [
     _mk(SQUAD[1], 0, 6, 0.55), _mk(SQUAD[2], 0, 1, 0.55),
     _mk(SQUAD[3], 25, 4, 0.55), _mk(SQUAD[4], 120, 14, 0.55), _mk(SQUAD[6], 180, 9, 0.55),
     _mk(SQUAD[7], 60, 3, 1.6), _mk(SQUAD[9], 5, 0, None), _mk(SQUAD[12], 90, 2, 0.55),
+    # no ball-by-ball record anywhere (issue I6): priced from the market as an uncapped Indian
+    {**_p(31, salary=5.2, value=None, cid=False, age=None), "team": "MMM", "price_value": None,
+     "intl_caps": 0, "intl_caps_2y": 0, "ipl_balls": 0, "ipl_seasons": 0, "ipl_gap": None,
+     "target_balls": 0, "balls": 0},
+    {**_p(32, salary=0.3, value=None, cid=False, age=19.4), "team": "MMM", "price_value": None,
+     "intl_caps": 0, "intl_caps_2y": 0, "ipl_balls": 0, "ipl_seasons": 0, "ipl_gap": None,
+     "target_balls": 0, "balls": 0},
 ]  # fmt: skip
 
 CASES = [
@@ -178,6 +209,8 @@ CASES = [
     {"decisions": {"s02": "keep", "s01": "release", "name:AAA:Player 6": "release"}, "needs": {}},
     {"decisions": {}, "needs": {"keeper": 4, "spinner": 5, "overseas": 8, "death": 6}},
     {"decisions": {"s13": "keep", "s02": "keep"}, "needs": {"opener": 0}, "rules": {"purse": 40.0}},
+    {"decisions": {}, "needs": {}, "rules": SLAB_RULES},
+    {"decisions": {"s13": "release", "s01": "keep"}, "needs": {}, "rules": SLAB_RULES},
     {
         "decisions": {},
         "needs": {},
@@ -198,6 +231,21 @@ def _model() -> dict | None:
 
     load_price_model.cache_clear()
     return load_price_model()
+
+
+def _keep_model() -> dict | None:
+    load_keep_model.cache_clear()
+    return load_keep_model()
+
+
+# keep_features arguments: (market, cost, mega, forecast avg3, P(regular), captain here, seasons
+# here, home-grown, capped Indian, overseas, age, IPL balls, bought at the last auction)
+KEEP_CASES = [
+    [12.5, 14.0, False, 3.4, 0.54, False, 19, True, True, False, 38.0, 6000, False],
+    [0.3, 3.0, False, None, None, False, 1, True, False, False, 24.5, 15, True],
+    [25.0, 0.0, True, -15.3, 0.2, True, 0, False, False, True, None, None, False],
+    [1.1, 4.0, False, -15.8, 0.04, False, 16, True, True, False, 45.2, 4000, False],
+]
 
 
 def _cases() -> list[dict]:
@@ -251,7 +299,7 @@ def _python(cases: list[dict]) -> dict:
     out = []
     for c in cases:
         market = market_for(
-            c["team"], c["players"], build_pool(c["pool"]), c["pool_tags"], c["form"]
+            c["team"], c["players"], build_pool(c["pool"]), c["pool_tags"], c["form"], c["rules"]
         )
         squad = [p for p in c["players"] if p["team"] == c["team"]]
         res = evaluate(squad, market, c["rules"], c["decisions"], c["needs"], c["form"])
@@ -265,7 +313,18 @@ def _node(cases: list[dict]) -> dict:
         pytest.skip("node not on PATH")
     with tempfile.TemporaryDirectory() as tmp:
         fx = Path(tmp) / "keep_fixture.json"
-        fx.write_text(json.dumps({"cases": cases, "fmt": FMT, "model": _model()}), encoding="utf-8")
+        fx.write_text(
+            json.dumps(
+                {
+                    "cases": cases,
+                    "fmt": FMT,
+                    "model": _model(),
+                    "keep_model": _keep_model(),
+                    "keep_cases": KEEP_CASES,
+                }
+            ),  # fmt: skip
+            encoding="utf-8",
+        )
         r = subprocess.run(
             [
                 "node",
@@ -292,23 +351,45 @@ def test_keep_parity():
     assert len(py["out"]) == len(js["out"])
     for i, (a, b) in enumerate(zip(py["out"], js["out"], strict=True)):
         _approx_eq(a, b, f"case[{i}]")
+    km = _keep_model()
+    for i, (args, b) in enumerate(zip(KEEP_CASES, js["keepCases"], strict=True)):
+        f = keep_features(*args)
+        _approx_eq({"features": f, "p": keep_probability(f, km) if km else None}, b, f"keep[{i}]")
 
 
 def test_keep_synthetic_calls():
-    """The synthetic squad exercises every branch, with the expected call."""
+    """The calls follow the retention model's chance kept (Keep ≥ 65%, Release < 35%, Borderline
+    between, kept by default from 50%), and the purse follows the default plan."""
+    from cricdex.web_parity.keep import BORDER_BAND, KEEP_CALL
+
+    if _keep_model() is None:
+        pytest.skip("no keep model")
     market = market_for("AAA", SQUAD + OTHERS, build_pool(POOL), POOL_TAGS, FORM)
-    assert {m["id"] for m in market if m["from_team"]} == {"s21", "s22"}
     assert {m["id"] for m in market} >= {m["id"] for m in free_agents(build_pool(POOL), POOL_TAGS)}
     res = evaluate(SQUAD, market, RULES, {}, {}, FORM)
-    rec = {p["name"]: p["rec"] for p in res["players"]}
-    assert rec["Player 1"] == "keep"
-    assert rec["Player 2"] == "release"
-    assert rec["Player 3"] == "borderline" and "Thin record" in res["players"][2]["reason"]
-    assert rec["Player 4"] == "borderline" and "Fairly paid" in res["players"][3]["reason"]
-    assert rec["Player 5"] == "borderline" and "value usually falls" in res["players"][4]["reason"]
-    assert rec["Player 6"] == "borderline" and "Not enough balls" in res["players"][5]["reason"]
-    assert rec["Player 7"] == "keep"  # 37 but a big surplus
-    assert rec["Player 13"] == "release"
+    for p in res["players"]:
+        if p["p_keep"] is None:
+            assert p["rec"] == "borderline" and p["kept"]
+            continue
+        want = ("keep" if p["p_keep"] >= KEEP_CALL + BORDER_BAND
+                else "release" if p["p_keep"] < KEEP_CALL - BORDER_BAND else "borderline")  # fmt: skip
+        assert p["rec"] == want, p["name"]
+        assert p["kept"] == (p["p_keep"] >= KEEP_CALL), p["name"]
+        assert f"franchises kept {math.floor(100 * p['p_keep'] + 0.5)}%" in p["reason"]
+    # unrated with no market inputs: scout him, kept by default
+    six = res["players"][5]
+    assert six["rec"] == "borderline" and "Not enough balls" in six["reason"] and six["kept"]
+    # the franchise ties are named in the reason
+    assert (
+        "captained AAA last season, home-grown, 8 seasons with AAA" in res["players"][0]["reason"]
+    )
+    assert "(1 season with AAA)" in res["players"][6]["reason"]
+    # the other teams' players our calls release join the market; kept ones don't
+    rel = {m["id"] for m in market if m["from_team"]}
+    for p in OTHERS:
+        a = evaluate([p], [], RULES, {}, {}, FORM)["players"][0]
+        if p.get("value") is not None:
+            assert (p["id"] in rel) == (not a["kept"])
     # released players free their salary; the contracted pool player is never a pick
     picks = {c["id"] for g in res["gaps"] for c in g["picks"]}
     assert "f008" not in picks
@@ -316,13 +397,63 @@ def test_keep_synthetic_calls():
         125 - sum(p["salary"] for p in res["players"] if p["kept"])
     )
     # a flipped decision moves the purse by exactly that salary
-    flipped = evaluate(SQUAD, market, RULES, {"s02": "keep"}, {}, FORM)
-    assert flipped["purse_left"] == pytest.approx(res["purse_left"] - 14)
+    two = res["players"][1]
+    flipped = evaluate(
+        SQUAD, market, RULES, {"s02": "release" if two["kept"] else "keep"}, {}, FORM
+    )
+    assert flipped["purse_left"] == pytest.approx(res["purse_left"] + (14 if two["kept"] else -14))
+
+
+def test_keep_model_is_the_backtested_one():
+    """The shipped retention model is scripts/keep_backtest.py's: chosen on 2018-2024, tested once on
+    2025-26, and its features are keep_features'."""
+    km = _keep_model()
+    if km is None:
+        pytest.skip("no keep model")
+    f = keep_features(*KEEP_CASES[0])
+    assert set(km["coef"]) <= set(f)
+    assert km["trained_on"] == [2018, 2026]
+    assert "2018-2024" in km["evaluation"]["protocol"]["selection"]
+    assert 0.0 < keep_probability(f, km) < 1.0
+
+
+def test_keep_no_match_data_is_priced_from_the_market():
+    """A squad player with no ball-by-ball record gets the market model's prior as his price (never
+    a rating), and the reason says so (issue I6)."""
+    from cricdex.web_parity.keep import NO_DATA_LABEL, assess
+
+    if _model() is None:
+        pytest.skip("no price model")
+    for p in MARKET_SQUAD[-2:]:
+        a = assess(p, FORM)
+        assert a["no_data"]
+        assert a["price"] is not None and a["price"] > 0 and a["onfield"] is None
+        assert a["price_central"] >= a["price"]
+        assert a["surplus"] == pytest.approx(a["price"] - p["salary"])
+        assert a["reason"].startswith(NO_DATA_LABEL[0].upper() + NO_DATA_LABEL[1:])
+        assert "an uncapped Indian" in a["reason"]
+    # bought well above the prior: the reason credits the market, not "overpaid"
+    assert "saw something our data can't" in assess(MARKET_SQUAD[-2], FORM)["reason"]
+    assert "saw something" not in assess(MARKET_SQUAD[-1], FORM)["reason"]
+    # without the market inputs (an old export) it stays unpriced, as before
+    a = assess(SQUAD[5], FORM)
+    assert not a["no_data"] and a["price"] is None and "Not enough balls" in a["reason"]
+
+
+def test_keep_stale_share_in_the_reason():
+    """A rating resting mostly on stale SMAT data says so with its share; a small share doesn't."""
+    from cricdex.web_parity.keep import assess
+
+    assert assess(SQUAD[2], FORM)["reason"].endswith(
+        " 85% of his rating rests on SMAT data to Dec 2024 (stale)."
+    )
+    assert "stale" not in assess(SQUAD[8], FORM)["reason"]
+    assert "stale" not in assess(SQUAD[0], FORM)["reason"]
 
 
 def test_keep_default_plan_is_legal():
     """Over the squad or overseas limit, the default plan releases Borderline players first (lowest
-    surplus per crore), overseas ones for the overseas cap, never a decided player, and says so."""
+    chance kept), overseas ones for the overseas cap, never a decided player, and says so."""
     market = market_for("AAA", SQUAD + OTHERS, build_pool(POOL), POOL_TAGS, FORM)
     rules = {**RULES, "squad_max": 8, "overseas_max": 1}
     res = evaluate(SQUAD, market, rules, {"s13": "keep"}, {}, FORM)
@@ -349,3 +480,34 @@ def test_keep_default_plan_is_legal():
     assert not any(
         p["auto_release"] for p in evaluate(SQUAD, market, RULES, {}, {}, FORM)["players"]
     )
+
+
+def test_keep_slab_costs():
+    """Under the retention slabs a team's 2025 retentions cost max(slab total, salary total)
+    together, each one's cost is what releasing him alone frees, and the purse follows."""
+    from cricdex.web_parity.keep import purse_charged, retention_costs, slab_charge
+
+    rules = {**RULES, **SLAB_RULES}
+    holders = [p for p in SQUAD if p.get("slab_holder")]
+    # 4 capped: 61 of slabs + 4 uncapped = 65 against 66.75 of salaries: the salaries count
+    assert slab_charge(holders, rules) == pytest.approx(66.75)
+    costs = retention_costs(SQUAD, rules)
+    # releasing the 25.2 cr player leaves 43 + 4 = 47 of slabs against 41.55 of salary: frees 19.75
+    assert costs["s13"] == pytest.approx(66.75 - 47)
+    # a player who isn't a retention costs his salary
+    assert costs["s03"] == 5
+    res = evaluate(SQUAD, [], rules, {}, {}, FORM)
+    kept = [p for p in res["players"] if p["kept"]]
+    assert res["purse_left"] == pytest.approx(125 - purse_charged(kept, rules))
+    assert all(p["cost"] == pytest.approx(costs[p["key"]]) for p in res["players"])
+    # under the salary rule nothing changes
+    assert retention_costs(SQUAD, RULES) == {p.get("id") or f"name:AAA:{p['name']}": p["salary"]
+                                              for p in SQUAD}  # fmt: skip
+    # BBB's keeper costs his 18 cr slab in the market AAA shops in, not his 12 cr salary
+    m = market_for("AAA", SQUAD + OTHERS, build_pool(POOL), POOL_TAGS, FORM, rules)
+    assert retention_costs(OTHERS, rules)["s21"] == 18
+    from cricdex.web_parity.keep import assess
+
+    a = assess(OTHERS[0], FORM, 18.0)
+    assert a["cost"] == 18
+    assert any(x["id"] == "s21" for x in m) == (not a["default_keep"])

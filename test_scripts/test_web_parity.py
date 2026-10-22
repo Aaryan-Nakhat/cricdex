@@ -31,6 +31,7 @@ from cricdex.web_parity import (
     load_retentions,
     load_scout_index,
     market_price,
+    retention_inputs,
     scout_price,
     similar_to,
     simulate_auction,
@@ -79,12 +80,13 @@ def _model_env() -> dict[str, str]:
 
 # mirrored in site/scripts/parity_dump.ts (MARKET_CASES)
 MARKET_CASES = [
-    ({"price_value": 13.6, "value_sd": 2.75, "role": "batter", "is_overseas": False, "intl_caps": 555, "age": 38.1, "ipl_balls": 8400, "ipl_seasons": 19, "ipl_gap": 0.55, "target_balls": 6926, "captain_ipl_last": 0, "captain_ipl_seasons": 10, "captain_intl_2y": 0}, "mini", 125),
+    ({"price_value": 13.6, "value_sd": 2.75, "role": "batter", "is_overseas": False, "intl_caps": 555, "age": 38.1, "ipl_balls": 8400, "ipl_seasons": 19, "ipl_gap": 0.55, "target_balls": 6926, "captain_ipl_last": 0, "captain_ipl_seasons": 10, "captain_intl_2y": 0, "prior_share": 0.175, "prior_years": 2, "prior_retained": True}, "mini", 125),
     ({"price_value": 59.7, "value_sd": 12.5, "role": "batter", "is_overseas": False, "intl_caps": 0, "age": 15.7, "ipl_balls": 449, "ipl_seasons": 2, "ipl_gap": 0.55, "target_balls": 449}, "mini", 125),
-    ({"price_value": 23.2, "value_sd": 2.7, "role": "bowler", "overseas": False, "intl_caps": 210, "age": 32.9, "ipl_balls": 3100, "ipl_seasons": 12, "ipl_gap": 0.55, "target_balls": 3000, "captain_ipl_last": 1, "captain_ipl_seasons": 1, "captain_intl_2y": 1}, "mega", 120),
+    ({"price_value": 23.2, "value_sd": 2.7, "role": "bowler", "overseas": False, "intl_caps": 210, "age": 32.9, "ipl_balls": 3100, "ipl_seasons": 12, "ipl_gap": 0.55, "target_balls": 3000, "captain_ipl_last": 1, "captain_ipl_seasons": 1, "captain_intl_2y": 1, "prior_share": 0.9, "prior_years": 9, "prior_retained": False}, "mega", 120),
     ({"price_value": 6.0, "value_sd": 9.0, "role": "all_rounder", "is_overseas": True, "intl_caps": 40, "age": 27.2, "ipl_balls": 0, "ipl_seasons": 0, "ipl_gap": None, "target_balls": 0}, "mini", 125),
     ({"price_value": None, "role": "keeper", "is_overseas": False, "intl_caps": None, "age": None, "ipl_balls": None, "ipl_seasons": None, "ipl_gap": 3.2}, "mega", 90),
-    ({"price_value": -45, "value_sd": 20, "role": "bowler", "is_overseas": True, "intl_caps": 3, "age": 41, "ipl_balls": 120, "ipl_seasons": 1, "ipl_gap": 9.5, "target_balls": 120}, "mini", 125),
+    ({"price_value": -45, "value_sd": 20, "role": "bowler", "is_overseas": True, "intl_caps": 3, "age": 41, "ipl_balls": 120, "ipl_seasons": 1, "ipl_gap": 9.5, "target_balls": 120, "prior_share": 0, "prior_years": 3, "prior_retained": True}, "mini", 125),
+    ({"price_value": 18.5, "value_sd": 3.1, "role": "keeper", "is_overseas": True, "intl_caps": 160, "intl_caps_2y": 30, "age": 33.5, "ipl_balls": 2600, "ipl_seasons": 9, "ipl_gap": 0.6, "target_balls": 2500, "prior_share": 0.0001, "prior_years": 1}, "mega", 120),
 ]  # fmt: skip
 
 
@@ -112,8 +114,8 @@ def test_web_parity():
 
     pool = build_pool(load_auction_pool("ipl"))
     ret = load_retentions("ipl")
-    mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
-    real_prices = {r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows}
+    ri = retention_inputs(ret)
+    mega_ids = ri["mega_ids"]
     teams = IPL_TEAMS_DEFAULT
     retentions = default_retentions(pool, teams, "mega", mega_ids)
 
@@ -131,7 +133,10 @@ def test_web_parity():
             "trials": 40,
             "mode": "mega",
             "retentions": retentions,
-            "real_prices": real_prices,
+            "real_prices": ri["real_prices"],
+            "retention_slabs": ri["retention_slabs"],
+            "slab_holders": ri["slab_holders"],
+            "fixed_retained": ri["fixed_retained"],
         },
     )
     assert res["pool_size"] == js["poolSize"]
@@ -232,6 +237,37 @@ def test_web_parity():
     assert med == js["gemMedian"]
     assert [p["cricsheet_id"] for p in gem_pool if is_gem(p, med)] == js["gems"]
 
+    # 4b) the calibration's top tail (hi_slope), the saturating link and the slab-rule retention
+    # charge, on fixed inputs (mirrored in parity_dump.ts)
+    from cricdex.web_parity.auction import retention_spend
+    from cricdex.web_parity.pricing import calibrate, link_share
+
+    cal_part = {"intercept": 0, "coef": {}, "shift": -0.1,
+                "calibration": {"x": [-4, -3, -1.5], "y": [-4.2, -3.1, -2.2], "hi_slope": 0.4}}  # fmt: skip
+    _approx_eq(
+        [calibrate(cal_part, x) for x in (-6, -4, -3.5, -1.5, -1.0, 0.5)], js["calCases"], "cal"
+    )
+    sat = {"intercept": 0, "coef": {}, "link": {"kind": "sat", "cap_share": 0.3}}
+    _approx_eq([link_share(sat, x) for x in (-40, -5, -1, 0, 2, 30)], js["linkCases"], "link")
+    slab_opts = {
+        "purse": 120, "squad_size": 25, "overseas_cap": 8, "trials": 1, "mode": "mega",
+        "retentions": {}, "real_prices": {"a": 13, "b": 12, "c": 12, "d": 12, "e": 4},
+        "retention_slabs": {"capped": [18, 14, 11, 18, 14], "uncapped": 4},
+        "slab_holders": {"a": "capped", "b": "capped", "c": "capped", "d": "capped",
+                         "e": "uncapped"},
+        "fixed_retained": {"KKR": [{"salary": 4, "slab_holder": "uncapped"}]},
+    }  # fmt: skip
+    sp = [{"cricsheet_id": i} for i in "abcde"]
+    py_slab = [
+        retention_spend("KKR", sp, slab_opts),
+        retention_spend("KKR", sp[:3], slab_opts),
+        retention_spend("XYZ", sp, {**slab_opts, "retention_slabs": None}),
+        retention_spend("KKR", sp, {**slab_opts, "mode": "mini"}),
+    ]
+    _approx_eq([{"total": t, "each": e} for t, e in py_slab], js["slabSpend"], "slabSpend")
+    # KKR's real 2025 charge: 18 + 14 + 11 + 18 + 4 + 4 = 69 cr, not the 57 cr of salaries
+    assert py_slab[0][0] == 69
+
     # 5) the cautious price (value − PRICE_CAUTION_SD × value_sd) under the IPL-evidence ceiling,
     # on fixed inputs (value, role, tier, value_sd, target-league balls)
     cases = [
@@ -252,9 +288,10 @@ def test_web_parity():
     if load_price_model() is None:
         assert js["marketCases"] is None
     else:
+        pv_max = load_price_model()["price"].get("pv_max")
         py_market = [
             {
-                "features": market_features(row, cycle),
+                "features": market_features(row, cycle, pv_max),
                 **market_price(row, {"cycle": cycle, "purse": purse}),
             }
             for row, cycle, purse in MARKET_CASES

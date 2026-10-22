@@ -137,20 +137,18 @@ def profile(
     c.print(_render.bayes_extra(bayes, "bowler", "strike_skill", "Bowler strike"))
     _render.footnote(_copy.BAYES_SCALE)
 
-    # Style twins (cosine on metric vector)
+    # Style twins (scout/search/style_twin.py: how he bats / bowls, same role and bowling type)
     twins_b = p.get("style_twins_batter") or []
     twins_k = p.get("style_twins_bowler") or []
     if twins_b:
         _render.pretty_table(
             [_fmt_twin(t) for t in twins_b[:8]],
-            title="Style twins — as batter (cosine on metric vector)",
-            formatters={"distance": _fmt_distance},
+            title="Style twins — as batter (% alike)",
         )
     if twins_k:
         _render.pretty_table(
             [_fmt_twin(t) for t in twins_k[:8]],
-            title="Style twins — as bowler (cosine on metric vector)",
-            formatters={"distance": _fmt_distance},
+            title="Style twins — as bowler (% alike)",
         )
 
     # Dismissal fingerprint — how this player gets out / takes wickets.
@@ -182,20 +180,16 @@ def profile(
 
 
 def _fmt_twin(t: dict) -> dict:
-    """Trim a twin row to {name, distance} for compact display."""
+    """Trim a twin row to {name, alike} for compact display (alike = 100 x (1 - distance))."""
+    d = t.get("distance")
+    try:
+        alike = f"{max(0.0, 1 - float(d)) * 100:.0f}%"
+    except (TypeError, ValueError):
+        alike = "—"
     return {
         "name": t.get("name") or t.get("player") or t.get("batter") or t.get("bowler"),
-        "distance": t.get("distance"),
+        "alike": alike,
     }
-
-
-def _fmt_distance(v) -> str:
-    if v is None:
-        return "—"
-    try:
-        return f"{float(v):.4f}"
-    except (TypeError, ValueError):
-        return str(v)
 
 
 def compare(

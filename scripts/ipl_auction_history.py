@@ -522,7 +522,7 @@ class Matcher:
                 return next(iter(ipl)), "name_ipl"
         k = master.initial_key(name)
         c = self.initials.get(k or "", set())
-        if len(c) == 1:
+        if len(c) == 1 and self._first_name_fits(name, next(iter(c))):
             return next(iter(c)), "initial_surname_ipl"
         # a spelling variant (Chakaravarthy / Chakravarthy, Prab Simran / Prabhsimran): the closest
         # IPL player's name, only when it is close and clearly closer than the next one
@@ -546,6 +546,28 @@ class Matcher:
             if len(ipl) == 1 and not (others - ipl):
                 return next(iter(ipl)), "fuzzy_ipl"
         return None, None
+
+    def _first_name_fits(self, name: str, cid: str) -> bool:
+        """An initial + surname match is only safe when the page's first name doesn't contradict
+        the candidate's: "Mangesh Yadav" shares "M Yadav" with Mayank Yadav and "Ramesh Kumar" "R
+        Kumar" with R Vinay Kumar (both wrongly matched until 2026-10-22). The page's first name
+        must be close (token-sort 75+) to a word of one of the candidate's names, unless the
+        candidate's names give only initials (KS Rathore), which can't contradict it."""
+        from rapidfuzz import fuzz
+
+        toks = _fold(name).split()
+        if len(toks) < 2 or len(toks[0]) <= 2:
+            return True
+        r = self.pm.get(cid) or {}
+        words = set()
+        for n in [r.get(k) for k in ("display_name", "full_name", "scorecard_name")] + list(
+            r.get("aliases") or []
+        ):
+            words |= {w for w in _fold(n or "").split() if len(w) > 2}
+        words.discard(toks[-1])  # the shared surname says nothing
+        if not words:
+            return True
+        return any(fuzz.ratio(toks[0], w) >= 75 for w in words)
 
 
 def _fold(s: str) -> str:

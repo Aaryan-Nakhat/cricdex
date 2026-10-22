@@ -7,13 +7,17 @@ import {
   buildPool,
   simulateAuction,
   defaultRetentions,
+  retentionInputs,
+  retentionSpend,
+  type SimOpts,
   ARCHETYPES,
   IPL_TEAMS_DEFAULT,
   type PoolPlayer,
   type SimResult,
   type AuctionMode,
 } from "@/lib/auction";
-import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StaleBadge } from "@/components/ui";
+import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StaleBadge, StaleShareBadge } from "@/components/ui";
+import { STALE_REASON_MIN } from "@/lib/keep";
 import { cn, fmt, profilePath } from "@/lib/utils";
 import { leagueShort, type LeagueRegistry } from "@/lib/leagues";
 
@@ -84,9 +88,10 @@ function AuctionMath() {
               best regulars ~+20 to +25; a wicket is priced in runs where the player plays).
               The price uses a cautious estimate, value − ½ × its uncertainty, so a short, hot record
               ("promising but unproven") is priced below a proven one. Exponentiate and scale so the
-              spread matches real money — top players land in the 20s (27 cr cap), the median ~1.2 cr.
-              The cap itself rises with IPL evidence: no IPL balls → 13.5 cr at most, 600+ balls in
-              the role → 27 cr. All-rounders/keepers get a small scarcity premium.
+              spread matches real money — top players land in the 20s, the median ~1.2 cr. (This is the
+              older skill-only curve, the "on-field worth"; it still keeps its own 27 cr cap, rising with
+              IPL balls from 13.5 cr. The pool's price is the market model, which needs no cap.)
+              All-rounders/keepers get a small scarcity premium.
             </Step>
             <Step n={2} title="Decay for staleness">
               A player who's barely featured lately (last game years ago) is worth less now — value
@@ -219,17 +224,9 @@ export function Auction() {
     [poolData.data],
   );
 
-  // real 2025 retention ids + prices per team, from retentions.json
-  const { megaIds, realPrices } = useMemo(() => {
-    const ids: Record<string, string[]> = {};
-    const prices: Record<string, number> = {};
-    const mega = retentions.data?.mega ?? {};
-    for (const [team, rows] of Object.entries(mega)) {
-      ids[team] = rows.map((r) => r.cricsheet_id);
-      for (const r of rows) prices[r.cricsheet_id] = r.price;
-    }
-    return { megaIds: ids, realPrices: prices };
-  }, [retentions.data]);
+  // real 2025 retention ids + prices per team, and the slab rule they are charged by (retentions.json)
+  const retIn = useMemo(() => retentionInputs(retentions.data), [retentions.data]);
+  const { megaIds } = retIn;
 
   return (
     <>
@@ -258,7 +255,7 @@ export function Auction() {
       ) : pool.length === 0 ? (
         <Empty>No rated IPL pool available.</Empty>
       ) : (
-        <Simulate pool={pool} megaIds={megaIds} realPrices={realPrices} draftId={draftId} navigate={navigate} />
+        <Simulate pool={pool} megaIds={megaIds} retIn={retIn} draftId={draftId} navigate={navigate} />
       )}
     </>
   );
@@ -277,27 +274,34 @@ function useAuctionNames() {
   const nm = (p: { cricsheet_id: string; name: string }) => (rawById.get(p.cricsheet_id)?.display_name || "").trim() || p.name;
   const linkFor = (cid: string) => profilePath(cid, rawById.get(cid)?.profile_collection ?? "ipl");
   const isStale = (cid: string) => !!rawById.get(cid)?.stale;
+  // how much of his rating rests on a stale league (SMAT): "SMAT data to Dec 2024 · 85% of rating"
+  const staleBadge = (cid: string) => {
+    const r = rawById.get(cid);
+    if (r?.stale_note && (r.stale_share ?? 0) >= STALE_REASON_MIN)
+      return <StaleShareBadge className="ml-1.5" share={r.stale_share ?? 0} note={r.stale_note} />;
+    return r?.stale ? <StaleBadge className="ml-1.5" /> : null;
+  };
   const searchText = (cid: string, name: string) => {
     const r = rawById.get(cid);
     return [name, r?.display_name, ...(r?.aliases ?? [])].filter(Boolean).join(" ").toLowerCase();
   };
-  return { nm, linkFor, isStale, searchText };
+  return { nm, linkFor, isStale, staleBadge, searchText };
 }
 
 function Simulate({
   pool,
   megaIds,
-  realPrices,
+  retIn,
   draftId,
   navigate,
 }: {
   pool: PoolPlayer[];
   megaIds: Record<string, string[]>;
-  realPrices: Record<string, number>;
+  retIn: ReturnType<typeof retentionInputs>;
   draftId: string | null;
   navigate: (p: string) => void;
 }) {
-  const { nm, linkFor, isStale, searchText } = useAuctionNames();
+  const { nm, linkFor, staleBadge, searchText } = useAuctionNames();
   const [teams, setTeams] = useState(IPL_TEAMS_DEFAULT);
   const [mode, setSimMode] = useState<AuctionMode>("mega");
   const [purse, setPurse] = useState(120);
@@ -385,14 +389,19 @@ function Simulate({
   const byId = useMemo(() => new Map(pool.map((p) => [p.cricsheet_id, p])), [pool]);
 
   // Mega: retention cost (real price or slab). Mini: carried over, free.
-  const retCost = (cid: string, i: number) =>
-    mode === "mini" ? 0 : (realPrices[cid] ?? [18, 14, 11, 18, 14][i] ?? 4);
+  // what each team's retentions cost the purse: mega by the slab rule (retentionSpend), mini free
+  const { realPrices, retentionSlabs, slabHolders, fixedRetained } = retIn;
+  const retOpts: SimOpts = {
+    purse, squadSize, overseasCap, trials, mode, retentions, realPrices, retentionSlabs, slabHolders, fixedRetained,
+  };
+  const retCosts = (team: string) =>
+    retentionSpend(team, (retentions[team] ?? []).map((cid) => byId.get(cid)).filter((p): p is PoolPlayer => !!p), retOpts);
 
   function run() {
     setRunning(true);
     setTimeout(() => {
       setResult(
-        simulateAuction(pool, teams, { purse, squadSize, overseasCap, trials, mode, retentions, realPrices }),
+        simulateAuction(pool, teams, retOpts),
       );
       setRunning(false);
     }, 20);
@@ -513,8 +522,9 @@ function Simulate({
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {teams.map((t) => {
-            const ids = retentions[t.team] ?? [];
-            const cost = ids.reduce((s, cid, i) => s + retCost(cid, i), 0);
+            const ids = (retentions[t.team] ?? []).filter((cid) => byId.has(cid));
+            const rc = retCosts(t.team);
+            const cost = rc.total;
             const overs = ids.filter((cid) => byId.get(cid)?.is_overseas).length;
             const addable = (rosters[t.team] ?? []).filter((p) => !ids.includes(p.cricsheet_id));
             return (
@@ -530,7 +540,7 @@ function Simulate({
                     if (!p) return null;
                     return (
                       <span key={cid} className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-glow">
-                        {nm(p)}<span className="text-muted/70">{fmt(retCost(cid, i), 0)}</span>
+                        {nm(p)}<span className="text-muted/70">{fmt(rc.each[i], 0)}</span>
                         <button onClick={() => { setRetentions((r) => ({ ...r, [t.team]: (r[t.team] ?? []).filter((x) => x !== cid) })); setResult(null); }} className="hover:text-ball"><X className="h-3 w-3" /></button>
                       </span>
                     );
@@ -620,7 +630,7 @@ function Simulate({
                 <tr key={player.cricsheet_id} className="hover:bg-surface/50">
                   <td className="td cursor-pointer font-medium text-fg hover:text-accent-glow" onClick={() => navigate(linkFor(player.cricsheet_id))}>
                     {nm(player)}
-                    {isStale(player.cricsheet_id) && <StaleBadge className="ml-1.5" />}
+                    {staleBadge(player.cricsheet_id)}
                   </td>
                   <td className="td"><Badge tone={ROLE_TONE[player.role]}>{player.role.replace("_", "-")}</Badge></td>
                   <td className="td stat-num text-right">{fmt(player.projected_value, 1)}</td>
@@ -683,7 +693,7 @@ function Simulate({
                             <button className="text-left hover:text-accent-glow" onClick={() => navigate(linkFor(o.cricsheet_id))}>
                               {nm(o)}
                             </button>
-                            {isStale(o.cricsheet_id) && <StaleBadge className="ml-1.5" />}
+                            {staleBadge(o.cricsheet_id)}
                           </td>
                           <td className="td"><Badge tone={ROLE_TONE[o.role]}>{o.role.replace("_", "-")}</Badge></td>
                           <td className="td text-right">{relCell(o.cricsheet_id)}</td>

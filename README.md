@@ -39,8 +39,8 @@ you see **who lands each star, how often, and for how much**, and how every squa
 
 - **Real rules:** 120 cr purse, retention slabs, 8 overseas max, 20 to 25-man squads.
 - **Bidding that behaves like the real room:** a team with more money left per open slot bids harder,
-  the winner pays just above the second-best bid, and no player goes above 27 cr (the real record) or
-  above his own ceiling, which rises with how much IPL cricket he has played.
+  the winner pays just above the second-best bid, and no team bids past what its purse allows; the
+  retentions cost the purse what the 2025 rule charged (KKR 69 cr, not its 57 of salaries).
 - **Yours to change:** release or add any retention, swap a team's personality, change the purse.
 - **The pool is the whole T20 world:** IPL players plus free agents from the SMAT and every overseas
   league in the registry (BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC, BPL, LPL and more),
@@ -48,18 +48,24 @@ you see **who lands each star, how often, and for how much**, and how every squa
 
 Prices are **fitted to real IPL auction prices** (every sale and mega retention 2018–2026, from
 Wikipedia): what the market has paid for players like him, from his value on a cautious estimate, caps,
-age, IPL experience and captaincy, calibrated so the top end spreads like a real auction, plus the
-chance he's bought at all. Out of time (the 2025 and 2026 auctions) half the lots land within ±50% of
-their price and the 10 cr+ lots come out at about 0.6× on average (the earlier skill-only curve: 43% and
-0.35×); overseas players lean high, so the room models how an auction behaves, not the exact crore of a
-real sale. → [How the auction works](docs/AUCTION_MATH.md)
+age, IPL experience and captaincy, priced at the median for his kind of player (overseas in a mega or a
+mini auction, capped or uncapped Indian), with the top end priced the way the market really paid for
+its dearest lots (no ceiling needed), plus the chance he's bought at all. Out of time (the 2025 and 2026
+auctions) half the lots land within ±50% of their price (the earlier skill-only curve: 43%), and each
+auction's 20 dearest predictions fetched 0.87× them. Bidding wars for a star aren't predictable from
+anything known before the auction; the room models how an auction behaves, not the exact crore of a real
+sale. → [How the auction works](docs/AUCTION_MATH.md)
 
 ## 🧾 Keep or release, before the retention deadline
 
-IPL 2027 retention lists are due on 15 November 2026 (as reported). Pick a franchise and see every player's
-salary against his market price (what players like him have fetched at real auctions, with his on-field
-worth alongside), a **Keep / Release / Borderline** call with the reason
-in one line, and the squad that follows: purse left, open slots, and the role gaps (keepers, openers, death
+IPL 2027 retention lists are due on 15 November 2026 (as reported). Pick a franchise and see what keeping each
+player costs (his salary, or for a 2025 mega-auction retention the 2025 retention slabs, assumed to carry into
+2027) against his market price (what players like him have fetched at real auctions), and a **Keep / Release
+/ Borderline** call from **what franchises actually do**: the chance a franchise keeps a player like him, from
+a model of every real retention deadline since 2018 (price against cost, his three-season form forecast, his
+ties to the side, his status). Chosen on 2018–2024 and tested once on 2025–26, it made the franchise's own call
+for 78% of players and 82% of stars (the old price-against-salary rule: 71% / 70%). The reason is in one line,
+then the squad that follows: purse left, open slots, and the role gaps (keepers, openers, death
 bowlers, spinners, overseas) with the cheapest players in the likely pool who fill them. Flip any call, change
 the purse or a role target, export the table to CSV, or share the link. Squads and salaries come from
 Wikipedia's personnel pages (CC BY-SA); the cycle's rules live in

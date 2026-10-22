@@ -192,15 +192,33 @@ def main(
         "anchor": 0.0,
         "tight": 0,
     }
-    report: dict = {"neutral": {s: {k: v for k, v in metrics(data[s], replay(data[s], neutral, trials)).items() if k != "pit"}
-                                for s in CALIB + TEST}}  # fmt: skip
+    nf = work / "neutral.json"
+    if nf.exists():
+        report: dict = {"neutral": json.loads(nf.read_text(encoding="utf-8"))}
+    else:
+        report = {"neutral": {s: {k: v for k, v in metrics(data[s], replay(data[s], neutral, trials)).items() if k != "pit"}
+                              for s in CALIB + TEST}}  # fmt: skip
+        nf.write_text(json.dumps(report["neutral"]), encoding="utf-8")
     print("uncalibrated:", json.dumps(report["neutral"], indent=1), flush=True)
     best = None
-    grid = []
+    # resumable: the grid points already in work/grid.json are kept, not rerun (the laptop may sleep)
+    gf = work / "grid.json"
+    grid = json.loads(gf.read_text(encoding="utf-8")) if gf.exists() else []
+    done = {(g["calib"]["curve"], g["calib"]["sd"], g["calib"]["anchor"], g["calib"]["tight"]): g
+            for g in grid}  # fmt: skip
+    for g in grid:
+        if best is None or g["loss"] < best[0]:
+            best = (g["loss"], g["calib"])
     for curve in CURVES:
         for sd in SDS:
             for anchor in ANCHORS:
                 for tight in TIGHTS:
+                    if (curve, sd, anchor, tight) in done:
+                        print(
+                            f"curve {curve} sd {sd} anchor {anchor} tight {tight}: cached",
+                            flush=True,
+                        )
+                        continue
                     fit = {}
                     for cyc in ("mega", "mini"):
                         seasons = [x for x in CALIB if data[x]["cycle"] == cyc]

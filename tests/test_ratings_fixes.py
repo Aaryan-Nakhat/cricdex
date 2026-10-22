@@ -171,20 +171,12 @@ def test_gem_threshold_takes_upper_middle_for_even_counts():
     assert gem_threshold(smat) == 300.0
 
 
-def test_style_twin_imputes_missing_with_column_mean():
-    df = pl.DataFrame(
-        {
-            "name": ["a", "b", "c"],
-            "sr": [100.0, None, 200.0],
-            "dens": [1.0, float("inf"), 3.0],  # x/0 is missing, not a value
-            "empty": [None, None, None],
-            "role": ["batter"] * 3,
-        },
-        schema_overrides={"empty": pl.Float64},
-    )
-    X, names, cols = style_twin._vectorise(df)
-    assert cols == ["sr", "dens"]  # an axis nobody has is dropped
-    assert X[1].tolist() == [150.0, 2.0]
+def test_style_twin_scaling_treats_missing_as_neutral():
+    X = np.array([[100.0, 1.0], [np.nan, np.inf], [200.0, 3.0], [150.0, 2.0]])
+    Z = style_twin.robust_z(X)
+    assert Z[1].tolist() == [0.0, 0.0]  # missing and x/0 sit at the pool median, not an extreme
+    assert Z[0, 0] < 0 < Z[2, 0]
+    assert np.abs(Z).max() <= 3.0
 
 
 def _load_export_site():

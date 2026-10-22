@@ -6,10 +6,13 @@
 //             open_slots, rules, register, needs, overrides, trials }], model: price model or null }
 import { readFileSync } from "node:fs";
 import { buildPool, oneTrial, registerPriceModel } from "../src/lib/auction.ts";
+import { registerKeepModel } from "../src/lib/keep.ts";
 import { bestXi, buildContext, chainText, piece, plan, rivalPrices, strength, toCsvRows } from "../src/lib/bidplan.ts";
 
 const fx = JSON.parse(readFileSync(process.argv[2], "utf8"));
 registerPriceModel(fx.model ?? null);
+// the retention model the Python side uses (config/keep_model.json): the default keep calls
+registerKeepModel(fx.keep_model ?? null);
 const out = fx.cases.map((c: any) => {
   const pool = buildPool(c.pool);
   const display: Record<string, string> = {};

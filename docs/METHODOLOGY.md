@@ -17,12 +17,12 @@ metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [
 | [2. Net Game Impact (NGI)](#2-net-game-impact-ngi) | Win probability added, ball by ball |
 | [3. The nine context metrics + fielding](#3-the-nine-context-metrics--fielding) | Pressure Runs, Intent Curve, Dot-Ball Recovery and the rest; time windows and eras |
 | [4. Bayesian skill ratings](#4-bayesian-skill-ratings) | Four skills per player, adjusted for the opposition, with honest uncertainty |
-| [5. Scout look-alikes](#5-scout-look-alikes) | Who plays like X in another league, and what he'd cost |
+| [5. Scout look-alikes](#5-scout-look-alikes) | Who plays like X in another league, and what he'd cost; style twins on every profile (5a) |
 | [6. From skill to crore](#6-from-skill-to-crore) | Turning a rating into an auction price |
 | [7. The auction room](#7-the-auction-room) | Retentions, personalities, budget pressure, second-price clearing |
 | [8. Does it predict? The backtest](#8-does-it-predict-the-backtest) | Fitted before each season, scored on that season |
 | [9. Limits](#9-limits) | What the models can't see, and what's approximate |
-| [10. Keep or release](#10-keep-or-release) | The retention calculator: price against salary, purse, role gaps |
+| [10. Keep or release](#10-keep-or-release) | The retention calculator: the chance a franchise keeps him (backtested on every real deadline), purse, role gaps |
 | [11. Form forecast](#11-form-forecast) | A player's value over the next three seasons: aging, survivorship, ranges, backtest |
 | [12. Bid plan (beta)](#12-bid-plan-beta) | The auction bidding plan: rival prices, squad strength, max bids, fallback chains, the 2025 and 2026 auctions replayed |
 
@@ -42,7 +42,32 @@ ILT20, The Hundred, MLC, BPL, LPL, Super Smash, CSA T20 Challenge, men's T20Is a
 parser reads every field of Cricsheet's JSON format (every extras type, every wicket on a ball, DRS
 reviews, Impact Player and other replacements, powerplays, the chase target, playing XIs, officials, season
 and stage), versioned by `SCHEMA_VERSION`. There is no scraping and no live feed. Every number is computed
-from these files.
+from these files. Cricsheet's SMAT stops at 15 Dec 2024 (checked again 22 Oct 2026; the 2024-25 group stage
+and all of 2025-26 are on its missing list), so every number that leans on SMAT is marked with how much of it
+does (section 9).
+
+**Afghanistan is withheld.** Since 14 November 2024 Cricsheet withholds every match featuring the
+Afghanistan men's team, and the Afghanistan Premier League, as a protest at the treatment of Afghanistan's
+women players ([Cricsheet's explanation](https://cricsheet.org/article/explanation-for-withholding-of-afghanistani-matches/)).
+So the men's T20I, ODI and Test collections have no Afghanistan match at all (checked 22 Oct 2026: every
+other Test nation and every associate with 50+ matches is present and current). Two consequences:
+
+- *International caps* (the capped flag, and `intl_caps` / `intl_caps_2y` in the market price, 6b) are
+  restored from two sourced records (`src/cricdex/scout/identity/withheld.py`, cached in
+  `data/curated/withheld_internationals.json`): Cricsheet's own `all_json.zip` as archived by the Wayback
+  Machine on 10 Mar 2023 (both XIs of every Afghanistan T20I / ODI / Test to 19 Feb 2023, real dates,
+  Cricsheet identifiers), and after it the revision history of Wikipedia's Afghanistan T20I / ODI / Test
+  cap lists (each increase in a player's count dated at the revision that published it, so a count as of
+  an auction can lag the matches by the page's editing delay but never lead them; a count later reverted
+  never counts). Each row's ESPNcricinfo link maps to a Cricsheet id through the People Register, checked
+  by name. Checked against the archive's exact XIs where both exist (2016 to Feb 2023): T20I counts within
+  0.9 appearances per player on average (a lag), ODI within 1.0 (no lean); for Tests the Wikipedia lists
+  are the more complete record (the archive misses several Afghanistan Tests). Opponents' appearances in
+  the matches after Feb 2023 aren't recovered (a few games per opponent). Rashid Khan goes from 1 cap (an
+  ICC World XI game) to 239 before the 2027 auction; 31 Afghan players in the master become capped.
+- *Ball-by-ball:* Afghanistan's T20Is can't be rebuilt, so Afghan players have no T20I rating and their
+  opponents miss those balls. T20Is aren't an auction-pool league, so no IPL rating, pool value or price
+  uses them; the IPL, BBL, SA20, ILT20 and other franchise leagues still have every Afghan player's balls.
 
 **One id per player.** Scorecards spell names inconsistently ("Navdeep Saini" in one match, "NA Saini" in
 another), and two players can share a name. Cricsheet solves this for us: every match file carries a
@@ -421,10 +446,88 @@ test. More: [SCOUT.md](SCOUT.md).
 *Worked example.* Your pick stands at z = +1.8 among IPL batters. A SMAT batter at z = +1.6 among SMAT
 batters has similarity 1 − 0.2 ÷ 2.5 = 0.92, a strong match. One at z = +0.3 has 1 − 1.5 ÷ 2.5 = 0.40.
 
-Separately, every Player Profile shows **style twins** (nearest neighbours by cosine similarity over the
-published metrics plus the Bayesian skill: 13 axes for batters, 3 for bowlers;
-`src/cricdex/scout/search/style_twin.py`) and a **co-faced cohort** (who faced the most of the same
-bowlers, or bowled to the most of the same batters; `src/cricdex/scout/cohort.py`).
+Separately, every Player Profile shows **style twins** (below) and a **co-faced cohort** (who faced the
+most of the same bowlers, or bowled to the most of the same batters; `src/cricdex/scout/cohort.py`).
+
+### 5a. Style twins: players who play like him
+
+**What it does.** For each player, the players in the same league whose game looks most like his, the
+way a fan would describe it: where he bats and how he scores, or what he bowls and when he is bowled. It
+is about style, not quality: a twin can be better or worse. Code: `src/cricdex/scout/search/style_twin.py`.
+
+**Batter axes** (weight in brackets), all from the ball-by-ball of the league:
+
+| Axis | What it is | Weight |
+|---|---|---|
+| Slot | His batting position, weighted by balls faced (where he did most of his batting) | 3.0 |
+| Powerplay share, death share | Share of his balls faced in overs 1–6 and 17–20 | 1.0 each |
+| Tempo in the powerplay, middle, death | His runs ÷ par runs for those balls | 1.5 each |
+| Boundaries, dots | Boundaries hit and dot balls ÷ par | 1.0 each |
+| Rotation | Balls turned over for 1–3 ÷ par | 0.75 |
+| Six share | Sixes ÷ boundaries (power against placement) | 0.75 |
+| Spin against pace | log(tempo against spin ÷ tempo against pace) | 0.75 |
+| Risk | log(balls per dismissal) | 1.0 |
+| Batting hand | Left or right (player master) | 0.5 |
+
+**Bowler axes:**
+
+| Axis | What it is | Weight |
+|---|---|---|
+| Powerplay share, death share | Share of his balls bowled in overs 1–6 and 17–20 (when his captain uses him) | 1.5 each |
+| Economy in the powerplay, middle, death | Runs conceded ÷ par for those balls | 1.0 each |
+| Strike | log(balls per wicket) | 1.0 |
+| Dots, boundaries conceded | ÷ par | 0.75 each |
+| Bowled or lbw share, stumped share | Of his wickets | 0.5 each |
+| Pace | Fast 1, fast-medium 0.5, medium 0 (seamers; player master) | 1.0 |
+| Arm | Left or right (player master) | 1.0 |
+
+**Why these weights.** They follow the order a fan describes a player in. A batter is first an opener,
+a No. 3 or a finisher (slot 3.0), then a fast or slow scorer in each phase (1.5 each), then how the runs
+come: boundaries, dots, risk (1.0), then the finer grain (0.75). A bowler is first defined by when he
+bowls (1.5 each), then by what it costs and what it takes (1.0), then how he takes wickets (0.5).
+
+**Par.** Every "÷ par" is against the whole league's rate in the same season and phase, so a 2010
+opener and a 2024 opener are compared on how far each was above his own era (an index of 1.0 is exactly
+par). Without it, every recent batter looks like every other recent batter.
+
+**Thin samples.** Before scaling, each phase index is shrunk toward par with a prior of 60 balls in that
+phase (an opener's 20 death balls say little); the six share toward the pool mean with a prior of 15
+boundaries; wicket-type shares with a prior of 8 wickets; balls per dismissal and per wicket with a
+prior of 4 events.
+
+**Scaling.** Each axis is put on a robust z-scale (median and 1.4826 × MAD over the pool, clipped at
+±3), so one outlier or one wide axis can't dominate. The categorical axes (hand, arm, pace) count a
+difference as a fixed 2 SD gap (pace: 1 SD per step).
+
+**Gates.** Applied before the distance, so the obvious always fits:
+
+- *Evidence:* at least 120 balls faced (or bowled) and 6 innings in the role in that league.
+- *Batters:* twins within 1.5 batting positions of his slot rank first (an opener's twins are openers).
+- *Bowlers:* a seamer's twins are seamers and a spinner's are spinners, always. A wrist spinner's twins
+  are wrist spinners first, then finger spinners (and the other way round). A bowler whose style the
+  player master doesn't know is matched only with other unknowns and is never offered as the twin of a
+  known one.
+
+**Distance and "% alike".** D = √(Σ w·Δz² ÷ Σ w), the weighted root-mean-square gap in robust SDs per
+axis. **% alike = 100 × (1 − D ÷ 2)**, floored at 0: identical players are 100%, an average gap of half an
+SD per axis is 75%, one full SD is 50%. Two players picked at random from a league's pool sit around
+35%; a top twin is usually 65–85%. A player with no one like him shows it: Andre Russell's closest
+batting twin is 35%. The exported `distance` is 1 − alike, so every surface shows the same number. The
+profile export keeps 25 twins so the country filter (same country / overseas / all) still has rows.
+
+*Worked example.* Two openers differ by 0.4 SD in powerplay tempo, 0.2 in middle tempo and 0.3 in
+boundaries, and match on the rest. Σ w·Δz² = 1.5 × 0.16 + 1.5 × 0.04 + 1.0 × 0.09 = 0.39; Σ w = 15.25
+(all batter weights); D = √(0.39 ÷ 15.25) = 0.16; alike = 1 − 0.16 ÷ 2 = 92%.
+
+**Checked by eye.** The IPL twins of 20 well-known players were read one by one (roadmap I12): Kohli →
+du Plessis, KL Rahul, Amla; Jaiswal ↔ Head; Abhishek Sharma → Priyansh Arya, Phil Salt; Bumrah → Steyn,
+Archer, Malinga; Kuldeep → Noor Ahmad, Brad Hogg; Arshdeep and Starc → left-arm quicks; Narine (bowling)
+→ Muralitharan, Ashwin. Tests: `tests/test_style_twins.py`.
+
+**Limits.** A whole-career average: a player who changed role (Narine from No. 9 to opener) is matched on
+his blend. Style comes from one league's data, so a player with few games there falls under the evidence
+bar and has no twins. Bowling type comes from the player master; where it is missing (many associate
+players in T20Is) the player only meets other unknowns.
 
 **Limits.** "Same standing in his league" is not "same quality": a SMAT z of +1.6 is impressive, but the
 tier discount is a single number per league, not a measured conversion rate (section 8 shows how well
@@ -507,8 +610,10 @@ base price, final price, buying team, his previous team and set where the page h
 every mini year's retained list from 2019, the 2016 draft). Prices before 2014 were in US$ and are
 converted at the Federal Reserve H.10 rupee rate on the auction day or the last business day before it
 (₹40.11 per US$ in 2008, 48.61 in 2009, 45.84, 45.35, 48.65, 53.16 in 2013). Players are matched to a
-Cricsheet id by Wikipedia title, then name, initial + surname or a close spelling among IPL players:
-1,598 of the 1,647 sold lots (97%) and 1,033 of the 1,046 retentions (99%); the rest are uncapped
+Cricsheet id by Wikipedia title, then name, initial + surname (only when the first name doesn't
+contradict it: "Mangesh Yadav" and "Ramesh Kumar" had been matched to Mayank Yadav and R Vinay Kumar
+until 2026-10-22) or a close spelling among IPL players:
+1,600 of the 1,647 sold lots (97%) and 1,033 of the 1,046 retentions (99%); the rest are uncapped
 players with no ball-by-ball. The pages list sold players only: there is no unsold list.
 
 **Features, as of each auction (no leakage).** For every auction the IPL is re-fitted on the matches
@@ -540,145 +645,282 @@ but never as "last season's captain". One small leak: whether a stint is a stand
 matches, which can include games after the auction.
 
 Base price is left out of the shipped model (a player picks it, and Keep or release prices players who
-don't have one yet), and so is his previous IPL salary (it would make "worth his salary" partly
-"because he's paid it"); both are reported as variants below.
+don't have one yet).
+
+**The prior market price** (since 2026-10-22, the owner's request: "use what teams actually paid", as a
+mechanism, not a floor). The best-known fact about a player at an auction is the market's last verdict
+on him: the price a franchise last paid (his last auction price, a bid, or his mega-auction retention
+salary; mini-year retained salaries are older contracts and don't count), as a share of that season's
+purse (so 2014's 60 cr and 2026's 125 cr compare), with the seasons since it and whether it was a
+retention (`pricing.market_verdicts` / `prior_verdict`, from `ipl_auction_history.json`):
+
+| feature | definition |
+|---|---|
+| `prior`, `no_prior` | ln(last price share ÷ 2%), clamped to −4…3 (2% of the purse ≈ 2.5 cr in 2026); no earlier sale or mega retention |
+| `prior_years`, `prior_x_years` | seasons since it (max 6); `prior` × that |
+| `prior_retained` | the last verdict was a mega-auction retention |
+
+It was tested as a feature of both parts of the model, under the protocol below. **It improves P(bought)**
+(leave one auction out up to 2024, log loss 0.585 → 0.564) and ships there. **It does not improve the
+price**, alone or with censored retentions (candidates C, D, F, J below): leaving one auction out up to
+2024 its error is 0.801 against 0.787–0.791 without it, and it over-prices the top predictions (top 20
+0.84 against 0.89). The reason is in the data: the players who reach an auction are mostly the ones their
+franchise let go, and a released player with a high last price usually fetches much less (median ln(new ÷
+last) −0.33 for last prices above 10% of the purse: Sam Curran 18.5 → 2.4, Ishan Kishan 15.25 → 11.25,
+Deepak Chahar 14 → 9.25). For the lots the model is scored on, a high last price is as much a sign of
+being overpaid as of being good. So the price ignores it, and stars are priced through the retentions
+instead (next paragraph).
+
+**Retentions are floors** (since 2026-10-22, audit item 2). A mega-auction retention (2018, 2022, 2025;
+97 with a Cricsheet id) is the franchise paying at least that to keep him rather than buy him back, so it
+says his worth is **at least** that, not that it is his price. The price is now fitted as a censored
+(Tobit) regression: each auction lot is an exact ln price, each mega retention only says "ln price ≥
+ln retention salary" (its likelihood term is the chance of that). Until 2026-10-22 the retentions were fitted
+as exact prices, which pinned the stars who never reach an auction to their slab values. Mini-year
+retained salaries were tried as floors too (candidate G) and made everything much worse (error 0.95):
+keeping an older contract in a mini year is not a statement that the market would pay that much.
 
 **The model.** A hurdle:
 
-1. **P(bought)**: logistic regression (L2, standardised). The risk set is every player who played the
-   IPL in the two years before an auction and wasn't retained, in the seasons whose retained lists are
-   complete (2018–2026): bought at that auction = 1, else 0. "Else" mixes unsold, unregistered and
-   retired players (no unsold lists exist), so it's a proxy for "released, does a franchise buy him?".
-   A player who has never played the IPL gets no P(bought).
-2. **ln(price / purse | bought)**: a Huber (robust) regression on standardised features, folded back to
-   raw units. Prices are a share of that year's purse (60 cr in 2014 … 125 cr in 2026), so purse growth
-   and the US$ years drop out; a cycle's price is that share × its purse. The prediction is then
-   calibrated at the top end (below).
+1. **P(bought)**: logistic regression (L2, standardised), with the prior market price. The risk set is
+   every player who played the IPL in the two years before an auction and wasn't retained, in the
+   seasons whose retained lists are complete (2018–2026): bought at that auction = 1, else 0. "Else"
+   mixes unsold, unregistered and retired players (no unsold lists exist), so it's a proxy for
+   "released, does a franchise buy him?". A player who has never played the IPL gets no P(bought).
+2. **ln(price / purse | bought)**: a censored (Tobit) regression with normal errors and an L2 penalty
+   (alpha by leaving one auction out), on standardised features folded back to raw units
+   (`TobitRidge`). Prices are a share of that year's purse (60 cr in 2014 … 125 cr in 2026), so purse
+   growth and the US$ years drop out; a cycle's price is that share × its purse. The prediction is then
+   shifted to his group's median.
 
-**Retentions.** Mega-year retention prices (2018, 2022, 2025; 97 with a Cricsheet id) are slab-set (in
-2025 a fixed purse deduction of 18 / 14 / 11 cr or more), so each is a floor on the player's worth to
-his franchise rather than a bid. They are in the price fit as observed prices, because they are the only
-sale-like data on the stars who never reach an auction (Kohli, Rohit, Bumrah), and including them
-lowered the out-of-time error slightly (a `retained` indicator, tried too, absorbed their premium and
-did worse). Mini-year retained salaries are old contracts and are left out.
+**Calibration: four groups, each at its median.** The linear prediction is shifted by the median
+out-of-fold residual of the player's group (each season predicted by a fit on the other seasons; for the
+tests, only the training seasons): overseas in a mega auction, overseas in a mini auction, capped Indian,
+uncapped Indian (ranges on the features in `config/price_model.json` → `price.groups`; `calibration_part`
+⇄ `calibrationPart`, parity-tested). Shipped shifts (ln): overseas mega −0.38, overseas mini +0.10,
+capped Indian −0.18, uncapped Indian −0.40.
 
-**Training window.** Auctions 2018–2026 (the rupee era with complete retention lists); starting in 2009
-or 2014 was within 0.01 out of time. Shipped: 1,020 price rows (923 lots + 97 retentions) and 1,226
-P(bought) rows, in `config/price_model.json`.
+**How the recipe is chosen (since 2026-10-22).** Until then about twenty recipes were compared on the
+2025–26 lots and the best one kept, which made the "out-of-time" score a best-of-twenty on the test set
+(audit item 2). Now the candidates are declared in `scripts/ipl_price_model.py` (`CANDIDATES`), **chosen
+on auctions up to 2024 only**, and the chosen one is scored on 2025–26 **once**:
 
-**Top-end calibration, by group.** A regression on logs shrinks toward the middle, so before calibration
-the lots that sold for 10 cr+ came out at about 0.45× their price. The linear predictor is therefore
-passed through a monotone **calibration map** fitted on out-of-fold predictions (each season predicted
-by a fit on the other seasons; for the test below, only seasons up to 2024): `quantile` maps the
-predictions' quantiles onto the actual prices' (21 knots), so the predicted prices have the same spread
-as real auctions. That map alone left overseas players about 1.9× what they fetched in 2025–26, so the
-shipped calibration is **group-aware**: three groups (overseas, capped Indian, uncapped Indian, defined
-as ranges on the features in `config/price_model.json` → `price.groups`) share the quantile map and
-each gets its own shift, its mean out-of-fold residual (`quantile+group-offset`; shipped shifts:
-overseas −0.19, capped Indian −0.28, uncapped Indian +0.31 in ln). The first group whose ranges hold
-applies (`calibration_part` ⇄ `calibrationPart`, then `calibrate` ⇄ `calibrate`), identically in Python
-and the browser, parity-tested.
+- *Selection:* leave one auction out over 2019–2024 (each auction predicted by the recipe fitted on the
+  other auctions up to 2024); **the lowest mean absolute ln error on the held-out lots wins**, the rule
+  the protocol has always stated (`evaluation.protocol` in `config/price_model.json`). The held-out
+  log-likelihood of lots and mega retentions together, and a validation split (fitted up to 2022, scored
+  on the 2023 and 2024 minis), are reported beside it. *Correction (2026-10-22, top-end rework):* the code
+  had been choosing by that log-likelihood instead of the stated rule. A retention enters it as "price at
+  least what he was kept at", and a floor can't penalise a price far above it, so that score rewarded the
+  recipes that priced the kept stars at several times their retention (Shubman Gill about 90 cr; below).
+  It now follows the stated rule. In fairness to the protocol: this correction, and candidates U–W, came
+  after the day's first run, which had chosen N by the log-likelihood and scored it once on 2025–26 (MAE
+  0.668, top 20 0.75). T's test below is therefore the second look at the test set that day, not the first.
+- Scoring a 2018–2024 auction clamps at that auction's floor (its lowest base price: 0.2 cr then, 0.3
+  from 2025).
 
-Also tried and reported: an isotonic recalibration (E[price | prediction]), Duan's smearing (ln mean
-e^residual, the median turned into a mean), the quantile map above the median only, a separate quantile
-map per group (`group-quantile`), and group shifts from the last two auctions only (`-recent`). Smearing
-lifts the 10 cr+ lots to 0.7–1.2× but overprices the typical lot by 2–2.5×; the recent-only shifts are
-worse out of time (2023–24 overseas prices were high, 2025–26 low).
+**The top end: what made Gill 90 cr, and the fix** (audit item 3, 2026-10-22). With the 2026-10-22
+morning recipe (K below) the uncapped prediction for the IPL 2027 pool was Shubman Gill 76–90 cr, Axar
+Patel 38, Abhishek Sharma 39, Ishan Kishan 32, Suryavanshi 809, held down only by the 27 cr / IPL-balls
+ceiling. Taking the prediction apart:
 
-Two caveats. Selecting lots by their *actual* price always shows a model below them (regression to the
-mean), even a perfectly calibrated one, so a 10 cr+ ratio of 1 means over-pricing everyone else.
-And no shift fitted on 2018–2024 removes the 2025–26 overseas drop: before any calibration overseas
-lots were already +0.28 too high out of time, and a shift fitted on 2025 and applied to 2026 overshoots
-the other way (2026 overseas −0.35). The overseas level moves from auction to auction (mega vs mini,
-the 18 cr overseas fee cap of the 2025–27 rules), so it stays the model's largest error.
+- **Not the quadratic in value, except for Suryavanshi.** Gill's cautious value (15.4) is mid-range; his
+  `pv_pos_sq` term adds 0.18 in ln. Suryavanshi's (53.5) is far outside anything the market has priced
+  (the largest in the training rows is 31.8, Gayle in 2018), and there the quadratic does run away.
+- **The stars' features add up without limit, pushed by the retentions.** Gill's ln price is the sum of
+  being a current India international (`recent_caps_x_indian` +1.5), 3,200 IPL balls (+3.4), last
+  season's GT captain (+0.8), caps (+0.8) and so on. Fitted on the auction lots alone, the same model
+  prices him at 22 cr; adding the 97 mega retentions as floors lifts him to 104 (at a fixed penalty).
+  A floor only says "at least": the likelihood gains when the kept stars (Kohli, Rohit, Bumrah at 16–21
+  cr) are priced above their retention and loses nothing when they are priced far above it, so the
+  coefficients they share with Gill grow until the released players' lots stop them. In sample the
+  morning recipe priced KL Rahul's 2025 lot at 56 cr (sold for 14) and Pant's at 57 (27).
+- **What the market does at the top, measured.** Out of fold (each auction predicted by a fit on the
+  others), the lots in the top 5% of predictions sold for e^−0.62 ≈ 0.54× their prediction, and over the
+  top fifth real prices rise only about half as fast as the prediction (slope 0.54 against 0.89 over all
+  lots). The linear index over-separates the dearest players: the second-highest bidder's purse and
+  every franchise's need to fill a squad from the same money flatten the top.
 
-**Out-of-time test.** Trained (and calibrated) on auctions up to 2024, scored on the 2025 mega and 2026
-mini auctions (235 matched lots; errors on ln crore, prices clamped as shipped: 0.3 cr floor, IPL-evidence
-ceiling). "10 cr+ ratio" = geometric-mean predicted / actual price of the lots that sold for 10 cr+:
+**The fix: price the top the way the market did.** The shipped recipe (T below) passes the linear
+prediction through a **monotone calibration fitted out of fold**: an isotonic regression of the real ln
+price on the out-of-fold prediction (21 knots at its quantiles), continued beyond the highest knot at the
+slope real prices show over the top fifth of the lots (least squares, held to 0..1; fitted 0.51, `hi_slope`
+in `config/price_model.json`) instead of slope 1; each group then shifted to its median as before. The
+quadratic term is dropped, and the cautious value is held to its training support (`pv_max` = 31.8: a
+value beyond the best the market has priced is priced as that). Nothing is clamped at the top: the IPL
+2027 pool's dearest is Gill at 25.8 cr, then Suryavanshi 21.3, Axar Patel 18.2, Ishan Kishan 17.0,
+Abhishek Sharma 16.2, Tilak Varma 14.9, Pant 14.6, Shreyas Iyer 14.2, and **no player passes 27 cr**.
+**The 27 cr / IPL-balls ceiling is gone** from the market price, the Auction room and Bid plan. The only
+bounds left are rules: the floor (the lowest base price) and, in the room and Bid plan, what a team's
+purse can pay (its purse less 0.3 cr for every place it still has to fill). The old on-field curve (6a)
+keeps its own ceiling: it is a hand-set curve shown for comparison only (audit item 10).
 
-| | MAE (ln) | median abs. error | within ±50% | rank corr. | bias (ln) | 10 cr+ ratio | 2025 MAE | 2026 MAE |
-|---|---|---|---|---|---|---|---|---|
-| **shipped: Huber + quantile map + group shifts** | **0.703** | **53%** | **49%** | **0.731** | **+0.15** | **0.50** | **0.675** | **0.783** |
-| Huber + quantile map (one group) | 0.706 | 51% | 49% | 0.745 | +0.19 | 0.62 | 0.678 | 0.786 |
-| Huber + a quantile map per group | 0.729 | 49% | 51% | 0.715 | +0.18 | 0.58 | 0.719 | 0.758 |
-| Huber + quantile map + recent group shifts | 0.785 | 57% | 45% | 0.696 | +0.22 | 0.49 | 0.779 | 0.804 |
-| Huber, no calibration | 0.674 | 56% | 45% | 0.741 | +0.05 | 0.45 | 0.650 | 0.741 |
-| + isotonic calibration | 0.697 | 54% | 46% | 0.744 | +0.10 | 0.39 | 0.671 | 0.770 |
-| + isotonic + smearing | 0.967 | 156% | 24% | 0.744 | +0.75 | 0.73 | 0.952 | 1.009 |
-| + quantile + smearing | 1.138 | 129% | 14% | 0.738 | +0.93 | 1.15 | 1.127 | 1.167 |
-| + quantile map above the median only | 0.706 | 56% | 46% | 0.740 | +0.19 | 0.58 | 0.685 | 0.766 |
-| shipped, without the captaincy features | 0.697 | 52% | 48% | 0.735 | +0.14 | 0.49 | | |
-| Huber, no calibration, without captaincy | 0.667 | 56% | 45% | 0.745 | +0.04 | 0.44 | | |
-| ridge, no calibration | 0.703 | 63% | 43% | 0.739 | +0.12 | 0.45 | 0.682 | 0.763 |
-| median (quantile) regression, no calibration | 0.681 | 55% | 45% | 0.730 | +0.04 | 0.46 | 0.651 | 0.764 |
-| + previous IPL salary (not shipped, no calibration) | 0.668 | 52% | 47% | 0.745 | +0.05 | 0.46 | 0.649 | 0.722 |
-| + base price (not shipped, no calibration) | 0.661 | 52% | 47% | 0.755 | −0.13 | 0.36 | 0.638 | 0.725 |
-| old on-field curve (6a) | 0.776 | 59% | 43% | 0.631 | −0.04 | 0.35 | 0.734 | 0.891 |
+Also tried and declared before the test, and not chosen: the same recipe without the ceiling (L), with the
+value held to its support (M), a **saturating budget limit** (N: the median ln share is ln S + ln σ(η),
+saturating at a fitted share S of the purse, the most one franchise pays for one player; the likelihood
+put S at the purse itself, S = 1.0, so the data alone don't identify a lower limit), and, declared after
+the first run because the lots-only calibration priced the kept stars below their retentions, a top-end
+**hinge** whose slope is fitted on lots and retentions together (U, V, W: knots at the top fifth, tenth
+and twentieth; fitted slopes 0.93, 0.86, 0.77, so the retention floors hold the top up). The bounded
+purse in its literal form (a price at most the second-richest team's spendable purse) never binds: in
+2025 that is RCB's 83 cr less the reserve for its open places, about 79 cr.
 
-By group (90 overseas, 52 capped Indian, 93 uncapped Indian lots):
+Selection (auctions up to 2024; 688 lots and 51 retentions held out; lower MAE wins):
 
-| | overseas: MAE / bias / 10 cr+ | capped Indian: MAE / bias / 10 cr+ | uncapped Indian: MAE / bias |
-|---|---|---|---|
-| **shipped: quantile map + group shifts** | **0.72 / +0.37 / 0.71** | **0.70 / −0.06 / 0.54** | **0.70 / +0.04** |
-| quantile map (one group) | 0.82 / +0.62 / 0.91 | 0.72 / +0.25 / 0.71 | 0.59 / −0.26 |
-| a quantile map per group | 0.72 / +0.40 / 0.91 | 0.67 / −0.09 / 0.61 | 0.77 / +0.11 |
-| no calibration | 0.65 / +0.28 / 0.59 | 0.73 / −0.06 / 0.51 | 0.67 / −0.11 |
-| old on-field curve | 0.69 / −0.15 / 0.49 | 0.87 / −0.10 / 0.37 | 0.81 / +0.10 |
+| candidate | lots: MAE (ln) | top 20 | log-lik. per obs. | lots | retentions | validation 2023–24: MAE |
+|---|---|---|---|---|---|---|
+| A previous: Huber, mega retentions as prices | 0.799 | 0.90 | −1.439 | −1.475 | −0.955 | 0.896 |
+| B A without captaincy | 0.796 | 0.89 | −1.444 | −1.475 | −1.025 | 0.894 |
+| C A + prior market price | 0.808 | 0.85 | −1.449 | −1.489 | −0.916 | 0.886 |
+| D C without captaincy | 0.810 | 0.83 | −1.455 | −1.494 | −0.934 | 0.887 |
+| E C as Tobit, retentions as prices | 0.800 | 0.93 | −1.446 | −1.471 | −1.107 | 0.886 |
+| F C as Tobit, mega retentions as floors | 0.807 | 0.85 | −1.443 | −1.482 | −0.917 | 0.880 |
+| G F + mini-year retentions as floors | 0.969 | 0.64 | −1.609 | −1.626 | −1.386 | 1.057 |
+| H G without captaincy | 0.973 | 0.64 | −1.623 | −1.632 | −1.499 | 1.046 |
+| I G without the prior | 0.959 | 0.71 | −1.616 | −1.622 | −1.533 | 1.092 |
+| J F without captaincy | 0.810 | 0.84 | −1.453 | −1.490 | −0.951 | 0.875 |
+| K F without the prior (shipped in the morning) | 0.795 | 0.91 | −1.434 | −1.474 | −0.902 | 0.890 |
+| L K without the IPL-evidence ceiling | 0.795 | 0.91 | −1.432 | −1.474 | −0.867 | 0.890 |
+| M L, value held to its support | 0.795 | 0.91 | −1.432 | −1.474 | −0.867 | 0.890 |
+| N L with a saturating budget limit (S fitted) | 0.795 | 0.91 | −1.431 | −1.471 | −0.900 | 0.891 |
+| R L, monotone calibration with a fitted top tail | 0.798 | 0.96 | −1.465 | −1.477 | −1.305 | 0.925 |
+| S R, value held to its support | 0.798 | 0.96 | −1.465 | −1.477 | −1.305 | 0.925 |
+| **T S without the quadratic value term (shipped)** | **0.792** | **0.98** | **−1.455** | **−1.473** | **−1.215** | **0.924** |
+| U L, value held, top-end hinge on lots + retentions (top fifth) | 0.795 | 0.90 | −1.432 | −1.473 | −0.867 | 0.889 |
+| V U, hinge at the top tenth | 0.795 | 0.91 | −1.431 | −1.469 | −0.917 | 0.889 |
+| W U, hinge at the top twentieth | 0.795 | 0.91 | −1.437 | −1.467 | −1.039 | 0.890 |
 
-What the group shifts buy, against the single map: the capped and uncapped Indians' bias is about 0
-(−0.06, +0.04) and the overseas lean falls from +0.62 to +0.37 (1.9× to 1.45×); the mean error is a
-touch lower (0.703). What they cost: the 10 cr+ ratio falls from 0.62 to 0.50 (the overseas shift pulls
-the top overseas lots down, the capped-Indian shift the stars) and the rank correlation from 0.745 to
-0.731. Examples: Pant 27 predicted for 27 paid, Shreyas Iyer 19.6 for 26.75, Arshdeep 13.4 for 18,
-Green 13.7 for 25.2, Buttler 10.9 for 15.75; Venkatesh Iyer 2.7 for 23.75 and Prashant Veer / Kartik
-Sharma ~0.5 for 14.2 are beyond any feature.
+(All on the international caps with Afghanistan restored, section 1.) T has the lowest held-out lot
+error and the best top end (its 20 dearest predictions per auction fetched 0.98× them, against 0.91×).
+The differences in lot error are small (0.792 against 0.795); what T changes is the top. Its price for the
+retained stars is lower (retention log-likelihood −1.22 against −0.87): it prices them from what released
+players like them fetched, not from the floors. Keep or release no longer uses the price as the call
+(section 10), so that matters less than it did.
 
-**Captaincy, honestly.** A regular IPL captain the season before fetches about 22% more (`captain_ipl`
-+0.20 in ln) and is likelier to be bought; seasons as captain add a little, a recent international
-captaincy nothing once caps are in. Out of time the captaincy features don't improve the score (0.703
-with, 0.697 without), so their effect rests on the 2018–2024 fit, not on a measured gain.
+**The test, once** (fitted on auctions up to 2024, scored on the 2025 mega and 2026 mini, 237 matched
+lots; prices clamped as shipped; "10 cr+ ratio" = geometric-mean predicted ÷ real of the lots that *sold*
+for 10 cr+, chosen by the outcome, so well below 1 even for a perfect model; "top 20" = geometric-mean real
+÷ predicted of each auction's 20 dearest *predictions*, chosen before the auction: 1 = right, below 1 =
+over-priced; bias = mean / median predicted − real in ln):
 
-Refitted on everything, the model puts the mega retentions at a median 0.77× what they were paid (26% at
-or above it). P(bought), out of time (352 players): log loss 0.571 against 0.692 for the base rate, AUC
-0.77, Brier 0.20, calibrated within a few points in each band (predicted 0.19 → 12% bought, 0.38 → 35%,
-0.62 → 61%, 0.81 → 79%).
+| | MAE (ln) | median abs. error | within ±50% | rank corr. | bias: mean / median | 10 cr+ ratio | top 20 | 2025 MAE | 2026 MAE | 2026 walking forward (fit ≤2025) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **shipped (T)** | **0.661** | **49%** | **51%** | **0.741** | **−0.10 / 0.00** | **0.36** | **0.87** | **0.617** | **0.779** | **0.773** |
+| previous recipe (A), same data and scoring | 0.660 | 52% | 49% | 0.730 | −0.09 / 0.00 | 0.39 | 0.79 | 0.621 | 0.765 | 0.774 |
+| morning recipe (K), same data, with its ceiling | 0.661 | 50% | 50% | 0.734 | −0.11 / 0.00 | 0.41 | 0.76 | 0.624 | 0.762 | 0.765 |
+| old on-field curve (6a), as reported before | 0.785 | 60% | 43% | 0.620 | −0.06 / 0.00 | 0.35 | | 0.734 | 0.919 | |
 
-**What the coefficients say.** The market pays for **reputation and experience** as much as for
-measured on-field value. Value counts most at the top (cautious value 0 → 10 adds about 45%, 10 → 20
-nearly doubles the price), while being a current Indian international (about ×3 for 30 caps in two
-years, before the other caps terms), IPL experience, captaincy and youth move it as much; an overseas
-player fetches about 1.8× an Indian with the same record; a mega auction pays about 17% more; bowlers
-about 16% less. (Before the calibration map, which stretches the top.)
+(K's row is the morning run's single test on the restored caps; N, the protocol's choice under the old
+log-likelihood rule, scored 0.668 and 0.75 at the top.) By group (MAE / mean bias / median bias):
+overseas 0.65 / +0.12 / +0.21 (2025 mega 0.63 / +0.15 / +0.27, 2026 mini 0.68 / +0.05 / +0.10); capped
+Indian 0.69 / +0.05 / −0.01; uncapped Indian 0.66 / −0.39 / 0.00. **On the auction lots T is level with
+the earlier recipes, and its dearest predictions are the best placed of the three** (0.87 against 0.79 and
+0.76): the top-end fix is confirmed out of time. Overseas players lean high in median (+0.21 ln, about
+1.2×), as before.
+
+**The retained stars, out of time** (a revealed-preference check: a franchise that retains a player at P,
+with buying him back open to it, expects the auction to cost more than P). Fitted without each auction
+(2022: on the others up to 2024; 2025: on auctions up to 2024), the 79 mega retentions of 2022 and 2025:
+T prices them at a median 0.51× what they were retained at, 16% at or above it (32% within 0.75×); the
+morning recipe 0.60×, 30%. Gill 29.0 and Axar 22.9 for 16.5, Hardik Pandya 16.1 for 16.35; Bumrah 10.8
+for 18, Kohli 6.9 for 21, Rohit Sharma 4.6 for 16.3, Klaasen 4.7 for 23, Rashid Khan 6.6 for 18. Franchises
+keep these players for more than what a released player like them fetches; section 10 models that
+directly instead of reading it into the price.
+
+**The reality table** (out of time: fitted on auctions up to 2024; median and the 25–75% range, the
+calibrated price of an index ±0.674 out-of-fold residual sd away, clamped like the site; ↑ / ↓ = real
+price above / below the range; for the 2026 lots also the median refitted on 2018–2025):
+
+| lot | real (cr) | shipped (T): median (25–75%) | morning (K): median (25–75%) | T, 2026 walking forward |
+|---|---|---|---|---|
+| Rishabh Pant 2025 | 27 | 21.5 (10.8–42.7) | 27.0 (27.0–27.0) | |
+| Shreyas Iyer 2025 | 26.75 | 14.5 (7.3–28.8) | 27.0 (18.1–27.0) | |
+| Venkatesh Iyer 2025 | 23.75 | 3.4 (1.7–6.8) ↑ | 2.5 (1.2–4.9) ↑ | |
+| Arshdeep Singh 2025 | 18 | 9.5 (4.8–19.0) | 14.5 (7.2–27.0) | |
+| Yuzvendra Chahal 2025 | 18 | 7.5 (3.8–15.0) ↑ | 8.6 (4.3–17.4) ↑ | |
+| Jos Buttler 2025 | 15.75 | 5.8 (2.9–11.6) ↑ | 7.6 (3.8–15.3) ↑ | |
+| KL Rahul 2025 | 14 | 19.8 (10.0–39.4) | 27.0 (27.0–27.0) ↓ | |
+| Ishan Kishan 2025 | 11.25 | 10.4 (5.3–20.7) | 17.6 (8.8–27.0) | |
+| Jitesh Sharma 2025 | 11 | 3.6 (1.8–7.1) ↑ | 3.5 (1.7–7.0) ↑ | |
+| Bhuvneshwar Kumar 2025 | 10.75 | 3.1 (1.6–6.2) ↑ | 2.2 (1.1–4.5) ↑ | |
+| Liam Livingstone 2025 | 8.75 | 4.8 (2.4–9.5) | 5.2 (2.6–10.5) | |
+| Prasidh Krishna 2025 | 9.5 | 5.8 (2.9–11.5) | 4.7 (2.3–9.4) ↑ | |
+| Trent Boult 2025 | 12.5 | 4.2 (2.1–8.4) ↑ | 3.5 (1.7–7.1) ↑ | |
+| Kagiso Rabada 2025 | 10.75 | 5.4 (2.7–10.8) | 6.1 (3.0–12.3) | |
+| Josh Hazlewood 2025 | 12.5 | 4.2 (2.1–8.4) ↑ | 3.4 (1.7–6.9) ↑ | |
+| Phil Salt 2025 | 11.5 | 5.7 (2.9–11.3) ↑ | 7.1 (3.5–14.2) | |
+| Mitchell Starc 2025 | 11.75 | 4.7 (2.3–9.2) ↑ | 4.9 (2.4–9.9) ↑ | |
+| Cameron Green 2026 | 25.2 (bid; paid 18) | 7.4 (3.7–14.8) ↑ | 11.4 (5.7–22.9) ↑ | 10.2 |
+| Matheesha Pathirana 2026 | 18 | 6.0 (3.0–11.9) ↑ | 7.8 (3.9–15.7) ↑ | 8.1 |
+| Liam Livingstone 2026 | 13 | 5.3 (2.7–10.6) ↑ | 5.7 (2.8–11.4) ↑ | 6.4 |
+| Kartik Sharma 2026 | 14.2 | 0.4 (0.3–0.8) ↑ | 0.5 (0.3–1.0) ↑ | 0.4 |
+| Prashant Veer 2026 | 14.2 | 0.5 (0.3–0.9) ↑ | 0.5 (0.3–1.1) ↑ | 0.5 |
+| *the other side:* Sam Curran 2025 | 2.4 | 10.2 (5.1–20.2) ↓ | 24.7 (12.3–27.0) ↓ | |
+| Washington Sundar 2025 | 3.2 | 10.9 (5.5–21.7) ↓ | 19.5 (9.7–27.0) ↓ | |
+| Faf du Plessis 2025 | 2 | 7.3 (3.7–14.6) ↓ | 11.9 (5.9–23.9) ↓ | |
+| Quinton de Kock 2025 | 3.6 | 5.1 (2.6–10.2) | 5.6 (2.8–11.3) | |
+| Glenn Maxwell 2025 | 4.2 | 4.3 (2.1–8.5) | 4.0 (2.0–8.0) | |
+| Wanindu Hasaranga 2026 | 2 | 5.8 (2.9–11.4) ↓ | 7.4 (3.7–15.0) ↓ | 7.4 |
+| Rachin Ravindra 2026 | 2 | 5.3 (2.7–10.6) ↓ | 6.5 (3.2–13.0) ↓ | 5.4 |
+| David Miller 2026 | 2 | 3.0 (1.5–5.9) | 2.6 (1.3–5.2) | 3.4 |
+
+Read honestly: T is the better price where the morning recipe ran away (KL Rahul 19.8 for 14 against
+27, Sam Curran 10.2 for 2.4 against 24.7, Washington Sundar 10.9 against 19.5) and worse for the Indian
+stars who did fetch the top (Shreyas Iyer 14.5 for 26.75, inside the range; Arshdeep 9.5 for 18).
+Venkatesh Iyer, Jitesh Sharma, Bhuvneshwar, the 2025 overseas pacers, Green's bid and the 2026 uncapped
+14.2 cr buys are beyond both. Cameron Green's 25.2 cr is a bid: under the 2025–27 rules an overseas
+mini-auction buy is paid at most 18 cr (the lower of the top retention slab and the top 2025 mega price,
+27) and the rest goes to the BCCI, but the franchise's purse is debited the full bid (ESPNcricinfo, 29 Sep
+2024; Business Today, 16 Dec 2025), so the model prices the bid, which is what leaves the purse
+(`overseas_fee_cap` in `config/competitions.toml`).
+
+**What the coefficients say** (T, refitted on 2018–2026). The market pays for **reputation and
+experience** as much as for measured on-field value. Being a current Indian international
+(`recent_caps_x_indian` +0.41 per ln cap: about ×4.9 for 46 caps in two years), IPL experience
+(`ipl_balls` +0.42 per ln ball) and youth move the price as much as value does; each 10 runs of cautious
+value add about 27%; last season's IPL captain about ×2.4 (`captain_ipl` +0.88, through the retained
+captains' floors); a mega auction pays about 11% more; bowlers about 18% less. All of it then passes
+through the calibration, which at the top turns each extra ln unit of the index into about half a unit
+of price. Group shifts: overseas mega −0.23, overseas mini +0.13, capped Indian −0.04, uncapped Indian
+−0.41; out-of-fold residual sd 0.99.
 
 **The price.**
 
 ```
 lin               = intercept + Σ coefficient × feature            (config/price_model.json)
-ln(price / purse) = calibrate(lin)   (the quantile map: piecewise-linear knots, slope 1 beyond them,
-                                       plus the shift of his group: overseas / capped / uncapped Indian)
-market price      = purse × e^(that), clamped to 0.3 cr … the IPL-evidence ceiling (6a, step 4)
-upper quartile    = purse × e^(that + 0.674 × residual sd)          (same clamps; sd 1.02, out of fold)
+ln(price / purse) = calibration(lin) + the shift of his group (overseas in a mega / in a mini
+                    auction, capped Indian, uncapped Indian: the group's median out-of-fold residual)
+                    calibration: monotone (isotonic, out of fold) through 21 knots, continued at slope 1
+                    below the first and at hi_slope (0.51) above the last
+market price      = purse × e^(that), at least 0.3 cr (the lowest base price). No ceiling.
+upper quartile    = the same for an index 0.674 residual sd higher (sd 0.99, out of fold), so where the
+                    market's response flattens at the top, the range narrows with it
+P(bought)         = logistic(intercept + Σ coefficient × feature, the prior market price included)
 ```
 
-The cautious estimate stays inside the price (`pv`) and the IPL-evidence ceiling stays on top: with
-fewer than 600 IPL balls the market price can't pass `27 × (0.5 + 0.5 × balls / 600)` either
-(Suryavanshi: 23.6 cr), and nobody passes 27 cr. The purse and cycle default to the league's next
-competition in `config/competitions.toml` (IPL 2027: mini, 125 cr). Scout prices a player from another
-league with his value less the tier discount (6a step 1) as `pv`. An export from before the model (no
-`price_value` in its rows), or no model file, falls back to the on-field curve.
+The cautious value is held to the training support (`pv_max`). The purse and cycle default to the
+league's next competition in `config/competitions.toml` (IPL 2027: mini, 125 cr). Scout prices a player
+from another league with his value less the tier discount (6a step 1) as `pv`. An export from before the
+model (no `price_value` in its rows), or no model file, falls back to the on-field curve. Code:
+`pricing.market_price` / `calibrate` / `link_share` ⇄ `marketPrice` / `calibrate` / `linkShare`
+(`test_scripts/test_web_parity.py` checks the knots, the top tail and the link on fixed inputs).
 
-*Examples (IPL 2027 mini, 125 cr; data to the 2026 final).* Market price, with on-field worth in
-brackets: Kohli 10.3 cr (10.0), P(bought) 0.62; Rohit Sharma 7.5 (4.7); Bumrah 10.9 (20.5); Suryavanshi
-23.6 (23.6, the ceiling); Pant 12.7 (10.3, captain LSG); Shubman Gill 21.7 (12.7, captain GT); Tilak Varma
-17.8 (4.6); Abhishek Sharma 16.0 (19.6); Hardik Pandya 11.8 (3.5, captain MI); Shreyas Iyer 12.7 (6.4,
-captain PBKS); the uncapped Priyansh Arya 9.3 (20.0) and Ayush Mhatre 9.7 (18.0): the market prices an
-uncapped two-season player well below his on-field numbers.
+*Examples (IPL 2027 mini, 125 cr; data to the 2026 final; the shipped recipe T, market median / upper
+quartile).* Kohli 7.8 / 12.0 cr; Rohit Sharma 4.9 / 9.2; Bumrah 11.2 / 16.7; Gill 25.8 / 37.7;
+Suryavanshi 21.3 / 30.4 (his value held to 31.8); Pant 14.6 / 22.0; Tilak Varma 14.9 / 22.7; Abhishek
+Sharma 16.2 / 25.1; Hardik Pandya 12.3 / 18.6; Shreyas Iyer 14.2 / 21.3; Rashid Khan 8.9 / 13.8 (with his
+Afghanistan caps, section 1; 5.4 without them); Cameron Green 10.6 / 16.2.
 
-**Limits.** The market model ranks lots better than the curve and the calibration gets the top end
-closer, but a typical lot is still off by a factor of about 1.7, overseas players are over-priced
-against the last two auctions, and bidding wars for individual names aren't predictable. It sees
-captaincy now, but no injury, brand or loyalty, and P(bought)'s "not bought" includes players who didn't
-register.
+**Limits.** A typical lot is still off by a factor of about 1.9 (mean |ln error| 0.66 out of time), the
+overseas level swings between auctions, and bidding wars for individual names aren't predictable: a
+star's price is a median with a wide range. The old stars are low (Kohli 7.8, Rohit Sharma 4.9 for the
+2027 mini): every released Indian icon of 35+ in the data went cheap (Gambhir 2.8 cr at 36, Harbhajan
+Singh and Yuvraj Singh 2 at 36–38, Sehwag 3.2 at 35), and the model has no feature for brand or following
+that would set Kohli apart from them. The retained stars as a group are priced at about half their
+retention: what a released player like them fetches, not what their franchise pays to keep them (section
+10 models the second). The prior market price helps the "is he bought" part, not the price. P(bought)'s
+"not bought" includes players who didn't register. The caution (`value − 0.5 × sd`) is still a fixed
+0.5, not estimated (audit item 2c).
 
 ---
 
@@ -704,7 +946,10 @@ the top 600 by value make the pool.
 **Retentions.** Editable per team.
 - **Mega auction**: each franchise keeps its real 2025 retention list (about five players), paid at the
   real retention price where known, else the IPL slabs (18 / 14 / 11 / 18 / 14 cr, then 4), out of a
-  120 cr purse.
+  120 cr purse. A known gap: the real 2025 rule charged a team the higher of its slab total and its
+  salaries, so KKR lost 69 cr (not its 57 of salaries) and DC 47 (not 43.75); the room charges the
+  salaries, giving those two teams 12 and 3.25 cr too much (Keep or release and the calibration replays
+  use the rule).
 - **Mini auction**: each team keeps its 18 most valuable players free (they were bought in earlier years)
   and tops up from a small purse (30 cr by default).
 
@@ -735,19 +980,25 @@ max bid = projected price × aggression × need × overseas bias × luck × budg
 A team can't bid more than it can spend while keeping 0.3 cr for each other slot it still has to fill,
 can't pass the overseas cap, and won't bid below the base price.
 
-**Calibrated to real auctions** (since 2026-10-22). The value a team starts from is the market price through
-a fitted level (0.86× in a mega auction, 1.04× in a mini), a concave curve (^0.75, so money spreads beyond the
-stars as in real rooms), his last IPL price where known (weight 0.3), a demand shock per lot per run (sd 1.0 in
-ln, shared by all teams: how hot he is on the day) and the market tightness (money left with teams that still
-have places ÷ the market value of the best unsold players who'd fill them). Fitted on the 2022 mega and
-2023–24 mini auctions, tested on 2025 and 2026: the simulated 10–90% range now holds 77% (2025) and 46% (2026)
-of real prices, up from 28% and 12%, and the dearest simulated lots come out at 1.09× and 1.07× their real
-price, down from 2.44× and 1.55×; the 2025 mega auction still ran about 1.5× above the simulation on contested
-lots. Step by step and every number: [AUCTION_MATH.md Part 3b](AUCTION_MATH.md); `scripts/auction_calibrate.py`.
+**Calibrated to real auctions** (since 2026-10-22; refitted the same day for the censored market price of
+section 6b, and again that evening for its top-end rework, the room without a cap and the slab-rule
+retentions). The value a team starts from is the market price through a fitted level (0.72× in a mega
+auction, 1.49× in a mini), a concave curve (^0.75, so money spreads beyond the stars as in real rooms), his
+last IPL price where known (weight 0.6), a demand shock per lot per run (sd 0.8 in ln, shared by all teams: how hot he is on
+the day) and the market tightness (money left with teams that still have places ÷ the market value of the best
+unsold players who'd fill them). Fitted on the 2022 mega and 2023–24 mini auctions (the replays charge the
+2025–27 retention slabs), tested on 2025 and 2026: the simulated 10–90% range holds 62% (2025) and 46% (2026)
+of real prices (the morning's fit: 65% and 40%; the hand-set room 28% and 12%), the 10 dearest simulated
+lots come out at 1.36× and 0.87× their real price (1.41× / 0.66×), and lot error is 0.78 / 0.57 (0.80 /
+0.66). The 2025 mega auction still ran about 1.6× above the simulation on contested lots. The room's check
+(2025 retentions charged by the slab rule, 120 cr mega) reproduces every team's published 2025 purse,
+leaves about 6 cr per team, squads of 20–25 (`scripts/auction_check.py`). Step by step and every number:
+[AUCTION_MATH.md Part 3b](AUCTION_MATH.md); `scripts/auction_calibrate.py`.
 
 **Second-price clearing.** The highest maximum bid wins, but, as in a real auction room, the winner pays
-just above the second-highest bid (2% over it), never less than the base price and never more than
-**27 cr**.
+just above the second-highest bid (2% over it), never less than the base price. There is no price cap:
+a team can bid at most its purse less 0.3 cr for every place it still has to fill (the IPL's purse rule),
+so the dearest lot is set by the second-richest willing bidder.
 
 *Worked example.* A player projected at 10 cr:
 
@@ -912,8 +1163,17 @@ What the models can't see, and where they approximate. Most of these are on the
 - **Fielding boards are counts.** Catches, stumpings and run-out involvements, not catch success rates,
   dropped catches or ground covered; ball-by-ball data doesn't record those.
 - **Indian domestic data ends in December 2024.** Cricsheet's SMAT coverage currently stops at
-  2024-12-15, so uncapped Indian prospects are rated on older form than everyone else. Ranji Trophy and
-  Vijay Hazare have no ball-by-ball on Cricsheet and aren't covered.
+  2024-12-15 and is thin before that (44 matches in 2022, 39 in 2023, only the 8 knockout games of 2024-25),
+  so uncapped Indian prospects are rated on older form than everyone else. Checked again on 22 Oct 2026:
+  Cricsheet's [missing-matches page](https://cricsheet.org/missing/) lists the SMAT 2024-25 group stage (23
+  Nov-9 Dec 2024) and all of SMAT 2025-26 (26 Nov-18 Dec 2025) as missing, and no other open-licence
+  ball-by-ball source exists (BCCI, ESPNcricinfo, FanCode and iplt20 forbid scraping). Ranji Trophy and
+  Vijay Hazare have no ball-by-ball on Cricsheet and aren't covered. So every SMAT-based number says so: the
+  Scout SMAT pool and the gem board carry "data to 15 Dec 2024 · stale"; each auction-pool and Keep-or-release
+  row carries `stale_share`, the share of the evidence behind his value (his blend weights, section 7) that
+  comes from a stale league, and `stale_note` ("SMAT data to Dec 2024"), shown as a badge on the Auction and
+  Bid plan pages and in the Keep-or-release reason once it is 10% or more. Form forecast is IPL-only, so SMAT
+  doesn't enter it.
 - **Prices are invented from skill**, calibrated to recent auctions but not fitted to actual sale data.
 - **A single season is noisy.** The backtest's correlations are low for every method, model or not. Treat
   any one-season ranking with care.
@@ -946,8 +1206,10 @@ What the models can't see, and where they approximate. Most of these are on the
 ## 10. Keep or release
 
 **What it does.** Before a retention deadline (IPL 2027: 15 November 2026, as reported), a franchise decides
-which of its players to keep. For each player in its squad, CricDex sets what his game would fetch at auction
-against what he is paid, makes a Keep / Release / Borderline call with a one-line reason, and shows the squad
+which of its players to keep. For each player in its squad, CricDex sets what he would fetch at auction
+against what keeping him costs the purse (his salary, or for a 2025 retention the retention slabs), gives
+the chance a franchise keeps a player like him (a model of what franchises actually did at every deadline
+since 2018, backtested), makes a Keep / Release / Borderline call with a one-line reason, and shows the squad
 that follows: purse left, open slots, role gaps and what filling them costs. Every assumption is editable on
 the page (flip any player, change the purse or a role target) and on the CLI (`cricdex keep --team RCB
 --release "Virat Kohli" --need spinner=4`). Code: `src/cricdex/web_parity/keep.py` ⇄ `site/src/lib/keep.ts`
@@ -957,117 +1219,299 @@ the page (flip any player, change the purse or a role target) and on the CLI (`c
 **The rules are data.** A cycle's rules (purse, squad size, overseas cap, how many players may be kept, what a
 kept player costs, RTM cards) live in `config/competitions.toml`, one entry per cycle, validated on load. Every
 rule must cite a source or be listed as `assumed`, and the page marks the assumed ones. For IPL 2027 (a mini
-auction): retentions due 15 Nov 2026 and the auction likely 16 Dec 2026 in Goa (press reports); any number of
-players may be kept within 25 per squad and 8 overseas; a kept player costs his current salary out of the
-purse; no right-to-match card; an overseas mini-auction buy is paid at most 18 cr. **No 2027 purse has been
-published**, so the 2026 figure, 125 cr, is the editable default (the 2025-27 regulations set the total salary
-cap at 146 / 151 / 157 cr, so about 131 cr is plausible, but nothing confirms it). The squad minimum (18), no
-minimum-spend rule and season replacements being keepable are also assumptions. Sources are listed in the file
-and on the page.
+auction, the last of the 2025–27 cycle): retentions due 15 Nov 2026 and the auction likely 16 Dec 2026 in Goa
+(press reports); any number of players may be kept within 25 per squad and 8 overseas; a kept player costs his
+current salary out of the purse, **except a player his franchise retained at the 2025 mega auction, who is
+charged by the 2025 retention slabs** (below); no right-to-match card; an overseas mini-auction buy is paid at
+most 18 cr (his fee: the franchise's purse still pays the whole bid). **No 2027 purse has been
+published** (checked again 22 Oct 2026: reports of 18-19 Oct repeat only the 157 cr salary cap and the 2026
+figure), so the 2026 figure, 125 cr, is the editable default (the 2025-27 regulations set the total salary
+cap at 146 / 151 / 157 cr, so about 131 cr is plausible, but nothing confirms it). The auction date (16 Dec,
+ITC Grand Goa, franchise briefing 15 Dec) is still "reported", not announced. The squad minimum (18), no
+minimum-spend rule, season replacements being keepable and the 2025 slabs carrying into 2027 (the owner's
+call, 22 Oct 2026: "assumed: 2025 mega-auction slabs until BCCI announces 2027 rules") are also assumptions.
+Sources are listed in the file and on the page.
+
+**The 2025–27 player rules, checked (22 Oct 2026).** From the IPL's release of 28 Sep 2024 (iplt20.com) and
+ESPNcricinfo's reading of the regulations document (28–29 Sep 2024), each cited in `config/competitions.toml`:
+
+| rule | source | in the code |
+|---|---|---|
+| Overseas fee cap in a mini auction: the lower of the top retention slab (18 cr) and the top mega-auction price (27, Pant): 18 cr; the excess goes to the BCCI for player welfare. It caps the **fee, not the bid**: bidding goes on and the purse is debited the full bid (Green: bid 25.2, paid 18, KKR's purse −25.2) | ESPNcricinfo 29 Sep 2024; Business Today / IANS 16 Dec 2025 | Prices model the bid (what leaves the purse); the squads file keeps Green's 25.2 as what KKR's purse paid; the cap is shown on the page. Unchanged and correct. The Auction room bids in bids too. |
+| An overseas player must register for the mega auction, or he can't enter the next year's auction; one who is bought and pulls out before the season is banned for 2 seasons | iplt20 28 Sep 2024 (official) | Not modelled: the pool has no registration list (no 2025 mega register in the data), so it can't tell who is eligible. Bid plan takes the official 2027 list when published (`ipl_auction_register.json`), which applies it. |
+| Retentions at the 2025 mega auction: at most 6 (retentions + RTMs), at most 5 capped and 2 uncapped; slabs 18 / 14 / 11 cr for the first three capped, 18 / 14 for the 4th and 5th, 4 cr uncapped; the purse is charged the higher of the slab total and the salaries | iplt20 (counts); ESPNcricinfo 28 Sep 2024 (slabs); explainers on KKR's 69 cr (the "higher of") | Now modelled for 2027 (below). The rule is checked on data: it reproduces every team's published 2025 purse and, charging the 2025 retentions still on each squad, every team's 2026 purse. The Auction room's mega replay charges the same rule since 2026-10-22 (KKR 69 cr of purse, DC 47; it had charged the salaries, 57 / 43.75). |
+| RTM at the 2025 mega auction: 6 minus the retentions; after an RTM call the top bidder may raise once | iplt20; ESPNcricinfo | Not used: 2027 is a mini auction, no RTM. |
+| Purse 120 cr (2025), 125 (2026); total salary cap 146 / 151 / 157 cr for 2025 / 26 / 27 incl. performance pay and match fees (7.5 lakh a game, impact player included, paid on top of the contract) | iplt20 (official); iplt20 2026 retentions | 125 cr assumed for 2027 (no figure published). Match fees are outside the auction purse and aren't modelled. |
+| 2027: the last mini auction of the cycle; keep anyone at his contract salary; 25 per squad, 8 overseas; no RTM; trade window shut a week either side of the auction | press, Oct 2026 (Sporting News, Cricbuzz via The Cricket News) | As modelled; no 2028 mega-auction rule is announced. |
 
 **The squads and salaries.** Each franchise's 2026 squad and every player's salary (the 2025 auction or
 retention price carried into 2026, the 2026 auction price, a replacement's fee, a trade's price) come from
 Wikipedia's "List of 2026 Indian Premier League personnel changes" (CC BY-SA), with the moves since the season
 (Pant to DC at 15 cr for Kuldeep Yadav to LSG; Natarajan to SRH for Zeeshan Ansari; Rahane retired) from the 2027
 page, by `scripts/ipl_squad_salaries.py` into the hand-editable `data/curated/ipl_squads_2026.json`. A player
-released by his franchise (Mustafizur Rahman) or retired isn't on the list. A data check: 125 cr less the
-retained salaries reproduces the published purse each team took into the 2026 auction exactly for six teams;
-CSK (by 2.0 cr), DC (3.45), KKR (6.0) and RR (4.0) differ, so a salary on the source page differs from what the
-team paid there. 252 of 274 squad players match a Cricsheet id (two by hand); the 22 who don't (uncapped players with no
-ball-by-ball in our data) are listed and shown unrated.
+released by his franchise (Mustafizur Rahman) or retired isn't on the list. **A data check, exact for all ten
+teams:** 125 cr less the retained salaries less the *retention-slab charge* reproduces the purse each team took
+into the 2026 auction (IPLT20 / ESPNcricinfo, 15 Nov 2025), and that purse less our 2026 auction prices
+reproduces the purse left after the auction (CSK 2.4, DC 0.35, KKR 0.45, RR 2.65 cr; Business Standard). The
+slab: at the 2025 mega auction a retained player was charged to the purse at a fixed slab (capped 18 / 14 / 11
+/ 18 / 14 cr for the 1st-5th, uncapped 4) "regardless of the final retention value" (DNA India, 3 Nov 2024:
+KKR paid 57 cr of salaries and lost 69 cr of purse). The published 2026 purses are exactly what you get when
+each 2025 retention still on the squad is charged at his slab: KKR +6 cr (Rinku, Varun, Narine at 18 / 14 / 11
+against 13 / 12 / 12), DC +3.25, CSK +2, RR +4 (Samson's slab was 14, not his 18). The team totals are exact;
+the per-player split for CSK and RR isn't published. One salary was wrong on Wikipedia: Vipraj Nigam was
+bought for 50 lakh in 2025, not 30 (Delhi Capitals; corrected by hand, `salary_note`). Whether the slab still
+counts in 2027 isn't published: it is assumed to (the owner's call), with the 2025 rule as above. 253 of 272 squad
+players match a Cricsheet id: Mukul Choudhary, Tejasvi Singh (Dahiya) and Sahil Parakh ("Parekh" on Wikipedia)
+played IPL 2026 under scorecard names "MD Choudhary", "T Dahiya", "SU Parakh" and were matched on 22 Oct 2026
+through the People Register's ESPNcricinfo key (`data/curated/player_overrides.json`; the name check had
+wrongly called MD Choudhary "Mukesh Choudhary", CSK's bowler). The 19 who don't match have no ball-by-ball
+record anywhere on Cricsheet (no IPL match, nor any SMAT match up to Dec 2024; Cricsheet lists the SMAT 2024-25
+group stage and all of SMAT 2025-26 as missing) and are priced from the market (step 4).
 
 **How each number is made.**
 
 1. **Value** is the auction pool's value (section 7): his IPL value in runs per 100 balls, blended with his
    other leagues when his IPL record in the role is under 300 balls, with its uncertainty `sd`.
 2. **Market price** is section 6b's price: what the IPL market has paid for players like him (on the
-   cautious estimate, calibrated at the top end, under the IPL-evidence ceiling), with the chance he's
-   bought if released. The **upper figure** is the upper quartile of that price on his central value
-   (`price × e^(0.674 × 1.02)`, about 2×). His **on-field worth** (section 6a's curve) is a separate
-   column, for comparison; it doesn't drive the call. A player who was an IPL side's regular **captain**
-   last season carries a Captain badge, and the reason says the market pays captains a premium (about
-   +22%, already in his market price). (An export from before the market model falls back to the curve,
-   with the central price at `sd = 0` as the upper figure.)
-3. **Surplus** = market price − salary. The **margin** is the larger of 0.5 cr and 15% of the salary.
-4. **The call.** *Keep* when the surplus is at least the margin. *Release* when even the upper figure is
-   at least a margin below the salary (so the call doesn't rest on the model's spread). *Borderline*
-   otherwise: fairly paid (the salary sits inside the median-to-upper-quartile range), a close call (the
-   upper figure clears the margin, the median doesn't), or a thin record (the same, with `sd` of 6+ runs).
-   A player aged 35+ needs twice the margin to be a Keep. A player we can't rate is Borderline ("decide on
-   scouting").
-5. **Age** is at the auction date from the player master's date of birth; the outlook is a rule of thumb
-   (under 24 improving, 24–29 prime, 30–32 holding, 33–34 slipping, 35+ declining). **Last season** is the
-   raw 2026 strike rate or economy and wickets against that season's league figure (30+ balls), not the model.
-6. **The squad.** Kept by default: every Keep and Borderline, **then made legal**: while the kept overseas
-   players are over the overseas cap (8, or a retention limit on overseas players), the kept overseas
-   Borderline players are released, lowest surplus per crore of salary first (an unrated player first, a
-   Keep only once no Borderline is left); then the same over every kept player for the squad maximum (25,
-   or a retention limit). Each one says "Released to fit the 8-overseas cap" / "the 25-player squad limit"
-   in his reason, the CSV marks him (`auto_release`), and a player the user flipped is never moved; any
-   call can still be flipped back. Purse left = purse − kept salaries. Slots open = 25 − kept (overseas:
-   8 − kept overseas). Warnings flag a squad or overseas count over the cap (now only after a flip), a
-   purse overrun, or too little purse to reach 18 players at 0.3 cr each. (`fit_to_rules` ⇄
-   `fitToRules`.)
-7. **Role gaps.** Tags: keeper (role), opener (batting position in the player master), death bowler (25%+ of
+   cautious estimate, at the median for his kind of player, with the top end as the market really priced
+   it), with the chance he's bought if released. The **upper figure** is the upper quartile of what
+   players like him fetch, on his central value. His **on-field worth** (section 6a's curve) is a separate
+   column, for comparison. A player who was an IPL side's regular **captain** last season carries a
+   Captain badge. (An export from before the market model falls back to the curve.)
+3. **Cost** = what keeping him takes from the purse. For most players his salary. For a player his
+   franchise retained at the 2025 mega auction and still holds (`slab_holder`, from the squads file's
+   `mega_retentions_2025`, capped or uncapped *at retention*; a player who has since been traded costs his
+   salary at his new team): the team's slab holders together cost max(the first n capped slabs + 4 cr per
+   uncapped one, their salaries), the 2025 rule, and **one player's cost is what releasing him alone would
+   free** (the team's charge with every holder kept, less the charge without him). The slabs are counted
+   in order (keeping 1–5 capped retentions costs 18, 32, 43, 61, 75 cr, as the rules publish them), so the
+   order a team retained them in doesn't change its charge, and releasing any capped holder frees the last
+   slab in use, or his salary when the salaries are what the purse counts. Examples: RCB (Kohli 21, Patidar
+   11, Dayal 5): 18 + 14 + 4 = 36 of slabs against 37 of salary, so 37; without Kohli, 22 (slabs) → his cost
+   15. MI's five (75 of slabs = 75 of salary): any of Bumrah, Rohit, Suryakumar, Hardik costs 14, Tilak
+   Varma 8 (his salary). RR's four capped (61 of slabs + 4): Jurel and Parag cost 18 each, more than their
+   14 salaries. `retention_costs` ⇄ `retentionCosts`, `slab_charge` ⇄ `slabCharge`.
+4. **The chance a franchise keeps him** (since 2026-10-22, audit item 1). Not a margin set by hand: a
+   logistic model of what franchises actually did at every retention deadline 2018–2026 (the backtest
+   below), from (`keep_features` ⇄ `keepFeatures`):
+   - his **market price against what keeping him costs** (ln of the ratio), and ln of the cost;
+   - his **3-season Form forecast** (section 11): the three-season average and the chance he is still a
+     regular in its third season (a flag when he has none);
+   - his **ties to the franchise**: its regular captain last season, the IPL seasons he has played for it
+     (ln), whether it was his first IPL side ("home-grown");
+   - his **status**: capped Indian, overseas, age ((age − 28) / 5 and the years past 33), ln IPL balls, a
+     buy at the last auction;
+   - in a mega year, a mega flag and its interaction with the price ratio (zero for IPL 2027, a mini).
+
+   Fitted on 1,449 squad decisions 2018–2026 (`config/keep_model.json`, by `scripts/keep_backtest.py`).
+   The largest effects: being overseas (−0.87 in log-odds: franchises let overseas players go far more
+   readily), the forecast's chance he stays a regular (+2.6 from 0 to 1), home-grown (+0.51), captain of
+   this side last season (+0.40), the forecast average (+0.44 per 10 runs). The price against the cost
+   counts little in a mini year (+0.14 per ln unit) and a lot in a mega year (+1.09).
+5. **The call.** *Keep* at a 65%+ chance, *Release* below 35%, *Borderline* in between (a close call
+   either way); the default plan keeps him from 50% (the backtest's rule). The reason gives the price
+   against the cost, his ties and the chance: "Worth about 7.8 cr at auction against 15 to keep
+   (home-grown, 19 seasons with RCB): franchises kept 93% of players like him at their retention deadlines
+   (2018-2026)." The 35+ rule and the 0.5 cr / 15% margins are gone. **A player with no match data** (no
+   Cricsheet match at all) gets no value; his value column says "no match data — priced from the market",
+   his price is the market model's prior for a player like him (uncapped Indian, unrated, no IPL record, his
+   age when known), and the call comes from the same model; when his auction price was well above the top
+   quarter (Mangesh Yadav, 5.2 cr) the reason says franchises saw something our data can't. A player we
+   can't price at all (no market inputs, an old export) is Borderline: scout him. **A rating that rests on
+   stale data says so** ("85% of his rating rests on SMAT data to Dec 2024 (stale).").
+6. **Age** is at the auction date from the player master's date of birth, shown with the shape of his Form
+   forecast (holds, improves, declines). **Last season** is the raw 2026 strike rate or economy and wickets
+   against that season's league figure (30+ balls), not the model.
+7. **The squad.** Kept by default: every player with a 50%+ chance, **then made legal**: while the kept
+   overseas players are over the overseas cap (8, or a retention limit on overseas players), the kept
+   overseas Borderline players are released, lowest chance first (a Keep only once no Borderline is left);
+   then the same over every kept player for the squad maximum (25, or a retention limit). Each one says
+   "Released to fit the 8-overseas cap" / "the 25-player squad limit" in his reason, the CSV marks him
+   (`auto_release`), and a player the user flipped is never moved. Purse left = purse − what the kept
+   players cost (`purse_charged`). Slots open = 25 − kept (overseas: 8 − kept overseas). Warnings flag a
+   squad or overseas count over the cap (only after a flip), a purse overrun, or too little purse to reach
+   18 players at 0.3 cr each. (`fit_to_rules` ⇄ `fitToRules`.)
+8. **Role gaps.** Tags: keeper (role), opener (batting position in the player master), death bowler (25%+ of
    his legal balls in overs 16–20, 60+ such balls, every auction-pool league), spinner (bowling type), overseas.
    Targets: 2 keepers, 3 openers, 3 death bowlers, 3 spinners, and the overseas players the squad has now (at
    most 8). Gaps are filled in that order from the **likely pool**: today's free agents in the auction pool
-   plus the players our calls release from the other nine squads (at our price), cheapest first, among those
-   at least as good as the best player the team released in that role (else an average player, value 0),
-   within the open slots and overseas room. A pick counts for every tag he carries.
+   plus the players our default plan releases from the other nine squads (at our price), cheapest first,
+   among those at least as good as the best player the team released in that role (else an average player,
+   value 0), within the open slots and overseas room. A pick counts for every tag he carries.
 
-*Worked example (IPL 2027 defaults, data to the 2026 final).* RCB's Virat Kohli: value +13.6 ± 2.8 on 6,926
-IPL balls, 555 international caps (24 in the last two years), 11 IPL seasons as captain but not last
-season's, 37.9 at the auction. His market price is 10.3 cr (62% chance he's bought if released), the upper
-figure 20.8; his on-field worth 10.0. Salary 21 cr, margin 3.15: the surplus (−10.7) isn't a Keep, and the
-upper figure is only 0.2 under the salary, so **Borderline** ("Fairly paid: players like him fetch 10.3 to
-20.8 cr (top quarter) against 21"). On the on-field curve alone (the earlier price) he was a Release.
+**The backtest: does the call do what franchises do?** (`scripts/keep_backtest.py`; audit item 1.) Every
+deadline with a complete published retained list is replayed with only what was known before it: the 2018,
+2022 and 2025 mega auctions and the 2019, 2020, 2021, 2023, 2024 and 2026 mini auctions.
 
-The default calls (market price / upper figure vs salary, cr), legal after step 6:
+- **The squad before the deadline:** everyone who played for the franchise the season before (Cricsheet;
+  2015 for CSK and RR, back in 2018), plus its retained and bought players of that season (the auction
+  history). A player another franchise lists as retained was traded and is left out (except a pick of
+  2022's two new sides, who was released by his old one); 2026's published retirements are left out.
+- **What he was worth then:** his market price from the price recipe fitted on the earlier auctions only
+  (`fit_price_part`; for 2018–19, on auctions from 2011), his value, caps, captaincy and age as of the
+  auction, and his Form forecast built from the seasons up to the deadline (the walk-forward ratings).
+- **What keeping him cost:** his contract salary in a mini year (the latest price paid for him); in a mega
+  year the cycle's slab for his place, the team's players taken in market-price order (2018: 15 / 11 / 7 cr
+  capped, 3 cr uncapped, at most 3; 2022: 16 / 12 / 8 / 6, 4 cr, at most 4; 2025: 18 / 14 / 11 / 18 / 14,
+  4 cr, at most 6 with 5 capped and 2 uncapped; IPL Governing Council 2017, retention rules 2021, Player
+  Regulations 2025-27), and the mega limits applied to the calls (the highest chances first); in 2026 the
+  2025 slab holders at the slab their release frees.
+- **The label** is the published retained list: 1,445 decisions up to 2024 (732 kept; 247 stars, 190
+  kept) and 484 in the test (2025: 254, 46 kept; 2026: 230, 157 kept).
 
-- **RCB** (21 kept, 8 overseas): Keep Tim David, Bethell, Padikkal, Duffy, Suyash Sharma. Borderline
-  Kohli (10.3 / 20.8 vs 21), Salt (12.2 / 26.3 vs 11.5), Hazlewood (6.4 / 13.4 vs 12.5), Jitesh Sharma,
-  Krunal Pandya, Yash Dayal. Release captain Rajat Patidar (3.3 / 7.0 vs 11), Bhuvneshwar Kumar,
-  Venkatesh Iyer, Rasikh Salam; released to fit the overseas cap: Richard Gleeson.
-- **CSK** (25, 8): Keep Brevis, Short, Mhatre, Ellis, Hosein, Overton. Borderline captain Gaikwad (11.4 /
-  23.4 vs 18), Samson (9.7 / 19.8 vs 18), Dube, Dhoni, Khaleel. Release Prashant Veer and Kartik Sharma
-  (1.1 and 3.8 vs 14.2), Rahul Chahar; released to fit the overseas cap: Noor Ahmad (8.9 / 18.5 vs 10) and
-  Dian Forrester.
-- **MI** (25, 8): Keep Tilak Varma (17.6 / 27 vs 8), Rickelton, Jacks, Santner, de Kock. Borderline Bumrah
-  (10.9 / 22.0 vs 18), captain Hardik Pandya (11.7 / 23.9 vs 16.35), Suryakumar Yadav (7.5 / 15.4 vs 16.35),
-  Rohit Sharma (7.5 / 15.2 vs 16.3), Naman Dhir. Release Boult, Deepak Chahar; released to fit the squad
-  limit: two unrated uncapped players (Mohammad Izhar, Ruchit Ahir).
-- **KKR** (25, 8): Keep Harshit Rana, Finn Allen, Rachin Ravindra, Raghuvanshi. Borderline Green (13.8 /
-  27 vs 25.2), Pathirana (8.0 / 16.9 vs 18), Rinku Singh, Narine, Varun Chakravarthy. Release Ramandeep
-  Singh; released to fit the squad limit: Daksh Kamra (unrated).
-- **SRH** (24, 8): Keep captain Ishan Kishan (13.7 / 27 vs 11.25), Nitish Kumar Reddy, Eshan Malinga.
-  Borderline Abhishek Sharma (15.8 / 27 vs 14), Klaasen (9.8 / 20.5 vs 23), Head, Livingstone. Release
-  captain Pat Cummins (6.9 / 14.2 vs 18), Harshal Patel, Natarajan, Jack Edwards; released to fit the
-  overseas cap: David Payne.
-- **GT** (24, 7): Keep captain Shubman Gill (21.4 / 27 vs 16.5), Sai Sudharsan, Washington Sundar.
-  Borderline Buttler, Siraj, Rabada, Prasidh Krishna, Holder. Release Rashid Khan (6.9 / 14.1 vs 18),
-  Tewatia, Shahrukh Khan.
-- **PBKS** (21, 6): Keep Priyansh Arya, Connolly, Omarzai. Borderline captain Shreyas Iyer (12.6 / 25.6 vs
-  26.75), Arshdeep Singh, Jansen, Stoinis. Release Chahal (1.8 / 3.6 vs 18), Shashank Singh, Dwarshuis,
-  Mitchell Owen.
+The candidates, declared before any test number: the shipped rule (C0, price against salary with the 0.5
+cr / 15% margins and the age-35 rule); a fitted threshold on the market price against the cost (C1); the
+same with the price on the three-season forecast (C2: what a buyer buys over a contract); and logistic
+models adding, in turn, the forecast (L2), the ties to the franchise (L3) and the status terms (L4); and, as
+a reference, keeping everyone the rules allow (B0). Chosen by leave one deadline out over 2018–2024 (each
+deadline predicted by the rule fitted on the others), highest F1 for "kept" on the pooled held-out calls
+(L's penalty chosen the same way). "Star" = what is at stake (his cost or his market price) is at least 8%
+of the purse (10 cr at 125); regular 2–8%; depth below.
 
-The market model sees no injury, form slump or loyalty, and Cummins and Rashid Khan are Releases on age
-and the overseas level of the last two auctions; the toggles are how a franchise overrules a call.
+Selection (deadlines up to 2024, held out one at a time; precision / recall for "kept"; BA = balanced
+accuracy, the mean of the share kept that we keep and the share released that we release):
 
-**3-season outlook.** Each squad player also carries his Form forecast (section 11): the three medians for
-2027–29, the shape (holds / improves / holds, then declines / declines) and the chance he is still a regular
-in 2029, from his batting forecast (batters, keepers), bowling (bowlers) or the stronger of the two
-(all-rounders). It is shown beside the call, sortable, and exported (`outlook_3y_avg`, `outlook_3y` in the CSV;
-`cricdex keep --sort outlook`); it doesn't change the call, which prices one auction, not three seasons.
+| rule | precision | recall | F1 | BA | stars: precision / recall / F1 / BA | regulars F1 | depth F1 | log loss |
+|---|---|---|---|---|---|---|---|---|
+| B0 keep everyone the rules allow (reference) | 0.64 | 0.98 | 0.773 | 0.71 | 0.77 / 0.99 / 0.87 / 0.50 | 0.77 | 0.71 | |
+| C0 shipped rule (margins, age 35) | 0.64 | 0.85 | 0.729 | 0.68 | 0.80 / 0.81 / 0.81 / 0.57 | 0.71 | 0.71 | |
+| C1 market price vs cost, threshold | 0.65 | 0.96 | 0.772 | 0.71 | 0.80 / 0.93 / 0.86 / 0.57 | 0.77 | 0.71 | |
+| C2 forecast market price vs cost | 0.65 | 0.96 | 0.771 | 0.71 | 0.80 / 0.93 / 0.86 / 0.58 | 0.77 | 0.71 | |
+| L1 logistic: price vs cost | 0.65 | 0.95 | 0.773 | 0.71 | 0.83 / 0.91 / 0.87 / 0.65 | 0.77 | 0.71 | 0.653 |
+| L2 + 3-season forecast | 0.75 | 0.74 | 0.745 | 0.74 | 0.82 / 0.91 / 0.86 / 0.63 | 0.78 | 0.52 | 0.573 |
+| L3 + ties to the franchise | 0.74 | 0.82 | 0.774 | 0.76 | 0.83 / 0.93 / 0.88 / 0.64 | 0.79 | 0.65 | 0.566 |
+| **L4 + status (shipped)** | **0.77** | **0.82** | **0.795** | **0.79** | **0.84 / 0.92 / 0.87 / 0.66** | **0.78** | **0.74** | **0.554** |
 
-**Limits.** The price is section 6b's market price: better than the on-field curve out of time, but a
-typical player is still off by a factor of about 1.7, overseas players lean high and single bidding wars
-aren't predictable (section 6b), which is why the call only releases a player whose salary is above even
-the upper figure. The comparison (who is paid well above or below the market for players like him) is the
-useful part, not the exact crore. A franchise keeps players for reasons the data can't see (captaincy, fitness, local appeal,
-the cost of buying a replacement in a thin market). The likely pool is our guess at what other teams release.
-The overseas fee cap is shown but not modelled: Cameron Green's salary is the 25.2 cr KKR bid, assumed to be
-the purse cost of keeping him. Twenty-two squad players aren't in the ball-by-ball data and can't be rated.
+L4 is best on F1, on balanced accuracy and on log loss, and every step from L1 adds something: the price
+against the cost alone does no better than keeping everyone; the forecast tells who stops playing (and so
+who goes); the ties and the status terms tell the rest.
+
+The test, once (fitted on 2018–2024, scored on 2025 and 2026):
+
+| rule | precision | recall | F1 | BA | accuracy | stars: precision / recall / F1 / BA (accuracy) | 2025 mega: F1 / BA | 2026 mini: F1 / BA |
+|---|---|---|---|---|---|---|---|---|
+| **L4 (shipped)** | **0.77** | **0.69** | **0.724** | **0.77** | **0.78** | **0.88 / 0.88 / 0.88 / 0.79 (82%)** | **0.48 / 0.66** | **0.78 / 0.64** |
+| C0 shipped rule before | 0.64 | 0.74 | 0.683 | 0.72 | 0.71 | 0.78 / 0.79 / 0.79 / 0.63 (70%) | 0.51 / 0.70 | 0.73 / 0.44 |
+| B0 keep everyone the rules allow | 0.64 | 0.92 | 0.755 | 0.77 | 0.75 | 0.73 / 1.00 / 0.85 / 0.57 (75%) | 0.55 / 0.74 | 0.81 / 0.50 |
+
+Read honestly:
+
+- **Against the rule it replaces** the model is better on every measure: it makes the franchise's own call
+  for 78% of the players (71%) and 82% of the stars (70%), and it tells which stars go (balanced accuracy on
+  stars 0.79 against 0.63).
+- **Against keeping everyone**, it is level overall (balanced accuracy 0.77 / 0.77, F1 0.72 / 0.76): most of
+  a squad is kept in a mini year (157 of 230 in 2026), so keeping everyone is a strong default. What the
+  model adds is telling which of the expensive players go (stars 0.79 against 0.57).
+- **The 2025 mega auction is under-kept** (recall 0.35: 21 called keeps where franchises kept 46). Its
+  mega terms were learned from 2018 and 2022, when 3 and 4 retentions were allowed; 2025 allowed 6. The
+  number of retentions a cycle allows isn't a feature (with two mega years to learn from, it can't be), so
+  a mega-year call should be read as a ranking within the team. Its log loss on the test (0.81) is worse
+  than the base rate for the same reason. 2027 is a mini auction.
+- **The 2026 stars franchises let go, the model kept**: Venkatesh Iyer (KKR, 23.75 cr against a 2.6 cr
+  market price, but home-grown and a regular), Pathirana, Bishnoi, Russell (who then retired). In a mini
+  year the price against the cost counts little in the model (+0.14), because across 2019–2024 franchises
+  mostly kept their dear players whatever the market said. Venkatesh's release says they don't always.
+  The other way: Stoinis (36, 11 cr) was called a release and PBKS kept him.
+- **The 2025 stars franchises kept, the model released**: Jadeja (14 cr slab, 36), Rinku Singh, Rashid
+  Khan, Varun Chakravarthy, Cummins, Pooran, Patidar, Dube; and kept-by-model, released by the franchise:
+  Pant, KL Rahul, Shreyas Iyer, Ishan Kishan, Arshdeep. In 2025 the stars who left were mostly captains
+  and stars who chose to go (or whose franchise expected to buy them back cheaper with an RTM card), which
+  no sourced field records.
+- **Thin-evidence recent buys** (bought at the last auction, under 60 IPL balls): franchises kept 54% of
+  those bought for 1 cr+ in 2019–2024 (28 players) and 86% in 2026 (7), 41% / 55% of the cheaper ones. The
+  model's "bought at the last auction" term is near zero (−0.01): it treats them through their price, cost
+  and forecast like anyone else, and they come out near the line (Tejasvi Singh, KKR, 3 cr on 15 balls:
+  57%, Borderline, kept by default). No special rule.
+
+*Worked example (IPL 2027 defaults, data to the 2026 final).* RCB's Virat Kohli: value +13.6 ± 2.8, 38 at
+the auction; market price 7.8 cr (12.0 in the top quarter). One of RCB's 2025 retentions: RCB's three (Kohli, Patidar, Dayal) cost the purse max(18 + 14
++ 4, 21 + 11 + 5) = 37 cr, and without him 22, so keeping him costs 15 cr. His price is half his cost, but
+he is home-grown, has played 19 seasons for RCB, and the forecast gives him a 54% chance of being a regular
+in 2029: franchises kept **93%** of players like him, so **Keep**. Before 2026-10-22 he was Borderline (and
+a Release before that).
+
+**The reality table: 25 marquee players** (2027 defaults; market median / upper quartile, cr; cost = what
+keeping him takes from the purse; P = the chance a franchise keeps a player like him):
+
+| player | team | salary | cost | market | P | call | what the franchise did |
+|---|---|---|---|---|---|---|---|
+| Virat Kohli | RCB | 21 | 15 (slab) | 7.8 / 12.0 | 93% | Keep | Retained 2025 (21 cr), kept for 2026 |
+| Rohit Sharma | MI | 16.3 | 14 (slab) | 4.9 / 9.2 | 60% | Borderline (kept) | Retained 2025, kept for 2026 |
+| Suryakumar Yadav | MI | 16.35 | 14 (slab) | 8.3 / 12.5 | 89% | Keep | Retained 2025, kept for 2026 |
+| Jasprit Bumrah | MI | 18 | 14 (slab) | 11.2 / 16.7 | 97% | Keep | Retained 2025, kept for 2026 |
+| Shubman Gill | GT | 16.5 | 11 (slab) | 25.8 / 37.7 | 99% | Keep | Retained 2025, kept for 2026 (captain) |
+| Rishabh Pant | DC | 15 | 15 | 14.6 / 22.0 | 97% | Keep | Bought 27 by LSG (2025); traded back to DC at 15 (Oct 2026) |
+| Ravindra Jadeja | RR | 14 | 14 | 7.5 / 11.7 | 84% | Keep | Retained by CSK 2025; traded to RR for 2026 |
+| MS Dhoni | CSK | 4 | 4 | 1.1 / 2.4 | 62% | Borderline (kept) | Retained 2025 (uncapped, 4 cr), kept for 2026 |
+| Rinku Singh | KKR | 13 | 11 (slab) | 4.9 / 9.4 | 90% | Keep | Retained 2025, kept for 2026 |
+| Tejasvi Singh | KKR | 3 | 3 | 0.3 / 0.5 | 57% | Borderline (kept) | Bought 3 cr at the 2026 auction; 15 IPL balls |
+| Hardik Pandya | MI | 16.35 | 14 (slab) | 12.3 / 18.6 | 89% | Keep | Retained 2025, kept for 2026 (captain) |
+| Tilak Varma | MI | 8 | 8 | 14.9 / 22.7 | 98% | Keep | Retained 2025, kept for 2026 |
+| Abhishek Sharma | SRH | 14 | 14 | 16.2 / 25.1 | 98% | Keep | Retained 2025, kept for 2026 |
+| Yashasvi Jaiswal | RR | 18 | 18 | 12.3 / 18.9 | 98% | Keep | Retained 2025, kept for 2026 |
+| Shreyas Iyer | PBKS | 26.75 | 26.75 | 14.2 / 21.3 | 97% | Keep | Bought 26.75 (2025), kept for 2026 (captain) |
+| KL Rahul | DC | 14 | 14 | 10.6 / 15.8 | 94% | Keep | Bought 14 (2025), kept for 2026 |
+| Axar Patel | DC | 16.5 | 14 (slab) | 18.2 / 27.1 | 96% | Keep | Retained 2025, kept for 2026 (captain) |
+| Sanju Samson | CSK | 18 | 18 | 7.9 / 12.2 | 93% | Keep | Retained by RR 2025; traded to CSK for 2026 |
+| Ruturaj Gaikwad | CSK | 18 | 14 (slab) | 12.8 / 19.5 | 95% | Keep | Retained 2025, kept for 2026 (captain) |
+| Rashid Khan | GT | 18 | 11 (slab) | 8.9 / 13.8 | 92% | Keep | Retained 2025, kept for 2026 |
+| Pat Cummins | SRH | 18 | 14 (slab) | 8.1 / 13.3 | 71% | Keep | Retained 2025, kept for 2026 (captain) |
+| Heinrich Klaasen | SRH | 23 | 14 (slab) | 7.6 / 13.1 | 83% | Keep | Retained 2025 (23 cr), kept for 2026 |
+| Cameron Green | KKR | 25.2 | 25.2 | 10.6 / 16.2 | 81% | Keep | Bought 25.2 at the 2026 auction (paid 18) |
+| Vaibhav Suryavanshi | RR | 1.1 | 1.1 | 21.3 / 30.4 | 100% | Keep | Bought 1.1 (2025), kept for 2026 |
+| Arshdeep Singh | PBKS | 18 | 18 | 10.3 / 15.5 | 94% | Keep | Bought back 18 with an RTM (2025), kept for 2026 |
+
+Every one of the 25 is kept by default, as every one of them was kept (or traded for) by his franchise
+for 2026. Rohit Sharma (39, a forecast that has him at −15 and a 20% chance of being a regular in 2029),
+Dhoni (45) and Tejasvi Singh (15 IPL balls) are Borderline, which is the honest reading: franchises keep
+players like Rohit and Dhoni a little more often than not, through what the model sees (home side, many
+seasons, captaincy history) rather than their price, which is a fraction of their cost. What the model
+can't see (Dhoni's following, Rohit's place in MI's leadership) would push them further up.
+
+The default calls (P = the chance kept; the default plan releases below 50%), legal after step 7:
+
+- **CSK** (19 kept, 11.1 cr left): release Short (23%), Forrester, Matt Henry, Foulkes, Spencer Johnson,
+  Noronha, Kuldip Yadav, Aman Khan, Shreyas Gopal, Ellis, Hosein (49%). Borderline, kept: Dhoni (62%),
+  Overton, Ghosh, Urvil Patel, Madhwal.
+- **DC** (18, 26.0 cr): release Duckett (26%), Chameera, Jamieson, Rehan Ahmed, Miller, Ajay Mandal, Karun
+  Nair, Starc (49%). Borderline, kept: Madhav Tiwari, Tripurana Vijay, Prithvi Shaw, Parakh, Zeeshan Ansari.
+- **GT** (16, 14.0 cr): release Luke Wood (26%), Banton, Esterhuizen, Glenn Phillips, Khejroliya, Prithvi
+  Raj, Anuj Rawat, Jayant Yadav, Kushagra, Brar, Tewatia (48%). Borderline, kept: Shahrukh Khan, Arshad
+  Khan, Ishant Sharma, Suthar, Sindhu, Holder.
+- **KKR** (14, 23.2 cr): release Powell (29%), Seifert, Ranjan, Muzarabani, Rachin Ravindra, Kamra,
+  Ramandeep Singh, Sisodia, Solanki, Saini, Akash Deep, Tripathi, Manish Pandey (49%). Borderline, kept:
+  Umran Malik, Pathirana, Tejasvi Singh.
+- **LSG** (20, 24.5 cr): release Breetzke (39%), Linde, Nortje, Naman Tiwari, Shahbaz Ahmed, Arjun
+  Tendulkar. Borderline, kept: Markram, Akash Singh, Kulkarni, Himmat Singh, Hasaranga, Raghuwanshi.
+- **MI** (22, 13.7 cr): release Maharaj (29%), Izhar, Ahir, Ankolekar, Lomror, Raj Bawa, Boult (48%).
+  Borderline, kept: Rohit Sharma (60%), Rutherford, Shardul Thakur, Santner, Bosch, Minz, de Kock, Malewar
+  and others.
+- **PBKS** (17, 15.1 cr): release Dwarshuis (36%), Ferguson, Vishnu Vinod, Praveen Dubey, Mitchell Owen,
+  Nishad, Avinash, Pannu. Borderline, kept: Stoinis, Shashank Singh, Omarzai, Vyshak, Yash Thakur,
+  Bartlett, Musheer Khan.
+- **RCB** (15, 13.6 cr): release Shepherd (22%), Jordan Cox, Gleeson, Thushara, Mangesh Yadav, Deswal,
+  Ostwal, Malhotra, Chouhan, Swapnil Singh, Bethell (47%). Borderline, kept: Hazlewood, Jitesh Sharma, Yash
+  Dayal, Abhinandan Singh, Venkatesh Iyer, Duffy.
+- **RR** (18, 10.2 cr): release Milne (29%), Shanaka, Maphaka, Pretorius, Aman Rao, Emanjot Chahal,
+  Puthur, Yudhvir Singh, Sam Curran (44%). Borderline, kept: Hetmyer, Deshpande, Shubham Dubey, Sushant
+  Mishra, Kuldeep Sen, Ravi Singh.
+- **SRH** (17, 20.2 cr): release Carse (24%), Jack Edwards, Payne, Livingstone, Madushanka, Kamindu Mendis,
+  Tarmale, Amit Kumar, Fuletra, Ambrish, Coetzee, Mavi (50%, just under). Borderline, kept: Harshal Patel,
+  Unadkat, Smaran Ravichandran, Natarajan.
+
+176 of the 272 are kept by default (65%; franchises kept 68% in 2026). The releases are what franchises
+release in a mini year: overseas squad players, the young uncapped who didn't play, the old who stopped
+playing.
+
+**Limits.** The model says what franchises do, not what is optimal: it inherits their habits (the
+overseas discount, loyalty to their own players), and a franchise that wants to beat the others needs the
+value-per-crore view of Bid plan as well. It sees no fitness, no brand or following, no captaincy plans for
+next season, no player's wish to leave; 2025's departed captains (Pant, KL Rahul, Shreyas Iyer) are its
+misses. Mega-year calls are a ranking (the limits on how many may be kept change by cycle). The market
+price behind it is still off by a factor of about 1.9 on a typical player (section 6b). The likely pool is
+our guess at what other teams release. The 2025 retention slabs are assumed to carry into 2027. Nineteen
+squad players aren't in the ball-by-ball data and can't be rated: their price is a market prior for a
+typical uncapped Indian, not a judgement of the player.
 
 ---
 
@@ -1310,7 +1754,8 @@ Run: `uv run python scripts/form_forecast.py fits` (the walk-forward fits; cache
 **What it does.** Before the auction (IPL 2027: likely 16 December 2026), a franchise needs a sheet: whom to
 bid for, how high, and what to do when a target goes for more. Bid plan takes the squad and purse a team
 brings in (Keep or release's plan, section 10, with the user's own keep / release calls carried in the
-link), the competition's rules and the auction pool, and returns a priority list of targets, each with the
+link; its purse left is the purse less what the kept players cost, 2025 retentions by the slabs, since
+2026-10-22), the competition's rules and the auction pool, and returns a priority list of targets, each with the
 price rivals would likely pay, a bid that is usually enough, a **max bid** (the walk-away price) and the
 chance of landing him under it, a **fallback chain** per role, and the squad that follows. Every assumption
 is editable on the page and the CLI (`cricdex bidplan --team RCB --release "Rajat Patidar" --need spinner=4
@@ -1337,7 +1782,7 @@ Auction room's personality, bid in the Auction room's simulator 200 times. The s
 **calibrated to real auctions** (section 7 and [AUCTION_MATH Part 3b](AUCTION_MATH.md): a fitted level per
 auction type, a concave curve on the market price, the last price where known, a demand shock per lot and
 the market tightness). For each player sold in a run, the price **we would have to beat** is the winning
-rival's maximum bid × 1.02 (the simulator's clearing step), within the 27 cr record and his price ceiling; a
+rival's maximum bid × 1.02 (the simulator's clearing step; a rival bids at most what his purse allows); a
 player no rival bid for (or not among the simulator's lots) costs his base price. We are a price-taker: our
 own buys don't change what the rivals do in a run.
 
@@ -1383,8 +1828,9 @@ asks "what is he worth to *this* squad?".
 - **Targets**: players the rule lands in at least 5% of the runs, or that the user gave a max bid.
 - **Rivals pay** = the median price to beat over the runs (what to expect to pay); **usually enough** = the
   price that wins him in 9 runs of 10.
-- **Max bid** = his worth to the squad: his gain to the likely squad (without him) ÷ λ, capped at 27 cr and at
-  what the purse leaves after the other likely buys at their average prices (marked "purse"). In an open
+- **Max bid** = his worth to the squad: his gain to the likely squad (without him) ÷ λ, capped at what the
+  purse leaves after the other likely buys at their average prices (marked "purse"; the 27 cr record cap
+  was dropped on 2026-10-22). In an open
   auction you keep bidding while the price is below your worth, so this is the walk-away price, not the
   expected price; when it is far above "rivals pay", the market undervalues him for this squad.
 - **P(≤ max)** = the share of runs in which the max bid is enough; **in plan** = how often the rule actually
@@ -1397,7 +1843,9 @@ asks "what is he worth to *this* squad?".
   and squad size, the likely squad, the share of runs in which each need is met, what is still missing, and
   the releases to reconsider.
 
-*Examples (IPL 2027 defaults: 125 cr assumed, 8 places opened, 200 runs; data to the 2026 final).* "Rivals"
+*Examples (IPL 2027 defaults: 125 cr assumed, 8 places opened, 200 runs; data to the 2026 final; computed
+before the 2026-10-22 price recipe and slab costs, so the market prices, calls and purses below are the old
+ones, due a re-run with issue I2).* "Rivals"
 = what rivals usually pay; "9 in 10" = usually enough; "max" = worth to the squad.
 
 - **RCB** (17 kept, 41.1 cr left; Patidar, Bhuvneshwar Kumar, Venkatesh Iyer and Rasikh Salam released on
@@ -1486,8 +1934,9 @@ average (it is fitted) but drags down a player who has improved since his last a
 **Validation 2: the plans, replayed** (`scripts/bidplan_backtest.py`, about 35 minutes). For each auction and
 franchise, with only what was known before it: values from the IPL fitted on the matches before the auction
 date, blended with the other leagues' fits whose cut-off is on or before it and discounted for IPL relevance
-as the pool does; market prices from the shipped recipe re-fitted on the auctions before (2018–2024 for 2025,
-2018–2025 for 2026); the real retentions and purses; the pool = every player sold at that auction with a
+as the pool does; market prices from the price recipe re-fitted on the auctions before (2018–2024 for 2025,
+2018–2025 for 2026; the numbers below are from the recipe before 2026-10-22: the script now uses the group-median
+recipe, and they are due a re-run with issue I2); the real retentions and purses; the pool = every player sold at that auction with a
 Cricsheet id at his real base price, **plus the unsold alternatives** (recent IPL players neither retained nor
 bought: the P(bought) risk set, which the plan may target but is never credited with buying); rivals
 calibrated as above, 200 runs. The plan is built with the team's real purse left and with a purse equal to

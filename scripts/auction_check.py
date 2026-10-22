@@ -21,6 +21,7 @@ from cricdex.web_parity import (
     default_retentions,
     load_auction_pool,
     load_retentions,
+    retention_inputs,
     simulate_auction,
 )
 
@@ -37,8 +38,8 @@ def run(
 ) -> None:
     pool = build_pool(load_auction_pool("ipl", base))
     ret = load_retentions("ipl", base)
-    mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
-    real_prices = {r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows}
+    ri = retention_inputs(ret)  # the real 2025 lists, prices and the slab rule they cost
+    mega_ids = ri["mega_ids"]
     retentions = default_retentions(pool, IPL_TEAMS_DEFAULT, "mega", mega_ids)
     res = simulate_auction(
         pool,
@@ -50,7 +51,10 @@ def run(
             "trials": trials,
             "mode": "mega",
             "retentions": retentions,
-            "real_prices": real_prices,
+            "real_prices": ri["real_prices"],
+            "retention_slabs": ri["retention_slabs"],
+            "slab_holders": ri["slab_holders"],
+            "fixed_retained": ri["fixed_retained"],
         },
     )
     typer.echo(

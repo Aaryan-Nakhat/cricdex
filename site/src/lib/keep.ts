@@ -3,15 +3,12 @@
 // and `cricdex keep` show identical numbers (test_scripts/test_keep_parity.py runs both).
 // The method in plain words: docs/METHODOLOGY.md §10.
 import { hasMarketInputs, iplPrice, marketPrice, type MarketInputs, type Role } from "./auction.ts";
+import { slabCharge } from "./slabs.ts";
 
-// A recommendation needs a gap of at least max(KEEP_MARGIN_MIN, KEEP_MARGIN_SHARE × salary) cr
-// between price and salary; inside it the player is fairly paid (Borderline).
-export const KEEP_MARGIN_MIN = 0.5;
-export const KEEP_MARGIN_SHARE = 0.15;
-// A value sd at least this wide (runs per 100 balls) counts as a thin record in the reason.
-export const THIN_SD = 6.0;
-// From this age a Keep becomes Borderline unless the surplus is at least twice the margin.
-export const AGE_DECLINE = 35;
+// The default plan keeps a player when the chance a franchise keeps a player like him is at least
+// KEEP_CALL (the backtest's decision rule); within BORDER_BAND of it the call is Borderline.
+export const KEEP_CALL = 0.5;
+export const BORDER_BAND = 0.15;
 // The cheapest a squad slot can be filled for (the lowest base-price band, cr).
 export const MIN_SLOT_PRICE = 0.3;
 
@@ -68,10 +65,23 @@ export interface KeepPlayer {
   captain_ipl_seasons?: number | null;
   captain_intl_2y?: number | null;
   captain_teams?: string[] | null; // the IPL sides he captained last season
+  // the market's last verdict on him (auction.ts `marketFeatures`)
+  prior_share?: number | null;
+  prior_years?: number | null;
+  prior_retained?: boolean | null;
+  /** a 2025 mega-auction retention still with his franchise, charged by the retention slabs */
+  slab_holder?: "capped" | "uncapped" | null;
   /** A hand-written note on the salary (e.g. an overseas fee cap). Display only. */
   note?: string | null;
+  /** share of his value's evidence from a stale league (SMAT), and which ("SMAT data to Dec 2024") */
+  stale_share?: number | null;
+  stale_note?: string | null;
   /** Form forecast's 3-season outlook (export_site via scout/forecast.py `keep_outlook`). */
   forecast?: KeepForecast | null;
+  /** IPL seasons he played for this franchise before the deadline (the retention model) */
+  seasons_here?: number | null;
+  /** his first IPL side is this franchise (the retention model) */
+  home_grown?: boolean | null;
 }
 export interface KeepForecast {
   role: "batter" | "bowler";
@@ -96,6 +106,10 @@ export interface KeepRules {
   max_retained: number;
   max_overseas_retained: number;
   replacements_retainable: boolean;
+  /** what a kept player costs the purse: "salary" | "slabs" (retentionCosts); absent = salary */
+  retained_cost?: string;
+  retention_slabs?: number[];
+  uncapped_retention_slab?: number;
 }
 
 // ---- formatting (identical rounding to keep.py: half up on |x| scaled) ----
@@ -134,7 +148,6 @@ function fsum(xs: number[]): number {
 // ---- per player ----
 
 export const hasTag = (p: { tags: string }, tag: Tag) => p.tags.includes(TAG_LETTER[tag]);
-export const margin = (salary: number) => Math.max(KEEP_MARGIN_MIN, KEEP_MARGIN_SHARE * salary);
 
 export const FORECAST_FLAG: Record<string, string> = {
   hold: "holds",
@@ -159,13 +172,12 @@ export function forecastNote(p: KeepPlayer): string {
   return `${meds} (${s[0]}-${String(s[s.length - 1]).slice(2)}) · ${FORECAST_FLAG[f.flag] ?? f.flag} · ${pr}% a regular in ${s[s.length - 1]}`;
 }
 
-export function outlook(age: number | null): string {
-  if (age === null || age === undefined) return "Age unknown.";
-  if (age < 24) return "Young: likely to improve.";
-  if (age < 30) return "Prime years.";
-  if (age < 33) return "Holding: most players hold their level to about 33.";
-  if (age < AGE_DECLINE) return "Past 32: values usually start to slip.";
-  return `${AGE_DECLINE}+: expect decline; a short-term keep at best.`;
+/** His age and the Form forecast's shape, no rule of thumb. Mirror of keep.py `outlook`. */
+export function outlook(p: KeepPlayer): string {
+  const a = p.age === null || p.age === undefined ? "Age unknown" : `${Math.floor(p.age)} years old`;
+  const f = p.forecast;
+  if (!f) return `${a}; too few balls for a forecast.`;
+  return `${a}; the Form forecast ${FORECAST_FLAG[f.flag] ?? f.flag}.`;
 }
 
 export function formNote(p: KeepPlayer, form: LeagueForm | null): string {
@@ -199,6 +211,12 @@ export interface Assessment {
   /** the IPL sides he captained last season, else null (the "Captain" badge) */
   captain: string | null;
   surplus: number | null;
+  /** the chance a franchise keeps a player like him (the retention model), null without one */
+  p_keep: number | null;
+  /** the default plan keeps him (p_keep ≥ KEEP_CALL; true without a model) */
+  default_keep: boolean;
+  /** no ball-by-ball record: `price` is the market model's prior (NO_DATA_LABEL), not a rating */
+  no_data: boolean;
   outlook: string;
   form_note: string;
   /** the 3-season outlook line ("" without a forecast) and its three-season average */
@@ -206,6 +224,8 @@ export interface Assessment {
   forecast_avg3: number | null;
   rec: Rec;
   reason: string;
+  /** what keeping him costs the purse (his salary, or for a slab holder what releasing him frees) */
+  cost: number;
 }
 
 /** The IPL sides he captained last season ("RCB"), from the export's `captain_teams`, or null
@@ -215,72 +235,252 @@ export function captainLabel(p: { captain_teams?: string[] | null }): string | n
   return teams.length ? teams.join(" / ") : null;
 }
 
-export function assess(p: KeepPlayer, form: LeagueForm | null = null): Assessment {
+// A rating that rests at least this much on a league whose data has stopped (SMAT on Cricsheet ends
+// in Dec 2024) says so in the reason (issue I7). Mirror of keep.py.
+export const STALE_REASON_MIN = 0.1;
+
+/** " 85% of his rating rests on SMAT data to Dec 2024 (stale)." or "". Mirror of keep.py `stale_sentence`. */
+export function staleSentence(p: { stale_share?: number | null; stale_note?: string | null }): string {
+  const share = p.stale_share ?? 0;
+  if (!p.stale_note || share < STALE_REASON_MIN) return "";
+  return ` ${Math.round(100 * share)}% of his rating rests on ${p.stale_note} (stale).`;
+}
+
+// A squad player with no ball-by-ball record anywhere (no Cricsheet match): shown in place of his
+// value, and his price is the market model's prior for a player like him (issue I6). Mirror of keep.py.
+export const NO_DATA_LABEL = "no match data — priced from the market";
+
+/** Who the market prior is for, in words. Mirror of keep.py `no_data_kind`. */
+export function noDataKind(p: { overseas: boolean; intl_caps?: number | null }): string {
+  if (p.overseas) return "an overseas player";
+  return (p.intl_caps ?? 0) > 0 ? "a capped Indian" : "an uncapped Indian";
+}
+
+// ---- what keeping a player costs the purse (keep.py: `retained_cost`, the retention slabs) ----
+
+export const usesSlabs = (rules: Partial<KeepRules>) => rules.retained_cost === "slabs";
+
+// `slabCharge` lives in slabs.ts (the Auction room charges retentions the same way).
+export { slabCharge };
+
+/** What the kept players cost the purse. Mirror of keep.py `purse_charged`. */
+export function purseCharged(kept: Pick<KeepPlayer, "salary" | "slab_holder">[], rules: Partial<KeepRules>): number {
+  if (!usesSlabs(rules)) return fsum(kept.map((p) => Number(p.salary)));
+  const holders = kept.filter((p) => p.slab_holder);
+  const rest = fsum(kept.filter((p) => !p.slab_holder).map((p) => Number(p.salary)));
+  return rest + (holders.length ? slabCharge(holders, rules) : 0);
+}
+
+/** player key → what keeping him costs the purse: his salary, or for a slab holder what releasing
+ * him alone would free. Mirror of keep.py `retention_costs`. */
+export function retentionCosts(squad: KeepPlayer[], rules: Partial<KeepRules>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const p of squad) out[playerKey(p)] = Number(p.salary);
+  if (!usesSlabs(rules)) return out;
+  const holders = squad.filter((p) => p.slab_holder);
+  if (!holders.length) return out;
+  const full = slabCharge(holders, rules);
+  for (const p of holders) {
+    const k = playerKey(p);
+    out[k] = full - slabCharge(holders.filter((q) => playerKey(q) !== k), rules);
+  }
+  return out;
+}
+
+export function costSentence(p: KeepPlayer, cost: number): string {
   const salary = Number(p.salary);
+  if (!p.slab_holder || Math.abs(cost - salary) < 0.005) return "";
+  return ` One of ${p.team}'s 2025 retentions, charged to the purse at the retention slabs: keeping him costs ${cr(cost)} cr, not his ${crExact(salary)} cr salary.`;
+}
+
+// ---- the chance a franchise keeps him (keep.py: `keep_features`, `keep_probability`) ----
+
+export interface KeepModel {
+  intercept: number;
+  coef: Record<string, number>; // feature → coefficient, in the order they are summed
+  fitted?: string;
+  trained_on?: number[];
+}
+let keepModel: KeepModel | null = null;
+/** Install the fitted retention model (data.ts `getKeep` does this from keep.json; so do the parity
+ * harnesses). */
+export function registerKeepModel(m: KeepModel | null): void {
+  keepModel = m;
+}
+export function getKeepModel(): KeepModel | null {
+  return keepModel;
+}
+
+/** The retention model's inputs. Mirror of keep.py `keep_features`. */
+export function keepFeatures(
+  market: number,
+  cost: number,
+  mega: boolean,
+  forecastAvg3: number | null | undefined,
+  forecastPRegular: number | null | undefined,
+  captainHere: boolean,
+  seasonsHere: number,
+  homeGrown: boolean,
+  cappedIndian: boolean,
+  overseas: boolean,
+  age: number | null | undefined,
+  iplBalls: number | null | undefined,
+  boughtPrev: boolean,
+): Record<string, number> {
+  const c = cost && cost > 0 ? cost : 1e-3;
+  const lr = Math.log(Math.max(market, 1e-3) / c);
+  const mg = mega ? 1 : 0;
+  const hasAge = age !== null && age !== undefined;
+  return {
+    log_ratio: lr,
+    mega: mg,
+    forecast: forecastAvg3 !== null && forecastAvg3 !== undefined ? forecastAvg3 / 10 : 0,
+    forecast_regular: forecastPRegular !== null && forecastPRegular !== undefined ? forecastPRegular : 0,
+    no_forecast: forecastAvg3 !== null && forecastAvg3 !== undefined ? 0 : 1,
+    captain_here: captainHere ? 1 : 0,
+    seasons_here: Math.log1p(Math.max(seasonsHere || 0, 0)),
+    home_grown: homeGrown ? 1 : 0,
+    capped_indian: cappedIndian ? 1 : 0,
+    overseas: overseas ? 1 : 0,
+    age: hasAge ? ((age as number) - 28) / 5 : 0,
+    age_over_33: hasAge ? Math.max(0, (age as number) - 33) / 3 : 0,
+    ipl_balls: Math.log1p(Math.max(iplBalls || 0, 0)) / 5,
+    bought_prev: boughtPrev ? 1 : 0,
+    log_cost: Math.log(c),
+    mega_x_log_ratio: mg * lr,
+  };
+}
+
+/** σ(intercept + Σ coef × feature). Mirror of keep.py `keep_probability`. */
+export function keepProbability(f: Record<string, number>, model: KeepModel): number {
+  let t = model.intercept;
+  for (const [k, c] of Object.entries(model.coef)) {
+    const x = f[k];
+    if (x === undefined) throw new Error(`keep model feature "${k}" is unknown`);
+    t += c * x;
+  }
+  return 1 / (1 + Math.exp(-t));
+}
+
+/** Keep / Borderline / Release from the chance he is kept. Mirror of keep.py `call_of`. */
+export function callOf(pKeep: number): Rec {
+  if (pKeep >= KEEP_CALL + BORDER_BAND) return "keep";
+  if (pKeep < KEEP_CALL - BORDER_BAND) return "release";
+  return "borderline";
+}
+
+function ties(p: KeepPlayer): string[] {
+  const team = p.team || "";
+  const out: string[] = [];
+  if (team && (p.captain_teams ?? []).includes(team)) out.push(`captained ${team} last season`);
+  if (p.home_grown) out.push("home-grown");
+  const n = Math.trunc(p.seasons_here ?? 0);
+  if (n >= 1) out.push(`${n} season${n === 1 ? "" : "s"} with ${team}`);
+  return out;
+}
+
+export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: number | null = null): Assessment {
+  const salary = cost === null ? Number(p.salary) : Number(cost);
   const base = {
-    outlook: outlook(p.age),
+    outlook: outlook(p),
     form_note: formNote(p, form),
     forecast_note: forecastNote(p),
     forecast_avg3: p.forecast?.avg3 ?? null,
     captain: captainLabel(p),
+    cost: salary,
   };
-  if (p.value === null || p.value === undefined) {
-    return {
-      ...base,
-      price: null,
-      price_central: null,
-      onfield: null,
-      p_bought: null,
-      surplus: null,
-      rec: "borderline",
-      reason: `Not enough balls in our data to rate him: decide on scouting (he costs ${crExact(salary)} cr).`,
-    };
-  }
-  const onfield = iplPrice(p.value, p.role, p.value_sd, p.target_balls);
-  let price = onfield;
-  let central = iplPrice(p.value, p.role, 0, p.target_balls);
-  let pBought: number | null = null;
   const mkt = hasMarketInputs(p);
-  if (mkt) {
-    // median market price on the cautious estimate; the upper figure is the upper quartile of what
-    // players like him fetch, on his central value
+  let lead = "";
+  let price: number;
+  let central: number;
+  let onfield: number | null;
+  let pBought: number | null = null;
+  let noData = false;
+  if (p.value === null || p.value === undefined) {
+    if (!mkt) {
+      return {
+        ...base,
+        price: null,
+        price_central: null,
+        onfield: null,
+        p_bought: null,
+        surplus: null,
+        p_keep: null,
+        default_keep: true,
+        no_data: false,
+        rec: "borderline",
+        reason: `Not enough balls in our data to rate him: decide on scouting (he costs ${crExact(salary)} cr).${costSentence(p, salary)}`,
+      };
+    }
+    // no ball-by-ball record at all: a sourced prior, never a made-up rating (keep.py)
     const mk = marketPrice(p as unknown as MarketInputs);
     price = mk.price;
-    pBought = mk.p_bought;
-    central = marketPrice({ ...(p as unknown as MarketInputs), value_sd: 0 }).high;
+    central = mk.high;
+    onfield = null;
+    noData = true;
+    // an auction price well above the prior is market evidence our data can't see: say so
+    const above = p.acquired === "auction" && Number(p.salary) > central;
+    lead = `${NO_DATA_LABEL[0].toUpperCase()}${NO_DATA_LABEL.slice(1)}: ${noDataKind(p)} with no match record fetches about ${cr(price)} cr (${cr(central)} in the top quarter) against ${crExact(salary)}${above ? "; franchises bid him well above that at the auction, so they saw something our data can't." : "."}`;
+  } else {
+    onfield = iplPrice(p.value, p.role, p.value_sd, p.target_balls);
+    price = onfield;
+    central = iplPrice(p.value, p.role, 0, p.target_balls);
+    if (mkt) {
+      // median market price; the upper figure is the upper quartile of what players like him fetch,
+      // on his central value
+      const mk = marketPrice(p as unknown as MarketInputs);
+      price = mk.price;
+      pBought = mk.p_bought;
+      central = marketPrice({ ...(p as unknown as MarketInputs), value_sd: 0 }).high;
+    }
   }
-  const surplus = price - salary;
-  const m = margin(salary);
-  const age = p.age;
+  const model = keepModel;
+  const fc = p.forecast;
+  const t = ties(p);
+  const tieText = t.length ? ` (${t.join(", ")})` : "";
   let rec: Rec;
   let reason: string;
-  if (surplus >= m) {
-    if (age !== null && age !== undefined && age >= AGE_DECLINE && surplus < 2 * m) {
-      rec = "borderline";
-      reason = `Worth about ${cr(price)} cr against ${crExact(salary)}, but at ${Math.floor(age)} his value usually falls from here.`;
-    } else {
-      rec = "keep";
-      reason = `Worth about ${cr(price)} cr at auction, paid ${crExact(salary)}: ${cr(surplus)} cr of surplus.`;
-    }
-  } else if (central - salary <= -m) {
-    rec = "release";
-    reason = mkt
-      ? `Paid ${crExact(salary)} cr but players like him fetch about ${cr(price)} (${cr(central)} in the top quarter): releasing frees ${crExact(salary)} cr.`
-      : `Paid ${crExact(salary)} cr but worth about ${cr(central)} even on his central estimate: releasing frees ${crExact(salary)} cr.`;
-  } else if (central - salary >= m) {
+  let pKeep: number | null;
+  if (model === null) {
     rec = "borderline";
-    reason =
-      (p.value_sd ?? 0) >= THIN_SD
-        ? `Thin record: worth ${cr(price)} to ${cr(central)} cr against ${crExact(salary)}; keep if you trust the upside.`
-        : `Close call: worth ${cr(price)} (${mkt ? "median" : "cautious"}) to ${cr(central)} cr${mkt ? " (top quarter)" : ""} against ${crExact(salary)}; a keep if you back the higher figure.`;
+    reason = `${lead ? lead + " " : ""}Worth about ${cr(price)} cr at auction against ${crExact(salary)} to keep; no retention model is loaded, so no call.`;
+    pKeep = null;
   } else {
-    rec = "borderline";
-    reason = mkt
-      ? `Fairly paid: players like him fetch ${cr(price)} to ${cr(central)} cr (top quarter) against ${crExact(salary)}.`
-      : `Fairly paid: worth about ${cr(price)} cr against ${crExact(salary)}.`;
+    const f = keepFeatures(
+      price,
+      salary,
+      false,
+      fc?.avg3,
+      fc?.p_regular_last,
+      (p.captain_teams ?? []).includes(p.team || ""),
+      Math.trunc(p.seasons_here ?? 0),
+      !!p.home_grown,
+      (p.intl_caps ?? 0) > 0 && !p.overseas,
+      !!p.overseas,
+      p.age,
+      p.ipl_balls,
+      p.acquired === "auction",
+    );
+    pKeep = keepProbability(f, model);
+    rec = callOf(pKeep);
+    const pct = Math.floor(100 * pKeep + 0.5);
+    reason = `${lead ? lead + " " : ""}Worth about ${cr(price)} cr at auction against ${crExact(salary)} to keep${tieText}: franchises kept ${pct}% of players like him at their retention deadlines (2018-2026).`;
   }
-  if (mkt && base.captain) reason += ` Captained ${base.captain} last season: the market pays captains a premium.`;
-  return { ...base, price, price_central: central, onfield, p_bought: pBought, surplus, rec, reason };
+  reason += staleSentence(p);
+  reason += costSentence(p, salary);
+  return {
+    ...base,
+    price,
+    price_central: central,
+    onfield,
+    p_bought: pBought,
+    surplus: price - salary,
+    p_keep: pKeep,
+    default_keep: pKeep === null ? true : pKeep >= KEEP_CALL,
+    no_data: noData,
+    rec,
+    reason,
+  };
 }
 
 export const playerKey = (p: { id: string | null; team: string; name: string }) => p.id || `name:${p.team}:${p.name}`;
@@ -322,12 +522,20 @@ export function marketFor(
   pool: Parameters<typeof freeAgents>[0],
   tags: Record<string, string>,
   form: LeagueForm | null = null,
+  rules: Partial<KeepRules> | null = null,
 ): MarketPlayer[] {
   const out = freeAgents(pool, tags);
+  const costs: Record<string, number> = {};
+  if (rules !== null) {
+    const teams: Record<string, KeepPlayer[]> = {};
+    for (const p of players) (teams[p.team || ""] ??= []).push(p);
+    for (const t of Object.keys(teams).sort()) Object.assign(costs, retentionCosts(teams[t], rules));
+  }
   for (const p of players) {
     if (p.team === team || p.value === null || p.value === undefined) continue;
-    const a = assess(p, form);
-    if (a.rec !== "release") continue;
+    const k = playerKey(p);
+    const a = assess(p, form, Object.prototype.hasOwnProperty.call(costs, k) ? costs[k] : null);
+    if (a.default_keep) continue;
     let t = p.tags || "";
     if (p.overseas && !t.includes("x")) t += "x";
     out.push({ id: playerKey(p), name: p.name, value: p.value, price: a.price as number, overseas: !!p.overseas, tags: t, from_team: p.team });
@@ -361,6 +569,8 @@ export interface SquadResult {
   released: number;
   overseas_kept: number;
   salary_kept: number;
+  /** what the kept players cost the purse (salaries, or retention slabs; purseCharged) */
+  purse_charged: number;
   salary_released: number;
   purse: number;
   purse_left: number;
@@ -374,16 +584,12 @@ export interface SquadResult {
 }
 
 /** Who goes first when the default plan is over a limit: Borderline before Keep, then the lowest
- * surplus per crore of salary (an unrated player first), then the key. Mirror of keep.py `_fit_order`. */
+ * chance a franchise keeps him (an unpriced player first), then the key. Mirror of keep.py `_fit_order`. */
 function fitOrder(a: AssessedPlayer, b: AssessedPlayer): number {
   const ta = a.rec === "borderline" ? 0 : 1;
   const tb = b.rec === "borderline" ? 0 : 1;
   if (ta !== tb) return ta - tb;
-  const r = (p: AssessedPlayer) => {
-    const sal = Number(p.salary);
-    if (p.surplus === null) return -Infinity;
-    return sal > 0 ? p.surplus / sal : p.surplus;
-  };
+  const r = (p: AssessedPlayer) => (p.p_keep === null ? -Infinity : p.p_keep);
   const ra = r(a);
   const rb = r(b);
   if (ra !== rb) return ra < rb ? -1 : 1;
@@ -391,7 +597,7 @@ function fitOrder(a: AssessedPlayer, b: AssessedPlayer): number {
 }
 
 /** Make the default plan legal (mirror of keep.py `fit_to_rules`): release kept overseas Borderline
- * players, lowest surplus per crore first (a Keep only once no Borderline is left), until the overseas
+ * players, lowest chance kept first (a Keep only once no Borderline is left), until the overseas
  * cap holds; then the same for the squad maximum. A player the user decided on is never moved. */
 export function fitToRules(players: AssessedPlayer[], rules: KeepRules): void {
   let sqMax = rules.squad_max;
@@ -429,21 +635,23 @@ export function evaluate(
   needs: Partial<Record<Tag, number>> = {},
   form: LeagueForm | null = null,
 ): SquadResult {
+  const costs = retentionCosts(squad, rules);
   const players: AssessedPlayer[] = squad.map((p) => {
-    const a = assess(p, form);
     const key = playerKey(p);
+    const a = assess(p, form, costs[key]);
     const d = Object.prototype.hasOwnProperty.call(decisions, key) ? decisions[key] : undefined;
     const ok = d === "keep" || d === "release";
-    const kept = ok ? d === "keep" : a.rec !== "release";
+    const kept = ok ? d === "keep" : a.default_keep;
     return { ...p, ...a, key, kept, overridden: ok, auto_release: null };
   });
   fitToRules(players, rules);
   const kept = players.filter((p) => p.kept);
   const released = players.filter((p) => !p.kept);
   const salaryKept = fsum(kept.map((p) => Number(p.salary)));
+  const charged = purseCharged(kept, rules);
   const overseasKept = kept.filter((p) => p.overseas).length;
   const purse = Number(rules.purse);
-  const purseLeft = purse - salaryKept;
+  const purseLeft = purse - charged;
   const slotsLeft = rules.squad_max - kept.length;
   const overseasSlots = rules.overseas_max - overseasKept;
 
@@ -503,7 +711,7 @@ export function evaluate(
   if (mr && kept.length > mr) warnings.push(`Keeping ${kept.length}: the rules allow ${mr}.`);
   const mo = rules.max_overseas_retained || 0;
   if (mo && overseasKept > mo) warnings.push(`Keeping ${overseasKept} overseas: the rules allow ${mo}.`);
-  if (purseLeft < 0) warnings.push(`Kept salaries exceed the ${cr(purse)} cr purse by ${cr(-purseLeft)} cr.`);
+  if (purseLeft < 0) warnings.push(`Kept players cost more than the ${cr(purse)} cr purse by ${cr(-purseLeft)} cr.`);
   else if (purseLeft - replacementCost < toMin * MIN_SLOT_PRICE)
     warnings.push(
       `After the replacements there isn't enough purse to reach ${rules.squad_min} players at ${cr(MIN_SLOT_PRICE)} cr each.`,
@@ -520,6 +728,7 @@ export function evaluate(
     released: released.length,
     overseas_kept: overseasKept,
     salary_kept: salaryKept,
+    purse_charged: charged,
     salary_released: fsum(released.map((p) => Number(p.salary))),
     purse,
     purse_left: purseLeft,
@@ -537,7 +746,7 @@ export function evaluate(
 export function toCsvRows(res: SquadResult): string[][] {
   const head = [
     "player", "team", "role", "overseas", "age", "acquired", "salary_cr", "value", "value_sd",
-    "price_cr", "onfield_cr", "p_bought", "surplus_cr", "recommendation", "decision", "auto_release",
+    "cost_cr", "price_cr", "onfield_cr", "p_bought", "surplus_cr", "p_keep", "recommendation", "decision", "auto_release",
     "reason", "outlook", "form", "outlook_3y_avg", "outlook_3y",
   ];
   const rows = [head];
@@ -552,10 +761,12 @@ export function toCsvRows(res: SquadResult): string[][] {
       fmtNum(Number(p.salary), 2),
       p.value === null || p.value === undefined ? "" : fmtNum(p.value, 1),
       p.value_sd === null || p.value_sd === undefined ? "" : fmtNum(p.value_sd, 1),
+      fmtNum(Number(p.cost), 2),
       p.price === null ? "" : fmtNum(p.price, 2),
       p.onfield === null ? "" : fmtNum(p.onfield, 2),
       p.p_bought === null ? "" : fmtNum(p.p_bought, 2),
       p.surplus === null ? "" : fmtNum(p.surplus, 2),
+      p.p_keep === null ? "" : fmtNum(p.p_keep, 2),
       p.rec,
       p.kept ? "keep" : "release",
       p.auto_release ?? "",
@@ -604,6 +815,8 @@ export interface CompetitionInfo {
   max_overseas_retained: number;
   rtm_cards: number;
   retained_cost: string;
+  retention_slabs?: number[];
+  uncapped_retention_slab?: number;
   replacements_retainable: boolean;
   overseas_fee_cap: number;
   min_purse_spend_share: number;
@@ -617,11 +830,18 @@ export interface KeepData {
   salary_source: string | null;
   changes_source: string | null;
   changes: { kind: string; name: string; from?: string; to?: string; team?: string; salary_cr?: number; date?: string }[];
-  purse_check: { source: string | null; teams: Record<string, { published: number; ours: number }> };
+  purse_check: {
+    source: string | null;
+    /** the source for `slab` (2025 retention slabs the purse still counts; issue I6) */
+    slab_source?: string | null;
+    teams: Record<string, { published: number; ours: number; slab?: number }>;
+  };
   unmatched: { team: string; name: string }[];
   form: LeagueForm | null;
   death_rule: { share: number; min_balls: number };
   teams: string[];
   players: KeepPlayer[];
   pool_tags: Record<string, string>;
+  /** the retention model (config/keep_model.json); absent in older exports (no calls then) */
+  keep_model?: KeepModel | null;
 }

@@ -121,6 +121,12 @@ MARKET_PV_MAX = 60.0
 MARKET_GAP_MAX = 6.0  # years since his last IPL match, capped
 # `high` = the upper quartile of what players like him fetch: the median × e^(0.674 × residual sd)
 MARKET_HIGH_Z = 0.674
+# The prior market price (`prior` = ln(prior_share / PRIOR_REF_SHARE), clamped): 2% of the purse is
+# about 2.5 cr in 2026. Seasons since it are capped at PRIOR_YEARS_MAX.
+PRIOR_REF_SHARE = 0.02
+PRIOR_MIN = -4.0
+PRIOR_MAX = 3.0
+PRIOR_YEARS_MAX = 6.0
 
 _MODEL_PATHS = (
     Path(__file__).resolve().parents[3] / "config" / "price_model.json",
@@ -147,7 +153,7 @@ def _num(x: Any) -> float | None:
     return float(x) if isinstance(x, int | float) and math.isfinite(x) else None
 
 
-def market_features(row: dict, cycle: str) -> dict[str, float]:
+def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[str, float]:
     """A player's market-model features from a pool / squad row. `row` keys: `price_value` (his
     blended value before the IPL-relevance discount, runs per 100 balls; missing = unrated),
     `value_sd`, `role`, `is_overseas` (or `overseas`), `intl_caps` (men's T20I + ODI + Test
@@ -156,12 +162,16 @@ def market_features(row: dict, cycle: str) -> dict[str, float]:
     captaincy known before the auction (scout/identity/captains.py): `captain_ipl_last` (captained
     an IPL side the season before), `captain_ipl_seasons`, `captain_intl_2y` (captained his country
     in the two calendar years before).
-    `cycle` = "mega" | "mini". Same definitions as `marketFeatures` in auction.ts."""
+    `cycle` = "mega" | "mini". `pv_max` (the model's `price.pv_max`: the largest priced value in its
+    training rows) holds the priced value to the range the market has priced, so a value beyond the
+    best player ever sold is priced as that player (no extrapolation); missing → MARKET_PV_MAX.
+    Same definitions as `marketFeatures` in auction.ts."""
     v = _num(row.get("price_value"))
     rated = v is not None
     pv = 0.0
+    top = MARKET_PV_MAX if pv_max is None else min(MARKET_PV_MAX, float(pv_max))
     if rated:
-        pv = min(MARKET_PV_MAX, max(MARKET_PV_MIN, priced_value(v, row.get("value_sd"))))
+        pv = min(top, max(MARKET_PV_MIN, priced_value(v, row.get("value_sd"))))
     ov = row.get("is_overseas", row.get("overseas"))
     ov = 1.0 if ov else 0.0
     caps_n = _num(row.get("intl_caps")) or 0.0
@@ -173,6 +183,16 @@ def market_features(row: dict, cycle: str) -> dict[str, float]:
     gap = _num(row.get("ipl_gap"))
     never = 1.0 if gap is None else 0.0
     role = row.get("role")
+    # the market's last verdict on him (scripts/ipl_price_model.market_verdicts): the price a
+    # franchise last paid, as a share of that season's purse, the seasons since and whether it was
+    # a mega-auction retention rather than a sale
+    ps = _num(row.get("prior_share"))
+    has_prior = ps is not None and ps > 0
+    prior = 0.0
+    p_years = 0.0
+    if has_prior:
+        prior = min(PRIOR_MAX, max(PRIOR_MIN, math.log(ps / PRIOR_REF_SHARE)))
+        p_years = min(max(_num(row.get("prior_years")) or 0.0, 0.0), PRIOR_YEARS_MAX)
     return {
         "pv": pv,
         "pv_pos_sq": (max(pv, 0.0) ** 2) / 100.0,
@@ -198,6 +218,11 @@ def market_features(row: dict, cycle: str) -> dict[str, float]:
         "captain_ipl": 1.0 if (_num(row.get("captain_ipl_last")) or 0.0) > 0 else 0.0,
         "captain_seasons": math.log1p(max(_num(row.get("captain_ipl_seasons")) or 0.0, 0.0)),
         "captain_intl": 1.0 if (_num(row.get("captain_intl_2y")) or 0.0) > 0 else 0.0,
+        "prior": prior,
+        "no_prior": 0.0 if has_prior else 1.0,
+        "prior_years": p_years,
+        "prior_x_years": prior * p_years,
+        "prior_retained": 1.0 if has_prior and row.get("prior_retained") else 0.0,
     }
 
 
@@ -209,20 +234,37 @@ def _linear(part: dict, f: dict[str, float]) -> float:
     return t
 
 
+def link_share(part: dict, eta: float) -> float:
+    """The median ln share of the purse from the linear index η (`_linear`), by `part["link"]`:
+    "log" (or none): η itself; "sat": ln S + ln σ(η), σ the logistic function and S =
+    `cap_share`, the fitted most one franchise pays for one player as a share of its purse (the
+    price saturates there instead of growing without limit; METHODOLOGY §6b). Mirror of
+    `linkShare` in auction.ts."""
+    link = part.get("link") or {}
+    if link.get("kind") != "sat":
+        return eta
+    # ln σ(η) = −ln(1 + e^(−η)), written to stay finite for large |η|
+    ls = -math.log1p(math.exp(-eta)) if eta >= 0 else eta - math.log1p(math.exp(eta))
+    return math.log(float(link["cap_share"])) + ls
+
+
 def calibrate(part: dict, lin: float) -> float:
-    """The top-end calibration of the linear predictor (ln price / purse): a monotone piecewise-
-    linear map through `part["calibration"]` knots {x, y} (x increasing), continued beyond the
-    end knots at slope 1, plus `part["shift"]` (the retransformation term). No calibration → lin.
-    Mirror of `calibrate` in auction.ts."""
+    """The calibration of the linear predictor (ln price / purse): a monotone piecewise-
+    linear map through `part["calibration"]` knots {x, y} (x increasing), continued below the first
+    knot at slope 1 and above the last at the map's `hi_slope` (the slope of real prices on the
+    prediction over the top fifth of the lots, fitted; 1 when absent), plus `part["shift"]` (the
+    group's level). No calibration → lin. Mirror of `calibrate` in auction.ts."""
     cal = part.get("calibration")
     out = lin
     if cal and cal.get("x"):
         xs, ys = cal["x"], cal["y"]
         n = len(xs)
+        hi = cal.get("hi_slope")
+        hi = 1.0 if hi is None else float(hi)
         if lin <= xs[0]:
             out = lin + (ys[0] - xs[0])
         elif lin >= xs[n - 1]:
-            out = lin + (ys[n - 1] - xs[n - 1])
+            out = ys[n - 1] + hi * (lin - xs[n - 1])
         else:
             i = 0
             while i < n - 2 and lin > xs[i + 1]:
@@ -246,22 +288,25 @@ def market_price(
     row: dict, competition: dict | None = None, model: dict | None = None
 ) -> dict[str, float | None]:
     """{"price": cr, "high": cr, "p_bought": 0-1 or None} — what the auction market pays for this
-    player (the model's median), the upper quartile of that (`high`), both clamped to [floor, the
-    IPL-evidence ceiling], and, for a player with an IPL record, the chance he's bought at all. `competition` = {"cycle", "purse"} (the model's own
-    default when missing). Mirror of `marketPrice` in auction.ts."""
+    player (the model's median), the upper quartile of that (`high`), both at least the floor
+    (the lowest base price), and, for a player with an IPL record, the chance he's bought at all.
+    No ceiling: the fitted link saturates the median at the budget limit (`link_share`).
+    `competition` = {"cycle", "purse"} (the model's own default when missing). Mirror of
+    `marketPrice` in auction.ts."""
     model = model or load_price_model()
     if model is None:
         raise RuntimeError("no price model: run scripts/ipl_price_model.py fit")
     comp = competition or model["competition"]
-    f = market_features(row, comp["cycle"])
+    f = market_features(row, comp["cycle"], model["price"].get("pv_max"))
     cal = calibration_part(model["price"], f)
-    lin = calibrate(cal, _linear(model["price"], f))
-    cap = price_ceiling(row.get("target_balls"))
+    raw = link_share(model["price"], _linear(model["price"], f))
+    lin = calibrate(cal, raw)
     floor = float(model["floor_cr"])
-    price = max(floor, min(cap, float(comp["purse"]) * math.exp(lin)))
-    # the upper quartile: the calibrated prediction (group shift included) + 0.674 residual sd
-    high = float(comp["purse"]) * math.exp(lin + MARKET_HIGH_Z * float(model["price"]["resid_sd"]))
-    high = max(floor, min(cap, high))
+    price = max(floor, float(comp["purse"]) * math.exp(lin))
+    # the upper quartile: a player 0.674 residual sd above him on the model's index, through the same
+    # calibration (where the market's response flattens at the top, so does the spread above him)
+    hi = calibrate(cal, raw + MARKET_HIGH_Z * float(model["price"]["resid_sd"]))
+    high = max(floor, float(comp["purse"]) * math.exp(hi))
     p = None
     if f["never_ipl"] == 0.0:
         p = 1.0 / (1.0 + math.exp(-_linear(model["bought"], f)))
@@ -283,3 +328,60 @@ def scout_price(r: dict, tier: PriceTier = "ipl", model: dict | None = None) -> 
             "price"
         ]
     return est_value(r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls"))
+
+
+# ---- the prior market price: the market's last verdict on a player ------------------------------
+#
+# Python only: the training rows (scripts/ipl_price_model.py) and the site export
+# (scripts/export_site.py) both build `prior_share` / `prior_years` / `prior_retained` with these from
+# data/curated/ipl_auction_history.json; the TS reads the exported fields (marketFeatures).
+
+
+def verdict_key(r: dict) -> str | None:
+    """A history row's player: his Cricsheet id, else "wiki:<Wikipedia title>" (a player with no
+    ball-by-ball record, so a squad row with the same title finds his price)."""
+    if r.get("cricsheet_id"):
+        return str(r["cricsheet_id"])
+    return f"wiki:{r['wiki_title']}" if r.get("wiki_title") else None
+
+
+# Retention kinds that are a franchise's verdict on a player's price: a mega-auction retention (the
+# franchise chose to pay him this rather than re-buy him) and the 2016 draft of the two new sides.
+# A mini year's retained list is not one: those salaries are older contracts (an auction price or a
+# mega retention already counted in its own season).
+VERDICT_RETENTION_KINDS = ("retained", "draft")
+
+
+def market_verdicts(hist: dict) -> dict[str, list[tuple[int, float, bool]]]:
+    """`verdict_key` → [(season, share of that season's purse, was a retention)], every market
+    verdict on the player: each auction he was sold at (the price, a bid: for an overseas buy over the
+    2025-27 fee cap the franchise still paid the bid) and each mega-auction retention or draft (his
+    agreed salary). The share of the purse makes 2008's US$ and 2026's 125 cr comparable."""
+    out: dict[str, list[tuple[int, float, bool]]] = {}
+    for r in hist["lots"]:
+        key = verdict_key(r)
+        if r.get("sold") and key and r.get("price_cr"):
+            purse = hist["auctions"][str(r["season"])]["purse_cr"]
+            out.setdefault(key, []).append((r["season"], r["price_cr"] / purse, False))
+    for r in hist["retentions"]:
+        a = hist["auctions"].get(str(r["season"]))
+        key = verdict_key(r)
+        if not (key and r.get("salary_cr") and a):
+            continue
+        if r["kind"] not in VERDICT_RETENTION_KINDS:
+            continue
+        if r["kind"] == "retained" and a["kind"] != "mega":
+            continue
+        out.setdefault(key, []).append((r["season"], r["salary_cr"] / a["purse_cr"], True))
+    return out
+
+
+def prior_verdict(v: list[tuple[int, float, bool]], season: int) -> dict:
+    """The latest market verdict before `season`'s auction: {prior_share, prior_years (seasons
+    since), prior_retained}; Nones when there is none. A retention and a sale in the same season
+    (can't happen) would keep the sale."""
+    prev = [x for x in v if x[0] < season]
+    if not prev:
+        return {"prior_share": None, "prior_years": None, "prior_retained": None}
+    s, share, ret = max(prev, key=lambda x: (x[0], not x[2]))
+    return {"prior_share": share, "prior_years": season - s, "prior_retained": ret}

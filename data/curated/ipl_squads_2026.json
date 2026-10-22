@@ -8,20 +8,8 @@
    "team": "CSK"
   },
   {
-   "name": "Sahil Parekh",
-   "team": "DC"
-  },
-  {
-   "name": "Tejasvi Singh",
-   "team": "KKR"
-  },
-  {
    "name": "Daksh Kamra",
    "team": "KKR"
-  },
-  {
-   "name": "Mukul Choudhary",
-   "team": "LSG"
   },
   {
    "name": "Naman Tiwari",
@@ -137,8 +125,133 @@
    }
   ]
  },
+ "mega_retentions_2025": {
+  "_note": "The players each franchise retained at the 2025 mega auction, capped or uncapped AT RETENTION (31 Oct 2024), in the order of the published list. Under the 2025-27 rules each is charged to the purse by the retention slabs while he stays with that franchise (`retained_cost = \"slabs\"` in config/competitions.toml; web_parity/keep.py `slab_charge`). A traded player (Samson, Jadeja) is charged his salary at his new team. Harshit Rana, Ramandeep Singh and Mayank Yadav's status is as at retention: Harshit and Ramandeep were capped only in Nov 2024, so they took uncapped slots; Mayank Yadav had debuted (Oct 2024), so he took a capped one. Check: max(slab total, salary total) reproduces every team's published 2025 purse (RR 41, SRH 45, MI 45, KKR 51, CSK 55, GT 69, LSG 69, DC 73, RCB 83, PBKS 110.5).",
+  "_source": "Retained lists and salaries: Wikipedia, 'List of 2025 Indian Premier League personnel changes' (data/curated/ipl_auction_history.json); purses: Rajasthan Royals, 2024-11-21, https://www.rajasthanroyals.com/latest-news/indian-premier-league-2025-mega-auction-ipl-teams-remaining-purse ; slabs: ESPNcricinfo, 2024-09-28, https://africa.espn.com/cricket/story/_/id/41492797/ipl-2025-auction-retention-rules-six-retentions-per-team-right-match-returns-impact-player-stay",
+  "purse_2025": 120.0,
+  "remaining_2025": {
+   "CSK": 55.0,
+   "DC": 73.0,
+   "GT": 69.0,
+   "KKR": 51.0,
+   "LSG": 69.0,
+   "MI": 45.0,
+   "PBKS": 110.5,
+   "RCB": 83.0,
+   "RR": 41.0,
+   "SRH": 45.0
+  },
+  "teams": {
+   "CSK": {
+    "capped": [
+     "Ruturaj Gaikwad",
+     "Ravindra Jadeja",
+     "Matheesha Pathirana",
+     "Shivam Dube"
+    ],
+    "uncapped": [
+     "MS Dhoni"
+    ]
+   },
+   "DC": {
+    "capped": [
+     "Axar Patel",
+     "Kuldeep Yadav",
+     "Tristan Stubbs"
+    ],
+    "uncapped": [
+     "Abhishek Porel"
+    ]
+   },
+   "GT": {
+    "capped": [
+     "Rashid Khan",
+     "Shubman Gill",
+     "Sai Sudharsan"
+    ],
+    "uncapped": [
+     "Rahul Tewatia",
+     "Shahrukh Khan"
+    ]
+   },
+   "KKR": {
+    "capped": [
+     "Rinku Singh",
+     "Varun Chakravarthy",
+     "Sunil Narine",
+     "Andre Russell"
+    ],
+    "uncapped": [
+     "Ramandeep Singh",
+     "Harshit Rana"
+    ]
+   },
+   "LSG": {
+    "capped": [
+     "Nicholas Pooran",
+     "Ravi Bishnoi",
+     "Mayank Yadav"
+    ],
+    "uncapped": [
+     "Mohsin Khan",
+     "Ayush Badoni"
+    ]
+   },
+   "MI": {
+    "capped": [
+     "Jasprit Bumrah",
+     "Suryakumar Yadav",
+     "Hardik Pandya",
+     "Rohit Sharma",
+     "Tilak Varma"
+    ],
+    "uncapped": []
+   },
+   "PBKS": {
+    "capped": [],
+    "uncapped": [
+     "Shashank Singh",
+     "Prabhsimran Singh"
+    ]
+   },
+   "RCB": {
+    "capped": [
+     "Virat Kohli",
+     "Rajat Patidar"
+    ],
+    "uncapped": [
+     "Yash Dayal"
+    ]
+   },
+   "RR": {
+    "capped": [
+     "Sanju Samson",
+     "Yashasvi Jaiswal",
+     "Dhruv Jurel",
+     "Riyan Parag",
+     "Shimron Hetmyer"
+    ],
+    "uncapped": [
+     "Sandeep Sharma"
+    ]
+   },
+   "SRH": {
+    "capped": [
+     "Heinrich Klaasen",
+     "Pat Cummins",
+     "Abhishek Sharma",
+     "Travis Head",
+     "Nitish Kumar Reddy"
+    ],
+    "uncapped": []
+   }
+  }
+ },
  "purse_check_2026": {
+  "_after_auction_note": "Purse left after the 2026 auction for the four teams that don't reconcile from salaries alone, as tabulated by Business Standard ('IPL 2026 Auction: Remaining purse, retained players list of all 10 teams', https://www.business-standard.com/cricket/ipl/ipl-2026-auction-remaining-purse-retained-players-list-of-all-10-teams-125121500242_1.html; read through a search index on 2026-10-22, the site refuses automated fetches). Published pre-auction purse less our auction prices gives exactly these four figures, so the auction prices are right and the gap is on the retained side.",
   "_note": "Each team's purse entering the 2026 auction as published (125 cr less the retained salaries), to check the salaries above: `cricdex keep --check` compares them.",
+  "_slab_note": "What the purse counts beyond the salaries, per team (cr). In the 2025 mega auction a retained player was charged to the purse at a fixed slab (capped: 18 / 14 / 11 / 18 / 14 cr for the 1st-5th, uncapped 4 cr) 'regardless of the final retention value' (DNA India, 2024-11-03), so KKR paid 57 cr in salaries but lost 69 cr of purse. The published 2026 figures are reproduced exactly when each 2025 retention still on the squad is charged at his slab, not his salary: KKR +6 (Rinku 13 / Varun 12 / Narine 12 at 18 / 14 / 11; Russell's 18 freed), DC +3.25 (Axar, Kuldeep, Stubbs: 39.75 cr of salary on 43 cr of slabs), CSK +2 (Gaikwad + Dube charged 32 against 30 of salary), RR +4 (Jaiswal, Parag, Jurel, Hetmyer charged 61 against 57; Samson's slab was 14). Inferred from the published totals: the IPL doesn't publish each player's slab, so the per-player split for CSK and RR is not known; the team totals are exact.",
+  "_slab_source": "DNA India, 'IPL 2025: Why were KKR deducted Rs 69 crore from mega auction purse despite spending Rs 57 crore on retentions?' (2024-11-03): https://www.dnaindia.com/cricket/report-ipl-2025-why-were-kkr-deducted-rs-69-crore-from-mega-auction-purse-despite-spending-rs-57-crore-on-retentions-3116123",
   "_source": "IPLT20.com, 'TATA IPL 2026 Player Retentions Announced', 2025-11-15: https://www.iplt20.com/news/4247/tata-ipl-2026-player-retentions-announced (and ESPNcricinfo, 'IPL 2026: how the squads stack up')",
   "purse": 125.0,
   "remaining": {
@@ -152,6 +265,18 @@
    "RCB": 16.4,
    "RR": 16.05,
    "SRH": 25.5
+  },
+  "remaining_after_auction": {
+   "CSK": 2.4,
+   "DC": 0.35,
+   "KKR": 0.45,
+   "RR": 2.65
+  },
+  "slab_charge": {
+   "CSK": 2.0,
+   "DC": 3.25,
+   "KKR": 6.0,
+   "RR": 4.0
   }
  },
  "retired": [
@@ -640,7 +765,8 @@
     "cricsheet_id": "5ffc0565",
     "name": "Vipraj Nigam",
     "overseas": false,
-    "salary_cr": 0.3,
+    "salary_cr": 0.5,
+    "salary_note": "Bought for 50 lakh at the 2025 auction (Delhi Capitals, 'Happy with the squad', https://www.delhicapitals.in/news/happy-with-the-squad-delhi-capitals-management-credits-strategic-preparation-for-ipl-2025-mega-auction-success; Deccan Chronicle live updates, 2024-11-25); Wikipedia's 2026 page lists 30 lakh (corrected 2026-10-22, issue I6).",
     "status": "retained",
     "wiki_title": "Vipraj Nigam"
    },
@@ -718,6 +844,8 @@
    {
     "acquired": "auction",
     "country": "IND",
+    "cricsheet_id": "926c7443",
+    "cricsheet_id_note": "set by hand (issue I6, 2026-10-22): People Register ESPNcricinfo key / IPL 2026 debut matched; see data/curated/player_overrides.json",
     "name": "Sahil Parekh",
     "overseas": false,
     "salary_cr": 0.3,
@@ -1219,6 +1347,8 @@
    {
     "acquired": "auction",
     "country": "IND",
+    "cricsheet_id": "f12fe2a1",
+    "cricsheet_id_note": "set by hand (issue I6, 2026-10-22): People Register ESPNcricinfo key / IPL 2026 debut matched; see data/curated/player_overrides.json",
     "name": "Tejasvi Singh",
     "overseas": false,
     "salary_cr": 3.0,
@@ -1288,9 +1418,12 @@
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Daksh Kamra",
     "overseas": false,
+    "role": "all_rounder",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Daksh Kamra"
@@ -1548,6 +1681,8 @@
    {
     "acquired": "auction",
     "country": "IND",
+    "cricsheet_id": "1c84109e",
+    "cricsheet_id_note": "set by hand (issue I6, 2026-10-22): People Register ESPNcricinfo key / IPL 2026 debut matched; see data/curated/player_overrides.json",
     "name": "Mukul Choudhary",
     "overseas": false,
     "salary_cr": 2.6,
@@ -1556,9 +1691,11 @@
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Naman Tiwari",
     "overseas": false,
+    "role_note": "Wikipedia 2026 personnel changes (rev 1375677829): bought by LSG for 1 cr at a 30 lakh base; no role given there",
     "salary_cr": 1.0,
     "status": "bought",
     "wiki_title": "Naman Tiwari"
@@ -1845,9 +1982,12 @@
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Mohammad Izhar",
     "overseas": false,
+    "role": "bowler",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Mohammad Izhar"
@@ -2082,18 +2222,24 @@
    },
    {
     "acquired": "retained",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Pyla Avinash",
     "overseas": false,
+    "role": "batter",
+    "role_note": "Wikipedia, 'List of 2025 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677821, sold-players table: Batter, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Pyla Avinash"
    },
    {
     "acquired": "retained",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Harnoor Pannu",
     "overseas": false,
+    "role": "batter",
+    "role_note": "Wikipedia, 'List of 2025 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677821, sold-players table (as 'Harnoor Singh', Punjab Kings, 30 lakh): Batter, 'Uncapped'",
     "salary_cr": 0.3,
     "status": "retained",
     "wiki_title": "Harnoor Pannu"
@@ -2150,9 +2296,12 @@
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Vishal Nishad",
     "overseas": false,
+    "role": "all_rounder",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Vishal Nishad"
@@ -2364,45 +2513,60 @@
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Satvik Deswal",
     "overseas": false,
+    "role": "all_rounder",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Satvik Deswal"
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Vicky Ostwal",
     "overseas": false,
+    "role": "all_rounder",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Vicky Ostwal"
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Mangesh Yadav",
     "overseas": false,
+    "role": "all_rounder",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 5.2,
     "status": "bought",
     "wiki_title": "Mangesh Yadav"
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Vihaan Malhotra",
     "overseas": false,
+    "role": "all_rounder",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Vihaan Malhotra"
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Kanishk Chouhan",
     "overseas": false,
+    "role": "all_rounder",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Kanishk Chouhan"
@@ -2643,9 +2807,12 @@
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Aman Rao",
     "overseas": false,
+    "role": "batter",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Aman Rao (cricketer, born 2004)"
@@ -2890,18 +3057,24 @@
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Onkar Tarmale",
     "overseas": false,
+    "role": "bowler",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Onkar Tarmale"
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Amit Kumar",
     "overseas": false,
+    "role": "bowler",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Amit Kumar (cricketer, born 2002)"
@@ -2918,9 +3091,12 @@
    },
    {
     "acquired": "auction",
+    "base_price_cr": 0.3,
     "country": "IND",
     "name": "Krains Fuletra",
     "overseas": false,
+    "role": "all_rounder",
+    "role_note": "Wikipedia, 'List of 2026 Indian Premier League personnel changes' (CC BY-SA 4.0), revision 1375677829, sold-players table: role, 'Uncapped', base price 30 lakh",
     "salary_cr": 0.3,
     "status": "bought",
     "wiki_title": "Krains Fuletra"

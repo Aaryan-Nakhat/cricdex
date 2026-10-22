@@ -382,7 +382,9 @@ if fp.get("batter") or fp.get("bowler"):
 
 # --- style twins --------------------------------------------------------
 st.subheader("Style twins")
-st.caption("Nearest players in feature space")
+st.caption(
+    "Players who bat / bowl like him: same role and bowling type, closest style (METHODOLOGY §5a)"
+)
 tw_left, tw_right = st.columns(2)
 
 

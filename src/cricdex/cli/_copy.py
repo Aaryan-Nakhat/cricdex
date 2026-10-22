@@ -142,11 +142,15 @@ AUCTION_SIMULATE_INTRO = (
 
 KEEP_INTRO = (
     "Keep or release — for each player in the squad: his market price (a model fitted to every "
-    "IPL auction since 2009: value on a cautious estimate, caps, age, IPL experience; the % is the "
-    "chance he's bought if released) against his salary, with his on-field worth (the skill-only "
-    "curve) alongside. Surplus = market price - salary. Keep when the surplus clears the margin (0.5 cr or 15% of salary), release when "
-    "even his central estimate is that far below the salary, borderline in between. Then the purse "
-    "left after the kept salaries, the role gaps and the cheapest free agents who fill them."
+    "IPL auction since 2018, each mega-auction retention counted as a floor: value on a cautious "
+    "estimate, caps, age, IPL experience, captaincy; the % is the chance he's bought if released) "
+    "against what keeping him costs (his salary; for a 2025 retention the retention slabs, assumed "
+    "to carry into 2027), with his on-field worth (the skill-only curve) alongside. The call is what "
+    "franchises actually do: the chance a franchise keeps a player like him, from a model fitted to "
+    "every real retention deadline 2018-2026 (market price vs cost, the 3-season Form forecast, "
+    "captain / seasons there / home-grown, capped Indian, overseas, age, IPL balls). Keep at 65%+, "
+    "release under 35%, borderline in between (kept by default from 50%). Then the purse left "
+    "after what the kept players cost, the role gaps and the cheapest free agents who fill them."
 )
 
 # --- Scout ---------------------------------------------------------------

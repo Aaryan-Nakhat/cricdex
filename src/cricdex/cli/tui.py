@@ -1538,7 +1538,12 @@ class CricDexApp(App):
     def _auction_data(self) -> dict:
         """Cached priced pool + lookup maps (loaded once)."""
         if getattr(self, "_auction_cache", None) is None:
-            from cricdex.web_parity import build_pool, load_auction_pool, load_retentions
+            from cricdex.web_parity import (
+                build_pool,
+                load_auction_pool,
+                load_retentions,
+                retention_inputs,
+            )
 
             raw = load_auction_pool("ipl")
             pool = build_pool(raw)
@@ -1553,12 +1558,8 @@ class CricDexApp(App):
                 "by_cid": {p["cricsheet_id"]: p for p in pool},
                 "display": display,
                 "name_to_cid": name_to_cid,
-                "mega_ids": {
-                    t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()
-                },
-                "real_prices": {
-                    r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows
-                },
+                # the real 2025 lists, prices and the slab rule they cost (auction.retention_inputs)
+                **retention_inputs(ret),
             }
         return self._auction_cache
 
@@ -1708,6 +1709,9 @@ class CricDexApp(App):
                     "mode": mode,
                     "retentions": retentions,
                     "real_prices": d["real_prices"],
+                    "retention_slabs": d["retention_slabs"],
+                    "slab_holders": d["slab_holders"],
+                    "fixed_retained": d["fixed_retained"],
                 },
             )
         except Exception as e:  # noqa: BLE001

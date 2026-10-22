@@ -31,6 +31,7 @@ def room(
         load_activity_index,
         load_auction_pool,
         load_retentions,
+        retention_inputs,
         simulate_auction,
     )
 
@@ -44,8 +45,16 @@ def room(
         die(str(e), code=EXIT_USER_ERROR)
 
     shown = {r["cricsheet_id"]: display_name(r) for r in raw}  # fan-facing names
-    mega_ids = {t: [r["cricsheet_id"] for r in rows] for t, rows in ret["mega"].items()}
-    real_prices = {r["cricsheet_id"]: r["price"] for rows in ret["mega"].values() for r in rows}
+    # a rating resting on stale SMAT data says so: "SMAT data to Dec 2024 · 85%" (issue I7)
+    from cricdex.web_parity.keep import STALE_REASON_MIN
+
+    stale = {
+        r["cricsheet_id"]: f"{r['stale_note']} · {round(100 * r['stale_share'])}%"
+        for r in raw
+        if r.get("stale_note") and (r.get("stale_share") or 0) >= STALE_REASON_MIN
+    }
+    ri = retention_inputs(ret)  # the real 2025 lists, prices and the slab rule they cost
+    mega_ids = ri["mega_ids"]
     act = load_activity_index("ipl")  # cid -> last-IPL / age / ipl_relevance
     if purse is None:
         purse = 120.0 if mode == "mega" else 30.0
@@ -60,7 +69,10 @@ def room(
             "trials": trials,
             "mode": mode,
             "retentions": retentions,
-            "real_prices": real_prices,
+            "real_prices": ri["real_prices"],
+            "retention_slabs": ri["retention_slabs"],
+            "slab_holders": ri["slab_holders"],
+            "fixed_retained": ri["fixed_retained"],
         },
     )
 
@@ -101,6 +113,7 @@ def room(
                 ],
                 "most_likely": ", ".join(f"{w['team']} {w['pct']:.0f}%" for w in m["winners"])
                 or "unsold",
+                "stale": stale.get(m["player"]["cricsheet_id"]),
             }
             for m in res["marquee"][:top_n]
         ],

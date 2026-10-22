@@ -51,5 +51,29 @@
   "_name": "Deepak Chahar",
   "dob": "1992-08-07",
   "_evidence": "Wikidata gives 1972-08-07 (a typo); Deepak Chahar was born 7 August 1992 (ESPNcricinfo profile)"
+ },
+ "1c84109e": {
+  "_name": "MD Choudhary (Mukul Choudhary)",
+  "display_name": "Mukul Choudhary",
+  "full_name": "Mukul Choudhary",
+  "country": "IND",
+  "dob": "2004-08-06",
+  "_evidence": "The People Register's ESPNcricinfo key for MD Choudhary (1354217) is the one in Wikipedia's 'Mukul Choudhary' infobox (Wikidata Q137575753, born 6 August 2004); he played 10 IPL 2026 matches for LSG, bought for 2.6 cr (ESPNcricinfo auction report, 2025-12-16). The LLM name check had renamed him 'Mukesh Choudhary', a different player (CSK, register 765a4731, cricinfo 1125688). Issue I6, 2026-10-22."
+ },
+ "f12fe2a1": {
+  "_name": "T Dahiya (Tejasvi Singh Dahiya)",
+  "display_name": "Tejasvi Singh",
+  "full_name": "Tejasvi Singh Dahiya",
+  "country": "IND",
+  "dob": "2002-04-18",
+  "_evidence": "The People Register's ESPNcricinfo key for T Dahiya (1460372) is the one in Wikipedia's 'Tejasvi Singh Dahiya' infobox (Wikidata Q137432241, born 18 April 2002); listed as 'Tejasvi Singh' in KKR's 2026 squad (Wikipedia 2026 personnel changes). The LLM name check had guessed 'Tanish Dahiya'. Issue I6, 2026-10-22."
+ },
+ "926c7443": {
+  "_name": "SU Parakh (Sahil Parakh)",
+  "display_name": "Sahil Parakh",
+  "full_name": "Sahil Parakh",
+  "country": "IND",
+  "aliases": ["Sahil Parekh"],
+  "_evidence": "Sahil Parakh, 18, Nashik (Maharashtra), bought by DC for 30 lakh, debuted for DC v RCB on 27 April 2026 (Outlook India, https://www.outlookindia.com/amp/story/sports/cricket/who-is-sahil-parakh-delhi-capitals-vs-royal-challengers-bengaluru-ipl-2026-match-39): the first IPL match of SU Parakh (register 926c7443) in our data, for Delhi Capitals. Wikipedia's squad list spells him 'Sahil Parekh'. Issue I6, 2026-10-22."
  }
 }

@@ -1,4 +1,5 @@
-import type { AuctionPoolRow } from "./data";
+import type { AuctionPoolRow, RetentionData } from "./data";
+import { slabCharge, type SlabHolder } from "./slabs.ts";
 import { tierDiscount } from "./leagues.ts";
 
 export type Role = "batter" | "bowler" | "all_rounder" | "keeper";
@@ -17,7 +18,6 @@ export interface PoolPlayer {
   captain: string | null; // the IPL sides he captained last season (the "Captain" badge), else null
   base_price: number; // estimated tier (cr)
   vpc: number; // value per credit
-  price_cap: number; // his price ceiling (rises with IPL balls): bidding can't clear him above it
 }
 
 // All-rounders / keepers carry a small scarcity premium.
@@ -117,19 +117,35 @@ export const MARKET_PV_MAX = 60;
 export const MARKET_GAP_MAX = 6; // years since his last IPL match, capped
 // `high` = the upper quartile of what players like him fetch: the median × e^(0.674 × residual sd)
 export const MARKET_HIGH_Z = 0.674;
+// The prior market price: prior = ln(prior_share / PRIOR_REF_SHARE), clamped (2% of the purse is about
+// 2.5 cr in 2026); seasons since it capped at PRIOR_YEARS_MAX. Mirror of pricing.py.
+export const PRIOR_REF_SHARE = 0.02;
+export const PRIOR_MIN = -4;
+export const PRIOR_MAX = 3;
+export const PRIOR_YEARS_MAX = 6;
 
+/** Calibration knots (ln share); beyond the last knot the map continues at `hi_slope` (1 when absent). */
+export interface CalibrationMap {
+  x: number[];
+  y: number[];
+  hi_slope?: number | null;
+}
 export interface PriceModelPart {
   intercept: number;
   coef: Record<string, number>; // feature → coefficient, in the order they are summed
-  calibration?: { x: number[]; y: number[] } | null; // top-end calibration knots (ln share)
+  calibration?: CalibrationMap | null; // none = identity
   shift?: number | null; // added after the calibration
   /** per-group calibrations: the first whose `when` ({feature: [lo, hi]}) holds replaces the above */
   groups?: CalibrationGroup[] | null;
+  /** how the linear index becomes the median ln share: "log" (itself) or "sat" (ln S + ln σ(η)) */
+  link?: { kind: "log" | "sat"; cap_share?: number } | null;
+  /** the priced value is held to this (the largest in the model's training rows); none = MARKET_PV_MAX */
+  pv_max?: number | null;
 }
 export interface CalibrationGroup {
   name: string;
   when: Record<string, [number, number]>;
-  calibration?: { x: number[]; y: number[] } | null;
+  calibration?: CalibrationMap | null;
   shift?: number | null;
 }
 export interface PriceModel {
@@ -164,6 +180,10 @@ export interface MarketInputs {
   captain_ipl_last?: number | null; // captained an IPL side the season before
   captain_ipl_seasons?: number | null; // IPL seasons as captain
   captain_intl_2y?: number | null; // captained his country in the two calendar years before
+  // the market's last verdict on him (scripts/ipl_price_model.market_verdicts)
+  prior_share?: number | null; // the price a franchise last paid, as a share of that season's purse
+  prior_years?: number | null; // seasons since
+  prior_retained?: boolean | null; // a mega-auction retention rather than a sale
 }
 
 let priceModel: PriceModel | null = null;
@@ -181,12 +201,14 @@ export function getPriceModel(): PriceModel | null {
 
 const fin = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
 
-/** A player's market-model features (mirror of pricing.market_features). */
-export function marketFeatures(row: MarketInputs, cycle: string): Record<string, number> {
+/** A player's market-model features (mirror of pricing.market_features). `pvMax` (the model's
+ * `price.pv_max`) holds the priced value to the range the market has priced. */
+export function marketFeatures(row: MarketInputs, cycle: string, pvMax?: number | null): Record<string, number> {
   const v = fin(row.price_value);
   const rated = v !== null;
   let pv = 0;
-  if (rated) pv = Math.min(MARKET_PV_MAX, Math.max(MARKET_PV_MIN, pricedValue(v, row.value_sd)));
+  const top = pvMax === null || pvMax === undefined ? MARKET_PV_MAX : Math.min(MARKET_PV_MAX, pvMax);
+  if (rated) pv = Math.min(top, Math.max(MARKET_PV_MIN, pricedValue(v, row.value_sd)));
   const ovRaw = row.is_overseas !== undefined ? row.is_overseas : row.overseas;
   const ov = ovRaw ? 1 : 0;
   const capsN = fin(row.intl_caps) || 0;
@@ -197,6 +219,14 @@ export function marketFeatures(row: MarketInputs, cycle: string): Record<string,
   const a = age !== null ? age - MARKET_AGE_CENTRE : 0;
   const gap = fin(row.ipl_gap);
   const pvPos = Math.max(pv, 0);
+  const ps = fin(row.prior_share);
+  const hasPrior = ps !== null && ps > 0;
+  let prior = 0;
+  let pYears = 0;
+  if (hasPrior) {
+    prior = Math.min(PRIOR_MAX, Math.max(PRIOR_MIN, Math.log(ps / PRIOR_REF_SHARE)));
+    pYears = Math.min(Math.max(fin(row.prior_years) || 0, 0), PRIOR_YEARS_MAX);
+  }
   return {
     pv,
     pv_pos_sq: (pvPos * pvPos) / 100,
@@ -222,6 +252,11 @@ export function marketFeatures(row: MarketInputs, cycle: string): Record<string,
     captain_ipl: (fin(row.captain_ipl_last) || 0) > 0 ? 1 : 0,
     captain_seasons: Math.log1p(Math.max(fin(row.captain_ipl_seasons) || 0, 0)),
     captain_intl: (fin(row.captain_intl_2y) || 0) > 0 ? 1 : 0,
+    prior,
+    no_prior: hasPrior ? 0 : 1,
+    prior_years: pYears,
+    prior_x_years: prior * pYears,
+    prior_retained: hasPrior && row.prior_retained ? 1 : 0,
   };
 }
 
@@ -235,8 +270,18 @@ function linear(part: PriceModelPart, f: Record<string, number>): number {
   return t;
 }
 
-/** The top-end calibration of the linear predictor: a monotone piecewise-linear map through the
- * knots (continued at slope 1 beyond the end knots) plus `shift`. Mirror of pricing.calibrate. */
+/** The median ln share from the linear index (mirror of pricing.link_share): "log" → η itself; "sat" →
+ * ln S + ln σ(η), saturating at S = `cap_share`, the most one franchise pays for one player. */
+export function linkShare(part: PriceModelPart, eta: number): number {
+  const link = part.link;
+  if (!link || link.kind !== "sat") return eta;
+  const ls = eta >= 0 ? -Math.log1p(Math.exp(-eta)) : eta - Math.log1p(Math.exp(eta));
+  return Math.log(link.cap_share as number) + ls;
+}
+
+/** The calibration of the linear predictor: a monotone piecewise-linear map through the knots,
+ * continued at slope 1 below the first knot and at `hi_slope` (1 when absent) above the last, plus
+ * `shift`. Mirror of pricing.calibrate. */
 export function calibrate(part: PriceModelPart | CalibrationGroup, lin: number): number {
   const cal = part.calibration;
   let out = lin;
@@ -244,8 +289,9 @@ export function calibrate(part: PriceModelPart | CalibrationGroup, lin: number):
     const xs = cal.x;
     const ys = cal.y;
     const n = xs.length;
+    const hi = cal.hi_slope === null || cal.hi_slope === undefined ? 1 : cal.hi_slope;
     if (lin <= xs[0]) out = lin + (ys[0] - xs[0]);
-    else if (lin >= xs[n - 1]) out = lin + (ys[n - 1] - xs[n - 1]);
+    else if (lin >= xs[n - 1]) out = ys[n - 1] + hi * (lin - xs[n - 1]);
     else {
       let i = 0;
       while (i < n - 2 && lin > xs[i + 1]) i++;
@@ -265,8 +311,9 @@ export function calibrationPart(part: PriceModelPart, f: Record<string, number>)
 }
 
 /** What the auction market pays for this player (the model's median, cr) and the upper quartile
- * of that (`high`), clamped to [floor, the IPL-evidence ceiling], and, for a player with an IPL record, the chance he's bought at all.
- * `comp` defaults to the model's competition. Mirror of pricing.market_price. */
+ * of that (`high`), both at least the floor, and, for a player with an IPL record, the chance he's
+ * bought at all. No ceiling: the fitted calibration sets the top end. `comp` defaults to the model's
+ * competition. Mirror of pricing.market_price. */
 export function marketPrice(
   row: MarketInputs,
   comp?: MarketCompetition | null,
@@ -275,13 +322,14 @@ export function marketPrice(
   const m = model ?? priceModel;
   if (!m) throw new Error("no price model loaded (price_model.json)");
   const c = comp ?? m.competition;
-  const f = marketFeatures(row, c.cycle);
+  const f = marketFeatures(row, c.cycle, m.price.pv_max);
   const cal = calibrationPart(m.price, f);
-  const lin = calibrate(cal, linear(m.price, f));
-  const cap = priceCeiling(row.target_balls);
-  const price = Math.max(m.floor_cr, Math.min(cap, c.purse * Math.exp(lin)));
-  // the upper quartile: the calibrated prediction (group shift included) + 0.674 residual sd
-  const high = Math.max(m.floor_cr, Math.min(cap, c.purse * Math.exp(lin + MARKET_HIGH_Z * m.price.resid_sd)));
+  const raw = linkShare(m.price, linear(m.price, f));
+  const lin = calibrate(cal, raw);
+  const price = Math.max(m.floor_cr, c.purse * Math.exp(lin));
+  // the upper quartile: a player 0.674 residual sd above him on the model's index, through the same
+  // calibration (where the market's response flattens at the top, so does the spread above him)
+  const high = Math.max(m.floor_cr, c.purse * Math.exp(calibrate(cal, raw + MARKET_HIGH_Z * m.price.resid_sd)));
   const p = f.never_ipl === 0 ? 1 / (1 + Math.exp(-linear(m.bought, f))) : null;
   return { price, high, p_bought: p };
 }
@@ -321,7 +369,6 @@ export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
       captain: r.captain_teams && r.captain_teams.length ? r.captain_teams.join(" / ") : null,
       base_price: base,
       vpc: pv / base,
-      price_cap: priceCeiling(r.target_balls),
     };
   });
   out.sort((a, b) => b.projected_value - a.projected_value);
@@ -418,6 +465,58 @@ export interface SimOpts {
   mode: AuctionMode;
   retentions: Record<string, string[]>; // team -> retained cricsheet_ids (editable)
   realPrices: Record<string, number>; // cricsheet_id -> real retention price (cr)
+  /** Mega: the retention slabs (capped in order, uncapped): the team's retentions together cost
+   * max(the slabs, their salaries) (slabs.ts `slabCharge`). Absent = each costs his salary. */
+  retentionSlabs?: { capped: number[]; uncapped: number } | null;
+  /** cricsheet_id -> "capped" | "uncapped" at retention (absent = capped) */
+  slabHolders?: Record<string, string>;
+  /** per team: real retentions outside the pool (too few balls to rate), still charged */
+  fixedRetained?: Record<string, SlabHolder[]>;
+}
+
+/** The real 2025 retentions as simulator inputs: team → ids (the mega default), id → price, the
+ * slab rule and who held which slab, and the real retentions outside the pool. Mirror of
+ * auction.py `retention_inputs`. */
+export function retentionInputs(data: RetentionData | null | undefined): {
+  megaIds: Record<string, string[]>;
+  realPrices: Record<string, number>;
+  retentionSlabs: { capped: number[]; uncapped: number } | null;
+  slabHolders: Record<string, string>;
+  fixedRetained: Record<string, SlabHolder[]>;
+} {
+  const megaIds: Record<string, string[]> = {};
+  const realPrices: Record<string, number> = {};
+  const slabHolders: Record<string, string> = {};
+  const fixedRetained: Record<string, SlabHolder[]> = {};
+  for (const [team, rows] of Object.entries(data?.mega ?? {})) {
+    megaIds[team] = rows.map((r) => r.cricsheet_id);
+    for (const r of rows) {
+      realPrices[r.cricsheet_id] = r.price;
+      if (r.slab_holder) slabHolders[r.cricsheet_id] = r.slab_holder;
+    }
+  }
+  for (const [team, rows] of Object.entries(data?.unpooled ?? {})) {
+    fixedRetained[team] = rows.map((r) => ({ salary: r.salary, slab_holder: r.slab_holder ?? "capped" }));
+  }
+  return { megaIds, realPrices, retentionSlabs: data?.slabs ?? null, slabHolders, fixedRetained };
+}
+
+/** What a team's retentions cost the purse (mega; 0 in a mini auction, where the squad is already
+ * paid for) and each retained player's share: with slabs, the team's charge by the slab rule and
+ * each player's cost = the charge less the charge without him (keep.py `retention_costs`).
+ * Mirror of auction.py `retention_spend`. */
+export function retentionSpend(team: string, retained: PoolPlayer[], opts: SimOpts): { total: number; each: number[] } {
+  if (opts.mode === "mini") return { total: 0, each: retained.map(() => 0) };
+  const sal = retained.map((p, i) => opts.realPrices[p.cricsheet_id] ?? slabCost(i));
+  const slabs = opts.retentionSlabs;
+  if (!slabs) return { total: sal.reduce((a, b) => a + b, 0), each: sal };
+  const hk = opts.slabHolders ?? {};
+  const holders: SlabHolder[] = retained.map((p, i) => ({ salary: sal[i], slab_holder: hk[p.cricsheet_id] ?? "capped" }));
+  for (const h of opts.fixedRetained?.[team] ?? []) holders.push({ salary: h.salary, slab_holder: h.slab_holder });
+  const rules = { retention_slabs: slabs.capped, uncapped_retention_slab: slabs.uncapped };
+  const total = holders.length ? slabCharge(holders, rules) : 0;
+  const each = retained.map((_, k) => total - slabCharge(holders.filter((_h, j) => j !== k), rules));
+  return { total, each };
 }
 
 export interface FranchiseBase {
@@ -482,16 +581,14 @@ function buildFranchises(
   const bases: FranchiseBase[] = teamCfg.map(({ team, personality }) => {
     const ids = opts.retentions[team] ?? [];
     const retained = ids.map((id) => byId.get(id)).filter((p): p is PoolPlayer => !!p);
-    let retainSpend = 0;
     let retainOverseas = 0;
-    retained.forEach((p, i) => {
+    retained.forEach((p) => {
       retainedIds.add(p.cricsheet_id);
-      // Mega: retentions draw from the 120cr purse via slabs (or real price).
-      // Mini: the squad is already paid for (sunk) — retentions are free and
-      // the team bids from a small leftover purse.
-      if (opts.mode !== "mini") retainSpend += opts.realPrices[p.cricsheet_id] ?? slabCost(i);
       if (p.is_overseas) retainOverseas++;
     });
+    // Mega: retentions draw from the purse by the slab rule. Mini: the squad is already paid for
+    // (sunk): retentions are free and the team bids from a small leftover purse.
+    const retainSpend = retentionSpend(team, retained, opts).total;
     return { team, personality, retained, retainSpend, retainOverseas };
   });
   const auctionPool = pool.filter((p) => !retainedIds.has(p.cricsheet_id));
@@ -516,17 +613,18 @@ function freshState(b: FranchiseBase): TeamState {
 // Rival willingness to pay, calibrated to real auctions (scripts/auction_calibrate.py; docs/AUCTION_MATH.md
 // Part 3b): lot value = BID_LEVEL[cycle] × BID_PIVOT × (projected / BID_PIVOT) ^ BID_CURVE × e^(LOT_HYPE_SD × z),
 // z drawn once per lot per run and shared by every team. Neutral (1, 1, 1, 0) = the uncalibrated room.
-// Fitted 2026-10-22 on the 2022 mega and 2023 / 2024 mini auctions (out of time: 2025, 2026).
-export const BID_LEVEL: Record<AuctionMode, number> = { mega: 0.864, mini: 1.0368 };
+// Fitted 2026-10-22 on the 2022 mega and 2023 / 2024 mini auctions (out of time: 2025, 2026); refitted the
+// same day for the censored (Tobit) market price, and again for the top-end rework (no price cap, slab-rule retentions).
+export const BID_LEVEL: Record<AuctionMode, number> = { mega: 0.72, mini: 1.493 };
 export const BID_CURVE = 0.75;
 export const BID_PIVOT = 1.0;
-export const LOT_HYPE_SD = 1.0;
+export const LOT_HYPE_SD = 0.8;
 /** Market tightness on (1) or off (0): bids × (money left with teams that have places ÷ market value of the best
  * unsold players filling them), clamped to TIGHT_MIN … TIGHT_MAX. */
 export const TIGHTNESS = 1;
 /** Reference price: a row's `anchor_price` (his last IPL price, cr) pulls his lot value to
  * value^(1 − ANCHOR) × (level × last price)^ANCHOR. 0 = off. */
-export const ANCHOR = 0.3;
+export const ANCHOR = 0.6;
 /** Team taste: each team's view of each lot varies by e^(TASTE_SD × z), z per team per lot. 0 = off. */
 export const TASTE_SD = 0.0;
 export const TIGHT_MIN = 0.2;
@@ -557,8 +655,8 @@ export function calibration(opts: { calib?: Partial<Calibration> | null }): Cali
 
 const MIN_BASE = 0.3; // cheapest base price (cr) — reserve this per unfilled slot
 const MIN_SQUAD = 20; // every team fills to at least 20 (max = squadSize, ≤25)
-// No player clears above the real IPL record (Pant, 27 cr, 2025 mega auction).
-export const PRICE_CAP = 27;
+// No price cap: a team bids at most its purse less MIN_BASE for each place it still has to fill
+// (the IPL's purse rule), and a lot clears at the second-highest bid.
 // Budget pressure: a team with more purse per open slot than the league bids
 // harder (and a stretched one softer) — (ratio ** EXP), clamped.
 const PRESSURE_EXP = 0.5;
@@ -691,7 +789,7 @@ export function oneTrial(
         }
       }
       if (bestTeam >= 0) {
-        const price = Math.min(PRICE_CAP, player.price_cap, bestBid, secondBid * 1.02);
+        const price = Math.min(bestBid, secondBid * 1.02);
         buy(bestTeam, player, Math.max(player.base_price, price));
         sold.add(player.cricsheet_id);
         if (onSale) onSale(player, bestTeam, bestBid, Math.max(player.base_price, price));
@@ -803,8 +901,9 @@ export function simulateAuction(
   // outcomes = retained (in team order) then every auctioned player (pool order)
   const outcomes: PlayerOutcome[] = [];
   bases.forEach((b) => {
+    const costs = retentionSpend(b.team, b.retained, opts).each;
     b.retained.forEach((p, i) => {
-      const cost = opts.mode !== "mini" ? (opts.realPrices[p.cricsheet_id] ?? slabCost(i)) : 0;
+      const cost = costs[i];
       outcomes.push({
         cricsheet_id: p.cricsheet_id,
         name: p.name,
