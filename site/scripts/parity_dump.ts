@@ -12,7 +12,6 @@ import {
   retentionInputs,
   retentionSpend,
   simulateAuction,
-  estValue,
   IPL_TEAMS_DEFAULT,
   marketFeatures,
   marketPrice,
@@ -20,6 +19,7 @@ import {
   linkShare,
   registerPriceModel,
   scoutPrice,
+  iplPrice,
   type MarketInputs,
   type PoolPlayer,
   type PriceModel,
@@ -84,7 +84,7 @@ for (const tier of tiers) {
   scoutOut[tier] = similarTo(sel, scout[tier] as ScoutPlayer[], sel.role, "").map((p) => ({
     id: p.cricsheet_id,
     sim: p.sim,
-    price: scoutPrice(p, tier),
+    price: scoutPrice(p),
   }));
 }
 // Same-type matching + slot + country filters: every bowling all-rounder with a known country and slot
@@ -111,15 +111,15 @@ const gemMedian = gemThreshold(gemPool);
 const gems = gemPool.filter((p) => isGem(p, gemMedian)).map((p) => p.cricsheet_id);
 
 // mirrored in test_web_parity.py: value, role, tier, value_sd
-const ESTIMATE_CASES: [number, string, string, number | null, number | null][] = [
-  [0, "batter", "ipl", 0, 0],
-  [13.6, "batter", "ipl", 2.75, 6926],
-  [59.7, "batter", "ipl", 12.5, 449],
-  [27.7, "keeper", "ipl", 12.4, 471],
-  [27.4, "keeper", "bbl", 4.9, 163],
-  [40.0, "all_rounder", "smat", 9.0, null],
-  [-30, "bowler", "bbl", 7.0, 0],
-  [10, "bowler", "cpl", null, 600],
+const ESTIMATE_CASES: [number, string, number | null, number | null][] = [
+  [0, "batter", 0, 0],
+  [13.6, "batter", 2.75, 6926],
+  [59.7, "batter", 12.5, 449],
+  [27.7, "keeper", 12.4, 471],
+  [27.4, "keeper", 4.9, 163],
+  [40.0, "all_rounder", 9.0, null],
+  [-30, "bowler", 7.0, 0],
+  [10, "bowler", null, 600],
 ];
 // mirrored in test_web_parity.py: market-model inputs on fixed rows (incl. missing fields)
 const MARKET_CASES: [MarketInputs, "mega" | "mini", number][] = [
@@ -130,6 +130,16 @@ const MARKET_CASES: [MarketInputs, "mega" | "mini", number][] = [
   [{ price_value: null, role: "keeper", is_overseas: false, intl_caps: null, age: null, ipl_balls: null, ipl_seasons: null, ipl_gap: 3.2 }, "mega", 90],
   [{ price_value: -45, value_sd: 20, role: "bowler", is_overseas: true, intl_caps: 3, age: 41, ipl_balls: 120, ipl_seasons: 1, ipl_gap: 9.5, target_balls: 120, prior_share: 0, prior_years: 3, prior_retained: true }, "mini", 125],
   [{ price_value: 18.5, value_sd: 3.1, role: "keeper", is_overseas: true, intl_caps: 160, intl_caps_2y: 30, age: 33.5, ipl_balls: 2600, ipl_seasons: 9, ipl_gap: 0.6, target_balls: 2500, prior_share: 0.0001, prior_years: 1 }, "mega", 120],
+  // the price input's own sd (2026-10-23: the pool's value_sd is the translated blend's)
+  [{ price_value: 21.0, price_value_sd: 9.0, value_sd: 2.0, role: "batter", is_overseas: false, intl_caps: 4, age: 24.0, ipl_balls: 300, ipl_seasons: 2, ipl_gap: 0.6, target_balls: 300 }, "mini", 125],
+  [{ price_value: 21.0, price_value_sd: null, value_sd: 2.0, role: "batter", is_overseas: false, intl_caps: 4, age: 24.0, ipl_balls: 300, ipl_seasons: 2, ipl_gap: 0.6, target_balls: 300 }, "mini", 125],
+];
+// mirrored in test_web_parity.py (SCOUT_CASES): Scout prices on fixed rows
+const SCOUT_CASES: Parameters<typeof scoutPrice>[0][] = [
+  { value: 30.0, value_sd: 8.0, ipl_value: 9.5, ipl_value_sd: 12.0, role: "batter", target_balls: 0 },
+  { value: 30.0, value_sd: 8.0, ipl_value: 9.5, ipl_value_sd: 12.0, price_value: 13.0, price_value_sd: 10.3, role: "batter", target_balls: 0, is_overseas: false, intl_caps: 0, age: 23.0, ipl_balls: 0, ipl_seasons: 0, ipl_gap: null },
+  { value: 12.0, value_sd: 5.0, ipl_value: 4.0, ipl_value_sd: 9.0, role: "bowler", target_balls: 0, is_overseas: true, intl_caps: 12, age: 27.0, ipl_balls: 0, ipl_seasons: 0, ipl_gap: null },
+  { value: 12.0, value_sd: 5.0, role: "bowler", target_balls: 40 },
 ];
 // mirrored in test_web_parity.py: the calibration (knots + hi_slope) and the link on fixed parts
 const CAL_PART = {
@@ -199,7 +209,8 @@ const out = {
   gemMedian,
   gems,
   // the cautious price on fixed inputs (value, role, tier, sd), including a missing sd
-  estCases: ESTIMATE_CASES.map(([v, role, tier, sd, balls]) => estValue(v, role as Role, tier, sd, balls)),
+  scoutCases: SCOUT_CASES.map((p) => scoutPrice(p)),
+  estCases: ESTIMATE_CASES.map(([v, role, sd, balls]) => iplPrice(v, role as Role, sd, balls)),
   // the market model on fixed inputs (features + price + P(bought)); null when there is no model
   marketCases: model
     ? MARKET_CASES.map(([row, cycle, purse]) => ({

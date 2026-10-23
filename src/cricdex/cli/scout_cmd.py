@@ -77,7 +77,7 @@ def look_alikes(
         "overseas": f"not {sel.get('country') or '?'}",
         "all": "all",
     }[country]
-    sel_price = scout_price(sel, "ipl")
+    sel_price = scout_price(sel)
     gem_lg = leagues.gem_pool()
     gem_tier = gem_lg.tier if gem_lg else None
     gem_med = gem_threshold(idx.get(gem_tier, [])) if gem_tier else None
@@ -105,7 +105,7 @@ def look_alikes(
             sel, idx[tier], use_role, use_pos, top_k, country=country, fallback_country=fb
         )
         for r in found:
-            price = scout_price(r, tier)
+            price = scout_price(r)
             saving = sel_price - price if price < sel_price else 0.0
             rows.append(
                 {
@@ -140,6 +140,7 @@ def look_alikes(
     _render.footnote(
         "Same data + logic as the web Scout (locked by test_web_parity.py). Same type only: "
         "role, seam/spin for anyone who bowls, and the batting band unless --pos any. est_cr = the "
-        "auction's skill→price curve (tier-discounted); 💎 = uncapped gem (high standing, low "
+        "auction's skill→price curve on his rating translated to the IPL (per league and role); "
+        "💎 = uncapped gem (high standing, low "
         "exposure)."
     )

@@ -46,8 +46,8 @@ with st.expander("How the scout works (plain English)"):
         "keepers, bowling for bowlers, both for all-rounders) as a z-score among the listed players "
         "of that role *in his own competition* (mean 0, sd 1), so a SMAT star and an IPL star line up even though raw numbers aren't "
         "comparable. Similarity = how close those standings are. Each row shows an **estimated "
-        "crore price** (the same skill→price curve the Auction room uses, discounted for the weaker "
-        "tier) and, for every other pool, the **saving** vs your IPL pick. A 💎 **gem** flags an uncapped "
+        "crore price** (the same price the Auction room uses, on his rating translated to the IPL "
+        "per league and role) and, for every other pool, the **saving** vs your IPL pick. A 💎 **gem** flags an uncapped "
         "prospect with unusually high standing for how little he's played. Hit **Draft** to drop a "
         "prospect straight into the Auction room as a retention."
     )
@@ -139,7 +139,7 @@ if gems:
                     "Standing": round(g["z"], 2),
                     "Balls": g.get("balls", 0),
                     "Est cr": round(
-                        scout_price(g, GEM_TIER),
+                        scout_price(g),
                         1,
                     ),
                 }
@@ -183,7 +183,7 @@ country = c3.selectbox(
     help="Same = the pick's own country; overseas = every other country; all = anyone.",
 )
 
-sel_price = scout_price(sel, "ipl")
+sel_price = scout_price(sel)
 _kind = f" ({sel['bowling_category']})" if sel.get("bowling_category") else ""
 _band = BAND_LABEL.get(slot_band(sel.get("batting_position")), "")
 st.markdown(
@@ -202,7 +202,7 @@ def _similar(tier: str) -> list[dict]:
 def _tier_df(tier: str) -> pd.DataFrame:
     out = []
     for r in _similar(tier):
-        price = scout_price(r, tier)
+        price = scout_price(r)
         saving = sel_price - price if price < sel_price else 0.0
         out.append(
             {

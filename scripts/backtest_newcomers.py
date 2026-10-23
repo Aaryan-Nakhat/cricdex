@@ -5,23 +5,27 @@ that role before S) who then got a real go in S (at least --min-balls) are
 rated from the other auction-pool leagues only (every `auction_pool` league in
 config/leagues.toml except the IPL; the first published run used BBL, SA20,
 CPL, T20 Blast and SMAT — `--leagues` repeats it), each fitted on matches
-before S. Their value there, minus the same tier discount the auction pool
-uses, is compared with how the IPL season went.
+before S. Their value there, translated onto the IPL scale exactly as the
+auction pool does it (cricdex.scout.translation, per league and role; until
+2026-10-23 one hand-set discount per league), is compared with how the IPL
+season went. This backtest scores RANK only; the level of the translation is
+validated by scripts/league_translation_fit.py (bias, MAE and calibration of the
+predicted runs per 100 balls, out of time).
 
 A player with several leagues gets ONE number per axis, pooled by precision —
-the same rule as the auction pool: each league's value minus its discount,
-weighted by 1 / (value sd² + the tier's translation sd²); each axis skill by
-1 / sd². (Taking the best league, as the first version did, is biased upward:
-the max of noisy estimates.)
+the same rule as the auction pool: each league's translated value weighted by
+1 / its translated variance; each axis skill by 1 / sd². (Taking the best
+league, as the first version did, is biased upward: the max of noisy
+estimates.)
 
 Baseline: what a scout could work out by hand from the same matches, given the
 same league adjustment — each league's raw numbers relative to that league's
 average (runs per ball ÷ league runs per ball, outs per ball ÷ league rate),
 the overall axis in the same runs currency as `value` (runs per 100 balls above
 the league's average ball, each dismissal above or below the league's rate
-priced at the player's wicket cost; `runs_value.observed_value`) minus the same
-tier discount, pooled across leagues by balls. So a model win isn't just the
-tier discount. The season's outcome on the overall axis is the same runs
+priced at the player's wicket cost; `runs_value.observed_value`) through the same
+league translation, pooled across leagues by balls. So a model win isn't just the
+translation. The season's outcome on the overall axis is the same runs
 currency, from the IPL season itself.
 
 Seasons are pooled (each predictor and outcome is z-scored within its season
@@ -56,6 +60,7 @@ from loguru import logger
 
 from cricdex import leagues
 from cricdex.config import DATA_DIR
+from cricdex.scout import translation
 from cricdex.scout.ratings import bayesian, runs_value
 
 app = typer.Typer(add_completion=False)
@@ -100,17 +105,28 @@ def _fit_task(args: tuple) -> str:
 
 
 def _pool_model(rated: list[tuple[str, pl.DataFrame]], role: str) -> pl.DataFrame:
-    """Per player: value (minus each league's discount) pooled by 1 / (sd² + translation sd²),
-    each axis skill by 1 / sd²."""
+    """Per player: value (each league's translated onto the IPL scale, cricdex.scout.translation)
+    pooled as the auction pool pools it (translation.league_composite: weighted by 1 / the variance
+    of his rating and the fitted line; the translation sd is his own, shared by his leagues, so it
+    doesn't weight them), each axis skill by 1 / sd²."""
     parts = []
     for col, r in rated:
-        pen, tsd = leagues.discount(col), leagues.translation_sd(col)
+        t = translation.table(col, role)
+        a, b = float(t["a"]), float(t["b"])
+        c = t["cov"]
+        x = pl.col("value")
         odds = "survival_skill" if role == "batter" else "strike_skill"
         parts.append(
             r.filter(pl.col("role") == role).select(
                 "cricsheet_id",
-                (pl.col("value") - pen).alias("value"),
-                (1.0 / (pl.col("value_sd") ** 2 + tsd**2)).alias("wv"),
+                (a + b * x).alias("value"),
+                (
+                    1.0
+                    / (
+                        (b * pl.col("value_sd")) ** 2
+                        + (c[0][0] + 2 * x * c[0][1] + x * x * c[1][1]).clip(lower_bound=0.0)
+                    )
+                ).alias("wv"),
                 pl.col("skill"),
                 (1.0 / pl.col("skill_sd").clip(lower_bound=1e-3) ** 2).alias("ws"),
                 pl.col(odds).alias("odds"),
@@ -148,8 +164,9 @@ def _pool_raw(
                 "odds"
             ),
         )
-        # the runs currency from his raw numbers in this league, then the same tier discount
+        # the runs currency from his raw numbers in this league, then the same translation
         obs = runs_value.observed_value(tab, role, t["cricsheet_id"].to_list())
+        tr = translation.table(col, role)
         parts.append(
             t.with_columns(pl.Series("obs", np.nan_to_num(obs))).select(
                 "cricsheet_id",
@@ -157,7 +174,7 @@ def _pool_raw(
                 "trials",
                 "rate",
                 "odds",
-                (pl.col("obs") - leagues.discount(col)).alias("all"),
+                (float(tr["a"]) + float(tr["b"]) * pl.col("obs")).alias("all"),
             )
         )
     allr = pl.concat(parts, how="vertical_relaxed")

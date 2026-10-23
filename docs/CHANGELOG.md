@@ -8,6 +8,43 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### League translation: fitted per league and role, no 300-ball switch (2026-10-23)
+
+- **Fitted, not hand-set** (audit item 5; `scripts/league_translation_fit.py`, `src/cricdex/scout/translation.py`,
+  `config/league_translation.json`, METHODOLOGY §6d). How a rating in another league carries over to the IPL is
+  fitted per league and per role on every player seen in both: a player's observed IPL value in a season against
+  his league rating as of that season (time-matched: played the league in the two years before), with a
+  ball-count noise term, leagues pooled hierarchically within a registry `group` (NumPyro NUTS), then put on the
+  IPL rating's scale. Translation sd from the fit (9–15 runs per 100 balls against the guessed 6.5 / 10.5). SMAT
+  batters lose about 9 runs at +10, SMAT bowlers almost nothing (the old single −17 hit both); overseas bowling
+  carries over almost whole. The eight "borrowed" leagues are fitted, pulled toward their group.
+- **The 300-ball switch is gone.** A player's IPL rating and every translated league are blended by precision
+  (the prior each posterior holds divided out); a long IPL record dominates by its small sd.
+- **Frozen protocol**: five candidates (registry groups / one group / phase mix / IPW / prior divided out),
+  rolling validation 2022–24, test once on 2025–26 against the old scheme and no translation, with level
+  calibration. Result: **a tie on the log score** (fitted −4.960 / −5.022 batters / bowlers against −4.952 /
+  −5.018 for the old scheme); newcomer bowlers' level fixed (bias +4.6 against +13.7 runs per 100 balls), but the
+  top fifth of predicted batters fell short in 2025–26. Phase and IPW didn't help. A trial run printed one test
+  table before validation (disclosed; nothing changed after it). Reality table of 25 players: mean error 11.7
+  against 13.3 (internationals and SMAT better, overseas league stars new to the IPL worse).
+- **Fed through**: the pool's `value`, both roles' values in the contribution per match, P(plays)'s inputs and
+  the replacement levels (the playing-time model refitted under its protocol: squad test log loss 0.558, was
+  0.562; free agents 0.0855, was 0.0848; bowling replacement −11.3 → −5.1 frontline, −27.4 → −13.0 part-time),
+  Bid plan, Scout (`ipl_value` / `ipl_value_sd` per row; the gem flag and SMAT staleness labels unchanged), the
+  on-field worth.
+- **Not fed through: the market price.** Recipe Y (T on the translated value) lost the price model's protocol
+  (LOAO MAE 0.800 against 0.792) and the Keep re-test (test F1 72.2% against 72.4%), so `price_value` keeps the
+  old blend (`translation.legacy_blend`, now with its own `price_value_sd`) until a recipe on the translation wins.
+  `config/price_model.json` and `config/keep_model.json` unchanged; the auction calibration not re-run (recipe
+  unchanged).
+- **Contracted players always stay in the auction pool**: the 600 cap applies to free agents only (with bowlers'
+  contributions lower, a below-replacement squad bowler would otherwise have fallen out of the room's squads).
+- `config/leagues.toml` tiers carry a pooling `group`; `discount`, `calibrated` and `translation_sd` are rejected.
+  `pricing.TIER_PENALTY`, `leagues.discount()` / `translation_sd()` / `tier_discounts()` and the TS `tierDiscount` /
+  `estValue` are gone; `est_value` / `scout_price` / `scoutPrice` take no tier (values arrive translated).
+  `leagues.json` carries each league's fitted `translation`. Parity cases for Scout prices and the price input's
+  sd added. `scripts/backtest_newcomers.py` pools through the translation.
+
 ### Playing time: P(plays) × contribution per match replaces the relevance penalty and the all-rounder rule (2026-10-22, late evening)
 
 - **One valuation** (audit items 4 and 6; `src/cricdex/scout/playing_time.py`, `scripts/playing_time_fit.py`,

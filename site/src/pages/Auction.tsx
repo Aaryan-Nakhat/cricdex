@@ -19,29 +19,27 @@ import {
 import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StaleBadge, StaleShareBadge } from "@/components/ui";
 import { STALE_REASON_MIN } from "@/lib/keep";
 import { cn, fmt, profilePath } from "@/lib/utils";
-import { leagueShort, type LeagueRegistry } from "@/lib/leagues";
+import { leagueShort, translatedAt, type LeagueRegistry } from "@/lib/leagues";
 
 /** "BBL, SA20 & CPL" */
 function andList(xs: string[]): string {
   return xs.length > 1 ? `${xs.slice(0, -1).join(", ")} & ${xs[xs.length - 1]}` : (xs[0] ?? "");
 }
 
-/** Who feeds the pool and each tier's discount, from the league registry (leagues.json). */
+/** Who feeds the pool and how each league translates onto the IPL, from the league registry
+ * (leagues.json, with the fitted translation of config/league_translation.json). */
 function poolLeagues(reg: LeagueRegistry | null) {
   const pool = (reg?.leagues ?? []).filter((l) => l.auction_pool && !l.auction_target);
   const overseas = pool.filter((l) => l.scout_group !== "uncapped").map((l) => l.short);
   const uncapped = pool.filter((l) => l.scout_group === "uncapped").map((l) => l.short);
-  // one "BBL/SA20 −6.0" entry per distinct discount, smallest first
-  const byDiscount = new Map<number, string[]>();
-  for (const l of pool) {
-    if (l.discount == null) continue;
-    byDiscount.set(l.discount, [...(byDiscount.get(l.discount) ?? []), l.short]);
-  }
-  const discounts = [...byDiscount.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([d, names]) => `${names.join("/")} −${d.toFixed(1)}`)
+  // "SMAT +0.8 / +0.8": what a +10 batting / bowling rating there becomes in the IPL
+  const sign = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(1)}`;
+  const translations = pool
+    .map((l) => [l.short, translatedAt(l, 10)] as const)
+    .filter(([, t]) => t !== null)
+    .map(([name, t]) => `${name} ${sign(t!.batter)} / ${sign(t!.bowler)}`)
     .join(", ");
-  return { overseas: andList(overseas), uncapped: andList(uncapped), discounts };
+  return { overseas: andList(overseas), uncapped: andList(uncapped), translations };
 }
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
@@ -126,8 +124,10 @@ function AuctionMath() {
             <li>• Excludes men's-T20I associate noise + non-IPL nations (PAK).</li>
           </ul>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            Value isn't comparable across tiers (runs vs weak attacks ≠ vs IPL), so lower tiers are
-            penalised{pl.discounts ? ` (${pl.discounts})` : ""} before pricing.
+            A rating isn't comparable across leagues (runs vs weak attacks ≠ vs IPL), so every other
+            league's rating is translated onto the IPL, per league and role, by a fit on the players
+            seen in both, then blended with his IPL record by how certain each is (a long IPL record
+            dominates; no cut-off).{pl.translations ? ` A +10 batting / bowling rating becomes, in the IPL: ${pl.translations}.` : ""}
           </p>
         </div>
 

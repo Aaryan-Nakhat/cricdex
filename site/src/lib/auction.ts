@@ -1,6 +1,5 @@
 import type { AuctionPoolRow, RetentionData } from "./data";
 import { slabCharge, type SlabHolder } from "./slabs.ts";
-import { tierDiscount } from "./leagues.ts";
 
 export type Role = "batter" | "bowler" | "all_rounder" | "keeper";
 
@@ -78,30 +77,14 @@ export function priceTier(pv: number): number {
   return PRICE_TIERS[5];
 }
 
-// Cross-tier value discount — runs in a weaker comp aren't worth IPL crore.
-// Mirrors the export-time penalty so Scout's est. prices agree with the
-// Auction pool. The auction_pool `value` is already penalised at export; raw
-// scout `value` is not, so callers pricing scout players pass their tier.
-// In value units (runs per 100 balls). The numbers come from the league registry
-// (config/leagues.toml → data/leagues.json), the same table the Python port reads.
+// A rating from another league is put on the IPL rating scale by the fitted league translation
+// (cricdex.scout.translation, per league and role) at export: the pool's `value` and Scout's `ipl_value`
+// come translated, so every price here takes a value already on the IPL scale. (Until 2026-10-23: one
+// hand-set discount per league, `tierDiscount`, taken off here and in pricing.py.)
 export type PriceTier = string; // a tier key from leagues.json: "ipl" | "smat" | "bbl" | …
 
-/** Estimated crore value from a raw Bayes value — same curve the auction uses.
- * `tier` discounts non-IPL comps so a SMAT/BBL price is comparable to IPL. */
-export function estValue(
-  value: number,
-  role: Role,
-  tier: PriceTier = "ipl",
-  valueSd?: number | null,
-  targetBalls?: number | null,
-): number {
-  void role;
-  const adj = pricedValue(value, valueSd) - tierDiscount(tier);
-  return Math.max(0.3, Math.min(priceCeiling(targetBalls), PV_BASE * Math.exp(PV_SCALE * adj)));
-}
-
-/** A player's price on the IPL curve (no tier discount) — the pool's price; `estValue(…, "ipl", …)`
- * without needing the league registry loaded. Mirror of `est_value(value, role, "ipl", sd, balls)`. */
+/** A player's price on the on-field curve from a value on the IPL rating scale (a rating from another
+ * league must be translated first: the export does it). Mirror of `est_value(value, role, sd, balls)`. */
 export function iplPrice(value: number, role: Role, valueSd?: number | null, targetBalls?: number | null): number {
   void role;
   return Math.max(0.3, Math.min(priceCeiling(targetBalls), PV_BASE * Math.exp(PV_SCALE * pricedValue(value, valueSd))));
@@ -109,7 +92,7 @@ export function iplPrice(value: number, role: Role, valueSd?: number | null, tar
 
 // ---- market price: fitted to real IPL auction prices ----------------------------------------
 //
-// `iplPrice` / `estValue` above price what a player does on the field (the hand-set curve: his
+// `iplPrice` above prices what a player does on the field (the hand-set curve: his
 // "on-field worth"). `marketPrice` is what the auction market pays for a player like him: a hurdle
 // model fitted to every IPL auction 2009-2026 (scripts/ipl_price_model.py → config/price_model.json,
 // exported as data/<league>/price_model.json): ln(price / purse) from his cautious value,
@@ -171,7 +154,8 @@ export interface MarketCompetition {
 /** The inputs `marketFeatures` reads (pool, squad and Scout rows carry them since the market
  * model; a row without `price_value` predates it and is priced on the on-field curve). */
 export interface MarketInputs {
-  price_value?: number | null; // blended value before the IPL-relevance discount (missing = unrated)
+  price_value?: number | null; // his value as the price recipe takes it (missing = unrated; pricing.value_input)
+  price_value_sd?: number | null; // its sd (missing → value_sd)
   value_sd?: number | null;
   role: Role;
   is_overseas?: boolean | null;
@@ -215,7 +199,7 @@ export function marketFeatures(row: MarketInputs, cycle: string, pvMax?: number 
   const rated = v !== null;
   let pv = 0;
   const top = pvMax === null || pvMax === undefined ? MARKET_PV_MAX : Math.min(MARKET_PV_MAX, pvMax);
-  if (rated) pv = Math.min(top, Math.max(MARKET_PV_MIN, pricedValue(v, row.value_sd)));
+  if (rated) pv = Math.min(top, Math.max(MARKET_PV_MIN, pricedValue(v, row.price_value_sd ?? row.value_sd)));
   const ovRaw = row.is_overseas !== undefined ? row.is_overseas : row.overseas;
   const ov = ovRaw ? 1 : 0;
   const capsN = fin(row.intl_caps) || 0;
@@ -680,6 +664,9 @@ const MIN_SQUAD = 20; // every team fills to at least 20 (max = squadSize, ≤25
 const PRESSURE_EXP = 0.5;
 const PRESSURE_MIN = 0.75;
 const PRESSURE_MAX = 1.6;
+// money within this of a base price counts as enough: a purse is a running sum of bids whose last bit
+// (pow / exp) can differ between Python and JS, and a team can be left with exactly a base price. Mirror of auction.py.
+const PURSE_EPS = 1e-9;
 
 /** One mock auction. `onSale(player, team index, winning max bid, price)` is called for each sale
  * when given (Bid plan reads the winning bid: the price a rival would have paid); a sale in the
@@ -783,7 +770,7 @@ export function oneTrial(
         // reserve enough to fill remaining slots (toward the full cap) cheaply
         const slotsLeft = opts.squadSize - filledOf(st);
         const spendable = remPurseOf(i) - (slotsLeft - 1) * MIN_BASE;
-        if (spendable < player.base_price) continue;
+        if (spendable < player.base_price - PURSE_EPS) continue;
         const need = st.counts[player.role] < arc.roleMins[player.role] ? 1.5 : 0.7;
         const overseasBias = player.is_overseas ? arc.overseasAppetite * 1.4 : 1;
         let jitter = 1 + (rand() - 0.5) * 2 * arc.risk;
@@ -797,7 +784,7 @@ export function oneTrial(
         }
         let wtp = (lotValue.get(player.cricsheet_id) as number) * market * arc.aggression * need * overseasBias * jitter * pressure;
         wtp = Math.min(wtp, spendable);
-        if (wtp < player.base_price) continue;
+        if (wtp < player.base_price - PURSE_EPS) continue;
         if (wtp > bestBid) {
           secondBid = bestBid > 0 ? bestBid : player.base_price;
           bestBid = wtp;
@@ -977,15 +964,31 @@ export function simulateAuction(
   };
 }
 
-/** A Scout row's estimated price in `tier`: the market price on his value less the tier's
- * discount when the model and the row's market inputs are there, else the on-field curve
- * (`estValue`). Mirror of pricing.scout_price. */
-export function scoutPrice(
-  p: MarketInputs & { value: number; value_sd?: number | null; target_balls?: number | null },
-  tier: PriceTier,
-): number {
+type ScoutPriced = MarketInputs & {
+  value: number;
+  value_sd?: number | null;
+  ipl_value?: number | null;
+  ipl_value_sd?: number | null;
+  target_balls?: number | null;
+};
+
+/** A Scout row's value on the IPL rating scale and its sd: `ipl_value` / `ipl_value_sd` (the export
+ * translates every league's row), else — a row exported before 2026-10-23 — its own `value` /
+ * `value_sd`. Mirror of pricing.scout_ipl_value. */
+export function scoutIplValue(p: ScoutPriced): [number, number | null | undefined] {
+  if (p.ipl_value !== null && p.ipl_value !== undefined) return [p.ipl_value, p.ipl_value_sd];
+  return [p.value, p.value_sd];
+}
+
+/** A Scout row's estimated IPL price: the market price when the model and the row's market inputs are
+ * there (on the row's `price_value` / `price_value_sd`, the value the price recipe takes, which the
+ * export sets; else on his value on the IPL scale), else the on-field curve on his value on the IPL
+ * scale. Mirror of pricing.scout_price. */
+export function scoutPrice(p: ScoutPriced): number {
+  const [v, sd] = scoutIplValue(p);
   if (priceModel !== null && "intl_caps" in p) {
-    return marketPrice({ ...p, price_value: p.value - tierDiscount(tier) }).price;
+    const row = p.price_value === null || p.price_value === undefined ? { ...p, price_value: v, price_value_sd: sd } : p;
+    return marketPrice(row).price;
   }
-  return estValue(p.value, p.role, tier, p.value_sd, p.target_balls);
+  return iplPrice(v, p.role, sd, p.target_balls);
 }

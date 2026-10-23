@@ -1,5 +1,6 @@
 // The league registry, as exported from config/leagues.toml into `data/leagues.json` by
-// scripts/export_site.py. Labels, Scout pools, pricing discounts and pool membership all come from
+// scripts/export_site.py. Labels, Scout pools, each league's fitted translation onto the IPL and pool
+// membership all come from
 // here, so adding a league is a TOML entry, never a frontend change. No imports: the parity harness
 // (scripts/parity_dump.ts) loads this module under Node too.
 
@@ -13,8 +14,10 @@ export interface LeagueInfo {
   kind: string; // league | domestic | international | mixed
   country: string;
   tier: string | null; // strength tier (scout_index.json key, pricing key)
-  discount: number | null; // value removed before comparing with IPL value
-  calibrated: boolean | null; // false = discount borrowed by analogy, not yet fitted
+  /** How its ratings carry over to the IPL, per role: IPL rating ≈ a + b × league rating, with a
+   * translation sd and the players seen in both (config/league_translation.json); null for the
+   * auction target and a league not fitted yet. Display only: prices come translated in the data. */
+  translation?: Record<"batter" | "bowler", { a: number; b: number; tsd: number; pairs: number }> | null;
   export: boolean;
   active: boolean;
   order: number;
@@ -30,7 +33,7 @@ export interface LeagueInfo {
 
 export interface LeagueRegistry {
   schema: number;
-  tiers: Record<string, { discount: number; calibrated: boolean }>;
+  tiers: Record<string, { group: string }>; // the pooling group of the translation fit
   leagues: LeagueInfo[];
   auction: {
     target: string | null;
@@ -71,12 +74,13 @@ export function leagueShort(key: string): string {
   return find(key)?.short ?? key;
 }
 
-/** The value discount of a strength tier. Throws for a tier the registry doesn't define — a wrong
- * price must never be shown silently (the Python port raises KeyError the same way). */
-export function tierDiscount(tier: string): number {
-  const t = current?.tiers[tier];
-  if (!t) throw new Error(`unknown price tier "${tier}" — is leagues.json loaded?`);
-  return t.discount;
+/** What a league rating of `at` becomes on the IPL scale, per role (null when not fitted). Mirror of
+ * cricdex.scout.translation.summary, for copy. */
+export function translatedAt(info: LeagueInfo, at = 10): { batter: number; bowler: number } | null {
+  const t = info.translation;
+  if (!t) return null;
+  const r = (x: number) => Math.round(x * 10) / 10;
+  return { batter: r(t.batter.a + t.batter.b * at), bowler: r(t.bowler.a + t.bowler.b * at) };
 }
 
 /** The Scout look-alike pools, in display order. */

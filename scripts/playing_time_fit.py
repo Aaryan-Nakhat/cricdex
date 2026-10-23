@@ -32,6 +32,7 @@ import ipl_price_model as ipm  # noqa: E402
 from cricdex import leagues  # noqa: E402
 from cricdex.config import DATA_DIR  # noqa: E402
 from cricdex.scout import playing_time as pt  # noqa: E402
+from cricdex.scout import translation  # noqa: E402
 from cricdex.scout.identity import captains, master  # noqa: E402
 from cricdex.scout.identity.sources import IPL_TEAM_CODES_ALL  # noqa: E402
 from cricdex.scout.ratings import bayesian  # noqa: E402
@@ -334,42 +335,26 @@ def balls() -> None:
 
 def asof_roles(season: int, date: str) -> dict[str, dict[str, tuple[float, float]]]:
     """cid → {"batter": (value, sd), "bowler": (value, sd)} as of an auction, each role blended
-    across leagues exactly as the auction pool blends it (ipl_price_model.asof_values, both roles)."""
-    acc: dict[tuple[str, str], list[float]] = {}
-    own: dict[tuple[str, str], tuple[float, int, float]] = {}
-    p = ipm.ipl_fit_path(season)
-    if p.exists():
-        for r in pl.read_parquet(p).iter_rows(named=True):
-            if r["value"] is None:
-                continue
-            sd = float(r["value_sd"] or 1.0)
-            a = acc.setdefault((r["cricsheet_id"], r["role"]), [0.0, 0.0])
-            a[0] += 1.0 / (sd * sd)
-            a[1] += float(r["value"]) / (sd * sd)
-            own[(r["cricsheet_id"], r["role"])] = (float(r["value"]), int(r["balls"] or 0), sd)
-    for col in ipm.OTHER_LEAGUES:
-        cands = [s for s in range(2010, season + 1)
-                 if f"{s}-01-01" <= date and ipm.league_fit_path(col, s).exists()]  # fmt: skip
-        if not cands:
-            continue
-        pen, tsd = leagues.discount(col), leagues.translation_sd(col)
-        for r in pl.read_parquet(ipm.league_fit_path(col, max(cands))).iter_rows(named=True):
-            if r["value"] is None or r["cricsheet_id"] is None:
-                continue
-            sd = float(r["value_sd"] or 1.0)
-            w = 1.0 / (sd * sd + tsd * tsd)
-            a = acc.setdefault((r["cricsheet_id"], r["role"]), [0.0, 0.0])
-            a[0] += w
-            a[1] += w * (float(r["value"]) - pen)
+    across leagues exactly as the auction pool blends it (every league translated onto the IPL scale
+    and combined with the IPL rating by precision: cricdex.scout.translation.blend). The protocol
+    runs (`play`, `free`, `asof-contrib`) use the translation fitted on seasons ≤ 2024, so the 2025-26
+    test sees no later outcome; `ship` uses the shipped one (`_WHICH`)."""
+    own, other = ipm.asof_sources(season, date)
+    tm = translation.load_model()
     out: dict[str, dict[str, tuple[float, float]]] = {}
-    for (cid, role), (sw, swx) in acc.items():
-        o = own.get((cid, role))
-        if o and o[1] >= ipm.TRUST_BALLS:
-            val, vsd = o[0], o[2]
-        else:
-            val, vsd = swx / sw, (1.0 / sw) ** 0.5
+    for key in set(own) | set(other):
+        cid, role = key
+        if role not in translation.ROLES:
+            continue
+        o = own.get(key)
+        val, vsd, _ = translation.blend(role, (o[0], o[1]) if o else None, other.get(key, {}), tm,
+                                        _WHICH["which"])  # fmt: skip
         out.setdefault(cid, {})[role] = (val, vsd)
     return out
+
+
+# which fitted translation the as-of values use (`ship` switches to the shipped one)
+_WHICH = {"which": "roles_le2024"}
 
 
 def balls_models(pars: dict, spec_name: str) -> dict[str, pt.BallsModel]:
@@ -912,6 +897,8 @@ def ship(next_auction: str = typer.Option("2026-12-16", "--before")) -> None:
     """Refit the chosen models on everything up to 2026 and write config/playing_time_model.json."""
     import datetime as _dt
 
+    _WHICH["which"] = "roles"  # the shipped translation (fitted on every season)
+    _ASOF.clear()
     u = _u()
     roles = _roles()
     starts = season_starts(u)

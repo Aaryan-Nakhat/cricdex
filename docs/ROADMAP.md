@@ -268,8 +268,12 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
 - [ ] 16. Expected runs and wickets from ball-by-ball context (M–L): log-linear expectation over phase,
   wickets, venue, era, bowler type and balls faced, with shrinkage; a wicket priced in runs; a
   runs-currency value replacing the sd-sum. Don't call it "xR" (CricViz's xR uses ball-tracking). *Partly done 2026-10-19: a wicket priced in runs (value function over over × wickets down) and the runs-currency value replacing the sd-sum ship (review item 14); the context expectation is the rating model's season / phase / innings / venue terms. Still open: bowler type and balls faced in the expectation, and a chase-aware wicket cost.*
-- [ ] 17. Joint multi-league fit with league effects (M), publishing the translation factors (e.g. SMAT→IPL
-  strike-rate factor with intervals).
+- [x] 17. Joint multi-league fit with league effects (M), publishing the translation factors (e.g. SMAT→IPL
+  strike-rate factor with intervals). *Done 2026-10-23 (audit item 5): a translation per league and role, leagues
+  pooled by group, fitted on players seen in both and tested out of time with level calibration (METHODOLOGY §6d;
+  a tie with the old discounts on accuracy, no hand-set numbers). Open: a market-price recipe on the translated
+  value that wins (Y didn't); a selection model for players who never get IPL games; a per-role prior in the
+  blend.*
 - [ ] 18. Venue page v2 (S–M): par by season, chase-win curve against target, toss outcomes, phase pars,
   last three seasons by default.
 - [ ] 19. New men's leagues (M each): PSL, BPL, ILT20, MLC, LPL, The Hundred, Super Smash — scouting pools
@@ -460,6 +464,10 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
   per match, fitted on IPL XIs and tested out of time (METHODOLOGY §6c). Open: a mega/mini term for free
   agents' P(plays); contributions from an aged forecast instead of the career rating (items 3, 9); a newcomer's
   balls a match run high (XIs sum to 1.1–1.2× a side's balls; Bid plan caps them); fielding.
+- [x] I15. Tier discounts were one hand-set number per league (both roles), eight borrowed, translation sds guessed,
+  the level never tested, and a 300-ball switch (audit item 5). *Done 2026-10-23:* fitted translations and a
+  precision blend (METHODOLOGY §6d). Open: the market price still takes the old blend (recipe Y lost); overseas
+  league stars new to the IPL came out too high in the 2023–25 intake.
 - [x] I12. Style twins still give odd matches (item 25) — rebuild the similarity features and check 20 famous
   players by eye. *Done 2026-10-22: see item 25; 20 players read by eye, `tests/test_style_twins.py`.*
 

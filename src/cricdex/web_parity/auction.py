@@ -46,7 +46,7 @@ def build_pool(rows: list[dict], model: dict | None = None) -> list[dict]:
     out: list[dict] = []
     for r in rows:
         # pool value already tier-penalised; priced on the cautious estimate (value_sd)
-        onfield = est_value(r["value"], r["role"], "ipl", r.get("value_sd"), r.get("target_balls"))
+        onfield = est_value(r["value"], r["role"], r.get("value_sd"), r.get("target_balls"))
         mk = market_price(r, model=model) if has_market_inputs(r, model) else None
         pv = mk["price"] if mk else onfield
         base = price_tier(pv)
@@ -313,6 +313,9 @@ MIN_SQUAD = 20
 PRESSURE_EXP = 0.5
 PRESSURE_MIN = 0.75
 PRESSURE_MAX = 1.6
+# money within this of a base price counts as enough: a purse is a running sum of bids whose last bit
+# (pow / exp) can differ between Python and JS, and a team can be left with exactly a base price
+PURSE_EPS = 1e-9
 
 
 def _build_franchises(pool: list[dict], team_cfg: list[dict], opts: dict):
@@ -467,7 +470,7 @@ def one_trial(
                     continue
                 slots_left = opts["squad_size"] - filled_of(st)
                 spendable = rem_purse_of(i) - (slots_left - 1) * MIN_BASE
-                if spendable < player["base_price"]:
+                if spendable < player["base_price"] - PURSE_EPS:
                     continue
                 need = (
                     1.5 if st["counts"][player["role"]] < arc["role_mins"][player["role"]] else 0.7
@@ -497,7 +500,7 @@ def one_trial(
                     * pressure
                 )
                 wtp = min(wtp, spendable)
-                if wtp < player["base_price"]:
+                if wtp < player["base_price"] - PURSE_EPS:
                     continue
                 if wtp > best_bid:
                     second_bid = best_bid if best_bid > 0 else player["base_price"]

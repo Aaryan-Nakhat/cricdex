@@ -233,8 +233,10 @@ def _market(work: Path, data: dict, letter: str | None) -> dict:
             "bought": (pricing.load_price_model() or {}).get("bought"),
         }
         for r in rows:
-            mk = pricing.market_price(r, model["competition"], model)
-            hi = pricing.market_price({**r, "value_sd": 0.0}, model["competition"], model)["high"]
+            # the row as the recipe prices it (its value input: ipl_price_model._valued)
+            rv = ipm._valued(r)
+            mk = pricing.market_price(rv, model["competition"], model)
+            hi = pricing.market_price({**rv, "value_sd": 0.0}, model["competition"], model)["high"]
             out[(s, r["team"], r["cricsheet_id"])] = (mk["price"], hi)
         typer.echo(f"market {s}: {len(rows)} priced")
     f.write_bytes(pickle.dumps(out))
@@ -687,7 +689,7 @@ def _forecast_market(work: Path, data: dict, letter: str | None) -> dict:
             if r.get("forecast_avg3") is None:
                 continue
             # the forecast is the value itself (no cautious discount: its range is already in it)
-            row = {**r, "price_value": float(r["forecast_avg3"]), "value_sd": 0.0}
+            row = {**ipm._valued(r), "price_value": float(r["forecast_avg3"]), "value_sd": 0.0}
             out[(s, r["team"], r["cricsheet_id"])] = pricing.market_price(
                 row, model["competition"], model
             )["price"]

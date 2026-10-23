@@ -61,15 +61,16 @@ Every competition CricDex knows is one entry in
 [`config/leagues.toml`](../config/leagues.toml), read through
 `cricdex.leagues` (standard-library `tomllib`, validated on load): its key
 (the `<col>` of every table and folder), display name, Cricsheet zip(s),
-gender, kind, region, strength tier and discount (and whether that discount
-is fitted or borrowed), whether it is exported, whether it is a Scout pool
+gender, kind, region, strength tier (and the group it is pooled with when its
+translation onto the IPL is fitted: `scripts/league_translation_fit.py` →
+`config/league_translation.json`, read by `cricdex.scout.translation`), whether it is exported, whether it is a Scout pool
 (draftable, gem pool) or feeds the auction pool, and the auction target's
 nationality allow/deny lists. Ingest, the exporter, pricing
 (`web_parity/pricing.py`), the API's collection check (an unknown
 collection is a 400 listing the valid keys), the CLI/TUI/Streamlit pickers,
 the Makefile and the refresh workflow all read it; the exporter writes it to
 `site/public/data/leagues.json` and the web app reads labels, Scout pools,
-discounts and pool membership from there (`site/src/lib/leagues.ts`). The
+each league's fitted translation and pool membership from there (`site/src/lib/leagues.ts`). The
 time-window suffixes (`_last1y`, `_last3y`) are defined once, in
 `common/sql.py`. A league can also list **eras** (`[[league.era]]`, e.g. the
 IPL's Impact Player era since 2023-03-31): each becomes one more recomputed

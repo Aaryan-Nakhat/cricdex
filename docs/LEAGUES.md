@@ -5,7 +5,8 @@ Every competition CricDex knows is one `[[league]]` entry in
 the exporter, pricing, the Scout pools, the auction pool and its nationality rule, the API's
 collection check, every CLI / TUI / Streamlit picker, the Makefile and the refresh workflow all read
 this file through `cricdex.leagues`. The exporter copies it to `site/public/data/leagues.json`,
-which is where the web app gets its labels, Scout panels and price discounts.
+which is where the web app gets its labels, Scout panels and each league's fitted translation onto the
+IPL.
 
 So **adding a league is one TOML entry and an ingest**, never a code change.
 
@@ -29,7 +30,7 @@ So **adding a league is one TOML entry and an ingest**, never a code change.
    gender = "male"                   # male | female | mixed
    kind = "league"                   # league | domestic | international | mixed
    country = "Pakistan"
-   tier = "psl"                      # a [tiers.*] key: the strength discount
+   tier = "psl"                      # a [tiers.*] key: its pooling group in the translation fit
    export = true                     # cook it into the site / CLI / TUI / dashboard snapshot
    active = true
    order = 70                        # display order (lower first)
@@ -45,10 +46,13 @@ So **adding a league is one TOML entry and an ingest**, never a code change.
 
    ```toml
    [tiers.psl]
-   discount = 6.0      # value removed before comparing with IPL value (runs per 100 balls)
-   calibrated = false  # borrowed by analogy, not yet fitted
-   note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
+   group = "overseas_a"   # the leagues it is pooled with when its translation onto the IPL is fitted
+   note = "Pakistan Super League: strong overseas league."
    ```
+
+   No number goes here: how a rating there carries over to the IPL is fitted (below). Until it is, the
+   league takes its group's typical translation, with the spread between the group's leagues added to
+   its uncertainty.
 
 3. **Check it:** `uv run python -m cricdex.leagues check` (or `make leagues`). The loader refuses
    duplicate keys, unknown fields, a missing tier, a malformed zip name, a pool that isn't
@@ -85,7 +89,7 @@ Scout, the auction pool, `GET /v1/leagues` and the refresh workflow's default li
 | `scout_pool`, `scout_group`, `scout_title`, `scout_subtitle` | A Scout panel. Exactly one `peers` pool, which must be the auction target; `scout_index.json` is keyed by tier, so two pools can't share one. |
 | `draftable` | Players can be drafted from this panel into the Auction room (only those eligible for the auction). |
 | `gem_pool` | The uncapped-gem board is drawn from this pool (at most one; SMAT). |
-| `auction_pool` | Feeds the cross-league auction pool, discounted by its tier. |
+| `auction_pool` | Feeds the cross-league auction pool, its ratings translated onto the IPL (below). |
 | `auction_target` | The competition the auction pool is priced for (exactly one when any pool exists; the IPL). |
 | `auction_nationalities` | On the target only: the allow-list of free-agent nationalities (empty = every nation not excluded). |
 | `auction_excluded_nationalities` | On the target only: the deny-list, which always wins (Pakistan for the IPL). |
@@ -113,17 +117,25 @@ the Streamlit Leaderboards page and the TUI's LEADERS tab offers it.
 `python -m cricdex.leagues check` validates the entry; the eras are also in `leagues.json`. Eras
 are display windows: the rating model doesn't need them, since it already fits a level per season.
 
-## Tiers and discounts
+## Tiers and translations
 
-A rating from a weaker league is lowered by its tier's `discount` before it is compared with IPL
-value, in runs per 100 balls (the unit of `value`). The six original discounts were set against
-the IPL (IPL 0, SMAT 17.0, BBL and SA20 6.0, CPL and T20 Blast 8.5; `calibrated = true`); they were
-first set in the earlier population-sd units (1.28, 0.45, 0.64) and converted with one factor, 13.3,
-when `value` moved to runs ([AUCTION_MATH.md](AUCTION_MATH.md)). The leagues added with the registry borrow one by
-analogy until a joint multi-league fit can measure them (`calibrated = false`): PSL, ILT20 and The
-Hundred like BBL / SA20; MLC, BPL, LPL, Super Smash and CSA T20 Challenge like CPL / Blast.
-`web_parity/pricing.py` and `site/src/lib/auction.ts` read the same numbers, and the parity test
-runs both on the registry, so the Python and web prices can't drift.
+A rating is relative to its own league's average ball, so a +20 in SMAT isn't a +20 in the IPL. Each
+league's rating is moved onto the IPL rating scale by a **translation fitted per league and per role**
+(batter / bowler) on every player seen in both, `IPL rating ≈ a + b × league rating` with its own
+translation sd, by `scripts/league_translation_fit.py` into `config/league_translation.json`
+(read by `cricdex.scout.translation`; method and tests in [METHODOLOGY.md](METHODOLOGY.md) §6d). A
+tier only names its **pooling `group`**: in the fit, a league's intercept and slope shrink toward its
+group's mean (`india`: SMAT; `overseas_a`: BBL, SA20, PSL, ILT20, The Hundred; `overseas_b`: CPL, T20
+Blast, MLC, BPL, LPL, Super Smash, CSA T20 Challenge; `reference`: the IPL), so a league with few
+players who also reached the IPL borrows strength from similar leagues instead of copying one of their
+numbers. After adding a league, refit: `uv run python scripts/league_translation_fit.py pairs` then
+`fit` (about 15 minutes; the backtest cache needs its fits first,
+`scripts/backtest_newcomers.py --leagues <key>`).
+
+Until 2026-10-23 a tier carried one hand-set `discount` (SMAT 17, BBL / SA20 6, CPL / Blast 8.5; eight
+leagues borrowed one of those), a guessed `translation_sd` and a `calibrated` flag; the loader now
+refuses those keys. The export translates every rating (the pool's `value`, Scout's `ipl_value`), so
+the web app and `web_parity/pricing.py` only ever price values already on the IPL scale.
 
 ## What ships today
 

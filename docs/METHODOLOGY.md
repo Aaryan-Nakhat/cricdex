@@ -18,7 +18,7 @@ metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [
 | [3. The nine context metrics + fielding](#3-the-nine-context-metrics--fielding) | Pressure Runs, Intent Curve, Dot-Ball Recovery and the rest; time windows and eras |
 | [4. Bayesian skill ratings](#4-bayesian-skill-ratings) | Four skills per player, adjusted for the opposition, with honest uncertainty |
 | [5. Scout look-alikes](#5-scout-look-alikes) | Who plays like X in another league, and what he'd cost; style twins on every profile (5a) |
-| [6. From skill to crore](#6-from-skill-to-crore) | Turning a rating into an auction price; who plays and how much he adds a match (6c) |
+| [6. From skill to crore](#6-from-skill-to-crore) | Turning a rating into an auction price; who plays and how much he adds a match (6c); how a rating from another league carries over to the IPL (6d) |
 | [7. The auction room](#7-the-auction-room) | Retentions, personalities, budget pressure, second-price clearing |
 | [8. Does it predict? The backtest](#8-does-it-predict-the-backtest) | Fitted before each season, scored on that season |
 | [9. Limits](#9-limits) | What the models can't see, and what's approximate |
@@ -412,7 +412,7 @@ a sharper test than a rank correlation of season totals: the context terms, the 
 role priors predict the next season's balls better. (`scripts/backtest_ratings.py --compare legacy`.)
 
 **Limits.** Each league is fitted separately, so an IPL +20 and a BBL +20 aren't the same thing; the scout
-and the auction correct for that with a tier discount (sections 5 and 6). There's one skill set per role
+and the auction correct for that with a league translation fitted per league and role (section 6d). There's one skill set per role
 for a player's whole career in that league (the context is adjusted for, but a player's own form isn't
 allowed to drift); batting slot comes from the data, so a player who moved up the order is grouped by his
 median slot.
@@ -438,8 +438,9 @@ test. More: [SCOUT.md](SCOUT.md).
    also share seam or spin. You can also filter by batting slot.
 3. **Closeness.** Similarity = `1 − |z_candidate − z_pick| ÷ 2.5`, floored at 0. The top eight per pool
    are shown.
-4. **Price and saving.** Each candidate is priced with the auction's skill-to-crore curve (section 6),
-   after the league's tier discount, and the saving is your pick's price minus his.
+4. **Price and saving.** Each candidate is priced as the auction prices him (section 6), on his rating
+   translated onto the IPL for his league and role (`ipl_value`, section 6d), and the saving is your
+   pick's price minus his.
 5. **Gem flag.** A prospect is a "gem" when his standing is high (z ≥ 0.6) on at most the median SMAT
    exposure: punching above a small sample.
 
@@ -529,9 +530,9 @@ his blend. Style comes from one league's data, so a player with few games there 
 bar and has no twins. Bowling type comes from the player master; where it is missing (many associate
 players in T20Is) the player only meets other unknowns.
 
-**Limits.** "Same standing in his league" is not "same quality": a SMAT z of +1.6 is impressive, but the
-tier discount is a single number per league, not a measured conversion rate (section 8 shows how well
-that works for newcomers). Roles come from the AI-classified taxonomy; a player without one is treated as
+**Limits.** "Same standing in his league" is not "same quality": a SMAT z of +1.6 is impressive, but how a
+league's rating carries over is a fitted average with a wide spread (a translation sd of 9–15 runs per 100
+balls, section 6d). Roles come from the AI-classified taxonomy; a player without one is treated as
 a batter.
 
 ---
@@ -550,16 +551,12 @@ both, locked by `test_scripts/test_web_parity.py`).
 
 **How.**
 
-1. **Tier discount.** A rating from a weaker league is lowered first, in runs per 100 balls: BBL −6.0,
-   SA20 −6.0, CPL −8.5, T20 Blast −8.5, SMAT −17.0, IPL 0. A player in several leagues gets one value per
-   role, his leagues blended by precision (and his IPL value alone when he has 300+ IPL balls in the
-   role). The discounts live in `[tiers.*]` of `config/leagues.toml`; the leagues added later borrow one
-   by analogy until fitted (PSL, ILT20 and The Hundred −6.0 like BBL / SA20; MLC, BPL, LPL, Super Smash
-   and CSA T20 −8.5 like CPL / Blast) and are marked `calibrated = false`. They were set in the earlier
-   sd units (1.28 / 0.45 / 0.64) and converted with one factor, 13.3 (the spread of the runs value over
-   the spread of the old value, IPL players with 150+ balls); players with 300+ balls in both leagues show
-   gaps of the same size (SMAT +22 runs for batters and +7 for bowlers, BBL +4 / +3, CPL +5 / +6, Blast
-   +9 / +6).
+1. **League translation.** A rating from another league is first put on the IPL rating scale by the
+   translation fitted for that league and role (section 6d: SMAT batters lose about 9 runs per 100 balls
+   at +10, SMAT bowlers almost nothing, overseas bowlers almost nothing); a player in several leagues
+   gets one value per role, his IPL rating and his translated leagues blended by precision, with no
+   ball-count switch. (Until 2026-10-23: one hand-set discount per league, SMAT −17, BBL / SA20 −6,
+   CPL / Blast −8.5, eight leagues borrowing one, and his IPL value alone at 300+ IPL balls.)
 2. **No IPL-relevance penalty** (since 2026-10-22, audit item 4). Until then a player who hadn't featured
    in the IPL lately lost up to 36 runs per 100 balls from his value on a hand-set curve (age, years since
    his last IPL game, 0.7 for a never-IPL Indian), which also set the pool's order. Whether he will play is
@@ -568,8 +565,8 @@ both, locked by `test_scripts/test_web_parity.py`).
 3. **Cautious estimate.** The price is set from `value − 0.5 × value_sd`, not the central value
    (`PRICE_CAUTION_SD`, `pricing.py` ⇄ `auction.ts`): a proven star (sd ≈ 3 runs) gives up about 1.5
    runs, a 400-ball prodigy (sd ≈ 12) about 6. Displays and rankings keep the central value. The pool
-   carries the blended value's sd (translation uncertainty included); Scout the league rating's sd with
-   the tier's translation sd added.
+   carries the blended value's sd and Scout the translated rating's (`ipl_value_sd`), translation
+   uncertainty included in both.
 4. **Exponential price curve.**
 
    ```
@@ -912,8 +909,11 @@ P(bought)         = logistic(intercept + Σ coefficient × feature, the prior ma
 ```
 
 The cautious value is held to the training support (`pv_max`). The purse and cycle default to the
-league's next competition in `config/competitions.toml` (IPL 2027: mini, 125 cr). Scout prices a player
-from another league with his value less the tier discount (6a step 1) as `pv`. An export from before the
+league's next competition in `config/competitions.toml` (IPL 2027: mini, 125 cr). Its value input
+(`price_value`, with its own sd `price_value_sd`) is the blend the recipe was fitted on: one discount per
+league and the 300-ball switch (`translation.legacy_blend`), for the pool and for Scout rows alike, because a
+recipe on the fitted translation did not price held-out auctions better (6d); the value shown, the
+contributions and the on-field worth use the translation. An export from before the
 model (no `price_value` in its rows), or no model file, falls back to the on-field curve. Code:
 `pricing.market_price` / `calibrate` / `link_share` ⇄ `marketPrice` / `calibrate` / `linkShare`
 (`test_scripts/test_web_parity.py` checks the knots, the top tail and the link on fixed inputs).
@@ -986,8 +986,10 @@ plan holds an XI's balls to a side's innings (section 12).
 players bought at that auction's lowest price (nobody bid more: freely available talent, the usual definition
 of replacement level), by the slot group of his usual batting position (the ratings' slot groups) and by
 bowling group (frontline: 15+ balls a match), auctions 2012–2026 (walk-forward in the validations). Batting:
-top order −7.3, middle −16.8, lower middle −23.2, tail −63.2; bowling: frontline −11.3, part-time −27.4 runs
-per 100 balls above the average ball (32–88 players each). So an opener is measured against a replacement
+top order −8.8, middle −17.1, lower middle −23.1, tail −61.6; bowling: frontline −5.2, part-time −13.0 runs
+per 100 balls above the average ball (32–88 players each; with the league translation of 6d since
+2026-10-23 — before it, on the old discounts, top −7.3, middle −16.8, lower −23.2, tail −63.2, frontline
+−11.3, part-time −27.4: the minimum-price buys are mostly SMAT bowlers, whom the old −17 sank). So an opener is measured against a replacement
 opener, a bowler's batting against a tail-ender. Tried first and rejected: "fringe" players defined after the
 fact (under half their side's matches), who are fringe because they failed (top order −28).
 
@@ -1004,14 +1006,16 @@ captain, the impact-player era.
 | candidate | 2024: log loss / Brier / rank corr. | 2025–26: log loss / Brier / MAE / rank corr. |
 |---|---|---|
 | P0 base rate (reference) | 0.694 / 0.152 / – | 0.697 / 0.150 / 0.350 / – |
-| P1 rank in the squad | 0.641 / 0.126 / 0.39 | 0.626 / 0.115 / 0.290 / 0.47 |
-| P2 P1 + overseas places | 0.635 / 0.124 / 0.41 | |
-| P3 P2 + experience and age | 0.598 / 0.107 / 0.54 | |
+| P1 rank in the squad | 0.658 / 0.134 / 0.35 | 0.631 / 0.118 / 0.297 / 0.46 |
+| P2 P1 + overseas places | 0.639 / 0.126 / 0.40 | |
+| P3 P2 + experience and age | 0.596 / 0.106 / 0.54 | |
 | P4 P3 + availability | 0.581 / 0.099 / 0.58 | |
-| **P5 P4 + keeper, captain, era (shipped)** | **0.578 / 0.098 / 0.58** | **0.562 / 0.087 / 0.246 / 0.63** |
+| **P5 P4 + keeper, captain, era (shipped)** | **0.580 / 0.099 / 0.58** | **0.558 / 0.086 / 0.241 / 0.64** |
 
-(Log loss per match; Brier and MAE on the share of matches.) Calibration in the test, fifths of the
-prediction, predicted / real share: 0.20 / 0.25, 0.30 / 0.27, 0.48 / 0.47, 0.70 / 0.68, 0.83 / 0.90.
+(Log loss per match; Brier and MAE on the share of matches. Refitted 2026-10-23 on the translated values of
+6d, same protocol and candidates; the first fit, on the old discounts, tested at 0.562 / 0.087 / 0.246 /
+0.63.) Calibration in the test, fifths of the prediction, predicted / real share: 0.19 / 0.22, 0.30 / 0.31,
+0.48 / 0.45, 0.71 / 0.70, 0.85 / 0.88.
 Availability and experience carry the most: a player who sat out last season in a squad is much less likely
 to play than his rank says.
 
@@ -1022,8 +1026,8 @@ auction admits, not retained: 1,025–1,421 a year, 33–146 of whom then played
 distance to the median squad's XI line, ln IPL matches, never played the IPL, years since his last IPL match,
 age and age past 32, last season's share, overseas, keeper, captain, era. Candidates F0 (base rate), F1
 (contribution and line), F2 (+ experience, years since, age), F3 (+ last season, overseas, keeper, captain,
-era); F3 chosen on 2024 (log loss 0.074 against 0.100); test 2025–26: **0.085** against 0.157 for the base
-rate and 0.137 for F1, rank corr. 0.39; the top fifth of predictions averaged 0.18 and played 0.17 of a
+era); F3 chosen on 2024 (log loss 0.075 against 0.100); test 2025–26: **0.086** against 0.157 for the base
+rate and 0.154 for F1, rank corr. 0.39 (the first fit, on the old discounts: 0.085, F1 0.137); the top fifth of predictions averaged 0.18 and played 0.17 of a
 side's matches. A known gap: no mega/mini term was declared, so a 2027 (mini) free agent's chance averages
 both kinds of year, and in a mini year far fewer free agents play (33 in 2026 against 133 in 2025).
 
@@ -1037,80 +1041,73 @@ of its retention model (section 10, not chosen); the market price was tried on t
 the better role's rate (6b, candidate X, not chosen). `value` (the better role's rate) is still shown, and is
 still the market price's input.
 
-**Reality check** (IPL 2027 defaults, data to the 2026 final; P(plays) in his 2026 squad, for a free agent
-the free-agent model; contribution = runs above replacement a match he plays, batting + bowling at his balls
+**Reality check** (IPL 2027 defaults, data to the 2026 final; values with the league translation of 6d,
+recomputed 2026-10-23; P(plays) in his 2026 squad, for a free agent the free-agent model; contribution = runs above replacement a match he plays, batting + bowling at his balls
 faced / bowled a match; season value = P × contribution × 14; pool rank before = by value less the relevance
 penalty, after = by season value; the market price and the Keep call are unchanged by this: the price's input
 and the retention model are the same):
 
 | player | team | value (better role) | P(plays) | contribution (bat + bowl; balls faced / bowled) | season value | pool rank before → after | market (cr) | Keep |
 |---|---|---|---|---|---|---|---|---|
-| Vaibhav Suryavanshi | RR | 59.7 | 0.91 | 13.0 (13.0 + 0; 19 / 0) | 164 | 1 → 1 | 21.5 | Keep (100%) |
-| Sunil Narine | KKR | 24.0 | 0.83 | 8.7 (0.5 + 8.1; 7 / 23) | 100 | 5 → 2 | 5.1 | Keep (88%) |
-| Jasprit Bumrah | MI | 23.2 | 0.88 | 8.1 (−0.1 + 8.2; 1 / 24) | 99 | 6 → 3 | 11.3 | Keep (97%) |
-| Rashid Khan | GT | 20.3 | 0.91 | 7.7 (1.0 + 6.7; 3 / 21) | 98 | 13 → 4 | 9.0 | Keep (92%) |
-| Shubman Gill | GT | 17.5 | 0.91 | 6.4 (6.4 + 0; 26 / 0) | 82 | 17 → 6 | 26.1 | Keep (99%) |
-| Heinrich Klaasen | SRH | 17.7 | 0.85 | 6.7 (6.7 + 0; 20 / 0) | 81 | 16 → 7 | 7.7 | Keep (83%) |
-| Ravindra Jadeja | RR | 4.2 | 0.83 | 6.7 (2.0 + 4.7; 13 / 15) | 79 | 74 → 8 | 7.5 | Keep (84%) |
-| Axar Patel | DC | 12.1 | 0.90 | 5.5 (1.1 + 4.4; 12 / 19) | 69 | 34 → 14 | 18.3 | Keep (96%) |
-| Cameron Green | KKR | 6.9 | 0.83 | 6.0 (3.6 + 2.4; 15 / 11) | 69 | 57 → 15 | 10.7 | Keep (81%) |
-| Virat Kohli | RCB | 13.6 | 0.86 | 5.7 (5.7 + 0; 27 / 0) | 69 | 28 → 16 | 7.9 | Keep (93%) |
-| Abhishek Sharma | SRH | 22.9 | 0.88 | 5.5 (5.2 + 0.4; 17 / 3) | 69 | 7 → 17 | 16.4 | Keep (98%) |
-| Finn Allen | KKR | 26.5 | 0.71 | 5.8 (5.8 + 0; 17 / 0) | 58 | 3 → 24 | 10.3 | Keep (90%) |
-| Krunal Pandya | RCB | 9.7 | 0.82 | 4.8 (1.2 + 3.7; 9 / 17) | 55 | 45 → 28 | 3.3 | Keep (85%) |
-| Hardik Pandya | MI | −1.6 | 0.80 | 4.8 (2.0 + 2.7; 13 / 14) | 54 | 127 → 30 | 12.4 | Keep (89%) |
-| Mitchell Marsh | LSG | 12.9 | 0.70 | 4.7 (4.5 + 0.2; 22 / 1) | 46 | 33 → 36 | 5.5 | Keep (78%) |
-| Marcus Stoinis | PBKS | 4.4 | 0.72 | 3.2 (2.8 + 0.5; 13 / 7) | 33 | 71 → 55 | 4.4 | Borderline (52%) |
-| Rinku Singh | KKR | −6.4 | 0.79 | 2.4 (2.4 + 0; 14 / 0) | 27 | 184 → 68 | 5.0 | Keep (90%) |
-| Liam Livingstone | SRH | 4.4 | 0.43 | 4.2 (3.2 + 1.1; 15 / 8) | 26 | 72 → 71 | 4.9 | Borderline (40%) |
-| Rohit Sharma | MI | 3.7 | 0.53 | 2.0 (2.0 + 0; 18 / 0) | 15 | 80 → 107 | 5.0 | Borderline (60%) |
-| Washington Sundar | GT | 6.3 | 0.80 | 1.3 (−0.5 + 1.8; 12 / 5) | 14 | 65 → 113 | 10.7 | Keep (84%) |
-| MS Dhoni | CSK | −6.1 | 0.27 | 2.3 (2.3 + 0; 10 / 0) | 9 | 177 → 141 | 1.1 | Borderline (62%) |
-| Rahul Tewatia | GT | 0.5 | 0.66 | 0.7 (0.5 + 0.2; 8 / 1) | 6 | 105 → 159 | 0.6 | Borderline (48%) |
+| Vaibhav Suryavanshi | RR | 59.7 | 0.90 | 13.3 (13.3 + 0.0; 19 / 0) | 166 | 1 → 1 | 21.5 | Keep (100%) |
+| Sunil Narine | KKR | 24.7 | 0.85 | 7.4 (0.5 + 6.9; 7 / 23) | 89 | 5 → 3 | 5.1 | Keep (88%) |
+| Jasprit Bumrah | MI | 23.1 | 0.91 | 6.5 (−0.2 + 6.7; 1 / 24) | 83 | 6 → 5 | 11.3 | Keep (97%) |
+| Rashid Khan | GT | 21.1 | 0.90 | 6.5 (0.9 + 5.6; 3 / 21) | 82 | 13 → 7 | 9.0 | Keep (92%) |
+| Shubman Gill | GT | 16.9 | 0.95 | 6.6 (6.6 + 0.0; 26 / 0) | 88 | 17 → 4 | 26.1 | Keep (99%) |
+| Heinrich Klaasen | SRH | 17.0 | 0.88 | 6.7 (6.7 + 0.0; 20 / 0) | 82 | 16 → 6 | 7.7 | Keep (83%) |
+| Ravindra Jadeja | RR | 4.2 | 0.85 | 4.6 (2.0 + 2.6; 13 / 15) | 54 | 74 → 27 | 7.5 | Keep (84%) |
+| Axar Patel | DC | 12.2 | 0.90 | 4.5 (1.2 + 3.3; 12 / 19) | 56 | 34 → 23 | 18.3 | Keep (96%) |
+| Cameron Green | KKR | 4.1 | 0.81 | 3.8 (3.2 + 0.6; 15 / 11) | 43 | 57 → 37 | 10.7 | Keep (81%) |
+| Virat Kohli | RCB | 13.6 | 0.93 | 6.1 (6.1 + 0.0; 27 / 0) | 79 | 28 → 9 | 7.9 | Keep (93%) |
+| Abhishek Sharma | SRH | 19.9 | 0.92 | 4.8 (4.9 + −0.1; 17 / 3) | 62 | 7 → 18 | 16.4 | Keep (98%) |
+| Finn Allen | KKR | 30.5 | 0.72 | 6.7 (6.7 + 0.0; 17 / 0) | 68 | 3 → 15 | 10.3 | Keep (90%) |
+| Krunal Pandya | RCB | 9.3 | 0.85 | 3.6 (1.1 + 2.5; 9 / 17) | 43 | 45 → 35 | 3.3 | Keep (85%) |
+| Hardik Pandya | MI | −2.1 | 0.75 | 2.8 (2.0 + 0.8; 13 / 14) | 30 | 127 → 46 | 12.4 | Keep (89%) |
+| Mitchell Marsh | LSG | 13.2 | 0.79 | 5.0 (4.9 + 0.0; 22 / 1) | 55 | 33 → 25 | 5.5 | Keep (78%) |
+| Marcus Stoinis | PBKS | 4.2 | 0.71 | 2.2 (2.8 + −0.6; 13 / 7) | 22 | 71 → 66 | 4.4 | Borderline (52%) |
+| Rinku Singh | KKR | −3.8 | 0.84 | 2.8 (2.7 + 0.0; 14 / 0) | 32 | 184 → 43 | 5.0 | Keep (90%) |
+| Liam Livingstone | SRH | 5.8 | 0.45 | 3.3 (3.4 + −0.2; 15 / 8) | 21 | 72 → 71 | 4.9 | Borderline (40%) |
+| Rohit Sharma | MI | 3.7 | 0.68 | 2.3 (2.3 + 0.0; 18 / 0) | 21 | 80 → 67 | 5.0 | Borderline (60%) |
+| Washington Sundar | GT | 6.4 | 0.79 | 0.7 (−0.3 + 1.0; 12 / 5) | 8 | 65 → 118 | 10.7 | Keep (84%) |
+| MS Dhoni | CSK | 1.1 | 0.37 | 2.3 (2.3 + 0.0; 10 / 0) | 12 | 177 → 104 | 1.1 | Borderline (62%) |
+| Rahul Tewatia | GT | −1.2 | 0.78 | 0.8 (0.7 + 0.1; 8 / 1) | 8 | 105 → 115 | 0.6 | Borderline (48%) |
 | Andre Russell (retired) | — | 24.5 | 0.08 | 7.4 (4.9 + 2.5; 10 / 12) | 8 | out → out | 5.3 | — |
-| Moeen Ali, 39 | free agent | 10.8 | 0.04 | 6.6 (2.1 + 4.5; 11 / 12) | 4 | 39 → 194 | 5.4 | — |
-| Faf du Plessis, 42 | free agent | 7.0 | 0.01 | 4.6 (4.6 + 0; 21 / 0) | 1 | 56 → 267 | 4.0 | — |
+| Moeen Ali, 39 | free agent | 11.2 | 0.03 | 5.0 (2.1 + 2.9; 11 / 12) | 2 | 39 → 186 | 5.4 | — |
+| Faf du Plessis, 42 | free agent | 14.0 | 0.01 | 4.9 (4.9 + 0.0; 21 / 0) | 1 | 56 → 212 | 4.0 | — |
 | Imran Tahir, 47 | free agent | −18.1 | 0.00 | 4.1 (0 + 4.1; 1 / 22) | 0 | 449 → out | 2.4 | — |
-| Rahul Singh (uncapped, SMAT) | free agent | 10.4 | 0.03 | 6.0 (6.0 + 0; 16 / 0) | 2 | 40 → 223 | 0.5 | — |
-| Lewis Goldsworthy (never IPL; Blast, 26) | free agent | −16.3 | 0.03 | 5.8 (3.0 + 2.9; 9 / 13) | 2 | 385 → 224 | 1.5 | — |
+| Rahul Singh (uncapped, SMAT) | free agent | 13.5 | 0.02 | 4.8 (4.8 + 0.0; 16 / 0) | 1 | 40 → 203 | 0.5 | — |
+| Lewis Goldsworthy (never IPL; Blast, 26) | free agent | 0.8 | 0.02 | 5.4 (3.6 + 1.8; 9 / 13) | 2 | 385 → 195 | 1.5 | — |
 
 (The "before" value of a free agent is his value less the relevance penalty, which is why it is low for
 Imran Tahir and Goldsworthy; Russell and the retired are left out of the pool either way.)
 
-Read player by player:
+Read player by player (2026-10-23 numbers, with the league translation; the 2026-10-22 run is in the
+CHANGELOG):
 
-- **The all-rounders now count both disciplines.** Jadeja (batting 2.0 + bowling 4.7 runs a match) moves from
-  74th to 8th, Hardik (2.0 + 2.7) from 127th to 30th, Green (3.6 + 2.4) from 57th to 15th, Axar 34th → 14th,
-  Krunal 45th → 28th. Before, each was valued by his better rate alone (Hardik's −1.6) and an ×1.15 premium.
-  An all-rounder adds through two sets of balls, so a good one matches a top specialist: Jadeja 6.7 a match,
-  Klaasen 6.7, Gill 6.4, Kohli 5.7.
-- **Narine's batting is back**: 7 balls a match at the top, worth +0.5 against a replacement opener, on top of
-  bowling worth 8.1 — the most valuable player in the pool after Suryavanshi. His batting value (0.1 per 100
-  balls: he scores fast and gets out often, section 4) is still worth something, because a replacement opener
-  is worse.
-- **Bowlers keep their place**: Bumrah 8.1, Rashid 7.7 (his batting adds 1.0), all from about 21–24 balls a
-  match. A four-over bowler and a 25-ball batter now count at their own balls, not per 100 balls each.
-- **Batters at the death face few balls**: Rinku 14 a match, Dhoni 10, Tewatia 8. Rinku rises (his −6.4 per
-  100 balls is a finisher's rate measured against the average ball; against a replacement lower-middle batter
-  it is +2.4 a match); Tewatia (0.7 a match) and Dhoni (2.3, and a 27% chance of playing at 45 after not
-  playing in 2026) fall.
-- **Kohli** (5.7 a match from 27 balls, 86% to play) and **Rohit** (2.0, 53%: he played 64% of MI's matches in
-  2026, and age counts) are where their recent seasons put them. **Abhishek Sharma** drops from 7th to 17th:
-  a +22.9 rate on 17 balls a match is worth less a match than Kohli's +13.6 on 27; and he bowls 3 balls a
-  match.
-- **Washington Sundar** falls (65th → 113th): GT used him for 5 balls a match in the last seasons and his
-  batting value is below a replacement lower-middle batter's. That is how he was used, not a judgement of his
-  ceiling.
-- **Finn Allen** (+26.5 per 100 balls on a thin IPL record) drops from 3rd to 24th: 17 balls a match, and a
-  71% chance of playing in KKR's crowded overseas places.
-- **Veterans out of the IPL**: Moeen Ali, Faf du Plessis, Imran Tahir, Bravo still contribute per match in
-  their leagues, but free agents of their age and years away rarely play an IPL match again (P ≤ 0.04), so
-  they fall to between 194th and 324th, and Imran Tahir out of the 600 — fitted, not penalised by hand. **Russell** (retired) would be a 7.4-a-match
-  all-rounder with an 8% chance of playing.
-- **Newcomers** (an uncapped SMAT batter, an overseas league all-rounder) contribute 5.8–6.0 a match on their
-  league numbers, but a never-IPL free agent plays rarely (3%), so they rank in the 200s; a franchise that
-  buys one changes that (in a squad, the squad model applies).
-- **Stoinis** and **Livingstone** are Borderline on Keep, and P(plays) agrees: 0.72 and 0.43 (Livingstone
+- **The all-rounders count both disciplines.** Jadeja (batting 2.0 + bowling 2.6 runs a match) is 27th,
+  Axar 23rd, Krunal 35th, Green 37th, Hardik 46th — far above where the better-rate-alone value put them (74th,
+  34th, 45th, 57th, 127th), lower than on 2026-10-22: the replacement bowler is now about 6 runs per 100 balls
+  better (6d), so every bowling contribution shrank by about 1.5 runs a match.
+- **Narine's batting counts**: 7 balls a match at the top worth +0.5 against a replacement opener, on bowling
+  worth 6.9: 3rd in the pool after Suryavanshi and Gill. Bumrah 6.5 (5th), Rashid 6.5 (7th), from 21–24 balls
+  a match.
+- **Batters at the death face few balls**: Rinku 14 a match, Dhoni 10, Tewatia 8. Rinku rises (his −3.8 per
+  100 balls is a finisher's rate against the average ball; against a replacement lower-middle batter it is
+  +2.8 a match); Tewatia (0.8) and Dhoni (2.3, a 37% chance of playing) fall.
+- **Kohli** (6.1 a match from 27 balls, 93% to play, 9th) and **Rohit** (2.3, 68%) are where their recent
+  seasons put them. **Abhishek Sharma** is 18th: a +19.9 rate on 17 balls a match is worth less a match than
+  Kohli's +13.6 on 27.
+- **Washington Sundar** is 118th: GT used him for 5 balls a match and his batting is below a replacement
+  lower-middle batter's. That is how he was used, not a judgement of his ceiling.
+- **Finn Allen** (+30.5 per 100 balls: a thin IPL record blended with strong overseas league batting) is 15th,
+  on 17 balls a match and a 72% chance of playing in KKR's crowded overseas places.
+- **Veterans out of the IPL**: Moeen Ali, Faf du Plessis and Imran Tahir still contribute per match in their
+  leagues, but free agents of their age and years away rarely play an IPL match again (P ≤ 0.03): 186th,
+  212th, and Imran Tahir out of the 600 — fitted, not penalised by hand. **Russell** (retired) stays out.
+- **Newcomers** (an uncapped SMAT batter, an overseas league all-rounder) contribute 4.8–5.4 a match on their
+  translated league numbers, but a never-IPL free agent plays rarely (2%), so they rank around 200; a
+  franchise that buys one changes that (in a squad, the squad model applies).
+- **Stoinis** and **Livingstone** are Borderline on Keep, and P(plays) agrees: 0.71 and 0.45 (Livingstone
   played 2 of SRH's 15 matches in 2026).
 
 **Limits.** The contribution uses the career rating, not an aged forecast: a veteran's age counts only through
@@ -1118,6 +1115,229 @@ P(plays) (audit items 3 and 9). The free-agent model has no mega/mini term. A ne
 toward his role's regular share (the XI check above). P(plays) is computed against the squad as listed; a
 flipped Keep call doesn't recompute it. Fielding is missing. Balls a match don't depend on venue or
 opposition.
+
+### 6d. League translation: a rating from another league, on the IPL scale
+
+**What it does.** Every rating is relative to its own league's average ball, so a +20 in SMAT is not a +20
+in the IPL. Since 2026-10-23 (audit item 5) each league's rating is moved onto the IPL rating scale by a
+translation **fitted per league and per role** on the players seen in both, and a player's sources (his IPL
+rating and every translated league) are blended by precision with no cut-off. Code:
+`src/cricdex/scout/translation.py` (`translate`, `blend`), fitted by `scripts/league_translation_fit.py`
+into `config/league_translation.json`; the export applies it (the pool's `value`, Scout's `ipl_value`),
+so the web app and `web_parity/pricing.py` only price values already on the IPL scale.
+
+**What it replaced.** One hand-set discount per league for both roles (SMAT −17, BBL / SA20 −6, CPL / Blast
+−8.5), eight leagues borrowing one of those, a guessed translation sd (6.5 or 10.5 runs) and a switch that
+ignored every other league once a player had 300 IPL balls in a role, added because the flat discount was
+"too harsh on stars". The old check already showed the gap depends on role (SMAT +22 runs for batters, +7
+for bowlers, against one 17), and the level of a discount had never been tested (the newcomer backtest,
+section 8, scores rank only).
+
+**The mechanism.** For every IPL season S from 2015 to 2026, a player's **observed IPL value in S** (runs
+per 100 balls above that season's average ball, from his n balls in the role) is modelled from what was
+known before S:
+
+```
+y = α_k + β_k · x + e,     Var(e) = τ_k² + β_k² · sd_x² + κ / n
+```
+
+x (± sd_x) is his rating in source k fitted on matches before S: the IPL itself (his IPL rating as of the S
+auction) or a league L (its rating as of 1 January of S, the newcomer backtest's cached fits). κ / n is a
+season's ball-to-ball noise (one κ per role, fitted: a ball's sd is about 330–345 runs per 100 balls), τ_k²
+what a rating in k doesn't know about his next IPL season. A league pair counts when he played L in the two
+calendar years before S (**time-matched**), seasons with 20+ IPL balls in the role. Batting and bowling are
+fitted separately.
+
+- **Selection.** Players reach the IPL because their league numbers were good. A raw mean difference
+  (IPL minus league) is inflated by that; a regression on the league *rating* (a posterior mean, already
+  shrunk) is not, because the selection is on the regressor. Every season with 20+ balls counts, so a
+  newcomer dropped after a bad month still counts. A re-weighting by the inverse chance of reaching the
+  IPL given the rating (IPW) was a declared candidate (T5). What a regression can't fix is selection on
+  what scouts see and the data doesn't: the fit describes players *who get games*, which is what the pool
+  needs (its season value is P(plays) × the contribution when he plays, 6c).
+- **Pooling.** Leagues are pooled hierarchically within their `[tiers.*] group` of `config/leagues.toml`
+  (`india`: SMAT; `overseas_a`: BBL, SA20, PSL, ILT20, The Hundred; `overseas_b`: CPL, T20 Blast, MLC, BPL,
+  LPL, Super Smash, CSA T20): α_L ~ N(μ_α[group], σ_α²), β_L ~ N(μ_β[group], σ_β²), log τ_L ~ N(m, s²), all
+  fitted by NUTS (NumPyro). A league with few players in both (LPL 19 batters, SMAT 131) is pulled toward
+  its group instead of copying a number; a league added later takes its group's typical league with the
+  spread between leagues added to its uncertainty.
+- **Onto the IPL rating scale.** The pool compares league players with IPL players on the IPL *rating*
+  scale, and an IPL rating itself predicts the next season with a slope below 1 (batters 0.49, bowlers
+  0.69: career ratings spread wider than next seasons do). So a league rating is translated to the IPL
+  rating that predicts the same season: `a_L = (α_L − α_IPL) / β_IPL`, `b_L = β_L / β_IPL`, and the
+  translation sd `√(τ_L² − τ_IPL²) / β_IPL` (what L knows less than the IPL does), per posterior draw; the
+  posterior covariance of (a_L, b_L) is kept, so a thin league is less certain.
+- **The blend** (replacing the 300-ball switch): each source a Gaussian on the IPL rating scale. His
+  leagues first become one composite: each translated mean a_L + b_L·x weighted by 1 / (b_L²·sd_x² +
+  parameter variance), the translation variance tsd² added **once** (weighted the same way), because the
+  gap between a player's league numbers and his IPL level is his own and shared by all his leagues:
+  playing six leagues mustn't shrink it six-fold. The composite and his IPL rating (value, sd) are then
+  combined by precision; the chosen candidate (T2) also divides out the population prior that every
+  source's posterior already holds (an exact product of Gaussian posteriors, prior N(−6.6, 25.2²) for
+  batters and N(−1.1, 11.5²) for bowlers; never more than half the evidence's precision). A long IPL record
+  dominates because its sd is small; nothing switches at a ball count.
+
+**The fitted translation** (shipped: every season 2015–2026; on the IPL rating scale; "+10 →" = what a +10
+league rating becomes; pairs = player-seasons, players in brackets; last column the old discount / sd):
+
+| League | Bat a | Bat b | Bat tsd | +10 bat → | bat pairs | Bowl a | Bowl b | Bowl tsd | +10 bowl → | bowl pairs | old |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| SMAT | −17.1 | 0.80 | 9.0 | −9.1 | 423 (131) | −3.8 | 0.46 | 9.2 | +0.8 | 406 (124) | −17.0 / 6.5 |
+| BBL | +0.1 | 0.87 | 12.8 | +8.8 | 196 (74) | +0.9 | 0.81 | 10.5 | +9.1 | 186 (72) | −6.0 / 6.5 |
+| SA20 | −1.2 | 0.84 | 11.4 | +7.2 | 60 (29) | −0.1 | 0.69 | 13.1 | +6.8 | 52 (31) | −6.0 / 6.5 |
+| CPL | −2.1 | 0.82 | 12.1 | +6.1 | 168 (55) | 0.0 | 0.92 | 9.0 | +9.3 | 121 (54) | −8.5 / 6.5 |
+| T20 Blast | −5.4 | 0.69 | 10.9 | +1.5 | 173 (71) | −1.8 | 0.88 | 12.1 | +7.0 | 156 (66) | −8.5 / 6.5 |
+| PSL | +3.3 | 0.78 | 11.5 | +11.1 | 91 (45) | +1.0 | 0.71 | 11.6 | +8.1 | 63 (35) | −6.0 / 10.5 |
+| ILT20 | −2.9 | 0.80 | 12.1 | +5.0 | 40 (26) | +1.1 | 0.73 | 15.0 | +8.4 | 46 (32) | −6.0 / 10.5 |
+| The Hundred | +2.9 | 0.92 | 12.1 | +12.1 | 89 (39) | +0.6 | 0.72 | 11.9 | +7.8 | 79 (37) | −6.0 / 10.5 |
+| MLC | −5.6 | 0.72 | 12.7 | +1.6 | 63 (36) | −0.4 | 0.94 | 14.0 | +9.0 | 51 (25) | −8.5 / 10.5 |
+| BPL | −4.1 | 0.68 | 11.4 | +2.7 | 98 (42) | −0.7 | 0.92 | 9.8 | +8.5 | 84 (34) | −8.5 / 10.5 |
+| LPL | −9.6 | 0.73 | 11.6 | −2.3 | 28 (19) | +0.3 | 0.80 | 10.4 | +8.3 | 34 (19) | −8.5 / 10.5 |
+| Super Smash | −9.8 | 0.68 | 11.2 | −3.0 | 33 (19) | −1.2 | 0.88 | 9.9 | +7.5 | 48 (20) | −8.5 / 10.5 |
+| CSA T20 | −1.2 | 0.81 | 11.0 | +6.9 | 75 (30) | +0.3 | 0.87 | 10.2 | +9.0 | 70 (35) | −8.5 / 10.5 |
+
+Read across: a SMAT batter loses much more than a SMAT bowler (at a typical +19 batter, −1.9 in the IPL; at
+a typical +5 bowler, −1.5); overseas bowling ratings carry over almost whole; slopes below 1 compress the
+extremes (a +40 SMAT batter is +15, not +23). Every translation sd is larger than the old guess (9–15 runs
+against 6.5 / 10.5), so league evidence counts less next to an IPL record than before.
+
+**Frozen protocol** (declared 2026-10-23 before any test number; `league_translation_fit.py`). Five
+candidates — T1 hierarchical with the registry groups and a precision blend; T2 T1 with the prior divided
+out of the blend; T3 one pooling group; T4 T1 plus the phase mix of his league balls (death and powerplay
+shares: "by phase if the data support it"); T5 T1 with IPW selection weights — compared by rolling-origin
+validation (for V = 2022, 2023, 2024: fit on seasons before V, score V), chosen by the mean predictive log
+score per player-season (both roles; every IPL player-season with 20+ balls and a league rating). The chosen
+one is refitted on seasons up to 2024 and scored **once** on 2025–26, against the scheme it replaces and
+"no translation" (league ratings taken as IPL ratings). The shipped fit uses every season to 2026.
+
+*Validation* (mean log score, higher is better): T1 −4.9148, **T2 −4.9121 (chosen)**, T3 −4.9148, T4
+−4.9155, T5 −4.9159; the old scheme −4.9127, no translation −4.9195. The phase mix and the IPW weights did
+not help (the data don't support a phase split), nor did one pooling group; T2 edges the old discounts by
+0.0006 a player-season, which is nothing.
+
+*Disclosures.* (1) A trial run during development printed T1's 2025–26 table once before validation ran.
+(2) The first full run blended each league separately, adding each league's translation sd as if
+independent; the reality check then showed a player of many leagues gaining precision (and value) league
+by league (Narine's pool value went from 24 to 34 on six leagues' bowling), which is wrong by construction,
+so the blend was corrected to the composite above and the whole protocol re-run (validation, choice, test).
+The fitted translation itself (the table) did not change. The first run's numbers, for the record: T2
+chosen at −4.9138; test log score −4.960 / −5.022 (batters / bowlers); reality MAE 11.7. No candidate,
+prior or setting was changed for the test.
+
+*Test, once: 2025–26* (n player-seasons; bias = real − predicted IPL value per 100 balls, ball-weighted, the
+prediction being the IPL line applied to the value; MAE over seasons with 60+ balls; slope = real on
+predicted, 1 = calibrated; ρ = Spearman; log score per player-season):
+
+| Players | Scheme | n | Bias | MAE (60+) | Slope | ρ | Log score |
+|---|---|---|---|---|---|---|---|
+| Newcomer batters | **fitted** | 33 | −9.1 | 29.4 | 0.82 | 0.18 | −5.287 |
+| | old discounts + 300-ball switch | 33 | −9.3 | 28.7 | 1.18 | 0.25 | −5.262 |
+| | no translation | 33 | −14.0 | 30.1 | 1.18 | 0.20 | −5.303 |
+| Newcomer bowlers | **fitted** | 32 | +5.5 | 29.8 | −1.03 | −0.28 | −5.157 |
+| | old | 32 | +13.7 | 31.6 | 0.14 | −0.06 | −5.200 |
+| | no translation | 32 | +6.1 | 29.8 | −0.40 | −0.20 | −5.163 |
+| Returning batters | **fitted** | 161 | −0.4 | 20.6 | 1.28 | 0.26 | −4.893 |
+| | old | 161 | −0.3 | 20.6 | 1.31 | 0.27 | −4.889 |
+| | no translation | 161 | −2.2 | 20.1 | 1.70 | 0.32 | −4.884 |
+| Returning bowlers | **fitted** | 168 | +0.2 | 25.4 | 1.55 | 0.25 | −4.992 |
+| | old | 168 | +0.8 | 25.2 | 1.56 | 0.27 | −4.984 |
+| | no translation | 168 | −0.6 | 25.7 | 1.71 | 0.21 | −5.008 |
+| All batters | **fitted** | 194 | −1.3 | 21.7 | 1.23 | 0.27 | −4.960 |
+| | old | 194 | −1.2 | 21.6 | 1.34 | 0.29 | −4.952 |
+| | no translation | 194 | −3.4 | 21.4 | 1.60 | 0.30 | −4.955 |
+| All bowlers | **fitted** | 200 | +0.8 | 25.9 | 1.28 | 0.17 | −5.019 |
+| | old | 200 | +2.0 | 26.0 | 1.02 | 0.21 | −5.018 |
+| | no translation | 200 | +0.1 | 26.2 | 1.17 | 0.15 | −5.033 |
+
+By fifth of the prediction (2025–26, predicted → real, ball-weighted). Batters: fitted −13.4 → −17.9,
+−3.9 → −5.7, +0.9 → +3.2, +4.6 → +2.7, +9.1 → +7.1; old −14.5 → −26.1, −4.6 → −5.7, −0.3 → −1.3,
++3.9 → +4.6, +9.3 → +9.0. Bowlers: fitted −9.5 → −4.9, −3.7 → −7.9, −1.0 → −8.3, +1.6 → +6.5,
++7.9 → +12.5; old −14.7 → −9.3, −5.9 → −5.1, −2.9 → −11.0, +0.8 → +5.2, +7.9 → +12.8.
+
+**The honest read.** Level: the fitted translation removes most of the old scheme's under-rating of league
+bowlers (newcomer bowlers +5.5 against +13.7 runs per 100 balls; all bowlers +0.8 against +2.0), and its
+batters' calibration slope is a little closer to 1 (1.23 against 1.34). On the proper score it is a
+**tie**: 0.008 (batters) and 0.001 (bowlers) a player-season behind the old scheme in the test, 0.0006 ahead
+in validation. Season numbers are mostly noise (MAE 20–30 runs per 100 balls for every scheme) and the
+newcomers are 32–33 a role, so the old discounts and the fit can't be told apart on accuracy; "no
+translation" is clearly worse for newcomer batters (−14.0 bias). It ships because it replaces four hand-set
+parts (discounts, borrowed values, guessed sds, the 300-ball cliff) with fitted ones at no measured loss and
+fixes the role gap the old check had found, not because it predicts better.
+
+**Reality table** (`league_translation_fit.py reality`): each player's value from what was known before
+his first IPL season with 20+ balls (the translation fitted on ≤ 2024, so entries before 2025 are
+in-sample), against his IPL rating today on every IPL ball since (the same scale). Error = value − IPL
+rating today.
+
+| Player | Before | Leagues then | Fitted | Old | IPL today (balls) | Error | Old error |
+|---|---|---|---|---|---|---|---|
+| Priyansh Arya | IPL 2025 | SMAT +35.4 | +10.8 | +18.4 | +27.7 (471) | −16.9 | −9.4 |
+| Ashutosh Sharma | IPL 2024 | SMAT +37.2 | +12.3 | +20.2 | −6.1 (334) | +18.4 | +26.2 |
+| Shashank Singh | IPL 2022 | SMAT +6.3 | −14.3 | −10.7 | +0.2 (560) | −14.5 | −10.9 |
+| Abhinav Manohar | IPL 2022 | SMAT +25.7 | +2.4 | +8.7 | −27.2 (235) | +29.6 | +35.9 |
+| Sameer Rizvi | IPL 2024 | SMAT +14.1 | −7.6 | −2.9 | −6.4 (293) | −1.2 | +3.4 |
+| Shahrukh Khan | IPL 2021 | SMAT +0.6 | −19.2 | −16.4 | −10.4 (524) | −8.8 | −6.0 |
+| Angkrish Raghuvanshi | IPL 2024 | SMAT +0.7 | −19.2 | −16.3 | −1.2 (608) | −17.9 | −15.1 |
+| Ashwani Kumar (bowl) | IPL 2025 | SMAT −3.8 | −5.0 | −20.8 | −8.8 (185) | +3.8 | −12.0 |
+| Vipraj Nigam (bowl) | IPL 2025 | SMAT −24.8 | −13.7 | −41.8 | −2.9 (293) | −10.8 | −38.9 |
+| Rahul Singh | no IPL go yet | SMAT +38.2 | +13.5 | +21.2 | — | — | — |
+| Jake Fraser-McGurk | IPL 2024 | BBL −1.0 | +4.4 | −7.0 | +31.4 (193) | −27.0 | −38.4 |
+| Will Jacks | IPL 2024 | SA20 +46.4, Blast +23.0, BPL +36.5 and 3 more | +15.3 | +14.1 | +6.8 (379) | +8.6 | +7.3 |
+| Rachin Ravindra | IPL 2024 | Super Smash −0.7 | −4.5 | −9.2 | −1.3 (287) | −3.1 | −7.9 |
+| Ryan Rickelton | IPL 2025 | SA20 +35.9, MLC +15.6, CSA +11.7 | +16.9 | +16.8 | +14.0 (497) | +2.9 | +2.8 |
+| Tristan Stubbs | IPL 2023 | CSA +29.1, Hundred +3.1 | +1.3 | −2.1 | −4.9 (648) | +6.1 | +2.8 |
+| Tim David | IPL 2022 | five leagues, −7.4 to +5.3 | +2.1 | −8.9 | +5.4 (650) | −3.3 | −14.2 |
+| Gerald Coetzee (bowl) | IPL 2024 | SA20 +4.5, MLC +6.7, CSA −1.2 | +2.7 | −4.9 | −6.7 (274) | +9.4 | +1.8 |
+| Spencer Johnson (bowl) | IPL 2024 | BBL +2.8, Hundred +4.5, MLC −1.5 | +5.8 | −3.9 | −6.7 (231) | +12.6 | +2.8 |
+| Jos Buttler | IPL 2016 | BBL +12.3, Blast +18.2 | +11.8 | +8.2 | +20.3 (3,103) | −8.4 | −12.1 |
+| Rashid Khan (bowl) | IPL 2017 | BPL +14.4 | +13.2 | +5.9 | +20.3 (3,530) | −7.1 | −14.4 |
+| Nicholas Pooran | IPL 2019 | CPL +17.4, PSL −24.9, BPL −4.3 | +6.1 | −4.6 | +18.6 (1,540) | −12.6 | −23.2 |
+| Liam Livingstone | IPL 2019 | Blast +10.8 | +5.8 | +2.3 | +4.4 (687) | +1.4 | −2.0 |
+| Phil Salt | IPL 2023 | six leagues, Blast +24.6 | +12.9 | +6.6 | +22.6 (721) | −9.7 | −16.0 |
+| Harry Brook | IPL 2023 | Blast +13.9, PSL +9.9, BBL −12.1, Hundred +6.0 | +9.0 | −1.6 | −13.5 (154) | +22.5 | +11.9 |
+| Devon Conway | IPL 2022 | Super Smash +23.2 and 3 more | +6.5 | −1.1 | +13.9 (773) | −7.5 | −15.0 |
+| Mitchell Starc (bowl) | IPL 2015 | BBL −0.1 | +8.4 | +7.0 | +3.8 (1,197) | +4.6 | +3.2 |
+
+Mean absolute error over the 25 with an IPL record: **10.7 fitted against 13.3 old** (bias −1.2 against
+−5.5). SMAT stars 13.5 against 17.5 (the old scheme sank the bowlers: Vipraj Nigam −41.8 against a real
+−2.9, Ashwani Kumar −20.8 against −8.8; the fitted one rates SMAT batting stars lower, which was right for
+Ashutosh Sharma and Abhinav Manohar and wrong for Priyansh Arya); overseas league stars new to the IPL 9.1
+against 9.8; established internationals at their entry 9.2 against 12.2 (the old scheme rated every one of
+them too low: Pooran, Salt, Conway and Tim David by 14–23). Single players are noisy (Ashutosh, Manohar,
+Fraser-McGurk and Brook are far off for every scheme); the pattern across groups is the finding. The obvious
+misses left: no scheme sees a breakout coming (Priyansh Arya, Fraser-McGurk), and the fitted one still
+over-rates some overseas bowlers on league numbers (Spencer Johnson, Coetzee).
+
+**Where it feeds.** The auction pool's `value` and both roles' values behind the contribution per match
+(6c), so the pool's order, P(plays)'s inputs, the room's mini retentions and Bid plan's strength; Scout's
+`ipl_value` (its prices, the uncapped and overseas pools, the gem board's prices; the gem flag and the
+SMAT staleness labels are unchanged: they read the league's own standing and data date); the on-field
+worth (6a). The playing-time model was refitted on the translated values under its own protocol (6c):
+P(plays) squad test log loss 0.558 (was 0.562), free agents 0.0856 (was 0.0848); the replacement levels
+moved (bowling frontline −11.3 → −5.2, part-time −27.4 → −13.0; batting within 2 runs), because the
+minimum-price buys they average are mostly SMAT bowlers the old −17 discount had put far too low, so every
+bowler's runs above replacement are about 6 per 100 balls smaller than before.
+
+**Not where it feeds: the market price** (6b). The price recipe was fitted on the old blend. A recipe on
+the translated value was declared (Y, 2026-10-23) and scored under the price model's own protocol: leave
+one auction out ≤ 2024, mean absolute ln error **0.797 against 0.792** for the shipped recipe T (it also
+priced retained stars lower: 20% of held-out retentions at or above their retention price against 24%), so
+it was not chosen. The Keep backtest was re-run both ways: on T's prices with the translated playing-time
+inputs, the chosen rule is again L4 with the same coefficients (selection F1 0.795; L5 with P(plays) 0.791),
+so `config/keep_model.json` is unchanged; on Y's prices L5 would be chosen (selection F1 0.801, test 73.4%
+F1 / 78.9% of calls against 72.4% / 78.1%), a small edge that can't ship on its own because Keep's price
+must be the price the site shows, and Y lost its own protocol. So `price_value` (and Scout's market price
+input) stays the old blend, computed by `translation.legacy_blend` for that input only, until a recipe on
+the translated value wins; `config/price_model.json` is unchanged and the auction calibration wasn't re-run.
+
+**Limits.** The fit describes players who got IPL games; for a free agent that is the right conditional
+(it is multiplied by his P(plays)), but it is optimistic for the average player who never gets one. The
+IPL line (slope 0.49 for batters) says career ratings themselves over-predict next seasons; the pool keeps
+career ratings (audit items 3 and 9), so the translation is fitted to match them, not to correct them. The
+product-of-posteriors blend divides out one population prior per role, while an IPL rating's own prior is
+its batting slot's or bowling group's. Leagues as of 1 January of S use up to a year-old league data for a
+December auction. One player can appear in several leagues in one season, so the effective sample is
+smaller than the pair count.
 
 ---
 
@@ -1134,10 +1354,9 @@ franchise, so he can be retained) plus free agents from every `auction_pool` lea
 players active in the last three years in one of those leagues; free agents must
 come from a nation whose players feature in IPL auctions (so not Pakistan or associate sides — the
 `auction_nationalities` / `auction_excluded_nationalities` lists in the registry). A player in several
-leagues gets one value per role: if he has 300+ balls in that role in the IPL, his IPL rating stands on
-its own; otherwise his leagues are blended, each first discounted by its tier and weighted by
-1 ÷ (rating sd² + the tier's `translation_sd`²), so thin IPL evidence still counts most and a hot spell
-in a weaker or provisional league can't outrank it. Both roles feed his contribution per match, and the
+leagues gets one value per role: his IPL rating and every other league's rating translated onto the IPL
+scale (section 6d), blended by precision, so a long IPL record dominates by its small sd (no 300-ball
+switch since 2026-10-23) and a hot spell in a weaker league can't outrank it. Both roles feed his contribution per match, and the
 pool is ranked by **expected season value** (P(plays) × contribution per match × 14, section 6c; a squad
 player's P(plays) in his squad, a free agent's from the free-agent model); the top 600 make the pool, a size
 limit for the browser and the room's Monte-Carlo (the room auctions 200 lots by price; Bid plan's free agents
@@ -1250,12 +1469,13 @@ of players is compared with how that season actually went. Agreement is a Spearm
   *given the same league adjustment as the model*: each league's raw numbers relative to that league's
   average (runs per ball divided by the league's runs per ball, outs per ball divided by the league's
   rate), the overall axis in the same runs currency as `value` (runs per 100 balls above the league's
-  average ball, each dismissal priced at the player's wicket cost) minus the same tier discount the model
-  gets, pooled across leagues by balls. The first version compared the tier-discounted model with raw numbers
-  that had no league adjustment at all, so part of the "model edge" was just the discount.
+  average ball, each dismissal priced at the player's wicket cost) through the same league translation the
+  model gets (until 2026-10-23 the tier discount), pooled across leagues by balls. The first version compared
+  the discounted model with raw numbers that had no league adjustment at all, so part of the "model edge" was
+  just the discount.
 - **One number per player, pooled by precision.** A newcomer with several leagues gets one value per axis:
-  each league's value minus its discount, weighted by 1 / (value sd² + the tier's translation sd²), the
-  same rule the auction pool uses. The first version took a player's *best* league, which is biased
+  each league's value translated onto the IPL scale and weighted by 1 / its translated variance, the same
+  rule the auction pool uses. (This backtest scores rank; the level of the translation is tested in 6d.) The first version took a player's *best* league, which is biased
   upward (the maximum of noisy estimates).
 - **How sure, honestly.** The players are re-drawn 2,000 times (a bootstrap). For each of the six tests
   (batters: scoring, survival, overall; bowlers: economy, strike, overall) we report the 95% range of the
@@ -1310,18 +1530,20 @@ The overall rows are scored in runs, like the established-player test: the IPL s
 above the league's average ball against the model's `value` and against the same number from the player's
 league-adjusted raw numbers.
 
-All 13 leagues (103 batters, 132 bowlers):
+All 13 leagues (103 batters, 132 bowlers; the overall rows re-run 2026-10-23 with the fitted league
+translation of 6d on both the model and the baseline — on the old discounts they were batters 0.08 vs 0.10,
+bowlers 0.22 vs 0.26; the skill rows don't use a translation):
 
 | | Model | Baseline | Gap, 95% range | Model ahead in | p | Holm p |
 |---|---|---|---|---|---|---|
-| Batters, overall (runs) | 0.08 | 0.10 | −0.02 [−0.15, +0.12] | 38% | 0.62 | 1.00 |
+| Batters, overall (runs) | 0.12 | 0.08 | +0.03 [−0.09, +0.15] | 70% | 0.30 | 1.00 |
 | Batters, scoring | 0.13 | 0.19 | −0.06 [−0.23, +0.11] | 22% | 0.78 | 1.00 |
 | Batters, survival | 0.29 | 0.27 | +0.01 [−0.15, +0.17] | 55% | 0.45 | 1.00 |
-| Bowlers, overall (runs) | 0.22 | 0.26 | −0.04 [−0.17, +0.10] | 32% | 0.68 | 1.00 |
+| Bowlers, overall (runs) | 0.25 | 0.26 | −0.01 [−0.14, +0.13] | 44% | 0.56 | 1.00 |
 | Bowlers, economy | 0.25 | 0.26 | −0.01 [−0.12, +0.10] | 42% | 0.58 | 1.00 |
 | Bowlers, strike | 0.08 | 0.07 | +0.02 [−0.16, +0.19] | 57% | 0.43 | 1.00 |
 
-The original five leagues (96 batters, 110 bowlers):
+The original five leagues (96 batters, 110 bowlers; not re-run with the translation):
 
 | | Model | Baseline | Gap, 95% range | Model ahead in | p | Holm p |
 |---|---|---|---|---|---|---|
@@ -1334,16 +1556,17 @@ The original five leagues (96 batters, 110 bowlers):
 
 Every Holm-adjusted p is 1.00: no test is significant.
 
-**Playing-time sensitivity (all 13 leagues, overall in runs).** With a 30-ball bar the model is slightly
-ahead for both roles (batters 0.06 vs 0.03, n = 183; bowlers 0.18 vs 0.16, n = 187). With a 120-ball bar
-it is slightly behind for both (batters 0.05 vs 0.08, n = 44; bowlers 0.20 vs 0.24, n = 70). None of these
+**Playing-time sensitivity (all 13 leagues, overall in runs, with the translation).** With a 30-ball bar the
+model is slightly ahead for both roles (batters 0.07 vs 0.04, n = 183; bowlers 0.22 vs 0.16, n = 187). With a
+120-ball bar it is level (batters 0.04 vs 0.04, n = 44; bowlers 0.21 vs 0.22, n = 70). None of these
 gaps is large, and samples that small move a lot either way.
 
 **The honest read.** With the runs-currency `value`, the ratings **beat career averages for established IPL
 players**, batters (0.19 vs 0.15) and bowlers (0.15 vs 0.11), and the new model predicts held-out balls
 better in every season. For **IPL newcomers rated from other leagues they are no better than the players' own
-league-adjusted numbers**: there is a lean for batters in the original five leagues only (ahead in 78% of
-re-draws, not significant), and no test survives the correction for six comparisons. Two earlier newcomer
+league-adjusted numbers**: a lean for batters (0.12 vs 0.08 with the league translation, ahead in 70% of
+re-draws; in the original five leagues on the old discounts 78%), not significant, and no test survives the
+correction for six comparisons. Two earlier newcomer
 headlines are withdrawn: the first, a survival edge for newcomer batters "in 97% of re-draws", was mostly the
 league discount and fell to the fair baseline; the second, an overall lean for newcomer batters (96–98% of
 re-draws), came from the old sd-sum `value` and doesn't survive the switch to runs. Single T20 seasons are
@@ -1384,8 +1607,9 @@ What the models can't see, and where they approximate. Most of these are on the
 - **The ratings only modestly beat career averages for established players** (overall 0.19 vs 0.15 for
   batters, 0.15 vs 0.11 for bowlers), and **for newcomers rated from other leagues they are no better than
   the players' own league-adjusted numbers** (no test significant after correcting for six).
-- **Each league is fitted on its own.** Cross-league comparison rests on one hand-set tier discount per
-  league.
+- **Each league is fitted on its own.** Cross-league comparison rests on a fitted translation per league
+  and role (6d), which predicts IPL seasons no better than the hand-set discounts it replaced; its spread
+  (9–15 runs per 100 balls) is the honest size of that uncertainty.
 - **A wicket's price is a first-innings average.** The run cost of a wicket comes from first innings
   (over, wickets down) only and is applied to the chase too, where it really depends on the target; it
   is a league average, not the cost given the actual batters still to come.
@@ -1474,8 +1698,8 @@ group stage and all of SMAT 2025-26 as missing) and are priced from the market (
 
 **How each number is made.**
 
-1. **Value** is the auction pool's value (section 7): his IPL value in runs per 100 balls, blended with his
-   other leagues when his IPL record in the role is under 300 balls, with its uncertainty `sd`.
+1. **Value** is the auction pool's value (section 7): his IPL value in runs per 100 balls, blended by
+   precision with his other leagues translated onto the IPL (6d), with its uncertainty `sd`.
 2. **Market price** is section 6b's price: what the IPL market has paid for players like him (on the
    cautious estimate, at the median for his kind of player, with the top end as the market really priced
    it), with the chance he's bought if released. The **upper figure** is the upper quartile of what
@@ -2084,7 +2308,11 @@ asks "what is he worth to *this* squad?".
 *Examples (IPL 2027 defaults: 125 cr assumed, 8 places opened, 200 runs; data to the 2026 final; the evening
 of 2026-10-22: expected contributions, market price T, slab costs).* "Gain" = expected runs a match the player
 adds to the likely squad; "rivals" = what rivals usually pay; "9 in 10" = usually enough; "max" = worth to the
-squad (gain ÷ λ).
+squad (gain ÷ λ). These examples and the replay below predate the league translation of 6d (2026-10-23), which lowered
+every bowler's contribution by about 1.5 runs a match (a higher replacement bowler) and changed the
+other-league part of a thin IPL record; Bid plan reads the new values directly, but the tables were not
+re-run (`uv run python scripts/bidplan_backtest.py --work <dir> --trials 200 --out <report>`, about 25–35
+minutes, as a scheduled task).
 
 - **RCB** (15 kept, 13.6 cr left, λ 0.10): strength 31.3 → 33.4 for about 8 cr. Maheesh Theekshana (spin, free
   agent; gain 0.68, rivals 4.3, 9 in 10 13.2, max 6.8), Jonny Bairstow (keeper-opener; 0.63, rivals 5.7, max

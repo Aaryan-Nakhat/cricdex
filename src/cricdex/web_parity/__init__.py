@@ -34,7 +34,7 @@ from cricdex.web_parity.loader import (
     load_retentions,
     load_scout_index,
 )
-from cricdex.web_parity.pricing import TIER_PENALTY, est_value, market_price, scout_price
+from cricdex.web_parity.pricing import est_value, market_price, scout_price
 from cricdex.web_parity.scout import (
     COUNTRY_MODES,
     SAME_SLOT,
@@ -49,7 +49,6 @@ __all__ = [
     "COUNTRY_MODES",
     "IPL_TEAMS_DEFAULT",
     "SAME_SLOT",
-    "TIER_PENALTY",
     "build_pool",
     "default_retentions",
     "est_value",

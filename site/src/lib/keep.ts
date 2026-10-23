@@ -450,7 +450,7 @@ export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: numb
       const mk = marketPrice(p as unknown as MarketInputs);
       price = mk.price;
       pBought = mk.p_bought;
-      central = marketPrice({ ...(p as unknown as MarketInputs), value_sd: 0 }).high;
+      central = marketPrice({ ...(p as unknown as MarketInputs), value_sd: 0, price_value_sd: 0 }).high;
     }
   }
   const model = keepModel;

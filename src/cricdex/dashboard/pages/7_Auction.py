@@ -16,6 +16,7 @@ import streamlit as st
 from cricdex import leagues
 from cricdex.common.display import display_name, player_label
 from cricdex.dashboard._widgets import load_players, provenance_banner
+from cricdex.scout import translation
 from cricdex.web_parity import (
     ARCHETYPES,
     IPL_TEAMS_DEFAULT,
@@ -38,8 +39,9 @@ st.caption(
 )
 provenance_banner(source="cricsheet", path=SITE_DATA / "ipl" / "auction_pool.json")
 
-# who feeds the pool and each tier's discount, from the league registry (config/leagues.toml)
-_POOL = leagues.auction_pool_summary()
+# who feeds the pool and how each league translates (config/leagues.toml and the fitted
+# config/league_translation.json)
+_POOL = {**leagues.auction_pool_summary(), "translation": translation.summary_text()}
 
 with st.expander("How the auction math works (plain English)"):
     st.markdown(
@@ -55,8 +57,9 @@ with st.expander("How the auction math works (plain English)"):
         "bidding pushes the final price up from there.\n\n"
         "**Part 2 · Who's in the pool** — the whole active T20 world: IPL players (retainable) + "
         f"free agents (overseas via {_POOL['overseas']}, uncapped Indians via {_POOL['uncapped']}). "
-        "Active only (last ~3 yrs), ≥150 balls. Lower tiers are penalised before pricing "
-        f"({_POOL['discounts']}).\n\n"
+        "Active only (last ~3 yrs). Every other league's rating is translated onto the IPL scale, "
+        "per league and role, by a fit on players seen in both, then blended with his IPL record "
+        f"by how certain each is ({_POOL['translation']}).\n\n"
         "**Part 3 · Retentions + auction** — each franchise retains its core (Mega/Mini), then the "
         "ten teams bid for everyone else by personality (value × aggression × need × overseas-bias "
         "× luck), hundreds of times. Same seeded RNG as the web app."

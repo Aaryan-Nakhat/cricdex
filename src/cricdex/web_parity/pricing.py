@@ -13,10 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from cricdex import leagues
-
 Role = str  # "batter" | "bowler" | "all_rounder" | "keeper"
-PriceTier = str  # a tier key from config/leagues.toml: "ipl" | "smat" | "bbl" | …
 
 # value is in runs per 100 balls above the league's average ball (see
 # scout/ratings/runs_value.py), priced on the cautious estimate (PRICE_CAUTION_SD
@@ -43,12 +40,10 @@ CEILING_FLOOR_SHARE = 0.5
 # IPL base-price set bands (cr).
 PRICE_TIERS = [0.3, 0.5, 0.75, 1.0, 1.5, 2.0]
 
-# Cross-tier value discount — runs in a weaker comp aren't worth IPL crore.
-# Mirrors the export-time penalty so Scout's est. prices agree with the pool.
-# In value units (runs per 100 balls). The values live in the league registry
-# (`[tiers.*]` in config/leagues.toml); the web reads the same numbers from the
-# exported `leagues.json`, so Python and TS can't disagree.
-TIER_PENALTY: dict[str, float] = leagues.tier_discounts()
+# A rating from another league is put on the IPL rating scale by the fitted league translation
+# (cricdex.scout.translation, per league and role) before it is priced: the export does it (the pool's
+# `value`, Scout's `ipl_value`), so every price here takes a value already on the IPL scale. (Until
+# 2026-10-23: one hand-set discount per league, TIER_PENALTY, taken off here and in auction.ts.)
 
 
 def price_tier(pv: float) -> float:
@@ -83,17 +78,17 @@ def price_ceiling(target_balls: float | None = None) -> float:
 def est_value(
     value: float,
     role: Role,
-    tier: PriceTier = "ipl",
     value_sd: float | None = None,
     target_balls: float | None = None,
 ) -> float:
-    """Estimated crore value from a raw Bayes value (runs per 100 balls) — the on-field curve, on
-    the cautious estimate (`priced_value`), capped by the IPL-evidence ceiling (`price_ceiling`).
-    `tier` discounts non-IPL comps so a SMAT/BBL price is comparable. `role` is kept for the
-    callers: the hand-set all-rounder ×1.15 / keeper ×1.05 premium was removed on 2026-10-22 (audit
-    item 6; the market model's fitted role terms are the price premium, and a player's second
-    discipline counts through his contribution per match, scout/playing_time.py)."""
-    adj = priced_value(value, value_sd) - TIER_PENALTY[tier]
+    """Estimated crore value from a value on the IPL rating scale (runs per 100 balls) — the
+    on-field curve, on the cautious estimate (`priced_value`), capped by the IPL-evidence ceiling
+    (`price_ceiling`). A rating from another league must be translated first
+    (cricdex.scout.translation). `role` is kept for the callers: the hand-set all-rounder ×1.15 /
+    keeper ×1.05 premium was removed on 2026-10-22 (audit item 6; the market model's fitted role
+    terms are the price premium, and a player's second discipline counts through his contribution
+    per match, scout/playing_time.py). Mirror of `iplPrice` in auction.ts."""
+    adj = priced_value(value, value_sd)
     cap = price_ceiling(target_balls)
     return max(0.3, min(cap, PV_BASE * math.exp(PV_SCALE * adj)))
 
@@ -150,8 +145,8 @@ def _num(x: Any) -> float | None:
 
 def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[str, float]:
     """A player's market-model features from a pool / squad row. `row` keys: `price_value` (his
-    blended value before the IPL-relevance discount, runs per 100 balls; missing = unrated),
-    `value_sd`, `role`, `is_overseas` (or `overseas`), `intl_caps` (men's T20I + ODI + Test
+    value as the price recipe takes it, runs per 100 balls; missing = unrated: `value_input`),
+    `price_value_sd` (its sd; missing → `value_sd`), `role`, `is_overseas` (or `overseas`), `intl_caps` (men's T20I + ODI + Test
     matches), `intl_caps_2y` (those in the two years before the auction), `age`, `ipl_balls`,
     `ipl_seasons`, `ipl_gap` (years since his last IPL match; missing = never played it), and the
     captaincy known before the auction (scout/identity/captains.py): `captain_ipl_last` (captained
@@ -166,7 +161,9 @@ def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[
     pv = 0.0
     top = MARKET_PV_MAX if pv_max is None else min(MARKET_PV_MAX, float(pv_max))
     if rated:
-        pv = min(top, max(MARKET_PV_MIN, priced_value(v, row.get("value_sd"))))
+        sd = row.get("price_value_sd")
+        sd = row.get("value_sd") if sd is None else sd
+        pv = min(top, max(MARKET_PV_MIN, priced_value(v, sd)))
     ov = row.get("is_overseas", row.get("overseas"))
     ov = 1.0 if ov else 0.0
     caps_n = _num(row.get("intl_caps")) or 0.0
@@ -314,15 +311,35 @@ def has_market_inputs(row: dict, model: dict | None = None) -> bool:
     return (model or load_price_model()) is not None and "price_value" in row
 
 
-def scout_price(r: dict, tier: PriceTier = "ipl", model: dict | None = None) -> float:
-    """A Scout row's estimated price in `tier`: the market price on his value less the tier's
-    discount when the model and the row's market inputs are there, else the on-field curve
-    (`est_value`). Mirror of `scoutPrice` in auction.ts."""
+def value_input(model: dict | None = None) -> str:
+    """Which value the market price was fitted on, so the export hands it the same one: "legacy"
+    (the blend every recipe up to T used: one discount per league and the 300-ball switch,
+    cricdex.scout.translation.legacy_blend) or "translated" (the fitted league translation). Read from
+    the model's `value_input`; a model without it is "legacy"."""
+    m = model or load_price_model() or {}
+    return str(m.get("value_input") or "legacy")
+
+
+def scout_ipl_value(r: dict) -> tuple[float, float | None]:
+    """A Scout row's value on the IPL rating scale and its sd: `ipl_value` / `ipl_value_sd` (the
+    export translates every league's row, scripts/export_site.py), else — a row exported before
+    2026-10-23 — its own `value` / `value_sd`. Mirror of `scoutIplValue` in auction.ts."""
+    if r.get("ipl_value") is not None:
+        return float(r["ipl_value"]), r.get("ipl_value_sd")
+    return float(r["value"]), r.get("value_sd")
+
+
+def scout_price(r: dict, model: dict | None = None) -> float:
+    """A Scout row's estimated IPL price: the market price when the model and the row's market inputs
+    are there (on the row's `price_value` / `price_value_sd`, the value the price recipe takes, which
+    the export sets; else on his value on the IPL scale), else the on-field curve (`est_value`) on
+    his value on the IPL scale. Mirror of `scoutPrice` in auction.ts."""
+    v, sd = scout_ipl_value(r)
     if (model or load_price_model()) is not None and "intl_caps" in r:
-        return market_price({**r, "price_value": r["value"] - TIER_PENALTY[tier]}, model=model)[
-            "price"
-        ]
-    return est_value(r["value"], r["role"], tier, r.get("value_sd"), r.get("target_balls"))
+        if r.get("price_value") is None:
+            r = {**r, "price_value": v, "price_value_sd": sd}
+        return market_price(r, model=model)["price"]
+    return est_value(v, r["role"], sd, r.get("target_balls"))
 
 
 # ---- the prior market price: the market's last verdict on a player ------------------------------

@@ -252,7 +252,7 @@ def test_price_uses_the_cautious_estimate():
     # a missing / non-finite sd counts as 0
     assert priced_value(20.0, None) == priced_value(20.0, float("nan")) == 20.0
     # same central value: the thin record is priced below the proven one
-    assert est_value(20.0, "batter", "ipl", 12.0) < est_value(20.0, "batter", "ipl", 3.0)
+    assert est_value(20.0, "batter", 12.0) < est_value(20.0, "batter", 3.0)
     row = {"cricsheet_id": "x", "name": "X", "role": "batter", "is_overseas": False}
     proven, unproven = build_pool(
         [
@@ -271,5 +271,5 @@ def test_price_ceiling_rises_with_ipl_evidence():
     assert price_ceiling(300) == pytest.approx(PV_MAX * 0.75)
     assert price_ceiling(600) == price_ceiling(6000) == PV_MAX
     # a huge value on a thin IPL record is held to its ceiling
-    assert est_value(60.0, "batter", "ipl", 12.5, 449) == pytest.approx(price_ceiling(449))
-    assert est_value(60.0, "batter", "ipl", 12.5, 3000) == PV_MAX
+    assert est_value(60.0, "batter", 12.5, 449) == pytest.approx(price_ceiling(449))
+    assert est_value(60.0, "batter", 12.5, 3000) == PV_MAX

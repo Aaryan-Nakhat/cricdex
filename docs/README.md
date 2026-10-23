@@ -20,7 +20,7 @@
 ## Reference
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — the pipeline end to end, the layers, what reads what, how it ships.
-- [LEAGUES.md](LEAGUES.md) — the league registry (`config/leagues.toml`): every field, tiers and discounts, and how to add a league with one entry.
+- [LEAGUES.md](LEAGUES.md) — the league registry (`config/leagues.toml`): every field, tiers and their fitted translations, and how to add a league with one entry.
 - Competition rules (`config/competitions.toml`): one entry per auction / retention cycle (purse, squad limits, deadline), each rule sourced or marked assumed; read by Keep or release ([METHODOLOGY §10](METHODOLOGY.md#10-keep-or-release)). The field list is the comment at the top of the file.
 - [API.md](API.md) — the FastAPI REST endpoints, with curl examples.
 - [DOCKER.md](DOCKER.md) — the image and Compose layout, and why it's built that way.

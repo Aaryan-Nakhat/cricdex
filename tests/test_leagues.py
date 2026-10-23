@@ -34,11 +34,9 @@ EXPORTED_MEN = {
 MINIMAL = """
 schema = 1
 [tiers.top]
-discount = 0.0
-calibrated = true
+group = "reference"
 [tiers.low]
-discount = 0.5
-calibrated = false
+group = "weaker"
 
 [[league]]
 key = "alpha"
@@ -104,33 +102,25 @@ def test_womens_and_long_formats_are_known_but_not_exported():
         assert not leagues.get(key).export
 
 
-def test_calibrated_discounts_keep_their_values():
-    # the values the pricing curve and the published prices were fitted with — never drift
-    # (runs per 100 balls: the earlier 1.28 / 0.45 / 0.64 population-sd discounts × 13.3)
-    d = leagues.tier_discounts()
-    assert d["ipl"] == 0.0
-    assert d["smat"] == 17.0
-    assert d["bbl"] == d["sa20"] == 6.0
-    assert d["cpl"] == d["blast"] == 8.5
-    for t in ("ipl", "smat", "bbl", "sa20", "cpl", "blast"):
-        assert leagues.tiers()[t].calibrated
-
-
-def test_new_leagues_borrow_a_tier_by_analogy_and_say_so():
+def test_tiers_carry_a_pooling_group_not_a_discount():
+    # translations are fitted (scripts/league_translation_fit.py); a tier only says which leagues
+    # are pooled together in that fit
     t = leagues.tiers()
-    for key, disc in {
-        "psl": 6.0,
-        "ilt20": 6.0,
-        "hundred_male": 6.0,
-        "mlc": 8.5,
-        "bpl": 8.5,
-        "lpl": 8.5,
-        "super_smash": 8.5,
-        "csa_t20_challenge": 8.5,
-    }.items():
-        lg = leagues.get(key)
-        assert leagues.discount(key) == disc, key
-        assert not t[lg.tier].calibrated, key
+    assert t["ipl"].group == "reference"
+    assert t["smat"].group == "india"
+    for key in ("bbl", "sa20", "psl", "ilt20", "hundred"):
+        assert t[key].group == "overseas_a", key
+    for key in ("cpl", "blast", "mlc", "bpl", "lpl", "super_smash", "csa_t20"):
+        assert t[key].group == "overseas_b", key
+    assert not hasattr(leagues, "discount") and not hasattr(leagues, "tier_discounts")
+
+
+def test_hand_set_discounts_are_rejected():
+    bad = MINIMAL.replace('group = "weaker"', 'group = "weaker"\ndiscount = 6.0')
+    with pytest.raises(leagues.RegistryError, match="discount"):
+        leagues.parse(bad)
+    with pytest.raises(leagues.RegistryError, match="group"):
+        leagues.parse(MINIMAL.replace('group = "weaker"\n', ""))
 
 
 def test_fixed_cricsheet_zip_names():
@@ -164,10 +154,10 @@ def test_auction_nationality_rule_is_data():
     assert not ipl.auction_eligible(None)
 
 
-def test_pricing_reads_the_registry():
-    from cricdex.web_parity.pricing import TIER_PENALTY
+def test_pricing_has_no_per_league_discount():
+    from cricdex.web_parity import pricing
 
-    assert TIER_PENALTY == leagues.tier_discounts()
+    assert not hasattr(pricing, "TIER_PENALTY")
 
 
 def test_labels_and_window_keys():
@@ -196,7 +186,11 @@ def test_site_payload_shape():
     assert p["auction"]["target"] == "ipl"
     assert "PAK" in p["auction"]["excluded_nationalities"]
     assert p["gem_tier"] == "smat"
-    assert p["tiers"]["smat"] == {"discount": 17.0, "calibrated": True}
+    assert p["tiers"]["smat"] == {"group": "india"}
+    by = {lg["key"]: lg for lg in p["leagues"]}
+    assert by["ipl"]["translation"] is None
+    t = by["indian_domestic_male"]["translation"]
+    assert set(t) == {"batter", "bowler"} and set(t["batter"]) == {"a", "b", "tsd", "pairs"}
 
 
 def test_cli_lists_exported_keys():
@@ -319,19 +313,6 @@ def test_every_registry_zip_exists(url):
 
     r = httpx.head(url, follow_redirects=True, timeout=30)
     assert r.status_code == 200, f"{url} → {r.status_code}"
-
-
-def test_translation_sd_defaults_follow_calibration():
-    """IPL evidence needs no translation; borrowed discounts are the least certain."""
-    from cricdex import leagues
-
-    tiers = leagues.tiers()
-    assert tiers["ipl"].translation_sd == 0.0
-    for t in tiers.values():
-        if t.discount > 0:
-            assert t.translation_sd == (6.5 if t.calibrated else 10.5), t.key
-    assert leagues.translation_sd("ipl") == 0.0
-    assert leagues.translation_sd("psl") > leagues.translation_sd("bbl")
 
 
 def test_ipl_impact_era_is_a_window():

@@ -204,10 +204,11 @@ re-fitted:
   bowlers 7.5: in runs, batters' values spread more than bowlers'). Every
   league discount, the default translation uncertainties (0.5 → 6.5,
   0.8 → 10.5) and the IPL-relevance penalty (2.7 → 36, removed since) were multiplied by
-  it and rounded. A check from players with 300+ balls in both leagues
-  (their runs value there minus in the IPL) gives gaps of the same size:
-  SMAT +22 for batters / +7 for bowlers (discount 17), BBL +4 / +3 (6),
-  CPL +5 / +6 and Blast +9 / +6 (8.5).
+  it and rounded. (The discounts and translation uncertainties were replaced
+  on 2026-10-23 by translations fitted per league and role: Part 2 and
+  METHODOLOGY §6d. The check that already showed they depended on role —
+  SMAT +22 for batters / +7 for bowlers against one discount of 17 — is what
+  the fit now does properly.)
 - **Two constants, two targets.** With the converted pool, `PV_BASE` and
   `PV_SCALE` were solved so the 600-player pool keeps the same **median
   price (1.17 cr against 1.18)** and the same **number of 10 cr+ players
@@ -278,14 +279,26 @@ With guardrails so it stays realistic:
   then: the value less the IPL-relevance discount, and a ≥150-ball cut; a
   thin record is now handled by the ratings' shrinkage and a low P(plays).)
 - **Excludes** men's-T20I associate noise and non-IPL nations (e.g. PAK).
-- **Tier penalty** — runs against weaker attacks aren't worth as much as runs
-  in the IPL, so cross-tier values are discounted before pricing, in runs per 100
-  balls (**BBL −6.0**, **SA20 −6.0**, **CPL −8.5**, **T20 Blast −8.5**, **SMAT −17.0**;
-  IPL 0; the newer leagues borrow these values and are marked provisional).
-- **Several leagues, one value** — 300+ balls in the IPL in that role and the IPL rating stands
-  on its own; otherwise the leagues are blended, weighted by how much evidence each has and how
-  sure its translation is (`translation_sd` in `config/leagues.toml`), so a hot spell in a
-  weaker league can't outrank a real IPL record.
+- **League translation** (since 2026-10-23, audit item 5) — a rating is relative to its own
+  league, so each other league's rating is put on the IPL rating scale by a translation
+  **fitted per league and per role** on every player seen in both (`IPL rating ≈ a + b ×
+  league rating`, with its own translation sd; `config/league_translation.json`,
+  METHODOLOGY §6d). What a +10 rating becomes in the IPL, batter / bowler: SMAT −9.1 / +0.8,
+  BBL +8.8 / +9.1, SA20 +7.2 / +6.8, CPL +6.1 / +9.3, T20 Blast +1.5 / +7.0, PSL +11.1 / +8.1,
+  ILT20 +5.0 / +8.4, The Hundred +12.1 / +7.8, MLC +1.6 / +9.0, BPL +2.7 / +8.5, LPL −2.3 / +8.3,
+  Super Smash −3.0 / +7.5, CSA T20 +6.9 / +9.0. (Until then: one hand-set discount per league,
+  both roles alike — SMAT −17, BBL / SA20 −6, CPL / Blast −8.5, eight leagues borrowing one.)
+- **Several leagues, one value** — his IPL rating and every translated league are blended by
+  precision (1 ÷ sd², the translation sd included): a long IPL record dominates because its sd is
+  small, a thin one is filled in by the other leagues, with **no cut-off** (until 2026-10-23 a
+  role record of 300+ IPL balls ignored every other league outright, a cliff added because the
+  flat discount was "too harsh on stars"). A hot spell in a weaker league can't outrank a real IPL
+  record because its translation is wide.
+- **The market price keeps its own input** — the price recipe was fitted on the blend it replaced
+  (one discount per league, the 300-ball switch), and a recipe on the translated value did not
+  price the held-out auctions better (METHODOLOGY §6d), so `price_value` stays that blend until one
+  does. Everything else — `value`, contributions, the pool's order, Bid plan's strength, the
+  on-field worth — uses the translation.
 
 ---
 

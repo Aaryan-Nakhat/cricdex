@@ -210,9 +210,9 @@ export interface AuctionPoolRow {
   /** share of his value's evidence from a stale league (SMAT), and which ("SMAT data to Dec 2024"). */
   stale_share?: number | null;
   stale_note?: string | null;
-  value: number; // already IPL-relevance-decayed at export
-  /** sd of that value (leagues blended by precision, translation uncertainty included); the
-   * price uses value − PRICE_CAUTION_SD × value_sd. Absent in older exports (= 0). */
+  value: number; // on the IPL rating scale: his IPL rating and every other league (translated) blended
+  /** sd of that value (sources blended by precision, translation uncertainty included); the
+   * on-field price uses value − PRICE_CAUTION_SD × value_sd. Absent in older exports (= 0). */
   value_sd?: number | null;
   /** IPL balls in the role priced: sets the price ceiling (priceCeiling). Absent → 0. */
   target_balls?: number | null;
@@ -237,7 +237,8 @@ export interface AuctionPoolRow {
   p_play?: number | null;
   season_value?: number | null;
   // the market price's inputs (auction.ts `marketFeatures`); absent in exports before it
-  price_value?: number | null; // his better role's blended value
+  price_value?: number | null; // his better role's value as the price recipe takes it (pricing.value_input)
+  price_value_sd?: number | null; // its sd (missing → value_sd)
   intl_caps?: number | null; // men's T20I + ODI + Test matches
   intl_caps_2y?: number | null; // ... in the two years before the auction
   ipl_balls?: number | null; // IPL balls faced + bowled
@@ -286,10 +287,18 @@ export interface ScoutPlayer {
   bowling_category: string | null;
   batting_position: string | null;
   country: string | null;
-  value: number; // price basis: the better of batting / bowling value (as in the auction pool)
-  /** sd of that value, with the tier's translation sd added (as in the auction pool); absent in
-   * older exports (= 0). */
+  value: number; // his rating in this league on the price-basis side (the better one on the IPL scale)
+  /** sd of that rating; absent in older exports (= 0). */
   value_sd?: number | null;
+  /** which side `value` is ("bat" | "bowl"); absent in exports before 2026-10-23 */
+  value_side?: "bat" | "bowl" | null;
+  /** that side on the IPL rating scale (the fitted league translation) and its sd: the price basis
+   * (auction.ts `scoutPrice`); absent in exports before 2026-10-23 (then `value` is used). */
+  ipl_value?: number | null;
+  ipl_value_sd?: number | null;
+  /** the market price's value input and its sd (the blend the price recipe was fitted on) */
+  price_value?: number | null;
+  price_value_sd?: number | null;
   /** IPL balls in the role priced (the better side): sets the price ceiling. Absent → 0. */
   target_balls?: number | null;
   z: number; // standing on own role among the shown players of that role in the tier (mean 0, sd 1)

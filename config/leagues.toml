@@ -11,87 +11,72 @@
 schema = 1
 
 # ---------------------------------------------------------------------------------------------
-# Strength tiers. `discount` is the value (runs per 100 balls, see scout/ratings/runs_value.py)
-# taken off a player's rating in that competition before it is compared with IPL value — the
-# Auction pool and Scout prices both use it. `calibrated = false` marks a discount borrowed by
-# analogy from a similar league and not yet checked against data (the site says so).
-# `translation_sd` (optional) is how uncertain that translation is; the auction pool blends a
-# player's leagues weighted by 1 / (rating sd² + translation_sd²), so IPL evidence dominates.
-# Default: 0 for a zero-discount tier, 6.5 for a calibrated discount, 10.5 for a borrowed one.
-# (The discounts and these defaults were set in population-sd units and converted to runs per 100
-# balls with one factor, 13.3 = the sd of the runs value over the sd of the old value, IPL players
-# with 150+ balls; docs/AUCTION_MATH.md.)
+# Strength tiers. A rating in another league isn't an IPL rating: it is moved onto the IPL scale by a
+# translation FITTED per league and per role (batter / bowler) on every player seen in both
+# (scripts/league_translation_fit.py → config/league_translation.json, read by
+# cricdex.scout.translation; docs/METHODOLOGY.md §6d). `group` says which leagues are pooled together
+# in that fit: a league's intercept and slope shrink toward its group's mean, so a league with few
+# players who also reached the IPL (MLC, ILT20, SA20, LPL) borrows strength from similar leagues
+# instead of copying another league's number. "reference" = the auction target itself.
+# (Until 2026-10-23 each tier carried one hand-set `discount`, a `calibrated` flag and a guessed
+# `translation_sd`; the loader now rejects them.)
 # ---------------------------------------------------------------------------------------------
 
 [tiers.ipl]
-discount = 0.0
-calibrated = true
+group = "reference"
 note = "The reference competition: everything is priced in IPL value."
 
 [tiers.smat]
-discount = 17.0
-calibrated = true
+group = "india"
 note = "Syed Mushtaq Ali: Indian domestic T20, far weaker attacks than the IPL."
 
 [tiers.bbl]
-discount = 6.0
-calibrated = true
-note = "Big Bash: strong overseas league."
+group = "overseas_a"
+note = "Big Bash: Australian franchise league."
 
 [tiers.sa20]
-discount = 6.0
-calibrated = true
-note = "SA20: strong overseas league, about BBL level."
+group = "overseas_a"
+note = "SA20: South African franchise league."
 
 [tiers.cpl]
-discount = 8.5
-calibrated = true
-note = "CPL: slightly weaker than BBL / SA20."
+group = "overseas_b"
+note = "Caribbean Premier League."
 
 [tiers.blast]
-discount = 8.5
-calibrated = true
+group = "overseas_b"
 note = "T20 Blast: English county T20, deep but uneven."
 
 [tiers.psl]
-discount = 6.0
-calibrated = false
-note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
+group = "overseas_a"
+note = "Pakistan Super League: strong overseas league."
 
 [tiers.ilt20]
-discount = 6.0
-calibrated = false
-note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
+group = "overseas_a"
+note = "ILT20 (UAE): strong overseas league."
 
 [tiers.hundred]
-discount = 6.0
-calibrated = false
-note = "Borrowed from BBL / SA20 (strong overseas league); not yet fitted."
+group = "overseas_a"
+note = "The Hundred (England): strong overseas league, 100-ball format."
 
 [tiers.mlc]
-discount = 8.5
-calibrated = false
-note = "Borrowed from CPL / Blast; not yet fitted."
+group = "overseas_b"
+note = "Major League Cricket (USA)."
 
 [tiers.bpl]
-discount = 8.5
-calibrated = false
-note = "Borrowed from CPL / Blast; not yet fitted."
+group = "overseas_b"
+note = "Bangladesh Premier League."
 
 [tiers.lpl]
-discount = 8.5
-calibrated = false
-note = "Borrowed from CPL / Blast; not yet fitted."
+group = "overseas_b"
+note = "Lanka Premier League."
 
 [tiers.super_smash]
-discount = 8.5
-calibrated = false
-note = "Borrowed from CPL / Blast; not yet fitted."
+group = "overseas_b"
+note = "Super Smash: New Zealand domestic T20."
 
 [tiers.csa_t20]
-discount = 8.5
-calibrated = false
-note = "Borrowed from CPL / Blast; not yet fitted."
+group = "overseas_b"
+note = "CSA T20 Challenge: South African domestic T20."
 
 # ---------------------------------------------------------------------------------------------
 # Leagues. Fields:

@@ -1863,7 +1863,7 @@ class CricDexApp(App):
 
     def _on_run_twins(self) -> None:
         # Canonical, web-identical scout (cricdex.web_parity): same exported
-        # scout_index + look-alike logic + tier-discounted pricing as the site.
+        # scout_index + look-alike logic + pricing (on the IPL-translated value) as the site.
         table = self.query_one("#twins-table", DataTable)
         meta = self.query_one("#twins-meta", Static)
         name = _name_from_label(self.query_one("#twins-name", Input).value)
@@ -1902,7 +1902,7 @@ class CricDexApp(App):
         role = role_sel or sel["role"]
         # a batting slot means nothing when matching as a bowler
         pos = "" if role == "bowler" else slot_sel
-        sel_price = scout_price(sel, "ipl")
+        sel_price = scout_price(sel)
         gem_pool = idx.get(GEM_TIER, []) if GEM_TIER else []
         gem_med = gem_threshold(gem_pool)
         rows = []
@@ -1912,7 +1912,7 @@ class CricDexApp(App):
             sel, idx.get(tier, []), role, pos, top_k, country=country, fallback_country=fb
         )
         for r in found:
-            price = scout_price(r, tier)
+            price = scout_price(r)
             saving = sel_price - price if price < sel_price else 0.0
             rows.append(
                 {
@@ -1965,7 +1965,7 @@ class CricDexApp(App):
                     "standing": round(g["z"], 2),
                     "balls": g.get("balls", 0),
                     "est_cr": round(
-                        scout_price(g, GEM_TIER),
+                        scout_price(g),
                         1,
                     ),
                 }

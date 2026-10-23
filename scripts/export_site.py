@@ -59,7 +59,7 @@ from cricdex.common.sql import (
 )
 from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.config import SITE_DATA as _DEFAULT_SITE_DATA
-from cricdex.scout import forecast, playing_time
+from cricdex.scout import forecast, playing_time, translation
 from cricdex.scout.identity import captains, countries
 from cricdex.scout.identity import master as player_master
 
@@ -506,7 +506,6 @@ auction_eligible = leagues.auction_target().auction_eligible
 AUCTION_RECENCY_DAYS = 1100
 AUCTION_POOL_CAP = 600
 AUCTION_TARGET = "ipl"  # the league the auction is for (competition-rules config, later sprint)
-AUCTION_TRUST_BALLS = 300  # a role record this big in the target league stands on its own
 
 
 def _target_competition(col: str):
@@ -653,16 +652,17 @@ def _export_auction_pool(
     extra_cids = extra_cids or set()
     import datetime as _dt
 
-    # Value isn't comparable across tiers (a number vs weak SMAT attacks ≠ vs
-    # IPL), so each league's rating is first discounted by its tier (config/leagues.toml;
-    # web_parity/pricing ⇄ lib/auction.ts read the same table). A player's leagues are then
-    # BLENDED, per role, weighted by 1 / (rating sd² + the tier's translation_sd²): IPL evidence
-    # dominates whenever it exists, and one hot spell in a weaker or provisional league can't
-    # outrank a real IPL record (taking the best league did exactly that). Best role wins.
-    acc: dict[tuple[str, str], list[float]] = {}  # (cid, role) -> [Σw, Σw·value]
-    # (cid, role) -> {league: Σw}: which leagues the blend rests on (the stale-evidence share)
-    w_col: dict[tuple[str, str], dict[str, float]] = {}
-    target_rows: dict[tuple[str, str], tuple[float, int, float]] = {}  # target (value, balls, sd)
+    # Value isn't comparable across leagues (a number against weak SMAT attacks isn't one against the
+    # IPL's), so each league's rating is translated onto the IPL rating scale, per role, by the fitted
+    # league translation (cricdex.scout.translation, config/league_translation.json: IPL rating ≈
+    # a + b × league rating with its own translation sd, per league and role, METHODOLOGY §6d), and a
+    # player's sources (his IPL rating and every translated league) are BLENDED by precision: a long
+    # IPL record dominates because its sd is small, a thin one is filled in by the other leagues, with
+    # no cut-off (the 300-ball switch and the one-discount-per-league scheme it patched were replaced
+    # on 2026-10-23). Best role wins for `value`; both roles feed the contribution per match.
+    tmodel = translation.load_model()
+    ipl_src: dict[tuple[str, str], tuple[float, float, int]] = {}  # IPL (value, sd, balls)
+    other_src: dict[tuple[str, str], dict[str, tuple[float, float]]] = {}
     # cid -> {"batter": (value, sd), "bowler": (value, sd)}: the blend per role (playing time uses both)
     per_role: dict[str, dict[str, tuple[float, float]]] = {}
     names: dict[str, str | None] = {}
@@ -671,42 +671,42 @@ def _export_auction_pool(
         f = METRIC_DIR / f"scout_ratings_{col}.json"
         if not f.exists():
             continue
-        pen = leagues.discount(col)
-        tsd = leagues.translation_sd(col)
         for r in json.loads(f.read_text()):
             cid, v = r.get("cricsheet_id"), r.get("value")
-            if cid is None or v is None:
+            role = r.get("role") or ""
+            if cid is None or v is None or role not in translation.ROLES:
                 continue
             max_balls[cid] = max(max_balls.get(cid, 0), int(r.get("balls") or 0))
             names.setdefault(cid, r.get("unique_name"))  # registry order: the IPL name first
             sd = float(r.get("value_sd") or 1.0)
-            w = 1.0 / (sd * sd + tsd * tsd)
-            a = acc.setdefault((cid, r.get("role") or ""), [0.0, 0.0])
-            a[0] += w
-            a[1] += w * (v - pen)
-            wc = w_col.setdefault((cid, r.get("role") or ""), {})
-            wc[col] = wc.get(col, 0.0) + w
             if col == AUCTION_TARGET:
-                target_rows[(cid, r.get("role") or "")] = (v, int(r.get("balls") or 0), sd)
+                ipl_src[(cid, role)] = (float(v), sd, int(r.get("balls") or 0))
+            else:
+                other_src.setdefault((cid, role), {})[col] = (float(v), sd)
+    # The market price's value input: the blend its recipe was fitted on. The fitted translation as a
+    # price input (recipe Y) did not beat the shipped recipe out of time (2026-10-23, METHODOLOGY
+    # §6d), so until one does the market price keeps the blend it was fitted on
+    # (translation.legacy_blend: one discount per league, the 300-ball switch) — for the price input
+    # only; `value`, contributions, ranking and strength use the translation.
+    from cricdex.web_parity import pricing as _pricing
+
+    price_on_translated = _pricing.value_input() == "translated"
+    legacy_best: dict[str, tuple[float, float]] = {}
     best: dict[str, dict] = {}
-    for (cid, role), (sw, swx) in acc.items():
-        # A big enough record in the target league stands on its own: a flat tier discount is too
-        # harsh on stars, so other leagues only fill in when that sample is thin.
-        # The value's sd goes along: the price is set on value − PRICE_CAUTION_SD × sd (pricing.py).
-        # A blend's sd is 1 / √Σw (translation uncertainty included); a trusted IPL record its own.
-        own = target_rows.get((cid, role))
-        if own and own[1] >= AUCTION_TRUST_BALLS:
-            val, vsd = own[0], own[2]
-            wbc = {AUCTION_TARGET: 1.0}
-        else:
-            val, vsd = swx / sw, (1.0 / sw) ** 0.5
-            wbc = dict(w_col.get((cid, role)) or {})
-        # his IPL balls in this role (the on-field curve's ceiling, pricing.price_ceiling)
-        tb = own[1] if own else 0
-        if role in ("batter", "bowler"):
-            per_role.setdefault(cid, {})[role] = (val, vsd)
-        # `value` (shown, and the market price's `price_value`): his better role's rate. Ranking and
-        # strength no longer use it: they use the contribution per match, both roles at their balls.
+    for key in set(ipl_src) | set(other_src):
+        cid, role = key
+        own = ipl_src.get(key)
+        lv, lsd, _ = translation.legacy_blend(own, other_src.get(key, {}))
+        if cid not in legacy_best or lv > legacy_best[cid][0]:
+            legacy_best[cid] = (lv, lsd)
+        # the value's sd goes along: the price is set on value − PRICE_CAUTION_SD × sd (pricing.py)
+        val, vsd, wbc = translation.blend(
+            role, (own[0], own[1]) if own else None, other_src.get(key, {}), tmodel
+        )
+        tb = own[2] if own else 0  # his IPL balls in this role (the on-field curve's ceiling)
+        per_role.setdefault(cid, {})[role] = (val, vsd)
+        # `value` (shown, and the market price's input when its recipe is on the translated value):
+        # his better role's rate. Ranking and strength use the contribution per match, both roles.
         if cid not in best or val > best[cid]["value"]:
             best[cid] = {"value": val, "value_sd": vsd, "target_balls": tb, "name": names.get(cid),
                          "w_by_col": wbc}  # fmt: skip
@@ -848,9 +848,13 @@ def _export_auction_pool(
             "value_sd": round(b["value_sd"], 4),
             # IPL balls in the role priced: the price ceiling rises with them
             "target_balls": int(b["target_balls"]),
-            # the market price's inputs (web_parity/pricing.market_features): his blended value,
-            # caps, IPL experience, years since his last IPL game
-            "price_value": round(b["value"], 4),
+            # the market price's inputs (web_parity/pricing.market_features): his value as the
+            # price recipe takes it (see `price_on_translated`) and its sd, caps, IPL experience,
+            # years since his last IPL game
+            "price_value": round(b["value"] if price_on_translated else legacy_best[cid][0], 4),
+            "price_value_sd": round(
+                b["value_sd"] if price_on_translated else legacy_best[cid][1], 4
+            ),
             # playing time (METHODOLOGY §6c): runs above replacement per match he plays (batting and
             # bowling at his expected balls), its sd and parts, his expected balls, the chance he
             # plays a match, and the expected runs over a season (P × contribution × 14)
@@ -881,7 +885,11 @@ def _export_auction_pool(
             out.append(row)
         if cid in extra_cids:
             extra_rows[cid] = {**row, "balls": max_balls.get(cid, 0), "in_pool_leagues": pooled}
-    # ranked by expected season value (no playing-time model: by value); the top AUCTION_POOL_CAP kept
+    # ranked by expected season value (no playing-time model: by value). Every player under contract at
+    # a franchise stays (the room's squads, retentions and purses need the whole squad: a contracted
+    # player below replacement level is still on the books); free agents fill the rest of the
+    # AUCTION_POOL_CAP places in that order. (Until 2026-10-23 the cap cut across both, which dropped a
+    # squad player whose expected season value fell below the last free agent's.)
     out.sort(
         key=lambda p: (
             p["season_value"] if p.get("season_value") is not None else -1e9,
@@ -889,7 +897,9 @@ def _export_auction_pool(
         ),
         reverse=True,
     )
-    out = out[:AUCTION_POOL_CAP]
+    n_squad = sum(1 for p in out if p.get("team"))
+    keep_fa = max(AUCTION_POOL_CAP - n_squad, 0)
+    out = [p for p in out if p.get("team") or (keep_fa := keep_fa - 1) >= 0]
     _write(out_dir / "auction_pool.json", out)
     _write(out_dir / "activity_index.json", activity)
     return len(out), extra_rows
@@ -1262,7 +1272,12 @@ def _export_keep(
                     **(
                         {
                             k: rr[k]
-                            for k in ("price_value", *PRICE_INPUT_KEYS, *CAPTAIN_KEYS)
+                            for k in (
+                                "price_value",
+                                "price_value_sd",
+                                *PRICE_INPUT_KEYS,
+                                *CAPTAIN_KEYS,
+                            )
                             if k in rr
                         }
                         if rr
@@ -1415,6 +1430,8 @@ def _export_scout_index(
     import datetime as _dt
     import statistics as _st
 
+    from cricdex.web_parity import pricing as _pricing
+
     # scout_index.json is keyed by each Scout pool's tier (`smat` for indian_domestic_male …)
     pools = leagues.scout_pools()
     tiers = {lg.tier: lg.key for lg in pools}
@@ -1463,7 +1480,8 @@ def _export_scout_index(
         bat: dict[str, float] = {}
         bowl: dict[str, float] = {}
         sds: dict[tuple[str, str], float] = {}  # (cid, side) -> value sd
-        tsd = leagues.translation_sd(col)
+        tmodel = translation.load_model()
+        price_on_translated = _pricing.value_input() == "translated"
         names: dict[str, str | None] = {}
         balls: dict[str, int] = {}
         for r in json.loads(f.read_text()):
@@ -1516,11 +1534,29 @@ def _export_scout_index(
                 continue
             role = role_map.get(tax.get("primary_role"), "batter")
             b, w = bat.get(cid), bowl.get(cid)
-            sides = [x for x in (b, w) if x is not None]
-            # the price basis is the better side; its sd, with the tier's translation sd added as in
-            # the auction pool, feeds the cautious price (value − PRICE_CAUTION_SD × value_sd)
-            better = "bat" if w is None or (b is not None and b >= w) else "bowl"
-            vsd = (sds.get((cid, better), 0.0) ** 2 + tsd**2) ** 0.5
+            # each side on the IPL rating scale (the fitted league translation, per role:
+            # cricdex.scout.translation; the IPL's own ratings unchanged); the price basis is the
+            # better side there, its translated sd feeding the cautious price
+            # (value − PRICE_CAUTION_SD × sd), as in the auction pool
+            on_ipl = {
+                side: translation.translate(
+                    col, "batter" if side == "bat" else "bowler", v, sds.get((cid, side)), tmodel
+                )
+                for side, v in (("bat", b), ("bowl", w))
+                if v is not None
+            }
+            better = max(on_ipl, key=lambda k: on_ipl[k][0])
+            # the market price's value input (see _export_auction_pool): the translated value once
+            # a price recipe on it wins, until then the blend the recipe was fitted on (his better raw
+            # side less the league's old discount, the old translation sd added)
+            if price_on_translated:
+                pv, pv_sd = on_ipl[better]
+            else:
+                raw_side = "bat" if w is None or (b is not None and b >= w) else "bowl"
+                raw_v = b if raw_side == "bat" else w
+                disc, old_tsd = translation.LEGACY_DISCOUNTS.get(col, (0.0, 0.0))
+                pv = raw_v - disc
+                pv_sd = (sds.get((cid, raw_side), 0.0) ** 2 + old_tsd**2) ** 0.5
             rows.append(
                 {
                     "cricsheet_id": cid,
@@ -1535,12 +1571,20 @@ def _export_scout_index(
                     "country": tax.get("country"),
                     "capped": bool(tax.get("capped")),
                     "team": tax.get("team"),
-                    # price basis: the better side, as in the auction pool
-                    "value": round(max(sides), 4),
-                    "value_sd": round(vsd, 4),
+                    # his rating in this league on the price-basis side (better on the IPL scale)
+                    # and its sd
+                    "value": round(b if better == "bat" else w, 4),
+                    "value_sd": round(sds.get((cid, better), 0.0), 4),
+                    "value_side": better,
+                    # the same side on the IPL rating scale (the league translation): the price
+                    # basis (pricing.scout_price ⇄ auction.ts scoutPrice)
+                    "ipl_value": round(on_ipl[better][0], 4),
+                    "ipl_value_sd": round(on_ipl[better][1], 4),
+                    "price_value": round(pv, 4),
+                    "price_value_sd": round(pv_sd, 4),
                     "target_balls": target_balls.get((cid, better), 0),
                     "balls": balls.get(cid, 0),  # exposure — for the uncapped-gem flag
-                    # the market price's inputs (scout market price: value − tier discount)
+                    # the market price's inputs (the scout market price is on `ipl_value`)
                     "is_overseas": bool(tax.get("country")) and tax.get("country") != "IND",
                     "age": _age_at(cid),
                     **price_in(cid),
@@ -2669,7 +2713,7 @@ def export(
     if dropped:
         logger.warning(f"collections.json: dropping {dropped} (not in config/leagues.toml)")
     _write(idx_path, ordered)
-    # the registry itself: labels, tiers, discounts and pools for the web app
+    # the registry itself: labels, tiers, fitted translations and pools for the web app
     _write(SITE_DATA / "leagues.json", leagues.site_payload())
     logger.info(
         f"wrote site/data/ for {len(index)} collections; index has {len(ordered)} → {SITE_DATA}"

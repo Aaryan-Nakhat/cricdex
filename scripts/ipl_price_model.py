@@ -39,6 +39,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 
 from cricdex import leagues
 from cricdex.config import DATA_DIR
+from cricdex.scout import translation
 from cricdex.scout.identity import captains, master, sources
 from cricdex.scout.identity.countries import normalise
 from cricdex.scout.ratings import bayesian
@@ -111,8 +112,6 @@ def fits(
 
 INTL_CACHE = CACHE / "intl_appearances.parquet"
 OTHER_LEAGUES = [lg.key for lg in leagues.auction_pool() if not lg.auction_target]
-# A role record this big in the IPL stands on its own (export_site.AUCTION_TRUST_BALLS).
-TRUST_BALLS = 300
 # The P(bought) risk set: an IPL player whose last IPL match is this recent, not retained and not
 # bought, counts as "not bought" (unsold, unregistered or retired: the pages list no unsold lots).
 RISK_DAYS = 730
@@ -158,27 +157,21 @@ def ipl_appearances() -> dict[str, list[str]]:
     return out
 
 
-def asof_values(season: int, date: str) -> dict[str, dict]:
-    """Each player's value as of an auction, blended across leagues exactly as the auction pool
-    blends them (export_site._export_auction_pool): per role, each league's value minus its
-    discount, weighted by 1 / (sd² + translation sd²); 300+ IPL balls in the role and the IPL
-    rating stands alone; best role wins. Only fits whose cut-off is on or before `date`."""
-    acc: dict[tuple[str, str], list[float]] = {}
-    own: dict[tuple[str, str], tuple[float, int, float]] = {}
-    ipl_balls: dict[str, int] = {}
+def asof_sources(
+    season: int, date: str
+) -> tuple[dict[tuple[str, str], tuple[float, float, int]], dict[tuple[str, str], dict]]:
+    """Every rating known at an auction: ({(cid, role): (IPL value, sd, IPL balls)},
+    {(cid, role): {league: (value, sd)}}). Only fits whose cut-off is on or before `date`."""
+    own: dict[tuple[str, str], tuple[float, float, int]] = {}
+    other: dict[tuple[str, str], dict] = {}
     p = ipl_fit_path(season)
     if p.exists():
         for r in pl.read_parquet(p).iter_rows(named=True):
             if r["value"] is None:
                 continue
-            sd = float(r["value_sd"] or 1.0)
-            a = acc.setdefault((r["cricsheet_id"], r["role"]), [0.0, 0.0])
-            a[0] += 1.0 / (sd * sd)
-            a[1] += float(r["value"]) / (sd * sd)
-            own[(r["cricsheet_id"], r["role"])] = (float(r["value"]), int(r["balls"] or 0), sd)
-            ipl_balls[r["cricsheet_id"]] = ipl_balls.get(r["cricsheet_id"], 0) + int(
-                r["balls"] or 0
-            )
+            own[(r["cricsheet_id"], r["role"])] = (
+                float(r["value"]), float(r["value_sd"] or 1.0), int(r["balls"] or 0)
+            )  # fmt: skip
     for col in OTHER_LEAGUES:
         cands = [
             s
@@ -187,26 +180,49 @@ def asof_values(season: int, date: str) -> dict[str, dict]:
         ]
         if not cands:
             continue
-        pen, tsd = leagues.discount(col), leagues.translation_sd(col)
         for r in pl.read_parquet(league_fit_path(col, max(cands))).iter_rows(named=True):
             if r["value"] is None or r["cricsheet_id"] is None:
                 continue
-            sd = float(r["value_sd"] or 1.0)
-            w = 1.0 / (sd * sd + tsd * tsd)
-            a = acc.setdefault((r["cricsheet_id"], r["role"]), [0.0, 0.0])
-            a[0] += w
-            a[1] += w * (float(r["value"]) - pen)
+            other.setdefault((r["cricsheet_id"], r["role"]), {})[col] = (
+                float(r["value"]), float(r["value_sd"] or 1.0)
+            )  # fmt: skip
+    return own, other
+
+
+def asof_values(season: int, date: str, which: str = "roles") -> dict[str, dict]:
+    """Each player's value as of an auction, blended across leagues exactly as the auction pool
+    blends them (export_site._export_auction_pool): per role, every league translated onto the IPL
+    scale and combined with his IPL rating by precision (cricdex.scout.translation.blend; `which` =
+    "roles" for the shipped translation, "roles_le2024" for the one fitted on seasons ≤ 2024); best
+    role wins. `value_legacy` / `value_sd_legacy`: the scheme it replaced on 2026-10-23 (one discount
+    per league, the 300-ball switch), the market price's input until a recipe on the translated
+    value wins (candidate Y)."""
+    own, other = asof_sources(season, date)
+    tm = translation.load_model()
     best: dict[str, dict] = {}
-    for (cid, role), (sw, swx) in acc.items():
-        o = own.get((cid, role))
-        if o and o[1] >= TRUST_BALLS:
-            val, vsd = o[0], o[2]
+    legacy: dict[str, tuple[float, float, int]] = {}
+    ipl_balls: dict[str, int] = {}
+    for (cid, _role), o in own.items():
+        ipl_balls[cid] = ipl_balls.get(cid, 0) + o[2]
+    for key in set(own) | set(other):
+        cid, role = key
+        o = own.get(key)
+        oth = other.get(key, {})
+        if role in translation.ROLES:
+            val, vsd, _ = translation.blend(role, (o[0], o[1]) if o else None, oth, tm, which)
         else:
-            val, vsd = swx / sw, (1.0 / sw) ** 0.5
-        if cid not in best or val > best[cid]["value"]:
-            best[cid] = {"value": val, "value_sd": vsd, "target_balls": o[1] if o else 0}
+            val, vsd = (o[0], o[1]) if o else (None, None)
+        lv, lsd, _ = translation.legacy_blend(o, oth)
+        tb = o[2] if o else 0
+        if val is not None and (cid not in best or val > best[cid]["value"]):
+            best[cid] = {"value": val, "value_sd": vsd, "target_balls": tb}
+        if cid not in legacy or lv > legacy[cid][0]:
+            legacy[cid] = (lv, lsd, tb)
     for cid, b in best.items():
         b["ipl_balls"] = ipl_balls.get(cid, 0)
+        lv = legacy.get(cid)
+        b["value_legacy"], b["value_sd_legacy"] = (lv[0], lv[1]) if lv else (None, None)
+        b["target_balls_legacy"] = lv[2] if lv else 0
     return best
 
 
@@ -313,8 +329,13 @@ def feature_fn(refresh_caps: bool = False):
         return {
             "cricsheet_id": cid,
             "season": season,
-            "price_value": v["value"] if v else None,
-            "value_sd": v["value_sd"] if v else None,
+            # his value as of the auction: `price_value` / `value_sd` the blend every recipe up to
+            # T was fitted on (one discount per league, the 300-ball switch: translation.legacy_blend),
+            # `value_tr` / `value_sd_tr` the fitted league translation (candidate Y, 2026-10-23)
+            "price_value": v["value_legacy"] if v else None,
+            "value_sd": v["value_sd_legacy"] if v else None,
+            "value_tr": v["value"] if v else None,
+            "value_sd_tr": v["value_sd"] if v else None,
             # his contribution per match as of the auction (scripts/playing_time_fit.py asof-contrib):
             # the value of candidate X
             "contrib": ct[0] if ct else None,
@@ -457,6 +478,8 @@ def _valued(r: dict) -> dict:
     per match and its sd stand in for `price_value` / `value_sd`."""
     if _FORM.get("value") == "contrib":
         return {**r, "price_value": r.get("contrib"), "value_sd": r.get("contrib_sd")}
+    if _FORM.get("value") == "translated":
+        return {**r, "price_value": r.get("value_tr"), "value_sd": r.get("value_sd_tr")}
     return r
 
 
@@ -1157,6 +1180,13 @@ CANDIDATES: dict[str, tuple] = {
         _NO_SQ, "tobit", "censored", False,
         {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
          "value": "contrib"}),
+    # declared 2026-10-23 (audit item 5), before any of its numbers: T with the value blended through
+    # the fitted league translation (scripts/league_translation_fit.py; per league and role, a
+    # precision blend with no 300-ball switch) instead of one discount per league
+    "Y  T with the fitted league translation as the value": (
+        _NO_SQ, "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
+         "value": "translated"}),
 }  # fmt: skip
 # P(bought): the previous features, and with the prior market price
 BOUGHT_CANDIDATES = {

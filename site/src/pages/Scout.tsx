@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { displayName, getAuctionPool, getLeagues, getScoutIndex, type ScoutPlayer, type ScoutIndex } from "@/lib/data";
 import { scoutPools, type LeagueRegistry, type ScoutGroup } from "@/lib/leagues";
-import { scoutPrice, type PriceTier, type Role } from "@/lib/auction";
+import { scoutPrice, type Role } from "@/lib/auction";
 import {
   similarTo,
   isGem,
@@ -122,7 +122,6 @@ function TierPanel({
   icon,
   subtitle,
   rows,
-  tier,
   selPrice,
   gemMedian,
   linkable,
@@ -135,7 +134,6 @@ function TierPanel({
   icon: React.ReactNode;
   subtitle: string;
   rows: SimilarRow[];
-  tier: PriceTier;
   selPrice: number | null;
   gemMedian: number | null;
   linkable: boolean;
@@ -164,7 +162,7 @@ function TierPanel({
         ) : (
           rows.map((p, i) => {
             const sim = p.sim;
-            const price = scoutPrice(p, tier);
+            const price = scoutPrice(p);
             const saving = selPrice != null && price < selPrice ? selPrice - price : 0;
             const gem = isGem(p, gemMedian);
             return (
@@ -222,13 +220,11 @@ function TierPanel({
 // "The next X" — uncapped SMAT prospects that punch above their sample.
 function GemsBoard({
   gems,
-  gemTier,
   navigate,
   inPool,
   stale,
 }: {
   gems: ScoutPlayer[];
-  gemTier: PriceTier;
   navigate: (p: string) => void;
   inPool: Set<string>;
   stale: string | null;
@@ -267,7 +263,7 @@ function GemsBoard({
             <Badge tone="willow">standing {fmt(p.z, 2)}</Badge>
             <span className="text-[11px] text-muted">{p.balls} balls</span>
             <span className="stat-num ml-auto text-[11px] text-muted">
-              ≈{fmt(scoutPrice(p, gemTier), 1)}cr
+              ≈{fmt(scoutPrice(p), 1)}cr
             </span>
             {inPool.has(p.cricsheet_id) ? (
               <button
@@ -294,7 +290,7 @@ export function Scout() {
   const navigate = (path: string) => rawNavigate(path);
   const { options } = usePlayers("ipl"); // nice full-name search
   const idx = useAsync<ScoutIndex>(() => getScoutIndex("ipl"), []);
-  // the registry: which pools to show (and their price discounts — scoutPrice needs it loaded)
+  // the registry: which pools to show (prices come translated onto the IPL in the data)
   const reg = useAsync<LeagueRegistry>(() => getLeagues(), []);
   const tiers = useMemo(() => tierDefs(reg.data).filter((t) => idx.data && t.key in idx.data), [reg.data, idx.data]);
   const gemTier = reg.data?.gem_tier ?? null;
@@ -338,7 +334,7 @@ export function Scout() {
   );
 
   // the pick's own est. IPL price — the baseline the savings compare against
-  const selPrice = sel && reg.data ? scoutPrice(sel, "ipl") : null;
+  const selPrice = sel ? scoutPrice(sel) : null;
   const posDisabled = roleSel === "bowler";
   // batting slot: by default the pick's own band (top / middle / lower order); "any" or one exact slot on demand.
   // Meaningless for a bowler match, so it's dropped rather than kept filtering invisibly.
@@ -402,7 +398,7 @@ export function Scout() {
       )}
 
       {gemTier && reg.data && (
-        <GemsBoard gems={gems} gemTier={gemTier} navigate={navigate} inPool={inPool} stale={staleOf(gemTier)} />
+        <GemsBoard gems={gems} navigate={navigate} inPool={inPool} stale={staleOf(gemTier)} />
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -516,7 +512,6 @@ export function Scout() {
                 icon={t.icon}
                 subtitle={t.subtitle}
                 rows={rows}
-                tier={t.key}
                 selPrice={selPrice}
                 gemMedian={t.gem ? gemMedian : null}
                 linkable={t.linkable}

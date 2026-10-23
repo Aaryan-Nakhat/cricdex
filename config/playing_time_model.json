@@ -2,7 +2,7 @@
  "schema": 1,
  "version": "2026.10-1",
  "league": "ipl",
- "fitted": "2026-10-22",
+ "fitted": "2026-10-23",
  "method": "expected season value = P(plays a match | in the squad) x contribution per match (runs above replacement: (batting value - replacement for his slot) x balls faced per match / 100 + (bowling value - replacement for his group) x balls bowled per match / 100); scripts/playing_time_fit.py, docs/METHODOLOGY.md section 6c",
  "balls_per_innings": 114.973,
  "league_matches": 14,
@@ -13,11 +13,11 @@
    "k_o": 0.25,
    "decay": 0.8,
    "mu": {
-    "bowler": 0.012764398123690686,
-    "all": 0.08352787991755706,
-    "all_rounder": 0.10108904769756503,
     "batter": 0.13590871185517317,
-    "keeper": 0.14594111056995562
+    "all": 0.0835278799175571,
+    "bowler": 0.012764398123690688,
+    "all_rounder": 0.10108904769756498,
+    "keeper": 0.14594111056995565
    },
    "trained_on": [
     2012,
@@ -30,11 +30,11 @@
    "k_o": 0.1,
    "decay": 0.4,
    "mu": {
-    "bowler": 0.1770127029277679,
-    "all": 0.08353390391713844,
-    "all_rounder": 0.08046671995609775,
     "batter": 0.003413701141017162,
-    "keeper": 0.0005832217474817871
+    "all": 0.0835339039171384,
+    "bowler": 0.17701270292776805,
+    "all_rounder": 0.08046671995609772,
+    "keeper": 0.0005832217474817872
    },
    "trained_on": [
     2012,
@@ -45,14 +45,14 @@
  "balls_chosen": "E4 E3 with impact-era role means (2023+)",
  "replacement": {
   "bat": {
-   "top": -7.322,
-   "middle": -16.764,
-   "tail": -63.219,
-   "lower": -23.241
+   "top": -8.821,
+   "middle": -17.073,
+   "tail": -61.569,
+   "lower": -23.077
   },
   "bowl": {
-   "frontline": -11.341,
-   "part_time": -27.395
+   "frontline": -5.197,
+   "part_time": -13.036
   },
   "n": {
    "bat:top": 39,
@@ -82,30 +82,30 @@
    "captain",
    "impact_era"
   ],
-  "intercept": -1.228292042451293,
+  "intercept": -0.723682394453875,
   "coef": {
-   "contrib": -0.05087368735467797,
-   "in_xi": 0.29619661521121265,
-   "margin": 0.08066304171581433,
-   "rank_log": -0.2674337066761113,
-   "overseas": -0.09000468456858304,
-   "os_out": 0.15142390629345606,
-   "os_rank_gt4": 0.0036923294302721446,
-   "ipl_exp": 0.27989973675191687,
-   "never_ipl": 0.3122423067261708,
-   "age": -0.24847525057309744,
-   "age_gt32": 0.029864754061034195,
-   "last_share": 1.6426189985820243,
-   "no_last": 0.35063230699372827,
-   "keeper": 0.13893988564097048,
-   "captain": 0.26778748195134355,
-   "impact_era": 0.15813135640058662
+   "contrib": -0.1619846371610098,
+   "in_xi": 0.213551311761525,
+   "margin": 0.17983996221835094,
+   "rank_log": -0.41495396787913524,
+   "overseas": -0.22371707621510284,
+   "os_out": 0.16300466693683868,
+   "os_rank_gt4": 0.0157682812955481,
+   "ipl_exp": 0.32027859877238013,
+   "never_ipl": 0.3085466905063084,
+   "age": -0.27474654501121326,
+   "age_gt32": 0.07159781396875373,
+   "last_share": 1.6751282723329295,
+   "no_last": 0.3913764290638039,
+   "keeper": 0.03993023995092194,
+   "captain": 0.12448772843136593,
+   "impact_era": 0.139435540873582
   },
   "trained_on": [
    2018,
    2026
   ],
-  "alpha": 10.0,
+  "alpha": 0.1,
   "chosen": "P5 P4 + keeper, captain, impact era"
  },
  "free_agent": {
@@ -124,21 +124,21 @@
    "captain",
    "impact_era"
   ],
-  "intercept": -2.3586572168113507,
+  "intercept": -2.168500579139021,
   "coef": {
-   "contrib": 0.24847395208729153,
-   "margin": 0.0009066773908404497,
-   "ipl_exp": 0.3660083486234065,
-   "never_ipl": -2.273914701589334,
-   "gap": -0.44599954874251874,
-   "age": -0.4470234260226556,
-   "age_gt32": -1.2383180137706946,
-   "last_share": 2.601322748162534,
-   "played_last": -0.6312153989698556,
-   "overseas": -0.40457207114106347,
-   "keeper": 0.13285855871646463,
-   "captain": -0.2965778240984484,
-   "impact_era": -0.11316398442440452
+   "contrib": 0.22313739656194773,
+   "margin": 0.029517662900471826,
+   "ipl_exp": 0.3730782420474958,
+   "never_ipl": -2.598289146936713,
+   "gap": -0.4590847682683405,
+   "age": -0.4357325712896633,
+   "age_gt32": -1.2410583312380559,
+   "last_share": 2.596982109069564,
+   "played_last": -0.6607617578687123,
+   "overseas": -0.5615158393414351,
+   "keeper": -0.04558772186223692,
+   "captain": -0.46641829724857914,
+   "impact_era": -0.055018966937455116
   },
   "trained_on": [
    2018,
@@ -206,34 +206,34 @@
    "test": {
     "P5 P4 + keeper, captain, impact era": {
      "n": 454,
-     "log_loss": 0.5621,
-     "brier_share": 0.0873,
-     "mae_share": 0.2457,
-     "spearman": 0.631,
+     "log_loss": 0.558,
+     "brier_share": 0.0861,
+     "mae_share": 0.2408,
+     "spearman": 0.641,
      "calibration_fifths": [
       [
-       0.199,
-       0.253,
+       0.194,
+       0.223,
        91
       ],
       [
-       0.301,
-       0.265,
+       0.297,
+       0.312,
        91
       ],
       [
-       0.477,
-       0.465,
+       0.479,
+       0.45,
        91
       ],
       [
-       0.702,
-       0.677,
+       0.71,
+       0.695,
        91
       ],
       [
-       0.83,
-       0.901,
+       0.851,
+       0.881,
        90
       ]
      ]
@@ -274,34 +274,34 @@
     },
     "P1 rank in the squad": {
      "n": 454,
-     "log_loss": 0.6255,
-     "brier_share": 0.1152,
-     "mae_share": 0.2903,
-     "spearman": 0.466,
+     "log_loss": 0.6313,
+     "brier_share": 0.1181,
+     "mae_share": 0.2965,
+     "spearman": 0.463,
      "calibration_fifths": [
       [
-       0.265,
        0.277,
+       0.275,
        91
       ],
       [
-       0.325,
-       0.395,
+       0.323,
+       0.418,
        91
       ],
       [
-       0.453,
-       0.457,
+       0.441,
+       0.478,
        91
       ],
       [
-       0.62,
-       0.643,
+       0.601,
+       0.582,
        91
       ],
       [
-       0.717,
-       0.788,
+       0.712,
+       0.807,
        90
       ]
      ]
@@ -313,8 +313,8 @@
    "test": {
     "F3 F2 + last season's share, overseas, keeper, captain, impact era": {
      "n": 2253,
-     "log_loss": 0.0848,
-     "brier_share": 0.0128,
+     "log_loss": 0.0856,
+     "brier_share": 0.013,
      "mae_share": 0.038,
      "spearman": 0.393,
      "calibration_fifths": [
@@ -325,21 +325,21 @@
       ],
       [
        0.004,
-       0.001,
+       0.0,
        451
       ],
       [
        0.007,
-       0.004,
+       0.005,
        451
       ],
       [
-       0.01,
+       0.011,
        0.008,
        450
       ],
       [
-       0.177,
+       0.175,
        0.168,
        450
       ]
@@ -381,34 +381,34 @@
     },
     "F1 contribution and its distance to a squad's XI line": {
      "n": 2253,
-     "log_loss": 0.1373,
-     "brier_share": 0.0228,
-     "mae_share": 0.0577,
-     "spearman": 0.24,
+     "log_loss": 0.1539,
+     "brier_share": 0.0245,
+     "mae_share": 0.0609,
+     "spearman": 0.065,
      "calibration_fifths": [
       [
-       0.008,
-       0.004,
-       451
-      ],
-      [
-       0.015,
-       0.006,
+       0.016,
+       0.025,
        451
       ],
       [
        0.022,
-       0.036,
+       0.032,
        451
       ],
       [
-       0.032,
-       0.024,
+       0.027,
+       0.031,
+       451
+      ],
+      [
+       0.034,
+       0.027,
        450
       ],
       [
-       0.071,
-       0.111,
+       0.048,
+       0.066,
        450
       ]
      ]

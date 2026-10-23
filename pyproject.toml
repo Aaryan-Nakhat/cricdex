@@ -80,6 +80,8 @@ packages = ["src/cricdex"]
 "config/price_model.json" = "cricdex/price_model.json"
 # the retention model fitted to every real retention deadline 2018-2026 (scripts/keep_backtest.py score)
 "config/keep_model.json" = "cricdex/keep_model.json"
+# the league translations onto the IPL, per league and role (scripts/league_translation_fit.py fit)
+"config/league_translation.json" = "cricdex/scout/league_translation.json"
 
 [tool.ruff]
 line-length = 100

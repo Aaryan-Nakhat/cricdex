@@ -104,7 +104,7 @@ const SECTIONS: Section[] = [
         for bowlers) and are ranked by how close their <em>skill standing</em> is — each player's
         Bayesian value as a z-score within its own competition, so a SMAT star and an IPL star line up
         even though raw numbers aren't comparable across tiers. Each match carries an{" "}
-        <em>estimated crore price</em> (the Auction room's market price, his value discounted per tier) and
+        <em>estimated crore price</em> (the Auction room's market price, his rating translated onto the IPL for his league and role, fitted on players seen in both) and
         the <em>saving</em> vs your pick — the budget-swap case — plus a <em>gem</em> flag for uncapped
         prospects punching above their sample. One click <em>drafts</em> a prospect into the Auction
         room. The exact same scout runs on the CLI, TUI and Streamlit too (one shared implementation,

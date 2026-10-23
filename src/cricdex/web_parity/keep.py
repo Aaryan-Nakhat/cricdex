@@ -425,16 +425,16 @@ def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict
         role, sd, balls = p["role"], p.get("value_sd"), p.get("target_balls")
         # the market price (fitted to real auctions) when the model and its inputs are there; the
         # on-field curve's price is kept alongside ("on-field worth")
-        onfield = est_value(value, role, "ipl", sd, balls)
+        onfield = est_value(value, role, sd, balls)
         price = onfield
-        central = est_value(value, role, "ipl", 0.0, balls)
+        central = est_value(value, role, 0.0, balls)
         p_bought = None
         if mkt:
             # median market price; the upper figure is the upper quartile of what players like him
             # fetch, on his central value
             mk = market_price(p)
             price, p_bought = mk["price"], mk["p_bought"]
-            central = market_price({**p, "value_sd": 0})["high"]
+            central = market_price({**p, "value_sd": 0, "price_value_sd": 0})["high"]
     model = load_keep_model()
     fc = p.get("forecast") or {}
     ties = _ties(p)

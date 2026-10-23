@@ -170,16 +170,19 @@ and the newcomer gaps are bootstrapped 2,000 times with a correction for running
 |---|---|---|
 | Established IPL batters, next season (2021–26) | **0.19** | 0.15 (career average) |
 | Established IPL bowlers, next season (2021–26) | **0.15** | 0.11 (career average) |
-| IPL newcomer batters, rated from other leagues (2014–26, 103 players) | 0.08 | **0.10** (league-adjusted numbers there) |
-| IPL newcomer bowlers, rated from other leagues (2014–26, 132 players) | 0.22 | **0.26** (league-adjusted numbers there) |
+| IPL newcomer batters, rated from other leagues (2014–26, 103 players) | **0.12** | 0.08 (league-adjusted numbers there) |
+| IPL newcomer bowlers, rated from other leagues (2014–26, 132 players) | 0.25 | **0.26** (league-adjusted numbers there) |
 
 All four are the overall rating, scored in runs per 100 balls above average.
 
 **The honest read:** for players the IPL already knows, the ratings **beat career averages**, for batters
 (0.19 vs 0.15) and bowlers (0.15 vs 0.11), and the new model predicts held-out balls better than the old one
 in every season. For **newcomers rated from other leagues, they are no better than the players' own
-league-adjusted numbers**: the only lean is for batters with the original five leagues (0.11 vs 0.06, ahead
-in 78% of resamples, not significant), and no test survives the correction for six comparisons. Earlier
+league-adjusted numbers**: the lean for batters (0.12 vs 0.08 with every league translated onto the IPL by
+the fitted league translation, ahead in 70% of resamples) is not significant, and no test survives the
+correction for six comparisons. How a league's rating carries over to the IPL is fitted per league and role
+and tested on 2025–26 for its level, not only its rank: a tie with the hand-set discounts it replaced
+([METHODOLOGY §6d](docs/METHODOLOGY.md#6d-league-translation-a-rating-from-another-league-on-the-ipl-scale)). Earlier
 versions of this page claimed a newcomer-batter edge; the first came from an unfair baseline, the second from
 the old way of adding up `value`, and neither survives. A single T20 season is mostly noise. Re-run it
 yourself with `scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`. The Form forecast has its own backtest (projections from 2021–23 against four baselines, `scripts/form_forecast.py backtest`): batters 21.6 / 21.4 / 20.5 runs-per-100 error one / two / three seasons ahead against 22.8 / 22.8 / 22.7 for the career rating, bowlers a tie with the rating.

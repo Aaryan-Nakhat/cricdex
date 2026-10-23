@@ -1,7 +1,8 @@
 """The league registry: every competition CricDex knows, read from `config/leagues.toml`.
 
 One list drives ingest (which Cricsheet zip(s) a collection comes from), the exporter (which
-leagues are cooked, in what order), pricing (each strength tier's discount), Scout pools, the
+leagues are cooked, in what order), each league's strength tier and the group it is pooled with when
+its translation onto the IPL is fitted (cricdex.scout.translation), Scout pools, the
 auction pool and its nationality rule, the API allow-list, every collection picker and the refresh
 workflow. Adding a league is a TOML entry, not a code change (docs/LEAGUES.md).
 
@@ -49,13 +50,12 @@ class RegistryError(ValueError):
 @dataclass(frozen=True)
 class Tier:
     key: str
-    discount: float
-    calibrated: bool
+    # The group a league is pooled with when its translation onto the IPL is fitted
+    # (scripts/league_translation_fit.py: per-league intercepts and slopes shrink toward their group's
+    # mean, so a league with few players who also reached the IPL borrows strength from similar
+    # leagues). "reference" = the auction target itself (no translation).
+    group: str
     note: str = ""
-    # How uncertain it is to translate a rating from this tier into IPL terms (runs per 100 balls).
-    # Cross-league pooling weights each league by 1 / (rating sd² + translation_sd²), so IPL
-    # evidence (0) dominates whenever a player has it and provisional discounts count least.
-    translation_sd: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -243,18 +243,16 @@ def parse(text: str, path: Path | str = "<string>") -> Registry:
         raise RegistryError(f"{path}: expected `schema = {SCHEMA}`")
     tiers: dict[str, Tier] = {}
     for key, t in (raw.get("tiers") or {}).items():
-        if not isinstance(t, dict) or "discount" not in t or "calibrated" not in t:
-            raise RegistryError(f"{path}: [tiers.{key}] needs `discount` and `calibrated`")
-        discount_v, calibrated_v = float(t["discount"]), bool(t["calibrated"])
-        # default: none for the reference tier, more for a borrowed (uncalibrated) discount
-        default_tsd = 0.0 if discount_v == 0 else (6.5 if calibrated_v else 10.5)
-        tiers[key] = Tier(
-            key=key,
-            discount=discount_v,
-            calibrated=calibrated_v,
-            note=str(t.get("note", "")),
-            translation_sd=float(t.get("translation_sd", default_tsd)),
-        )
+        if not isinstance(t, dict) or not str(t.get("group") or ""):
+            raise RegistryError(f"{path}: [tiers.{key}] needs a `group`")
+        stale = sorted({"discount", "calibrated", "translation_sd"} & set(t))
+        if stale:
+            # replaced on 2026-10-23 by the fitted translation (config/league_translation.json)
+            raise RegistryError(
+                f"{path}: [tiers.{key}] {', '.join(stale)}: hand-set discounts are gone — league "
+                "translations are fitted (scripts/league_translation_fit.py)"
+            )
+        tiers[key] = Tier(key=key, group=str(t["group"]), note=str(t.get("note", "")))
     leagues = [
         _league(lg, f"{path}: [[league]] #{i + 1}") for i, lg in enumerate(raw.get("league") or [])
     ]
@@ -337,27 +335,6 @@ def tiers() -> dict[str, Tier]:
     return dict(load().tiers)
 
 
-def tier_discounts() -> dict[str, float]:
-    """tier key → value discount (what pricing's TIER_PENALTY is)."""
-    return {k: t.discount for k, t in load().tiers.items()}
-
-
-def discount(key: str) -> float:
-    """The strength discount of a league (by collection key)."""
-    lg = get(key)
-    if lg.tier is None:
-        raise KeyError(f"league {key!r} has no strength tier")
-    return load().tiers[lg.tier].discount
-
-
-def translation_sd(key: str) -> float:
-    """How uncertain a league's ratings are once translated to IPL terms (by collection key)."""
-    lg = get(key)
-    if lg.tier is None:
-        raise KeyError(f"league {key!r} has no strength tier")
-    return load().tiers[lg.tier].translation_sd
-
-
 def by_tier(tier: str) -> League:
     """The scout / auction league that uses a tier key (`smat` → indian_domestic_male)."""
     for lg in all():
@@ -371,17 +348,12 @@ def by_tier(tier: str) -> League:
 
 def auction_pool_summary(sep: str = " / ") -> dict[str, str]:
     """Plain-text pieces for "who's in the auction pool" copy: the overseas and uncapped free-agent
-    leagues (short names) and each distinct tier discount, e.g. "BBL/SA20/PSL −6.0"."""
+    leagues (short names). How each league translates onto the IPL: translation.summary_text()."""
     reg = load()
     pool = [lg for lg in reg.leagues if lg.auction_pool and not lg.auction_target]
-    by_disc: dict[float, list[str]] = {}
-    for lg in pool:
-        if lg.tier is not None:
-            by_disc.setdefault(reg.tiers[lg.tier].discount, []).append(lg.short)
     return {
         "overseas": sep.join(lg.short for lg in pool if lg.scout_group != "uncapped"),
         "uncapped": sep.join(lg.short for lg in pool if lg.scout_group == "uncapped"),
-        "discounts": ", ".join(f"{'/'.join(n)} −{d:.1f}" for d, n in sorted(by_disc.items())),
     }
 
 
@@ -435,14 +407,15 @@ def validate_collection(collection: str, *, exported_only: bool = False) -> str:
 
 def site_payload() -> dict[str, Any]:
     """What `site/public/data/leagues.json` carries — everything the frontend needs."""
+    from cricdex.scout import translation  # imports this module: loaded late
+
     reg = load()
     target = auction_target() if any(lg.auction_target for lg in reg.leagues) else None
     gem = gem_pool()
+    tr = translation.site_payload() or {}
     return {
         "schema": SCHEMA,
-        "tiers": {
-            k: {"discount": t.discount, "calibrated": t.calibrated} for k, t in reg.tiers.items()
-        },
+        "tiers": {k: {"group": t.group} for k, t in reg.tiers.items()},
         "leagues": [
             {
                 "key": lg.key,
@@ -452,8 +425,9 @@ def site_payload() -> dict[str, Any]:
                 "kind": lg.kind,
                 "country": lg.country,
                 "tier": lg.tier,
-                "discount": reg.tiers[lg.tier].discount if lg.tier else None,
-                "calibrated": reg.tiers[lg.tier].calibrated if lg.tier else None,
+                # how its ratings carry over to the auction target, per role (fitted: a, b, tsd,
+                # pairs; config/league_translation.json); None for the target and unfitted leagues
+                "translation": tr.get(lg.key),
                 "export": lg.export,
                 "active": lg.active,
                 "order": lg.order,
