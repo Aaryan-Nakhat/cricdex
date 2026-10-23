@@ -32,16 +32,22 @@ ball-by-ball data, and every model explained in plain English.**
 
 <p align="center"><img src="docs/media/auction.png" alt="The mega auction: purse used per team, the top buys with their most likely team, and how a team bids" width="100%"></p>
 
-Ten franchises keep their real 2025 retentions, then bid for every active T20 player, each in its own
-style: the marquee chaser overpays for stars, the value hunter walks away from bidding wars, the
-overseas-heavy side fills its eight slots. One auction is played 300 times with the order shuffled, so
-you see **who lands each star, how often, and for how much**, and how every squad ends up.
+Ten franchises keep their real 2025 retentions, then bid for every active T20 player. One auction is
+played 300 times, so you see **who lands each star, how often, and for how much**, and how every squad
+ends up.
 
-- **Real rules:** 120 cr purse, retention slabs, 8 overseas max, 20 to 25-man squads.
-- **Bidding that behaves like the real room:** a team with more money left per open slot bids harder,
-  the winner pays just above the second-best bid, and no team bids past what its purse allows; the
-  retentions cost the purse what the 2025 rule charged (KKR 69 cr, not its 57 of salaries).
-- **Yours to change:** release or add any retention, swap a team's personality, change the purse.
+- **Real rules:** 120 cr purse, retention slabs, 8 overseas max, 18 to 25-man squads, the IPL's bid
+  ladder (5 lakh steps below 1 cr up to 25 lakh above 5 cr), as many lots as real shortlists held for the
+  open places, capped sets before uncapped.
+- **Bidding fitted on real auctions:** whether a team bids for a player and how high come from one demand
+  model estimated on who really bought whom, and for how much, at the 2019–2026 auctions (each team's squad
+  and purse rebuilt lot by lot): its places short in his role, open overseas places, purse per open place,
+  how much he'd improve it, the money across the market, how far the auction has gone. No hand-set team
+  personalities (estimated team effects lost out of time). Chosen on 2019–2024, tested once on 2025–26:
+  about 7 in 10 real prices land inside the simulated 10–90% range (the room before: 6 in 10 and 5 in 10).
+  The winner pays one ladder step above the second-best bid, and no team bids past what its purse allows;
+  the retentions cost the purse what the 2025 rule charged (KKR 69 cr, not its 57 of salaries).
+- **Yours to change:** release or add any retention, change the purse.
 - **The pool is the whole T20 world:** IPL players plus free agents from the SMAT and every overseas
   league in the registry (BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC, BPL, LPL and more),
   ranked by what each is expected to add over a season: the chance he plays a match (fitted on real IPL
@@ -56,8 +62,10 @@ mini auction, capped or uncapped Indian), with the top end priced the way the ma
 its dearest lots (no ceiling needed), plus the chance he's bought at all. Out of time (the 2025 and 2026
 auctions) half the lots land within ±50% of their price (the earlier skill-only curve: 43%), and each
 auction's 20 dearest predictions fetched 0.87× them. Bidding wars for a star aren't predictable from
-anything known before the auction; the room models how an auction behaves, not the exact crore of a real
-sale. → [How the auction works](docs/AUCTION_MATH.md)
+anything known before the auction, and the market price misses the stars of the mini auctions (their real
+prices 2–8× it): the room's typical price for a star comes out low (2025: Pant's median 10.6 cr, real 27; his
+10–90% range 3.2–32.3 cr; 7 of the real top 10 inside their range), so read its prices as ranges. The room models how an auction
+behaves, not the exact crore of a real sale. → [How the auction works](docs/AUCTION_MATH.md)
 
 ## 🧾 Keep or release, before the retention deadline
 
@@ -78,15 +86,18 @@ purse isn't published yet). In the terminal: `cricdex keep --team RCB`.
 
 ## 📋 Bid plan, for the auction room (beta)
 
-**Beta, not yet proven:** in replays of the real 2025 and 2026 auctions it beat the real franchise's squad for 8 of 10 teams in the 2025 mega auction and none in the 2026 mini. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
+**Beta, not yet proven:** in replays of the real 2025 and 2026 auctions, at the real franchise's spend, its squad beat the real one on next-season output for 6 of 10 teams in the 2025 mega auction and 3 of 10 in the 2026 mini: about level. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
 purse from Keep or release (your own calls carry over), lets the other nine teams bid in the Auction room's
 simulator 200 times to see what each player would cost, and picks the targets that add the most to your
 best XI for the money: each with a **max bid**, the odds of landing him under it, and a **fallback chain**
 per role ("if he goes above 8 cr, the next spinner is worth up to 8.5"). Every assumption is editable, the
-link keeps them, and the sheet exports to CSV or prints. The rival bidding is calibrated to real auctions
-(2022–24, tested on 2025–26), a team never buys back its own releases (it flags "reconsider keeping"
-instead), and replayed on the 2025 and 2026 auctions its squads were ahead of the real ones in 2025 (8 of
-10 teams) and behind in 2026 (all 10): a starting sheet, not a forecast. In the terminal: `cricdex bidplan --team RCB`.
+link keeps them, and the sheet exports to CSV or prints. The rivals bid by the Auction room's fitted demand
+model; squad strength counts each player at his chance of playing, with the bench filling the matches the XI
+misses (no hand-set depth weight or need penalty); a team never buys back its own releases (it flags
+"reconsider keeping" instead). Its "P(≤ max bid)" is checked against what happened and is no longer
+over-confident: where it said 0.8–1.0 (0.92 on average), the real price stayed at or under the max bid 89% of
+the time in 2025 and 100% in 2026 (before the fitted rivals: said 0.88, came true 0.44 in 2026). A starting sheet, not a
+forecast. In the terminal: `cricdex bidplan --team RCB`.
 → [How it plans, and the replay](docs/METHODOLOGY.md#12-bid-plan-beta)
 
 

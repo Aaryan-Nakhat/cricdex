@@ -19,7 +19,7 @@ metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [
 | [4. Bayesian skill ratings](#4-bayesian-skill-ratings) | Four skills per player, adjusted for the opposition, with honest uncertainty |
 | [5. Scout look-alikes](#5-scout-look-alikes) | Who plays like X in another league, and what he'd cost; style twins on every profile (5a) |
 | [6. From skill to crore](#6-from-skill-to-crore) | Turning a rating into an auction price; who plays and how much he adds a match (6c); how a rating from another league carries over to the IPL (6d) |
-| [7. The auction room](#7-the-auction-room) | Retentions, personalities, budget pressure, second-price clearing |
+| [7. The auction room](#7-the-auction-room) | Retentions, lots as real shortlists, a demand model fitted on real auctions, ladder clearing |
 | [8. Does it predict? The backtest](#8-does-it-predict-the-backtest) | Fitted before each season, scored on that season |
 | [9. Limits](#9-limits) | What the models can't see, and what's approximate |
 | [10. Keep or release](#10-keep-or-release) | The retention calculator: the chance a franchise keeps him (backtested on every real deadline), purse, role gaps |
@@ -1359,8 +1359,8 @@ scale (section 6d), blended by precision, so a long IPL record dominates by its 
 switch since 2026-10-23) and a hot spell in a weaker league can't outrank it. Both roles feed his contribution per match, and the
 pool is ranked by **expected season value** (P(plays) × contribution per match × 14, section 6c; a squad
 player's P(plays) in his squad, a free agent's from the free-agent model); the top 600 make the pool, a size
-limit for the browser and the room's Monte-Carlo (the room auctions 200 lots by price; Bid plan's free agents
-are this list), not a quality cut. His better role's rate is still shown as `value` and priced as in section
+limit for the browser and the room's Monte-Carlo (the room auctions as many lots as real shortlists held for
+the open places, below; Bid plan's free agents are this list), not a quality cut. His better role's rate is still shown as `value` and priced as in section
 6. Until 2026-10-22 the order was the value less the IPL-relevance penalty (6a step 2) and players under 150
 balls were dropped outright; the penalty is replaced by P(plays), the 150-ball cut by the ratings' own
 shrinkage (a thin record sits near its slot's mean and, without IPL experience, plays little). The recency
@@ -1369,84 +1369,208 @@ rule stays, with its reason: a player idle for three seasons has no usage or for
 **Retentions.** Editable per team.
 - **Mega auction**: each franchise keeps its real 2025 retention list (about five players), paid at the
   real retention price where known, else the IPL slabs (18 / 14 / 11 / 18 / 14 cr, then 4), out of a
-  120 cr purse. A known gap: the real 2025 rule charged a team the higher of its slab total and its
-  salaries, so KKR lost 69 cr (not its 57 of salaries) and DC 47 (not 43.75); the room charges the
-  salaries, giving those two teams 12 and 3.25 cr too much (Keep or release and the calibration replays
-  use the rule).
+  120 cr purse, charged by the real 2025 rule: the higher of the team's slab total and its salaries (KKR 69 cr,
+  not its 57 of salaries; DC 47, not 43.75; every team's published 2025 purse reproduced).
 - **Mini auction**: each team keeps its 18 players with the highest expected season value free (they were bought in earlier years)
   and tops up from a small purse (30 cr by default).
 
 Retained overseas players count towards the overseas cap of 8.
 
-**Personalities.** Each team bids in a style: MarqueeChaser (aggression 1.35, overpays for stars),
-ValueHunter (0.85, walks away from bidding wars), OverseasHeavy, IndianFocus, AllRounderStack, Balanced.
-Each style also sets how many batters, bowlers, all-rounders and keepers the team wants, how much it likes
-overseas players, and how much its bids wobble. MI and RCB default to MarqueeChaser, PBKS and RR to
-ValueHunter, and so on; you can change them.
+**The franchises.** All ten bid by **one demand model fitted on real auctions** (since 2026-10-23, audit
+item 7). What sets them apart at each lot is their own state: places left by role, overseas places, purse.
+The hand-set personalities (MarqueeChaser 1.35, ValueHunter 0.85 …), the need multipliers 1.5 / 0.7, the
+budget pressure clamped to 0.75–1.6, the 2% clearing step, MIN_SQUAD 20 and the five knobs calibrated on
+top of them are gone. Team effects (personalities estimated from the data) were a candidate and lost out
+of time (below).
 
-**The bidding.** The 200 most valuable unretained players are the lots, at most 36% of them overseas as on a
-real shortlist (2024: 119 of 333; `AUCTION_OVERSEAS_SHARE`), stars first (the order is nudged
-up to ±5% at random each run). For each lot, every team that still has room works out its maximum bid:
+**The lots.** As many as real shortlists held for the open squad places: the 2018–2024 shortlists
+(Wikipedia's personnel pages) listed 4.6 players per open place in a mini auction (4.56, 4.63, 4.66, 4.32
+in 2019, 2021, 2023, 2024) and 3.0 in a mega (3.18 in 2018, 2.76 in 2022); 35.7% of each list was
+overseas (median of 0.377, 0.350, 0.428, 0.326, 0.357). Open places are the squad maximum less the
+retained, over the ten teams (`LOTS_PER_PLACE`, `OVERSEAS_SHARE`; the mega room with the real 2025 lists
+allows 3.0 × 205 = 615 and gets 390 of its 555 unretained players: every Indian in the 600 pool, and overseas
+up to the share). The lots are the most valuable unretained players, at most that share overseas,
+and come up in the real set order: the capped sets before the uncapped (the 2025 and 2026 pages; a mega
+auction's marquee sets are its best-known capped players), dearest first within each (the role sets inside
+a group aren't modelled). Unsold lots come back once in an accelerated round. Until 2026-10-23: 200 lots,
+at most 36% overseas, stars first with a random ±5% nudge.
 
-```
-max bid = projected price × aggression × need × overseas bias × luck × budget pressure
-```
-
-- **need**: 1.5 if the team is still short of that role, 0.7 once it's covered.
-- **overseas bias**: the team's overseas appetite × 1.4 for an overseas player; 1 for an Indian.
-- **luck**: a random nudge, up to ± the team's risk setting (15–30%).
-- **budget pressure**: the team's purse per open squad slot divided by the league average, square-rooted
-  and clamped between **0.75 and 1.6**. A team that retained little and sits on a big purse bids harder;
-  a stretched one bids softer. Without it, a rich team filled its squad with cheap players and finished
-  with half its purse unspent.
-
-A team can't bid more than it can spend while keeping 0.3 cr for each other slot it still has to fill,
-can't pass the overseas cap, and won't bid below the base price.
-
-**Calibrated to real auctions** (since 2026-10-22; refitted the same day for the censored market price of
-section 6b, and again that evening for its top-end rework, the room without a cap and the slab-rule
-retentions). The value a team starts from is the market price through a fitted level (0.72× in a mega
-auction, 1.49× in a mini), a concave curve (^0.75, so money spreads beyond the stars as in real rooms), his
-last IPL price where known (weight 0.6), a demand shock per lot per run (sd 0.8 in ln, shared by all teams: how hot he is on
-the day) and the market tightness (money left with teams that still have places ÷ the market value of the best
-unsold players who'd fill them). Fitted on the 2022 mega and 2023–24 mini auctions (the replays charge the
-2025–27 retention slabs), tested on 2025 and 2026: the simulated 10–90% range holds 62% (2025) and 46% (2026)
-of real prices (the morning's fit: 65% and 40%; the hand-set room 28% and 12%), the 10 dearest simulated
-lots come out at 1.36× and 0.87× their real price (1.41× / 0.66×), and lot error is 0.78 / 0.57 (0.80 /
-0.66). The 2025 mega auction still ran about 1.6× above the simulation on contested lots. The room's check
-(2025 retentions charged by the slab rule, 120 cr mega) reproduces every team's published 2025 purse,
-leaves about 6 cr per team, squads of 20–25 (`scripts/auction_check.py`). Step by step and every number:
-[AUCTION_MATH.md Part 3b](AUCTION_MATH.md); `scripts/auction_calibrate.py`.
-
-**Second-price clearing.** The highest maximum bid wins, but, as in a real auction room, the winner pays
-just above the second-highest bid (2% over it), never less than the base price. There is no price cap:
-a team can bid at most its purse less 0.3 cr for every place it still has to fill (the IPL's purse rule),
-so the dearest lot is set by the second-richest willing bidder.
-
-*Worked example.* A player projected at 10 cr:
+**The bidding.** For each lot, every team with a squad place, an overseas place if he's overseas, and the
+purse for his base price (its purse less the lowest base price for each place it still needs to reach the
+squad minimum of 18) decides whether it bids and how high:
 
 ```
-MI  (MarqueeChaser, short of batters): 10 × 1.35 × 1.5 × 1 = 20.3
-CSK (Balanced, batters covered):       10 × 1.00 × 0.7 × 1 =  7.0
-(luck and budget pressure left at 1)
-→ MI wins and pays about 7.1 cr (2% over CSK), not its own 20.3.
+bids at all with P = logistic(P0 + P1 ln market price + P2 ln base price
+                              + I_need ln(1 + places short in his role) + I_os overseas share
+                              + I_pps (its ln purse per open place − the mean) + I_up upgrade)
+ln bid = mu + u + σ e,     e ~ Gumbel: the team's own view;   u ~ Normal(0, τ²): the lot's heat, shared
+mu = A + C ln market price + HINGE max(0, ln(market price ÷ 2 cr)) + BASE ln base price
+     + ANCHOR ln(last price ÷ market price)
+     + MONEY × the bidding teams' mean ln(purse per open place) + STAGE × share of the open places filled
+     + NEED ln(1 + places short in his role) + OS × (overseas lot) × open overseas places ÷ open places
+     + PPS × (its ln purse per open place − the mean) + UP × (his expected contribution − its best in his role)
 ```
 
-**Two-phase fill.** Round one runs through the lots until every team has 20 players; round two tops up
-toward the 25-man cap. A final pass hands any team still under 20 the cheapest leftovers at base price.
+"Places short in his role" is against the usual make-up of a squad (the median end-of-auction count per role
+in the real 2019–2024 squads: 6 batters, 11 bowlers, 4 all-rounders, 3 keepers); his expected contribution is
+P(plays) × contribution per match (6c), held to ±15 runs a match. The bid is held to the team's spendable
+purse. The highest bid wins at **the next step of the IPL ladder above the second-highest** (5 lakh below 1 cr,
+10 lakh to 2 cr, 20 lakh to 5 cr, 25 lakh above: Business Today, 23 Nov 2024, gives 5 / 10 / 20 lakh for the
+2025 auction and 20 lakh as the least step above 3 cr; most of the real 2020–2025 prices above 5 cr sit on
+25-lakh steps), or at the base price when nobody else reaches it. A team still short of 18 after the
+accelerated round buys the cheapest leftovers at base price (the squad minimum is a rule). There is no
+price cap.
+
+**How it was fitted** (`scripts/auction_demand_fit.py fit` and `round2` → `config/auction_demand.json`). Every sold lot of
+the 2019–2026 auctions, each team's squad by role, overseas count, purse and best contribution per role
+rebuilt lot by lot from the real retentions and the sold lots in the order the history lists them (the
+auction's set order; inside a set the order is the page's, not necessarily the hammer's; the history has no
+unsold lots, so the fit conditions on the lot selling). Each sale's likelihood is exact under the model: the
+winner's bid at least the price, the best of the others' inside the ladder step below it (below the base price
+for a sale at base), the heat integrated out by Gauss–Hermite quadrature. Inputs as of each auction:
+walk-forward contributions and P(plays), and a market price from the price recipe fitted on the **other**
+2018–2024 auctions for 2019–2024 (the walk-forward models of 2019–2021 had only three auctions behind them
+and priced the top at 3–9 cr) and on the auctions before for the test. 2018 is left out (nothing earlier to
+price it).
+
+**Frozen protocol, round 1.** Candidates declared before any test number (D8 after the 2022–23 validation
+replays, still before the test); chosen by leave-one-auction-out log-likelihood per lot over 2019–2024; the
+chosen one fitted on 2019–2024 and scored **once** on the 2025 mega and 2026 mini auctions. Mean
+log-likelihood per sold lot (higher is better):
+
+| candidate | 2019–2024, leave one out | 2025 (test) | 2026 (test) |
+|---|---|---|---|
+| D0 market price only (symmetric bidders) | −4.488 | −5.405 | −4.666 |
+| D1 + places short in his role, overseas places | −4.470 | −5.382 | −4.636 |
+| D2 + purse per open place (the team's and the market's) | −4.439 | −5.175 | −4.503 |
+| D3 + upgrade on the team's best in his role | −4.439 | −5.169 | −4.496 |
+| D4 + the auction's stage | −4.449 | −5.178 | −4.504 |
+| D5 D4 + a mega-auction level | −4.450 | −5.180 | −4.505 |
+| D6 D4 + team effects (personalities estimated, ridge sd 0.3) | −4.464 | −5.184 | −4.522 |
+| **D7 D4 + the team's needs in whether it bids at all (chosen in round 1)** | **−4.402** | **−5.136** | **−4.464** |
+| D8 D7 + his own expected contribution | −4.418 | −5.136 | −4.464 |
+
+2026 is over 63 of its 64 lots: one, Jack Edwards (3.0 cr to SRH), is impossible under the rebuilt order (no
+other team could bid when he came up, yet he sold above base) and costs every candidate the same; with it
+every 2026 mean is 10.7 lower. Team effects lose out of time: what makes a franchise bid is its squad and purse
+at that lot, not a fixed style; a separate mega level adds nothing once the money per open place is in.
+
+**Round 2: why D7 priced the stars low.** D7's 2025 replay put Pant's typical price at 9.0 cr (real 27, the
+market price alone 21.5) and Shreyas Iyer's at 9.5 (26.75). The causes tested, on the validation auctions only:
+
+- *Price formation (the order statistics)*: the likelihood is already the English-auction one (the winner's bid
+  at least the price, the best other bid inside the ladder step below it), and both spreads are fitted (each
+  team's view σ 0.47, the lot's heat τ 0.68 in ln). A heavy-tailed heat (quiet lots and bidding wars, a
+  two-component mixture) was fitted and collapsed to one component: no evidence of a heavier tail.
+- *The bid level and the market price*: the level rises only 0.08 per ln of market price. Forcing a bid in
+  proportion to it (C = 1) or taking the base price, 0.87-correlated with it, out of the level both lose
+  likelihood out of time and leave the validation stars no better (below). Within the top base band (1–2 cr) the
+  2019–2024 prices followed the market price with slope 0.38 (correlation 0.26), and the market's own 10 dearest
+  lots of each auction sold at 0.5–1.5× their market price. The money per open place and the stage don't soak
+  it up: dropping both with C = 1 changes nothing.
+- *What the stars were*: each auction's 10 dearest real lots sold at 2.3–8× their market price in 2019–2024
+  (Starc 24.75 cr at a market price of 2.7, Cummins 20.5 at 3.6), and 2.4× in 2025. The market price's blind
+  spot for the mini-auction stars is what no bidding model can see.
+- *How low is too low*: a perfectly calibrated room can't put an auction's dearest lots, picked by their
+  outcome, inside its 10–90% range 80% of the time, or price them at their real level. Taking each simulated run
+  as the "real" auction, the room's own 10 dearest lots land inside the other runs' range **70%** of the time
+  at a median **2.3×** the other runs' median (validation auctions). The real top 10: 43% inside at 4.3× under
+  D7, a genuine shortfall in the mini auctions (2019–21, 2023–24: 20–50%); the 2022 mega auction sits at the
+  benchmark (60% against 54%; 2.5× against 2.7×). The selection and the in-set order (cause a) can't be tested
+  without unsold lots or hammer times; the mega auctions, where they would matter most, are not where it fails.
+
+Round-2 candidates and the reality criterion were declared before any round-2 test number (the round-1 test
+tables had been seen: this is a second look at 2025–26, disclosed): R0 = D7; R1 a bid in proportion to the
+market price (C = 1); R2 R1 without the base price in the level; R3 D7 with a heavy-tailed heat; R4 D7 + its own
+slope on the market price above the top base price (ln(market price ÷ 2 cr), where the base price says nothing).
+Criterion on 2019–2024 (each candidate fitted on it, 150 runs): (i) the real top 10 inside the simulated range
+at least as often as the candidate's own benchmark less 0.15, (ii) their median real ÷ simulated within 1.5× of
+the benchmark, (iii) the market's own top 10 (picked by the prediction) at a median real ÷ simulated of
+0.8–1.25; the best leave-one-out likelihood among those passing. Ship only if the 2025 real top 10 mostly land
+inside their simulated range and the calibration doesn't regress.
+
+| | leave one out | real top 10 inside (benchmark) | real top 10, real ÷ sim (benchmark) | market's top 10, real ÷ sim | 2025 / 2026 log-lik | 2025 real top 10 inside | inside 10–90%, 2025 / 2026 (contested) |
+|---|---|---|---|---|---|---|---|
+| R0 D7 | −4.402 | 43% (70%) | 4.3 (2.3) | 1.21 | −5.136 / −4.464 | 6 | 69% / 69% (70% / 81%) |
+| R1 C = 1 | −4.429 | 40% (72%) | 5.4 (2.3) | 1.07 | −5.184 / −4.486 | 7 | 64% / 69% (66% / 81%) |
+| R2 C = 1, no base | −4.500 | 48% (70%) | 5.8 (2.8) | 1.00 | −5.283 / −4.563 | 7 | 62% / 72% (64% / 85%) |
+| R3 heavy heat | −4.402 | 43% (70%) | 4.4 (2.3) | 1.21 | −5.136 / −4.464 | 6 | 68% / 69% (70% / 81%) |
+| **R4 + market price above 2 cr (shipped)** | **−4.399** | 45% (70%) | 4.6 (2.2) | **1.09** | **−5.137 / −4.453** | **7** | **67% / 70% (69% / 85%)** |
+
+No candidate passes (i)–(ii): the shortfall is in the market price, not the bidding. All pass (iii); R4 has the
+best likelihood and is chosen. On the test it puts 7 of the 2025 real top 10 inside their range (D7: 6) with the
+calibration level (2025 slightly lower, 2026 higher) and ships, refitted on 2019–2026. Bidding in proportion to
+the market price (R1) would price Pant at 21.6 cr (range 2.0–53.9) but loses out of time and widens the 2025
+contested lots (simulated ÷ real of the dearest simulated lots 1.44); it is not shipped.
+
+The fit (R4, 2019–2024; the shipped refit on 2019–2026 in brackets): a team short in a lot's role bids at all
+more often (+0.35 on the logit per ln place [+0.39]) and a little higher (+0.15 [+0.18]); an overseas lot draws
+higher bids from a team with more of its open places free for overseas players (+1.60 [+1.12] × that share); a
+team with more purse per open place than the others bids higher (+0.95 [+1.11] per ln) though a little less often
+(−0.31 [−0.32]); more money per place across the market lifts every bid (+0.51 [+0.66] per ln); bids fall as the
+auction fills (−1.23 [−0.77] from first lot to last). The market price lifts a bid by −0.01 [+0.11] per ln up to
+2 cr and by a further +0.23 [+0.22] above it, and the chance of bidding by +0.18 [+0.26]. Each team's own view
+spreads σ = 0.46 [0.46] and the lot's heat τ = 0.68 [0.55] (ln).
+
+**Checked as a simulator** (`scripts/auction_calibrate.py`: all ten teams bid, 300 runs, R4's 2019–2024 fit,
+every sold lot scored; "contested" = the market price at least 2× base, chosen by the prediction; the room
+before 2026-10-23 replayed on the same inputs alongside):
+
+| | 2019–2024 (fitted on) | **2025 mega (test)** | **2026 mini (test)** |
+|---|---|---|---|
+| real price inside the simulated 10–90%, all sold lots (80% = calibrated) | 66–80% (before: 51–67%) | **67%** (before 64%) | **70%** (before 56%) |
+| the same, contested lots | 67–81% (before 38–65%) | **69%** (62%) | **85%** (50%) |
+| median real ÷ simulated, contested | 1.00–1.57 (0.98–1.16) | **1.45** (1.55) | **1.00** (1.00) |
+| error, mean abs. ln, all sold lots | 0.49–0.98 (0.53–0.97) | **0.65** (0.62) | **0.60** (0.64) |
+| the 10 dearest simulated lots, simulated ÷ real | 0.68–1.40 (1.13–2.25) | **1.06** (1.15) | **0.81** (0.78) |
+| the real buyer is the simulation's most frequent buyer | 13–27% (4–24%) | **16%** (9%) | **19%** (16%) |
+
+Real price inside the simulated 10–90% by real price band, test (2025 / 2026; before in brackets): under
+1 cr 81% / 85% (84% / 70%), 1–3 cr 52% / 80% (50% / 65%), 3–8 cr 53% / 22% (43% / 22%), 8 cr+ 73% / 50% (63% /
+25%). The typical (median) price runs low from 3 cr up: real ÷ simulated median 2.5 / 4.4 at 3–8 cr and 1.8 /
+2.6 at 8 cr+.
+
+**Reality check, 2025 mega** (the replay: real retentions and purses; simulated median and 10–90% range):
+
+| player | real (cr) | simulated median (10–90%) | the room before |
+|---|---|---|---|
+| Rishabh Pant | 27.00 | 10.6 (3.2–32.3) | 20.6 |
+| Shreyas Iyer | 26.75 | 11.5 (4.6–35.5) | 14.7 |
+| Venkatesh Iyer | 23.75 | 2.0 (2.0–6.0) | 4.3 |
+| Arshdeep Singh | 18.00 | 9.4 (3.0–28.3) | 6.6 |
+| Yuzvendra Chahal | 18.00 | 8.3 (3.0–22.6) | 8.4 |
+| Jos Buttler | 15.75 | 8.3 (2.0–25.5) | 6.5 |
+| KL Rahul | 14.00 | 10.8 (2.6–27.1) | 20.0 |
+| Jofra Archer | 12.50 | 10.5 (2.6–25.3) | 6.4 |
+| Trent Boult | 12.50 | 3.7 (2.0–10.4) | 3.5 |
+| Josh Hazlewood | 12.50 | 3.5 (2.0–10.0) | 3.3 |
+
+Seven of the real top 10 land inside their simulated range (not Venkatesh Iyer, at the market price's 3.4 cr,
+nor the two overseas pacers just above it); five are in the simulation's own top 10. The **typical** price of a
+star is still about 10 cr where the real ones went for 14–27: the outcome-picked top lots sit high in any
+calibrated room (2.3× its median, above), and here 2.3× the room's. The simulation's own top 10 (median): Sam
+Curran 14.6 (real 2.4), Faf du Plessis 12.8 (2.0), Shreyas Iyer 11.5, Siraj 11.4 (12.25), KL Rahul 10.8, Pant
+10.6, Archer 10.5, Rabada 9.6 (10.75), Noor Ahmad 9.5 (10.0), Arshdeep 9.4. **2026 mini**, real top 5 against
+the simulation: Cameron Green 25.2 → 11.9 (2.0–23.0; before 21.9), Matheesha Pathirana 18.0 → 8.5 (2.0–22.3;
+7.4), Prashant Veer and Kartik Sharma 14.2 → 0.3 (the market prices them at base; 0.3), Liam Livingstone 13.0 →
+6.3 (2.0–18.1; 8.4). **Purse and squads**: 2025, purse left 0.9–5.5 cr a team (real 0.0–2.0), squads 21–23
+(real 20–25); 2026, 0.5–17.0 cr (real 0.3–5.5; KKR, with the most money, keeps 17 of its 64), squads 24–25
+(real 25).
 
 **Many runs, one answer.** That's one mock auction. The room runs it **300 times** and reports each team's
 typical spend, squad size and overseas count, each star's odds of landing at each team ("MI 62%, CSK
 21%"), the average price per player, and one sample auction to browse. The randomness comes from a small
 seeded generator (a linear congruential generator, run `t` seeded `1000 + 7919·t`), so the same settings
 always give the same result, and the browser (TypeScript) and the CLI / TUI / Streamlit (Python) produce
-**the same numbers trial for trial**. `test_scripts/test_web_parity.py` runs both and fails CI if they
-ever differ.
+**the same numbers trial for trial**. `test_scripts/test_web_parity.py` and `test_bidplan_parity.py` run
+both and fail CI if they ever differ.
 
-**Limits.** Team personalities are hand-assigned, not learned from real bidding history. There's no
-right-to-match card, no withdrawals, no injury news and no "capped vs uncapped" base-price rule. Prices are
-section 6's invented prices, so the room models auction *behaviour* and relative outcomes, not the exact
-crore figures of any real auction.
+**Limits.** The lot order inside a set is the page's, so a team's state at a lot is approximate; the
+history lists no unsold lots, so the fit conditions on a sale. The market price misses the stars of the mini
+auctions (their real prices 2–8× it), so the room's typical price for a star is low and its range wide; a bid in
+proportion to the market price would fix Pant and break the rest (R1). No right-to-match card, no withdrawals,
+no injury news, no capped / uncapped base-price rule; the room's mini default (each team keeps its 18 most
+valuable) is a default, not the real lists.
 
 ---
 
@@ -2191,9 +2315,10 @@ Run: `uv run python scripts/form_forecast.py fits` (the walk-forward fits; cache
 
 ## 12. Bid plan (beta)
 
-> **Beta.** In honest replays of the 2025 mega and 2026 mini auctions the plan built a stronger squad
-> than the real franchise for 8 and 0 of 10 teams (re-run 2026-10-22 on expected contributions) — it is
-> shipped as an exploration tool, not a verdict.
+> **Beta.** In honest replays of the 2025 mega and 2026 mini auctions, at the real franchise's spend, the
+> plan built a stronger squad on next-season output for 6 and 3 of 10 teams (re-run 2026-10-23 with the
+> fitted rivals and the P(plays) bench) — about level with the real franchises, not clearly ahead in either
+> auction type, so it stays an exploration tool, not a verdict.
 
 **What it does.** Before the auction (IPL 2027: likely 16 December 2026), a franchise needs a sheet: whom to
 bid for, how high, and what to do when a target goes for more. Bid plan takes the squad and purse a team
@@ -2221,22 +2346,27 @@ players first (an unrated one first; a player the user decided on is never moved
 the export copies it to `auction_register.json`, and the page and the CLI use exactly those players at their
 real base prices.
 
-**2. What rivals would pay.** The other nine franchises, each with its own plan's squad and purse and the
-Auction room's personality, bid in the Auction room's simulator 200 times. The simulator's bidding is
-**calibrated to real auctions** (section 7 and [AUCTION_MATH Part 3b](AUCTION_MATH.md): a fitted level per
-auction type, a concave curve on the market price, the last price where known, a demand shock per lot and
-the market tightness). For each player sold in a run, the price **we would have to beat** is the winning
-rival's maximum bid × 1.02 (the simulator's clearing step; a rival bids at most what his purse allows); a
-player no rival bid for (or not among the simulator's lots) costs his base price. We are a price-taker: our
-own buys don't change what the rivals do in a run.
+**2. What rivals would pay.** The other nine franchises, each with its own plan's squad and purse, bid in the
+Auction room's simulator 200 times, by its **demand model fitted on real auctions** (section 7: whether a team
+bids at all and how high, from its places short in his role, its overseas places, its purse per place, the
+upgrade he'd be, the money across the market, the stage, his market, base and last price, the heat of the
+day; since 2026-10-23, replacing the personalities and the calibrated level, curve, anchor, shock and
+tightness). The lots are as many as real shortlists hold for the open places (section 7). For each player sold
+in a run, the price **we would have to beat** is one IPL ladder step above the winning rival's bid (a rival
+bids at most what his purse allows; until 2026-10-23, his bid × 1.02); a player no rival bid for (or not among
+the simulator's lots) costs his base price. We are a price-taker: our own buys don't change what the rivals
+do in a run.
 
-**3. Squad strength**, in runs a match above replacement (since 2026-10-22, audit items 6 and 8; section 6c):
+**3. Squad strength**, in runs a match above replacement (since 2026-10-22, audit items 6 and 8; section 6c;
+the depth and needs since 2026-10-23):
 
 ```
-strength = best XI + 0.25 × depth − 0.63 × role places short
+strength = best XI + bench
 best XI  = s_bat × Σ P × batting contribution + s_bowl × Σ P × bowling contribution
 s_bat    = min(1, 115 ÷ the XI's expected balls faced a match),  s_bowl the same for balls bowled
 P        = his P(plays) (6c): in his squad for a kept player; as a free agent for the auction's lots
+bench    = the XI's missed appearances, Σ over the XI of (1 − P), filled by the bench in order of the
+           contribution a match each makes when he plays (at most one appearance a match each)
 ```
 
 - **Best XI**: 11 players, at most 4 overseas, at least one keeper, five bowling options (bowlers and
@@ -2254,10 +2384,13 @@ P        = his P(plays) (6c): in his squad for a kept player; as a free agent fo
   member's batting (bowling) part is scaled down alike; eight openers can't each face 25 balls. A place the
   squad can't fill goes to a **replacement-level** player, 0 by construction; a player at or below it never
   plays, and an unrated player counts at that level.
-- **Depth**: the next four players' expected contributions.
-- **Role needs**: keepers (2), openers (3), death bowlers (3), spinners (3), pace bowlers (4), editable; each
-  place short costs 0.63 runs a match (the earlier hand-set 3 runs per 100 balls, converted at a player's
-  mean balls a match, 2 × 115 / 11 ≈ 20.9; still hand-set, roadmap 26).
+- **Depth**: an XI member plays P of his side's matches (the playing-time model), so the side misses him in
+  1 − P of them; the bench fills those appearances, best first. The depth weight is the fitted P(plays), not
+  a hand-set 0.25 on the next four (until 2026-10-23).
+- **Role needs**: keepers (2), openers (3), death bowlers (3), spinners (3), pace bowlers (4), editable; the
+  plan reports how often each is met and what's missing, but a place short no longer costs strength (the
+  hand-set 0.63 runs a match a place is gone, audit item 8): the XI's rules (a keeper, five bowling and six
+  batting options, four overseas) carry the balance that matters to the score.
 
 Until 2026-10-22 strength added the XI's per-100-ball values, as if a No. 7 faced as many balls as an
 opener and a four-over bowler counted like a 25-ball batter, with a −15 replacement level and the better
@@ -2306,7 +2439,8 @@ asks "what is he worth to *this* squad?".
   the releases to reconsider.
 
 *Examples (IPL 2027 defaults: 125 cr assumed, 8 places opened, 200 runs; data to the 2026 final; the evening
-of 2026-10-22: expected contributions, market price T, slab costs).* "Gain" = expected runs a match the player
+of 2026-10-22: expected contributions, market price T, slab costs; they predate the fitted rivals and the
+P(plays) bench of 2026-10-23 and were not re-run).* "Gain" = expected runs a match the player
 adds to the likely squad; "rivals" = what rivals usually pay; "9 in 10" = usually enough; "max" = worth to the
 squad (gain ÷ λ). These examples and the replay below predate the league translation of 6d (2026-10-23), which lowered
 every bowler's contribution by about 1.5 runs a match (a higher replacement bowler) and changed the
@@ -2334,106 +2468,132 @@ picking players like them.
 
 **Validation 1: rival prices against real ones.** On the 2025 mega and 2026 mini auctions, out of time (the
 inputs of `scripts/bidplan_backtest.py`, below), the median price to beat from a team's nine rivals for each
-player that team really bought, against what it paid:
+player that team really bought, against what it paid (the hand-set rivals with the calibration of 2026-10-22 →
+the fitted demand model, round 2, of 2026-10-23):
 
-| | 2025, before → after calibration → re-run 2026-10-22 evening | 2026, before → after → re-run |
+| | 2025 | 2026 |
 |---|---|---|
-| lots | 173 | 62 → 64 |
-| median real ÷ price to beat | 1.00 → 1.25 → 1.11 | 1.00 → 1.00 → 1.00 |
-| error, mean abs. ln | 0.71 → 0.60 → **0.61** (market price alone 0.62) | 0.70 → 0.68 → **0.69** (0.77) |
-| rank correlation | 0.80 → 0.80 → 0.79 | 0.56 → 0.50 → 0.47 |
-| real price inside the rivals' 20–80% range (60% = calibrated) | 29% → 55% → **49%** | 40% → 52% → **53%** |
+| lots | 173 | 64 |
+| median real ÷ price to beat | 1.11 → **1.00** | 1.00 → **1.00** |
+| error, mean abs. ln | 0.61 → **0.63** (market price alone 0.62) | 0.69 → **0.68** (0.77) |
+| rank correlation | 0.79 → **0.80** | 0.47 → **0.52** |
+| real price inside the rivals' 20–80% range (60% = calibrated) | 49% → **65%** | 53% → **64%** |
 
-(The re-run is on the shipped price recipe T and the re-run calibration, issue I13.)
-
-The simulator's own clearing prices against reality (all ten teams bidding) are in AUCTION_MATH Part 3b: the
-spread and the top end now hold out of time; the 2025 mega auction still ran about 1.5× above the simulation
-on contested lots.
+The simulator's own clearing prices against reality (all ten teams bidding) are in section 7.
 
 *Reality check: well-known lots* (real price; the rivals' price to beat for the team that bought him, median
 and 20–80% range; market price):
 
 | auction | player | real | rivals' price to beat | market |
 |---|---|---|---|---|
-| 2025 | Rishabh Pant | 27.00 | 16.2 (7.3–27.0) | 27.0 |
-| 2025 | Shreyas Iyer | 26.75 | 12.3 (5.3–27.0) | 19.6 |
-| 2025 | Venkatesh Iyer | 23.75 | 2.7 (2.0–6.7) | 2.7 |
-| 2025 | Arshdeep Singh | 18.00 | 7.1 (2.8–16.0) | 13.4 |
-| 2025 | Yuzvendra Chahal | 18.00 | 5.8 (2.3–15.3) | 7.8 |
-| 2025 | Jos Buttler | 15.75 | 7.8 (3.0–18.4) | 10.9 |
-| 2025 | KL Rahul | 14.00 | 15.6 (7.1–27.0) | 23.0 |
-| 2025 | Mitchell Starc | 11.75 | 7.5 (3.2–18.5) | 9.5 |
-| 2025 | Ishan Kishan | 11.25 | 11.6 (5.3–27.0) | 14.6 |
-| 2025 | Jitesh Sharma | 11.00 | 1.0 (1.0–1.4) | 4.1 |
-| 2025 | Bhuvneshwar Kumar | 10.75 | 2.0 (2.0–2.3) | 2.3 |
-| 2025 | Prasidh Krishna | 9.50 | 4.7 (2.0–10.3) | 5.5 |
-| 2025 | Liam Livingstone | 8.75 | 6.2 (3.1–13.3) | 9.6 |
-| 2026 | Cameron Green | 25.20 | 13.8 (5.3–21.9) | 12.8 |
-| 2026 | Matheesha Pathirana | 18.00 | 3.8 (2.1–8.7) | 9.7 |
-| 2026 | Liam Livingstone | 13.00 | 6.2 (2.9–13.2) | 7.1 |
-| 2026 | Venkatesh Iyer | 7.00 | 4.1 (2.6–8.3) | 2.3 |
-| 2026 | Kartik Sharma | 14.20 | 0.3 (0.3–0.5) | 0.5 |
-| 2026 | Prashant Veer | 14.20 | 0.3 (0.3–0.5) | 0.5 |
+| 2025 | Rishabh Pant | 27.00 | 18.0 (8.5–35.4) | 21.5 |
+| 2025 | Shreyas Iyer | 26.75 | 16.0 (8.2–38.0) | 14.5 |
+| 2025 | Venkatesh Iyer | 23.75 | 4.0 (2.0–8.8) | 3.4 |
+| 2025 | Arshdeep Singh | 18.00 | 17.4 (7.0–40.3) | 9.5 |
+| 2025 | Yuzvendra Chahal | 18.00 | 13.1 (7.5–26.3) | 7.5 |
+| 2025 | Jos Buttler | 15.75 | 15.5 (6.0–31.6) | 5.8 |
+| 2025 | KL Rahul | 14.00 | 17.3 (8.0–32.8) | 19.8 |
+| 2025 | Mitchell Starc | 11.75 | 12.5 (5.4–25.9) | 4.7 |
+| 2025 | Ishan Kishan | 11.25 | 14.0 (6.0–29.8) | 10.4 |
+| 2025 | Jitesh Sharma | 11.00 | 2.0 (1.0–4.8) | 3.6 |
+| 2025 | Bhuvneshwar Kumar | 10.75 | 4.0 (2.0–8.6) | 3.1 |
+| 2025 | Mohammed Shami | 10.00 | 13.5 (6.5–30.2) | 6.6 |
+| 2025 | Prasidh Krishna | 9.50 | 11.0 (5.0–26.9) | 5.8 |
+| 2025 | Liam Livingstone | 8.75 | 10.0 (4.6–23.6) | 4.8 |
+| 2026 | Cameron Green | 25.20 | 22.3 (11.3–25.0) | 10.2 |
+| 2026 | Matheesha Pathirana | 18.00 | 13.0 (7.5–21.4) | 8.1 |
+| 2026 | Liam Livingstone | 13.00 | 13.0 (5.5–24.3) | 6.4 |
+| 2026 | Ravi Bishnoi | 7.20 | 13.0 (6.0–23.0) | 9.8 |
+| 2026 | Venkatesh Iyer | 7.00 | 3.4 (2.0–8.3) | 2.6 |
+| 2026 | Kartik Sharma | 14.20 | 0.3 (0.3–1.5) | 0.4 |
+| 2026 | Prashant Veer | 14.20 | 0.3 (0.3–2.2) | 0.5 |
 
-Most stars land inside the range (Pant, Shreyas Iyer, Arshdeep, Chahal, Buttler, Rahul, Starc, Kishan,
-Prasidh, Livingstone twice). The misses are the market model's blind spots, which no bidding model fixes:
-players teams had scouted that the model barely rates (Kartik Sharma and Prashant Veer, 14.2 each), prices the
-features don't explain (Venkatesh Iyer 23.75 in 2025, Pathirana 18 in 2026), and two whose old price misled
-the anchor: Jitesh Sharma (his last price was an uncapped 0.2 cr) and Bhuvneshwar (priced on age, with a last
-price of about 5 cr in 2025 terms; for 2027 his 10.75 salary is the anchor). The last-price anchor helps on
-average (it is fitted) but drags down a player who has improved since his last auction.
+(Market prices: the walk-forward recipe of each replay.) The rivals' price to beat for a star is higher than
+the room's typical price (section 7) because it is the best of nine rivals' bids, not the second. Most stars
+land inside the 20–80% range (Pant, Shreyas Iyer, Arshdeep, Chahal, Buttler, Rahul, Starc, Kishan, Shami,
+Prasidh, Livingstone twice, Pathirana, Bishnoi, Venkatesh Iyer in 2026; Green just above it). The misses are the
+market model's blind spots, which no bidding model fixes: players teams had scouted that the model barely rates
+(Kartik Sharma and Prashant Veer, 14.2 each), and prices the features don't explain (Venkatesh Iyer 23.75 in
+2025, Jitesh Sharma, Bhuvneshwar).
 
-**Validation 2: the plans, replayed** (`scripts/bidplan_backtest.py`, about 25 minutes; re-run on the evening
-of 2026-10-22 with expected contributions and the shipped price recipe T). For each auction and franchise,
+**Validation 2: the plans, replayed** (`scripts/bidplan_backtest.py --inputs <the demand fit's inputs>`, about
+45 minutes; re-run 2026-10-23 with the round-2 rivals and the P(plays) bench). For each auction and franchise,
 with only what was known before it: each player's contribution per match as of the auction (6c: the IPL
 fitted on the matches before the auction date, blended with the other leagues' fits whose cut-off is on or
 before it, his usage before it, the walk-forward balls models and replacement levels) and his P(plays) from
 the squad and free-agent models fitted on the seasons before (a kept player's in his squad, a lot's as a free
 agent; the squad rows' rank features are computed against the squad after that auction, a small look-ahead);
 market prices from the price recipe re-fitted on the auctions before (2018–2024 for 2025, 2018–2025 for 2026);
-the real retentions and purses; the pool = every player sold at that auction with a
-Cricsheet id at his real base price, **plus the unsold alternatives** (recent IPL players neither retained nor
-bought: the P(bought) risk set, which the plan may target but is never credited with buying); rivals
-calibrated as above, 200 runs. The plan is built with the team's real purse left and with a purse equal to
-what it actually spent ("same spend"); its bidding rule is played against **the real prices** (a player is
-ours if our bid reaches what he actually sold for, purse and room permitting). Squads are scored on **what the
-players did in the IPL season the auction was for**, in the same measure: per role with 60+ balls, his season
-value (runs per 100 balls above that season's average, `runs_value.observed_value`) less the replacement
-level for the slot or group he actually played in, at the balls he got a match, × the share of his side's
-matches he actually played (a role under 60 balls, or a player who didn't play, at replacement level).
+the real retentions and purses; the pool = every player sold at that auction with a Cricsheet id at his real
+base price, **plus the unsold alternatives** (recent IPL players neither retained nor bought: the P(bought)
+risk set, which the plan may target but is never credited with buying); rivals bidding by the demand model
+**fitted on 2019–2024** (section 7, R4), 200 runs. The plan is built with the team's real purse left and with a
+purse equal to what it actually spent ("same spend"); its bidding rule is played against **the real prices** (a
+player is ours if our bid reaches what he actually sold for, purse and room permitting). Squads are scored on
+**what the players did in the IPL season the auction was for**, in the same measure: per role with 60+ balls,
+his season value (runs per 100 balls above that season's average, `runs_value.observed_value`) less the
+replacement level for the slot or group he actually played in, at the balls he got a match, × the share of
+his side's matches he actually played (a role under 60 balls, or a player who didn't play, at replacement
+level). The 2019–2024 auctions are replayed the same way (full purse only, market prices from the other
+2018–2024 auctions) to check P(≤ max bid) before the test.
 
 | | 2025 mega | 2026 mini |
 |---|---|---|
-| Same spend, next season: plan's squad stronger than the real one | **8 of 10 teams** (mean +8.5 runs a match, +7.8 best XI) | **0 of 10 teams** (mean −4.4, −4.8) |
-| The same on our own pre-auction values (circular: the plan maximises exactly this) | 10 of 10 (+14.2) | 9 of 10 (+1.9) |
-| The plan's top 10 targets that team really bought | 1.0 on average | 0.4 |
-| Real price ÷ rivals' median, over the plan's targets that sold | 1.54 | 0.78 |
-| P(≤ max bid) said 0.8–1.0: share sold at or under the max bid | 0.75 (said 0.95, n = 79) | 0.73 (said 0.89, n = 11) |
-| P(≤ max bid) said 0.5–0.8 | 0.52 (said 0.64, n = 33) | 0.64 (said 0.64, n = 14) |
+| Same spend, next season: plan's squad stronger than the real one | **6 of 10 teams** (mean +2.5 runs a match, +2.8 best XI) | **3 of 10 teams** (mean −0.2, −1.6) |
+| (round 1, D7 rivals) | 6 of 10 (+3.1, +3.5) | 4 of 10 (+0.1, −1.0) |
+| (the replay of 2026-10-22: hand-set rivals, 0.25 depth and 0.63 needs) | 8 of 10 (+8.5, +7.8) | 0 of 10 (−4.4, −4.8) |
+| The same on our own pre-auction values (circular: the plan maximises exactly this) | 10 of 10 (+17.7) | 10 of 10 (+6.3) |
+| The plan's top 10 targets that team really bought | 0.7 on average | 0.2 |
+| Real price ÷ rivals' median, over the plan's targets that sold | 0.83 | 0.90 |
 
-Per team, best XI next season (expected runs a match above replacement, realised), plan / real (same spend).
-2025: CSK 31.4 / 27.8, DC 54.4 / 35.9, GT 51.6 / 55.5, KKR 45.7 / 32.3, LSG 51.1 / 31.9, MI 47.0 / 60.5, PBKS
-41.2 / 37.0, RCB 52.1 / 46.7, RR 49.6 / 28.8, SRH 48.7 / 38.0. 2026: CSK 31.5 / 35.4, DC 19.3 / 27.6, GT 55.7 /
-64.2, KKR 34.6 / 35.9, LSG 34.0 / 40.5, MI 30.8 / 30.8, PBKS 34.7 / 39.7, RCB 64.3 / 67.5, RR 49.1 / 54.1, SRH
-40.3 / 46.4.
+Per team, next season (expected runs a match above replacement, realised; best XI + bench), plan / real (same
+spend). 2025: CSK 36.3 / 23.7, DC 25.3 / 33.6, GT 42.5 / 52.4, KKR 44.5 / 27.1, LSG 37.7 / 33.6, MI 47.5 / 56.1,
+PBKS 47.9 / 35.3, RCB 38.0 / 42.9, RR 34.4 / 27.5, SRH 40.6 / 37.1. 2026: CSK 28.0 / 32.0, DC 35.0 / 27.1, GT 61.3 /
+59.9, KKR 46.1 / 30.5, LSG 33.5 / 37.2, MI 36.4 / 42.4, PBKS 36.6 / 39.1, RCB 61.0 / 64.3, RR 46.5 / 49.9, SRH
+38.2 / 42.5. In 2025 the plan spent about what each team spent but bought fewer players (10–15 against
+14–23): it stops when the next player's gain per crore falls below the purse's best use.
 
-**The honest read.** On the new measure, the plan's squads are **ahead of the real ones in the 2025 mega
-auction** (8 of 10 teams; behind for GT and MI) and **behind in the 2026 mini auction for every team**, by
-about 4 runs a match. These numbers are not comparable with the earlier replay's (4 and 2 of 10): the
-strength measure changed (per-100-ball values summed then; expected runs a match, realised share of matches
-included, now), and so did the price recipe. In a mega auction there is a whole XI to buy and the plan's
-preference for players who actually play pays; in a mini auction the real teams bought the players their
-scouts wanted (Kartik Sharma, Prashant Veer at 14.2 cr; the model prices them at base) and the plan, which
-walks away when a price passes a player's worth, spent less. Teams bought about one of the plan's top 10, and
-"P(≤ max bid) 0.8–1.0" came true about three times in four, not nine in ten: the rivals' range is still too
-narrow at the top. The plan stays a structured starting sheet (who fills which need, where the value runs out,
-what to do next, which release to rethink), not a forecast.
+**Is "P(≤ max bid)" calibrated?** For every target of each team's full-purse plan that sold, the plan's
+P(the rivals' price to beat ≤ the max bid) against whether the real price was at or under the max bid. The
+real price is the second-best bid of all ten teams, never above the best rival's, so this check can only
+flatter the plan; on the lots a team bought itself the real price *is* its rivals' best (exact, but few). The
+room's own P(price ≤ max bid), all ten teams bidding by the same model, is the like-for-like check of the
+price distribution. Predicted / came true (n):
 
-**Limits.** Rivals bid by hand-set personalities on a calibrated level, and don't react to our buys; a bidding
-war for one name isn't predictable. Prices rest on the market model (a typical player off by about 1.7×), which
-can't see scouting, injury or brand. Strength adds expected contributions at each player's usual balls (6c),
-held to a side's innings, but knows nothing of batting order within the XI, conditions or the impact-player
-rule beyond five bowling and six batting options. Lot order is "stars first", not the real sets. Values are this season's
+| P band | validation 2019–2024: plan | room | **2025 (test): plan** | **room** | **2026 (test): plan** | **room** |
+|---|---|---|---|---|---|---|
+| 0.0–0.2 | 0.07 / 0.20 (277) | 0.02 / 0.04 (138) | **0.06 / 0.09 (125)** | 0.07 / 0.05 (75) | **0.07 / 0.06 (16)** | 0.00 / 0.00 (6) |
+| 0.2–0.4 | 0.28 / 0.53 (135) | 0.29 / 0.38 (119) | **0.30 / 0.46 (65)** | 0.30 / 0.13 (54) | **0.27 / 0.38 (8)** | 0.34 / 0.14 (7) |
+| 0.4–0.6 | 0.50 / 0.75 (83) | 0.50 / 0.45 (116) | **0.49 / 0.60 (58)** | 0.49 / 0.45 (47) | **0.47 / 1.00 (11)** | 0.47 / 0.14 (7) |
+| 0.6–0.8 | 0.71 / 0.87 (93) | 0.70 / 0.65 (82) | **0.70 / 0.78 (51)** | 0.71 / 0.64 (66) | **0.68 / 0.90 (10)** | 0.69 / 0.71 (7) |
+| 0.8–1.0 | 0.92 / 0.99 (141) | 0.94 / 0.92 (274) | **0.92 / 0.89 (44)** | 0.93 / 0.80 (101) | **0.91 / 1.00 (15)** | 0.93 / 0.97 (33) |
+| all (Brier) | 0.40 / 0.56 (0.167) | 0.56 / 0.56 (0.134) | **0.39 / 0.45 (0.158)** | 0.54 / 0.45 (0.160) | **0.48 / 0.65 (0.126)** | 0.69 / 0.65 (0.085) |
+| lots the team bought itself (exact) | 0.43 / 0.57 (75) | | **0.35 / 0.35 (34)** | | **0.49 / 0.71 (7)** | |
+
+Before (the replay of 2026-10-22, hand-set rivals), the plan said 0.95 and 0.75 came true in 2025's top band,
+and 0.88 / 0.44 is the 2026 figure the audit recorded: over-confident. Now the top band holds (0.92 / 0.89 in
+2025, 0.91 / 1.00 in 2026), the plan says less than came true in the middle of the validation, and on the exact
+check it is right in 2025 (0.35 / 0.35). The room's like-for-like check is calibrated in the validation (0.56 /
+0.56) and in 2026 (0.69 / 0.65), over-confident on the 2025 mega (0.54 / 0.45: that auction ran above the
+simulation, section 7). No recalibration map is applied: a map fitted on the validation would raise every
+probability, and the validation's event (real price ≤ max bid) can only flatter the plan. (This decision was
+taken after seeing the round-1 test tables.)
+
+**The honest read.** With the fitted rivals and the P(plays) bench the plan's squads are **about level with
+the real ones**: ahead for 6 of 10 teams in the 2025 mega auction (+2.5 runs a match on average) and 3 of 10 in
+the 2026 mini (−0.2; −1.6 on the best XI). The 2026-10-22 replay's 8 / 0 split (+8.5 / −4.4) is gone in both
+directions: the fitted rivals pay more for stars in a mega auction and less in a mini, and the bench no longer
+rewards the next four players whether or not they play. It does not beat the real franchises clearly in either
+auction type, so **Bid plan stays in beta**. What remains: the plan is a price-taker (rivals don't react to its
+targets, issue I2); the market price can't see the scouting behind the 2026 uncapped buys; the strength measure
+is runs a match, not wins; values are this season's ratings, not the three-season forecast a multi-year buy
+needs.
+
+**Limits.** Rivals bid by the room's fitted demand model and don't react to our buys; a bidding war for one name
+isn't predictable. Prices rest on the market model (a typical player off by about 1.7×), which can't see
+scouting, injury or brand. Strength adds expected contributions at each player's usual balls (6c), held to a
+side's innings, with the bench filling the XI's missed matches, but knows nothing of batting order within the
+XI, conditions or the impact-player rule beyond five bowling and six batting options. Values are this season's
 ratings, not a multi-year forecast: for a player bought for three seasons, section 11's forecast
 (`forecast.json`) is the natural next input (gain over the next three seasons, weighted by P(regular)); not
 wired in yet. Keep or release's salaries, squads and assumed purse carry over unchanged.

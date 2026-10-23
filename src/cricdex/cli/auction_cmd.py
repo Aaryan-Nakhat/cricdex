@@ -85,7 +85,6 @@ def room(
         [
             {
                 "team": t["team"],
-                "personality": t["personality"],
                 "retained": t["retained"],
                 "bought": round(t["avg_bought"]),
                 "spend_cr": round(t["avg_spend"], 1),

@@ -6,15 +6,16 @@ plans release, each with his value, role, tags and market price), it works out w
 how high:
 
 1. **Rivals.** The Auction room's simulator (`auction.one_trial`) runs the other nine franchises,
-   each with its own Keep-or-release plan and bidding personality, `trials` times. For every
-   player that gives the price a rival would have paid in each run: the price we would have to
-   beat (his base price when no rival bid).
-2. **Squad strength.** A squad's strength is its best XI's contribution in runs per match above
-   replacement (each player's batting and bowling at the balls he gets a match, scout/playing_time.py;
-   the XI's balls held to a side's balls per innings; at most 4 overseas, at least 1 keeper, 5
-   bowling and 6 batting options, a replacement-level player filling any place the squad can't),
-   plus a smaller weight on the next four players (depth), minus a penalty for each role need it
-   misses (keepers, openers, death bowlers, spinners, pace).
+   each with its own Keep-or-release plan, bidding by the room's fitted demand model, `trials`
+   times. For every player that gives the price a rival would have paid in each run: the price we
+   would have to beat (the next ladder step above the winning rival's bid; his base price when no
+   rival bid).
+2. **Squad strength.** A squad's strength is its best XI's expected contribution in runs per match
+   above replacement (each player's batting and bowling at the balls he gets a match × his P(plays),
+   scout/playing_time.py; the XI's balls held to a side's balls per innings; at most 4 overseas, at
+   least 1 keeper, 5 bowling and 6 batting options, a replacement-level player filling any place the
+   squad can't), plus the bench filling the matches the XI misses (Σ (1 − P(plays)) appearances, best
+   bench contribution first). Role needs are reported, not scored.
 3. **The bidding rule.** In lot order, bid for a player up to his gain in strength divided by an
    exchange rate λ (runs per crore), within the purse (keeping 0.3 cr for each place still needed
    to reach the squad minimum), the squad maximum and the overseas cap. λ is chosen to maximise the
@@ -37,9 +38,10 @@ from collections.abc import Callable
 from typing import Any
 
 from cricdex.web_parity.auction import (
-    IPL_TEAMS_DEFAULT,
     auction_lots,
+    ladder_next,
     one_trial,
+    open_squad_places,
 )
 from cricdex.web_parity.keep import (
     cr,
@@ -72,13 +74,13 @@ REPLACEMENT = 0.0
 # 2023-2026): an XI whose expected balls faced (or bowled) add up to more is scaled down to it, every
 # member alike, so eight openers can't each face 25 balls.
 TEAM_BALLS = 115.0
-# Depth: the next DEPTH_N players after the XI count DEPTH_WEIGHT × (contribution − replacement).
-DEPTH_N = 4
-DEPTH_WEIGHT = 0.25
-# Each role need missed costs NEED_PENALTY runs per match of strength: the hand-set 3 runs per 100
-# balls of the per-100-ball strength (audit item 8, still hand-set), converted at a player's mean
-# balls a match (2 × 115 balls / 11 players ≈ 20.9 → 3 × 0.209).
-NEED_PENALTY = 0.63
+# Depth (since 2026-10-23, audit item 8): an XI member counts P(plays) × his contribution, so his side
+# misses him in (1 − P) of its matches; those appearances, Σ over the XI of (1 − P), go to the bench in
+# order of the contribution a match each makes when he plays (at most one appearance a match each, never
+# below replacement). The depth weight is the playing-time model's P(plays) (section 6c), not a hand-set
+# 0.25 on the next four. Role needs (keepers, openers, death, spin, pace) are targets the plan reports
+# against (`need_met`, `missing`); they no longer cost strength (the hand-set 0.63 a place is gone): the
+# XI's rules (a keeper, five bowling and six batting options, four overseas) carry the balance.
 NEED_ORDER = ["keeper", "opener", "death", "spinner", "pace"]
 DEFAULT_NEEDS: dict[str, int] = {"keeper": 2, "opener": 3, "death": 3, "spinner": 3, "pace": 4}
 NEED_LABEL = {
@@ -156,6 +158,7 @@ def piece(
     players like him have actually added. Without `parts` the contribution counts whole and outside
     the XI's balls. An unrated player (no contribution) counts at replacement level."""
     v = REPLACEMENT if contrib is None else float(contrib)
+    pp = 1.0
     if parts is not None and contrib is not None:
         cb, cw, fb, wb = parts[:4]
         pp = float(parts[4]) if len(parts) > 4 else 1.0
@@ -170,6 +173,9 @@ def piece(
         "id": pid,
         "name": name,
         "v": v,
+        # P(plays) and the contribution a match he plays (v ÷ P): the bench fill (`strength`)
+        "pp": pp,
+        "c": v / pp if pp > 0 else 0.0,
         "cb": cb,
         "cw": cw,
         "fb": fb,
@@ -250,16 +256,33 @@ def need_counts(pieces: list[dict]) -> dict[str, int]:
     return out
 
 
+def bench_fill(xi_ids: list[str], pieces: list[dict], bench: list[dict]) -> float:
+    """The bench's expected runs a match: the XI's missed appearances, Σ (1 − P(plays)) over its
+    members, filled by the bench in order of the contribution a match each makes when he plays (ties
+    by id), at most one appearance a match each, players above replacement only."""
+    ids = set(xi_ids)
+    miss = fsum([1.0 - min(1.0, max(0.0, p["pp"])) for p in pieces if p["id"] in ids])
+    out = 0.0
+    for p in sorted((q for q in bench if q["c"] > REPLACEMENT), key=lambda q: (-q["c"], q["id"])):
+        if miss <= 0.0:
+            break
+        a = miss if miss < 1.0 else 1.0
+        out += a * p["c"]
+        miss -= a
+    return out
+
+
 def strength(pieces: list[dict], needs: dict[str, int]) -> dict[str, Any]:
-    """{total, xi, depth, short, counts, ids, fillers}: total = XI + DEPTH_WEIGHT × depth −
-    NEED_PENALTY × the role places short of `needs`."""
+    """{total, xi, depth, short, counts, ids, fillers}: total = XI (each at P(plays) × contribution) +
+    the bench filling the XI's missed appearances (`bench_fill`). `short` = role places short of
+    `needs`, reported, not scored."""
     b = best_xi(pieces)
-    depth = fsum([p["v"] - REPLACEMENT for p in b["bench"][:DEPTH_N]])
+    depth = bench_fill(b["ids"], pieces, b["bench"])
     counts = need_counts(pieces)
     short = 0
     for n in NEED_ORDER:
         short += max(0, needs.get(n, 0) - counts[n])
-    total = b["xi"] + DEPTH_WEIGHT * depth - NEED_PENALTY * short
+    total = b["xi"] + depth
     return {
         "total": total,
         "xi": b["xi"],
@@ -273,8 +296,8 @@ def strength(pieces: list[dict], needs: dict[str, int]) -> dict[str, Any]:
 
 def upper_gain(p: dict) -> float:
     """A quick ceiling on what one player can add (used only to skip hopeless bids fast):
-    2 × (contribution − replacement level), plus the penalty for every need he could fill."""
-    return 2 * max(0.0, p["v"] - REPLACEMENT) + NEED_PENALTY * len(p["needs"])
+    2 × (his contribution a match he plays − replacement level)."""
+    return 2 * max(0.0, p["c"] - REPLACEMENT)
 
 
 # ---- the context: our squad, the rivals, the pool -----------------------------------------------------
@@ -301,6 +324,10 @@ def _avail_row(r: dict, tags: str, from_team: str | None) -> dict:
     }
     if r.get("anchor_price"):
         out["anchor_price"] = r["anchor_price"]
+    if r.get("capped") is not None:
+        out["capped"] = r["capped"]
+    if r.get("prior_share"):
+        out["prior_share"] = r["prior_share"]
     return out
 
 
@@ -359,7 +386,6 @@ def build_context(
     open_slots: int = OPEN_SLOTS,
     rules: dict | None = None,
     register: list[dict] | None = None,
-    personalities: list[dict] | None = None,
     display: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Everything the plan needs, from Keep or release's data.
@@ -377,7 +403,6 @@ def build_context(
     if purse is not None:
         comp_rules["purse"] = float(purse)
     form = data.get("form")
-    pers = {c["team"]: c["personality"] for c in (personalities or IPL_TEAMS_DEFAULT)}
     pool_by_id = {r["cricsheet_id"]: r for r in pool}
     tags_of = data.get("pool_tags") or {}
     shown = display or {}
@@ -414,7 +439,6 @@ def build_context(
             rivals.append(
                 {
                     "team": t,
-                    "personality": pers.get(t, "Balanced"),
                     "kept": pieces,
                     "purse_left": purse_left,
                 }
@@ -495,21 +519,23 @@ def build_context(
 
 def rival_prices(ctx: dict, trials: int = TRIALS) -> list[list[float]]:
     """For each available player (ctx["available"] order) and each run: the price we would have to
-    beat, i.e. the highest rival's bid × 1.02 (the simulator's clearing step; a rival bids at most
-    his spendable purse), at least his base price; his base price when no rival bid
-    (or he wasn't among the simulator's lots). Runs t = 0 … trials − 1 use the Auction room's
-    seeds (1000 + 7919 t)."""
+    beat, i.e. the next ladder step above the winning rival's bid (a rival bids at most his
+    spendable purse), at least his base price; his base price when no rival bid (or he wasn't among
+    the simulator's lots). The rivals bid by the Auction room's fitted demand model. Runs t = 0 …
+    trials − 1 use the Auction room's seeds (1000 + 7919 t). `ctx["demand"]` (optional) overrides the
+    demand model (the replays' out-of-time fit)."""
     rules = ctx["rules"]
     purse = float(rules["purse"])
+    sq_max = int(rules["squad_max"])
     bases = []
     for r in ctx["rivals"]:
         retained = [
-            {"cricsheet_id": p["id"], "role": p["role"], "is_overseas": p["os"]} for p in r["kept"]
+            {"cricsheet_id": p["id"], "role": p["role"], "is_overseas": p["os"], "v": p["v"]}
+            for p in r["kept"]
         ]
         bases.append(
             {
                 "team": r["team"],
-                "personality": r["personality"],
                 "retained": retained,
                 "retain_spend": purse - r["purse_left"],
                 "retain_overseas": sum(1 for p in r["kept"] if p["os"]),
@@ -517,19 +543,27 @@ def rival_prices(ctx: dict, trials: int = TRIALS) -> list[list[float]]:
         )
     avail = ctx["available"]
     index = {p["cricsheet_id"]: i for i, p in enumerate(avail)}
-    lots = auction_lots(avail)
+    cycle = ctx.get("cycle") or "mini"
+    # the lots: as many as real shortlists hold for the auction's open places (ours included)
+    places = open_squad_places(bases, sq_max) + max(0, sq_max - len(ctx["kept"]))
+    lots = avail if ctx.get("all_lots") else auction_lots(avail, places, cycle)
     opts = {
         "purse": purse,
-        "squad_size": int(rules["squad_max"]),
+        "squad_size": sq_max,
+        "squad_min": int(rules.get("squad_min", 18)),
         "overseas_cap": int(rules["overseas_max"]),
-        "mode": ctx.get("cycle") or "mini",  # the calibrated bid level for this auction type
+        "mode": cycle,
     }
+    if ctx.get("demand"):
+        opts["demand"] = ctx["demand"]
+    if ctx.get("min_base"):
+        opts["min_base"] = float(ctx["min_base"])
     out = [[float(p["base_price"])] * trials for p in avail]
     for t in range(trials):
 
         def on_sale(player: dict, team_i: int, best_bid: float, price: float, _t: int = t) -> None:
             i = index[player["cricsheet_id"]]
-            beat = best_bid * 1.02
+            beat = ladder_next(best_bid)
             out[i][_t] = max(float(player["base_price"]), beat)
 
         one_trial(bases, lots, opts, 1000 + t * 7919, on_sale)

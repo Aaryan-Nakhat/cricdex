@@ -1435,22 +1435,15 @@ class CricDexApp(App):
     # ===== Auction Simulator ==============================================
 
     def _auction_sim_panel(self) -> ComposeResult:
-        from cricdex.auction.real_pool import (
-            IPL_TEAMS_DEFAULT,
-            PERSONALITY_IDS,
-            load_team_overrides,
-        )
+        from cricdex.auction.real_pool import IPL_TEAMS
 
         # Persistent state — survives Run clicks AND recompose (theme switch).
-        if not hasattr(self, "_team_personalities"):
-            self._team_personalities = dict(load_team_overrides() or IPL_TEAMS_DEFAULT)
         if not hasattr(self, "_drafted"):
             self._drafted = set()  # cids drafted from the Scout tab
         if not hasattr(self, "_retentions"):
             self._retentions = None  # dict[team, [cid]] — seeded lazily per mode
             self._ret_mode = None
-        team_opts = [(t, t) for t, _ in IPL_TEAMS_DEFAULT]
-        pers_opts = [(p, p) for p in PERSONALITY_IDS]
+        team_opts = [(t, t) for t in IPL_TEAMS]
 
         with VerticalScroll():
             yield _tabhead("AUCTION", "real-rules IPL Monte-Carlo — retain → bid")
@@ -1469,19 +1462,6 @@ class CricDexApp(App):
                 yield Input(value="120", id="sim-purse", classes="num")
                 yield Button("Simulate ▸", id="sim-run", variant="primary")
                 yield LoadingIndicator(id="sim-spinner", classes="spinner")
-            with ControlBar(title="Personalities"):
-                yield Label("Edit:")
-                yield Select(options=team_opts, value="CSK", id="sim-team", allow_blank=False)
-                yield Label("→")
-                yield Select(
-                    options=pers_opts,
-                    value=self._team_personalities.get("CSK", "Balanced"),
-                    id="sim-pers",
-                    allow_blank=False,
-                )
-                yield Button("Apply", id="sim-apply", variant="success")
-                yield Button("Reset", id="sim-reset", variant="error")
-            yield Static(self._sim_team_map_line(), id="sim-team-map", classes="intro")
             # Retentions editor — view + add/drop per team (mirrors web/Streamlit).
             with ControlBar(title="Retentions"):
                 yield Label("Team:")
@@ -1509,29 +1489,6 @@ class CricDexApp(App):
             yield AutoComplete(target="#sim-find", candidates=_auction_pool_candidates("ipl"))
             with Panel(title="Player search"):
                 yield DataTable(id="sim-find-table", zebra_stripes=True)
-
-    def _sim_team_map_line(self) -> str:
-        from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
-
-        return "  ".join(
-            f"{t}→[bold]{self._team_personalities.get(t, 'Balanced')}[/bold]"
-            for t, _ in IPL_TEAMS_DEFAULT
-        )
-
-    def _on_apply_sim_team(self) -> None:
-        team = self.query_one("#sim-team", Select).value
-        personality = self.query_one("#sim-pers", Select).value
-        self._team_personalities[team] = personality
-        self.query_one("#sim-team-map", Static).update(self._sim_team_map_line())
-
-    def _on_reset_sim_teams(self) -> None:
-        from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
-
-        self._team_personalities = dict(IPL_TEAMS_DEFAULT)
-        self.query_one("#sim-team-map", Static).update(self._sim_team_map_line())
-        # Resync the personality select to the currently-shown team.
-        team = self.query_one("#sim-team", Select).value
-        self.query_one("#sim-pers", Select).value = self._team_personalities[team]
 
     # ---- auction data + retentions ---------------------------------------
 
@@ -1568,24 +1525,21 @@ class CricDexApp(App):
         return self._auction_data()["display"].get(p.get("cricsheet_id", "")) or p.get("name", "")
 
     def _teams_cfg(self) -> list[dict]:
-        from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
+        from cricdex.auction.real_pool import IPL_TEAMS
 
-        return [
-            {"team": t, "personality": self._team_personalities.get(t, p)}
-            for t, p in IPL_TEAMS_DEFAULT
-        ]
+        return [{"team": t} for t in IPL_TEAMS]
 
     def _ensure_retentions(self, mode: str) -> dict:
         """Seed editable retentions from the mode default (+ any Scout drafts)
         once, reseeding when the Mega/Mini mode changes."""
-        from cricdex.auction.real_pool import IPL_TEAMS_DEFAULT
+        from cricdex.auction.real_pool import IPL_TEAMS
         from cricdex.web_parity import default_retentions
 
         if self._retentions is None or self._ret_mode != mode:
             d = self._auction_data()
             base = default_retentions(d["pool"], self._teams_cfg(), mode, d["mega_ids"])
             if self._drafted:
-                t0 = IPL_TEAMS_DEFAULT[0][0]
+                t0 = IPL_TEAMS[0]
                 extra = [c for c in self._drafted if c in d["by_cid"]]
                 base[t0] = list(dict.fromkeys(base.get(t0, []) + extra))
             self._retentions = base
@@ -1731,7 +1685,6 @@ class CricDexApp(App):
         rows = [
             {
                 "team": t["team"],
-                "personality": t["personality"],
                 "retained": t["retained"],
                 "bought": round(t["avg_bought"]),
                 "spend_cr": round(t["avg_spend"], 1),
@@ -2608,18 +2561,8 @@ class CricDexApp(App):
             self._refresh_ret_map()
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        # Sim tab — when the team Select changes, surface that team's
-        # currently-chosen personality in the personality Select so the
-        # user sees what's set before they edit it.
         sid = getattr(event.select, "id", None)
-        if sid == "sim-team":
-            new_team = event.value
-            try:
-                pers_select = self.query_one("#sim-pers", Select)
-            except Exception:  # noqa: BLE001
-                return
-            pers_select.value = self._team_personalities.get(new_team, "Balanced")
-        elif sid == "sim-ret-team":
+        if sid == "sim-ret-team":
             self._refresh_ret_map()
         elif sid == "sim-squad-team" and not _unselected(event.value):
             self._render_squad(event.value)
@@ -2683,8 +2626,6 @@ class CricDexApp(App):
             "profile-run": self._on_run_profile,
             "sim-run": self._on_run_auction_sim,
             "sim-find-run": self._on_find_sim_player,
-            "sim-apply": self._on_apply_sim_team,
-            "sim-reset": self._on_reset_sim_teams,
             "sim-ret-add": self._on_ret_add,
             "sim-ret-drop": self._on_ret_drop,
             "sim-ret-reset": self._on_ret_reset,

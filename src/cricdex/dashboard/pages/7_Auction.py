@@ -18,7 +18,6 @@ from cricdex.common.display import display_name, player_label
 from cricdex.dashboard._widgets import load_players, provenance_banner
 from cricdex.scout import translation
 from cricdex.web_parity import (
-    ARCHETYPES,
     IPL_TEAMS_DEFAULT,
     build_pool,
     default_retentions,
@@ -34,7 +33,8 @@ st.title("💰 CricDex — Auction room")
 st.caption(
     "Monte-Carlo of a real IPL auction. Each franchise retains its core (Mega = the "
     "real 2025 lists; Mini = keep most of the squad — editable below), then the ten "
-    "teams bid for everyone else by their personality, hundreds of times. Same data + "
+    "teams bid for everyone else by a demand model fitted on real auctions, hundreds of "
+    "times. Same data + "
     "logic + seeded RNG as the web app."
 )
 provenance_banner(source="cricsheet", path=SITE_DATA / "ipl" / "auction_pool.json")
@@ -48,11 +48,10 @@ with st.expander("How the auction math works (plain English)"):
         "The data only knows how **good** a player is (a skill rating) — never what he **costs**. "
         "So step zero is inventing a fair price from skill, then everything builds on that.\n\n"
         "**Part 1 · Skill → crore price**\n"
-        "1. *Amplify skill exponentially* — exponentiate + scale so the spread matches real money "
-        "(top players in the 20s, 27 cr cap; median ~0.9 cr); all-rounders/keepers get a small "
-        "scarcity premium.\n"
-        "2. *Decay for staleness* — value decays with time since the last match, so has-beens drop "
-        "out of the top buys.\n"
+        "1. *Market price* — a model fitted on every IPL auction since 2018 prices each player from "
+        "his value, nationality, caps, age, IPL record and the auction type (section 6b).\n"
+        "2. *Playing time* — the pool is ranked by expected season value: the chance he plays a "
+        "match × his runs above a replacement a match (section 6c).\n"
         "3. *Base price* — the opening tag, snapped to IPL bands (0.3 / 0.5 / 0.75 / 1 / 1.5 / 2 cr); "
         "bidding pushes the final price up from there.\n\n"
         "**Part 2 · Who's in the pool** — the whole active T20 world: IPL players (retainable) + "
@@ -61,11 +60,14 @@ with st.expander("How the auction math works (plain English)"):
         "per league and role, by a fit on players seen in both, then blended with his IPL record "
         f"by how certain each is ({_POOL['translation']}).\n\n"
         "**Part 3 · Retentions + auction** — each franchise retains its core (Mega/Mini), then the "
-        "ten teams bid for everyone else by personality (value × aggression × need × overseas-bias "
-        "× luck), hundreds of times. Same seeded RNG as the web app."
+        "lots (as many as real shortlists held for the open places; capped first) go up one by one. "
+        "Each team with a place and the purse decides whether to bid and how high from a demand model "
+        "fitted on who really bought whom, and for how much, at the 2019–2026 auctions: his market and "
+        "base price, the money per open place, its places short in his role and overseas, its purse "
+        "per place, how much he'd improve its squad, how far the auction has gone, plus the lot's heat "
+        "and each team's own view. The highest bid wins one ladder step above the second-highest. "
+        "Hundreds of runs, same seeded RNG as the web app."
     )
-
-ARCH_IDS = [a["id"] for a in ARCHETYPES]
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -137,14 +139,7 @@ squad_size = c2.number_input("Squad cap", 20, 25, value=25, key="squad")
 overseas_cap = c3.number_input("Overseas cap", 0, 11, value=8, key="overseas")
 trials = c4.number_input("Trials", 50, 1000, value=300, step=50, key="trials")
 
-with st.expander("Franchise personalities"):
-    cols = st.columns(5)
-    teams = []
-    for i, t in enumerate(IPL_TEAMS_DEFAULT):
-        p = cols[i % 5].selectbox(
-            t["team"], ARCH_IDS, index=ARCH_IDS.index(t["personality"]), key=f"pers_{t['team']}"
-        )
-        teams.append({"team": t["team"], "personality": p})
+teams = [{"team": t["team"]} for t in IPL_TEAMS_DEFAULT]
 
 # default retentions for the mode, plus any prospects drafted from Scout
 base_ret = default_retentions(pool, teams, mode, mega_ids)
@@ -184,7 +179,7 @@ with st.expander("Retentions (editable per team)", expanded=True):
 
 # The result lives in session_state so the lookups below ("Find a player",
 # "Team") don't wipe it on rerun. It is dropped as soon as any setting that
-# shaped it changes (mode / purse / caps / trials / personalities /
+# shaped it changes (mode / purse / caps / trials /
 # retentions) — the same reset rule as the web Auction room.
 _settings = (
     mode,
@@ -192,7 +187,6 @@ _settings = (
     int(squad_size),
     int(overseas_cap),
     int(trials),
-    tuple(t["personality"] for t in teams),
     tuple((team, tuple(ids)) for team, ids in retentions.items()),
 )
 _saved = st.session_state.get("auction_result")
@@ -233,7 +227,6 @@ teams_df = pd.DataFrame(
     [
         {
             "Team": t["team"],
-            "Personality": t["personality"],
             "Retained": t["retained"],
             "Bought": round(t["avg_bought"]),
             "Auction spend (cr)": round(t["avg_spend"], 1),

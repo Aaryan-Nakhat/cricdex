@@ -24,6 +24,9 @@ export interface PoolPlayer {
   p_play: number | null;
   season_value: number | null;
   captain: string | null; // the IPL sides he captained last season (the "Captain" badge), else null
+  capped?: boolean | null; // the set he comes up in (capped before uncapped; absent = capped)
+  prior_share?: number | null; // his last IPL price as a share of that season's purse (reference price)
+  p_play_free?: number | null; // P(plays a match) as a free agent
   base_price: number; // estimated tier (cr)
   vpc: number; // value per credit
 }
@@ -369,6 +372,9 @@ export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
       p_play: r.p_play ?? null,
       season_value: r.season_value ?? null,
       captain: r.captain_teams && r.captain_teams.length ? r.captain_teams.join(" / ") : null,
+      capped: r.capped ?? null,
+      prior_share: r.prior_share ?? null,
+      p_play_free: r.p_play_free ?? null,
       base_price: base,
       vpc: pv / base,
     };
@@ -377,42 +383,13 @@ export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
   return out;
 }
 
-// ---- franchise personalities ----------------------------------------------
+// ---- the franchises -------------------------------------------------------
 
-export interface Archetype {
-  id: string;
-  blurb: string;
-  aggression: number;
-  risk: number;
-  overseasAppetite: number;
-  roleMins: Record<Role, number>;
-}
-
-export const ARCHETYPES: Archetype[] = [
-  { id: "MarqueeChaser", blurb: "Overpays for stars; empties the purse early.", aggression: 1.35, risk: 0.2, overseasAppetite: 0.6, roleMins: { batter: 6, bowler: 4, all_rounder: 4, keeper: 2 } },
-  { id: "ValueHunter", blurb: "Disciplined; hunts bargains, walks away from bidding wars.", aggression: 0.85, risk: 0.3, overseasAppetite: 0.45, roleMins: { batter: 5, bowler: 5, all_rounder: 3, keeper: 2 } },
-  { id: "OverseasHeavy", blurb: "Loads up on overseas talent up to the cap.", aggression: 1.15, risk: 0.18, overseasAppetite: 0.9, roleMins: { batter: 5, bowler: 5, all_rounder: 3, keeper: 2 } },
-  { id: "IndianFocus", blurb: "Builds a local core; sparing on overseas slots.", aggression: 1.05, risk: 0.15, overseasAppetite: 0.2, roleMins: { batter: 7, bowler: 5, all_rounder: 3, keeper: 2 } },
-  { id: "AllRounderStack", blurb: "Hoards all-rounders for balance.", aggression: 1.1, risk: 0.22, overseasAppetite: 0.55, roleMins: { batter: 4, bowler: 4, all_rounder: 6, keeper: 2 } },
-  { id: "Balanced", blurb: "Even spread, steady cap management.", aggression: 1.0, risk: 0.15, overseasAppetite: 0.5, roleMins: { batter: 5, bowler: 5, all_rounder: 3, keeper: 2 } },
-];
-
-export const ARCH_BY_ID: Record<string, Archetype> = Object.fromEntries(
-  ARCHETYPES.map((a) => [a.id, a]),
-);
-
-export const IPL_TEAMS_DEFAULT: { team: string; personality: string }[] = [
-  { team: "CSK", personality: "Balanced" },
-  { team: "MI", personality: "MarqueeChaser" },
-  { team: "RCB", personality: "MarqueeChaser" },
-  { team: "KKR", personality: "AllRounderStack" },
-  { team: "DC", personality: "IndianFocus" },
-  { team: "PBKS", personality: "ValueHunter" },
-  { team: "SRH", personality: "OverseasHeavy" },
-  { team: "GT", personality: "Balanced" },
-  { team: "RR", personality: "ValueHunter" },
-  { team: "LSG", personality: "OverseasHeavy" },
-];
+/** The ten IPL franchises. They all bid by the same fitted demand model (`DEMAND`): what sets them
+ * apart at each lot is their squad by role, overseas places and purse. Mirror of auction.py. */
+export const IPL_TEAMS_DEFAULT: { team: string }[] = [
+  "CSK", "MI", "RCB", "KKR", "DC", "PBKS", "SRH", "GT", "RR", "LSG",
+].map((team) => ({ team }));
 
 function rng(seed: number): () => number {
   let s = seed >>> 0;
@@ -462,6 +439,8 @@ export function defaultRetentions(
 export interface SimOpts {
   purse: number;
   squadSize: number;
+  squadMin?: number; // the squad minimum (18 when absent)
+  demand?: Partial<Demand> | null; // overrides of the fitted demand model (replays)
   overseasCap: number;
   trials: number;
   mode: AuctionMode;
@@ -523,21 +502,20 @@ export function retentionSpend(team: string, retained: PoolPlayer[], opts: SimOp
 
 export interface FranchiseBase {
   team: string;
-  personality: string;
-  retained: PoolPlayer[];
+  retained: PoolPlayer[]; // Bid plan's rivals pass squad members carrying  (their expected contribution)
   retainSpend: number;
   retainOverseas: number;
 }
 
 export interface TeamState {
   team: string;
-  personality: string;
-  retained: PoolPlayer[];
+  retained: PoolPlayer[]; // Bid plan's rivals pass squad members carrying  (their expected contribution)
   bought: PoolPlayer[];
   boughtPrices: number[]; // price paid per bought player, aligned with `bought`
   spent: number; // auction spend only
   overseas: number; // retained + bought
   counts: Record<Role, number>;
+  best: Record<Role, number>; // the best expected contribution a match per role so far
 }
 
 // Per-player landing summary across all trials — powers the "where did X go?"
@@ -558,10 +536,9 @@ export interface SimResult {
   mode: AuctionMode;
   bases: FranchiseBase[]; // retentions (constant across trials)
   poolSize: number; // unretained players in the pool
-  auctioned: number; // how many of them go under the hammer (the most valuable, up to AUCTION_LOTS)
+  auctioned: number; // how many of them go under the hammer (auctionLots)
   teams: {
     team: string;
-    personality: string;
     retained: number;
     avgBought: number;
     avgSpend: number;
@@ -575,12 +552,12 @@ export interface SimResult {
 
 function buildFranchises(
   pool: PoolPlayer[],
-  teamCfg: { team: string; personality: string }[],
+  teamCfg: { team: string }[],
   opts: SimOpts,
 ): { bases: FranchiseBase[]; auctionPool: PoolPlayer[] } {
   const byId = new Map(pool.map((p) => [p.cricsheet_id, p]));
   const retainedIds = new Set<string>();
-  const bases: FranchiseBase[] = teamCfg.map(({ team, personality }) => {
+  const bases: FranchiseBase[] = teamCfg.map(({ team }) => {
     const ids = opts.retentions[team] ?? [];
     const retained = ids.map((id) => byId.get(id)).filter((p): p is PoolPlayer => !!p);
     let retainOverseas = 0;
@@ -591,95 +568,153 @@ function buildFranchises(
     // Mega: retentions draw from the purse by the slab rule. Mini: the squad is already paid for
     // (sunk): retentions are free and the team bids from a small leftover purse.
     const retainSpend = retentionSpend(team, retained, opts).total;
-    return { team, personality, retained, retainSpend, retainOverseas };
+    return { team, retained, retainSpend, retainOverseas };
   });
   const auctionPool = pool.filter((p) => !retainedIds.has(p.cricsheet_id));
   return { bases, auctionPool };
 }
 
-function freshState(b: FranchiseBase): TeamState {
-  const counts: Record<Role, number> = { batter: 0, bowler: 0, all_rounder: 0, keeper: 0 };
-  for (const p of b.retained) counts[p.role]++;
-  return {
-    team: b.team,
-    personality: b.personality,
-    retained: b.retained,
-    bought: [],
-    boughtPrices: [],
-    spent: 0,
-    overseas: b.retainOverseas,
-    counts,
-  };
+// ---- the bidding: a demand model fitted on real auctions ----------------------------------------
+//
+// Mirror of auction.py (docs/METHODOLOGY.md §7, AUCTION_MATH Part 3; scripts/auction_demand_fit.py →
+// config/auction_demand.json). For each team with a place (and an overseas place) and the purse for his
+// base price: it bids at all with P = logistic(P0 + P1 ln market + P2 ln base + I_* × its needs); its bid
+// is e^(mu + u + SIGMA × Gumbel), u ~ N(0, TAU²) the lot's heat shared by every team, with
+// mu = A + C ln market + HINGE max(0, ln(market / 2 cr)) + BASE ln base + ANCHOR ln(last price / market) + MONEY × mean ln(purse per open
+// place) + STAGE × share of open places filled + MEGA + NEED ln(1 + places short in his role) + OS ×
+// (overseas lot) × open overseas / open places + PPS × (its ln purse per place − the mean) + UP × (his
+// expected contribution − its best in his role, ±UP_CLIP); held to its spendable purse; the highest bid
+// wins at the next ladder step above the second (the base price when nobody else reaches it).
+export interface Demand {
+  a: number; c: number; sigma: number; tau: number; p0: number; p1: number; p2: number; base: number;
+  anchor: number; money: number; stage: number; mega: number; need: number; os: number; pps: number;
+  up: number; i_need: number; i_os: number; i_pps: number; i_up: number; val: number; i_val: number; heat_q: number; tau2: number; hinge: number;
 }
-
-// Rival willingness to pay, calibrated to real auctions (scripts/auction_calibrate.py; docs/AUCTION_MATH.md
-// Part 3b): lot value = BID_LEVEL[cycle] × BID_PIVOT × (projected / BID_PIVOT) ^ BID_CURVE × e^(LOT_HYPE_SD × z),
-// z drawn once per lot per run and shared by every team. Neutral (1, 1, 1, 0) = the uncalibrated room.
-// Fitted 2026-10-22 on the 2022 mega and 2023 / 2024 mini auctions (out of time: 2025, 2026); refitted the
-// same day for the censored (Tobit) market price, and again for the top-end rework (no price cap, slab-rule retentions).
-export const BID_LEVEL: Record<AuctionMode, number> = { mega: 0.72, mini: 1.493 };
-export const BID_CURVE = 0.75;
-export const BID_PIVOT = 1.0;
-export const LOT_HYPE_SD = 0.8;
-/** Market tightness on (1) or off (0): bids × (money left with teams that have places ÷ market value of the best
- * unsold players filling them), clamped to TIGHT_MIN … TIGHT_MAX. */
-export const TIGHTNESS = 1;
-/** Reference price: a row's `anchor_price` (his last IPL price, cr) pulls his lot value to
- * value^(1 − ANCHOR) × (level × last price)^ANCHOR. 0 = off. */
-export const ANCHOR = 0.6;
-/** Team taste: each team's view of each lot varies by e^(TASTE_SD × z), z per team per lot. 0 = off. */
-export const TASTE_SD = 0.0;
-export const TIGHT_MIN = 0.2;
-export const TIGHT_MAX = 10.0;
-const SQRT3 = 1.7320508075688772;
-export interface Calibration {
-  level_mega: number;
-  level_mini: number;
-  curve: number;
-  sd: number;
-  tight: number;
-  anchor: number;
-  taste: number;
-}
-/** The calibration in force: the shipped constants, overridden by `opts.calib` (mirror of auction.py). */
-export function calibration(opts: { calib?: Partial<Calibration> | null }): Calibration {
-  const c = opts.calib ?? {};
-  return {
-    level_mega: Number(c.level_mega ?? BID_LEVEL.mega),
-    level_mini: Number(c.level_mini ?? BID_LEVEL.mini),
-    curve: Number(c.curve ?? BID_CURVE),
-    sd: Number(c.sd ?? LOT_HYPE_SD),
-    tight: Number(c.tight ?? TIGHTNESS),
-    anchor: Number(c.anchor ?? ANCHOR),
-    taste: Number(c.taste ?? TASTE_SD),
-  };
-}
-
-const MIN_BASE = 0.3; // cheapest base price (cr) — reserve this per unfilled slot
-const MIN_SQUAD = 20; // every team fills to at least 20 (max = squadSize, ≤25)
-// No price cap: a team bids at most its purse less MIN_BASE for each place it still has to fill
-// (the IPL's purse rule), and a lot clears at the second-highest bid.
-// Budget pressure: a team with more purse per open slot than the league bids
-// harder (and a stretched one softer) — (ratio ** EXP), clamped.
-const PRESSURE_EXP = 0.5;
-const PRESSURE_MIN = 0.75;
-const PRESSURE_MAX = 1.6;
-// money within this of a base price counts as enough: a purse is a running sum of bids whose last bit
-// (pow / exp) can differ between Python and JS, and a team can be left with exactly a base price. Mirror of auction.py.
+/** Shipped: candidate R4 (D7 + the market price above the top base price), refitted on 2019-2026
+ * (config/auction_demand.json `params`, 6 decimals). */
+export const DEMAND: Demand = {
+  a: 0.508317, c: 0.112129, sigma: 0.464998, tau: 0.551503, p0: -1.796694,
+  p1: 0.264341, p2: 0.193581, base: 0.090694, anchor: 0.015805, money: 0.655568,
+  stage: -0.766261, mega: 0.0, need: 0.179662, os: 1.11955, pps: 1.106038,
+  up: 0.007074, i_need: 0.38828, i_os: -0.174691, i_pps: -0.319634, i_up: 0.043653,
+  val: 0.0, i_val: 0.0, heat_q: 0.0, tau2: 0.0, hinge: 0.221426,
+};
+/** Fitted team effects (ln bid; empty unless the fit chose them). */
+export const TEAM_EFFECTS: Record<string, number> = {};
+/** The squad's usual make-up (median end-of-auction count per role, real squads 2019-2024). */
+export const ROLE_TARGETS: Record<Role, number> = { batter: 6.0, bowler: 11.0, all_rounder: 4.0, keeper: 3.0 };
+export const UP_CLIP = 15.0;
+export const VAL_CLIP = 15.0;
+/** the highest base price (cr): the "hinge" term is the market price above it (ln) */
+export const LN_TOP_BASE = Math.log(2.0);
+const MIN_BASE = 0.3; // cheapest base price (cr) since 2025: reserved per place still needed for the squad minimum
+// money within this of a base price counts as enough (a purse is a running sum of bids whose last bit
+// can differ between Python and JS). Mirror of auction.py.
 const PURSE_EPS = 1e-9;
 
-/** One mock auction. `onSale(player, team index, winning max bid, price)` is called for each sale
- * when given (Bid plan reads the winning bid: the price a rival would have paid); a sale in the
- * final base-price pass reports his base price as the bid. Mirror of auction.py `one_trial`. */
+/** The demand model in force: the shipped constants, overridden by `opts.demand`. */
+export function demand(opts: { demand?: Partial<Demand> | null }): Demand {
+  const d: Demand = { ...DEMAND };
+  for (const [k, v] of Object.entries(opts.demand ?? {})) {
+    if (k in d && v !== undefined && v !== null) (d as unknown as Record<string, number>)[k] = Number(v);
+  }
+  return d;
+}
+
+/** The IPL bid increment at a price of x cr: 5 lakh below 1 cr, 10 lakh to 2 cr, 20 lakh to 5 cr, 25 lakh
+ * above. Mirror of auction.py `ladder_step`. */
+export function ladderStep(x: number): number {
+  if (x < 1.0) return 0.05;
+  if (x < 2.0) return 0.1;
+  if (x < 5.0) return 0.2;
+  return 0.25;
+}
+/** The next ladder price above a bid of x cr. */
+export function ladderNext(x: number): number {
+  const s = ladderStep(x);
+  return Math.round((Math.floor(x / s + 1e-9) + 1) * s * 100) / 100;
+}
+
+const fnum = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
+
+/** A squad member's expected contribution a match: `v`, else P(plays) × contribution (0 unrated). */
+export function memberValue(p: object): number {
+  const r = p as Record<string, unknown>;
+  const v = fnum(r.v);
+  if (v !== null) return v;
+  const c = fnum(r.contrib);
+  if (c === null) return 0;
+  const pp = fnum(r.p_play);
+  return c * (pp === null ? 1 : pp);
+}
+/** A lot's expected contribution for the upgrade term: P(plays as a free agent) × contribution; null unrated. */
+function lotValue(p: object): number | null {
+  const r = p as Record<string, unknown>;
+  const v = fnum(r.v);
+  if (v !== null) return v;
+  const c = fnum(r.contrib);
+  if (c === null) return null;
+  let pp = fnum(r.p_play_free);
+  if (pp === null) pp = fnum(r.p_play);
+  return c * (pp === null ? 1 : pp);
+}
+
+function freshState(b: FranchiseBase): TeamState {
+  const counts: Record<Role, number> = { batter: 0, bowler: 0, all_rounder: 0, keeper: 0 };
+  const best: Record<Role, number> = { batter: 0, bowler: 0, all_rounder: 0, keeper: 0 };
+  for (const p of b.retained) {
+    counts[p.role]++;
+    best[p.role] = Math.max(best[p.role], memberValue(p));
+  }
+  return { team: b.team, retained: b.retained, bought: [], boughtPrices: [], spent: 0, overseas: b.retainOverseas, counts, best };
+}
+
+/** The order the lots come up in: capped (a row without `capped` counts as capped), then uncapped,
+ * each by market price. Mirror of auction.py `lot_sequence`. */
+export function lotSequence(lots: PoolPlayer[]): PoolPlayer[] {
+  const cmp = (a: PoolPlayer, b: PoolPlayer) =>
+    a.projected_value !== b.projected_value ? (a.projected_value > b.projected_value ? -1 : 1) : a.cricsheet_id < b.cricsheet_id ? -1 : a.cricsheet_id > b.cricsheet_id ? 1 : 0;
+  const capped = lots.filter((p) => p.capped !== false).sort(cmp);
+  const uncapped = lots.filter((p) => p.capped === false).sort(cmp);
+  return [...capped, ...uncapped];
+}
+
+/** A standard normal draw (Marsaglia's polar method on the seeded uniforms). */
+function normal(rand: () => number): number {
+  for (;;) {
+    const u = 2.0 * rand() - 1.0;
+    const v = 2.0 * rand() - 1.0;
+    const s = u * u + v * v;
+    if (s > 0.0 && s < 1.0) return u * Math.sqrt((-2.0 * Math.log(s)) / s);
+  }
+}
+
+export type TrialOpts = Pick<SimOpts, "purse" | "squadSize" | "overseasCap"> & {
+  mode?: AuctionMode;
+  squadMin?: number;
+  minBase?: number;
+  demand?: Partial<Demand> | null;
+};
+
+/** One mock auction. `onSale(player, team index, winning bid, price)` is called for each sale when
+ * given (Bid plan reads the winning bid: the price a rival would have paid); a sale in the final
+ * squad-minimum pass reports his base price as the bid. Mirror of auction.py `one_trial`. */
 export function oneTrial(
   bases: FranchiseBase[],
   auctionPool: PoolPlayer[],
-  opts: Pick<SimOpts, "purse" | "squadSize" | "overseasCap"> & { mode?: AuctionMode; calib?: Partial<Calibration> | null },
+  opts: TrialOpts,
   seed: number,
   onSale?: (player: PoolPlayer, team: number, bestBid: number, price: number) => void,
 ): TeamState[] {
   const rand = rng(seed);
   const states = bases.map(freshState);
+  const dm = demand(opts);
+  const sqMax = opts.squadSize;
+  const sqMin = opts.squadMin ?? 18;
+  const osCap = opts.overseasCap;
+  const minBase = opts.minBase ?? MIN_BASE;
+  const mega = (opts.mode ?? "mini") === "mega" ? 1.0 : 0.0;
+  const teamFx = states.map((st) => TEAM_EFFECTS[st.team] ?? 0.0);
   const filledOf = (st: TeamState) => st.retained.length + st.bought.length;
   const remPurseOf = (i: number) => opts.purse - bases[i].retainSpend - states[i].spent;
   const buy = (i: number, player: PoolPlayer, price: number) => {
@@ -688,132 +723,108 @@ export function oneTrial(
     st.boughtPrices.push(price);
     st.spent += price;
     st.counts[player.role]++;
+    const lv = lotValue(player);
+    if (lv !== null) st.best[player.role] = Math.max(st.best[player.role], lv);
     if (player.is_overseas) st.overseas++;
   };
 
-  const order = [...auctionPool]
-    .map((p) => ({ p, k: p.projected_value * (1 + (rand() - 0.5) * 0.1) }))
-    .sort((a, b) => b.k - a.k)
-    .map((x) => x.p);
+  const order = lotSequence(auctionPool);
+  let open0 = 0;
+  for (const st of states) open0 += Math.max(0, sqMax - filledOf(st));
+  open0 = Math.max(open0, 1);
   const sold = new Set<string>();
-  // each lot's value to a bidder this run (calibrated level and curve × the shared demand shock)
-  const cal = calibration(opts);
-  const level = (opts.mode ?? "mini") === "mega" ? cal.level_mega : cal.level_mini;
-  const lotValue = new Map<string, number>();
-  for (const p of order) {
-    const pv = p.projected_value;
-    let v = cal.curve === 1.0 ? level * pv : level * BID_PIVOT * Math.pow(pv / BID_PIVOT, cal.curve);
-    const a = (p as PoolPlayer & { anchor_price?: number | null }).anchor_price;
-    if (cal.anchor > 0 && a) v = Math.pow(v, 1.0 - cal.anchor) * Math.pow(level * Number(a), cal.anchor);
-    if (cal.sd > 0) {
-      const z = (rand() + rand() + rand() + rand() - 2.0) * SQRT3;
-      v = v * Math.exp(cal.sd * z);
+  const heat = new Map<string, number>();
+  let filled = 0;
+
+  const offer = (player: PoolPlayer) => {
+    const pid = player.cricsheet_id;
+    if (!heat.has(pid)) {
+      // the lot's heat: a bidding war (sd TAU2) with probability HEAT_Q, else quiet (sd TAU)
+      const war = rand() < dm.heat_q;
+      heat.set(pid, (war ? dm.tau2 : dm.tau) * normal(rand));
     }
-    lotValue.set(p.cricsheet_id, v);
-  }
-  const tight = cal.tight > 0;
-  const byValue = tight
-    ? [...order].sort((a, b) =>
-        a.projected_value !== b.projected_value ? (a.projected_value > b.projected_value ? -1 : 1) : a.cricsheet_id < b.cricsheet_id ? -1 : a.cricsheet_id > b.cricsheet_id ? 1 : 0,
-      )
-    : [];
-  // money left with the teams that have places ÷ market value of the best unsold players filling them (clamped)
-  const tightness = (): number => {
-    let money = 0;
-    let nOpen = 0;
+    const u = heat.get(pid) as number;
+    const base = player.base_price;
+    const mk = Math.max(player.projected_value, 1e-6);
+    let anchor = fnum((player as PoolPlayer & { anchor_price?: number | null }).anchor_price);
+    if (!anchor && player.prior_share) anchor = player.prior_share * opts.purse;
+    const lv = lotValue(player);
+    const role = player.role;
+    const osLot = !!player.is_overseas;
+    const elig: number[] = [];
+    const spend: number[] = [];
+    const lpps: number[] = [];
     for (let i = 0; i < states.length; i++) {
-      const slots = opts.squadSize - filledOf(states[i]);
-      if (slots > 0) {
-        nOpen += slots;
-        money += Math.max(0, remPurseOf(i));
+      const st = states[i];
+      const open = sqMax - filledOf(st);
+      if (open <= 0) continue;
+      if (osLot && st.overseas >= osCap) continue;
+      const left = remPurseOf(i);
+      const sp = left - Math.max(0, sqMin - filledOf(st) - 1) * minBase;
+      if (sp < base - PURSE_EPS) continue;
+      elig.push(i);
+      spend.push(sp);
+      lpps.push(Math.log(Math.max(left, minBase) / open));
+    }
+    if (!elig.length) return;
+    let money = 0;
+    for (const x of lpps) money += x;
+    money = money / lpps.length;
+    const lmk = Math.log(mk);
+    const lb = Math.log(Math.max(base, 1e-6));
+    let lotMu = dm.a + dm.c * lmk + dm.base * lb;
+    if (anchor) lotMu += dm.anchor * Math.log(anchor / mk);
+    lotMu += dm.money * money + dm.stage * (filled / open0) + dm.mega * mega;
+    const val = lv === null ? 0.0 : Math.max(-VAL_CLIP, Math.min(VAL_CLIP, lv));
+    lotMu += dm.val * val + dm.hinge * Math.max(0.0, lmk - LN_TOP_BASE);
+    const lotI = dm.p0 + dm.p1 * lmk + dm.p2 * lb + dm.i_val * val;
+    let bestI = -1;
+    let bestBid = 0.0;
+    let second = 0.0;
+    for (let k = 0; k < elig.length; k++) {
+      const i = elig[k];
+      const st = states[i];
+      const open = sqMax - filledOf(st);
+      const xNeed = Math.log1p(Math.max(0.0, ROLE_TARGETS[role] - st.counts[role]));
+      const xOs = osLot ? Math.min(osCap - st.overseas, open) / open : 0.0;
+      const xPps = lpps[k] - money;
+      const xUp = lv === null ? 0.0 : Math.max(-UP_CLIP, Math.min(UP_CLIP, lv - st.best[role]));
+      const rIn = rand(); // does it bid at all
+      const rE = rand(); // its own view
+      const z = lotI + dm.i_need * xNeed + dm.i_os * xOs + dm.i_pps * xPps + dm.i_up * xUp;
+      if (rIn >= 1.0 / (1.0 + Math.exp(-z))) continue;
+      const mu = lotMu + dm.need * xNeed + dm.os * xOs + dm.pps * xPps + dm.up * xUp + teamFx[i];
+      const e = -Math.log(-Math.log(rE > 0.0 ? rE : 1e-12));
+      const bid = Math.min(Math.exp(mu + u + dm.sigma * e), spend[k]);
+      if (bid > bestBid) {
+        second = bestBid;
+        bestBid = bid;
+        bestI = i;
+      } else if (bid > second) {
+        second = bid;
       }
     }
-    let value = 0;
-    let k = 0;
-    for (const p of byValue) {
-      if (k >= nOpen) break;
-      if (sold.has(p.cricsheet_id)) continue;
-      value += p.projected_value;
-      k++;
-    }
-    if (value <= 0) return 1;
-    return Math.min(TIGHT_MAX, Math.max(TIGHT_MIN, money / value));
+    if (bestI < 0 || bestBid < base - PURSE_EPS) return;
+    let price = second < base ? base : Math.min(ladderNext(second), bestBid);
+    price = Math.max(base, price);
+    buy(bestI, player, price);
+    sold.add(pid);
+    filled++;
+    if (onSale) onSale(player, bestI, bestBid, price);
   };
 
-  // One bidding round over the pool, with teams capped at `target` squad size.
-  // Run it first to MIN_SQUAD (so every team gets its minimum before anyone
-  // tops up) and again to the full squadSize cap.
-  const perSlotOf = (i: number) => {
-    const slotsLeft = opts.squadSize - filledOf(states[i]);
-    return slotsLeft > 0 ? remPurseOf(i) / slotsLeft : 0;
-  };
-  const bidRound = (target: number) => {
-    for (const player of order) {
-      if (sold.has(player.cricsheet_id)) continue;
-      // league purse-per-open-slot, for budget pressure
-      const openSlots: number[] = [];
-      for (let i = 0; i < states.length; i++) {
-        if (filledOf(states[i]) < opts.squadSize) openSlots.push(perSlotOf(i));
-      }
-      let leaguePerSlot = 0;
-      for (const v of openSlots) leaguePerSlot += v;
-      leaguePerSlot = openSlots.length ? leaguePerSlot / openSlots.length : 0;
-      const market = tight ? tightness() : 1;
-      let bestTeam = -1;
-      let bestBid = 0;
-      let secondBid = player.base_price;
-      for (let i = 0; i < states.length; i++) {
-        const st = states[i];
-        const arc = ARCH_BY_ID[st.personality] ?? ARCH_BY_ID.Balanced;
-        if (filledOf(st) >= target) continue;
-        if (player.is_overseas && st.overseas >= opts.overseasCap) continue;
-        // reserve enough to fill remaining slots (toward the full cap) cheaply
-        const slotsLeft = opts.squadSize - filledOf(st);
-        const spendable = remPurseOf(i) - (slotsLeft - 1) * MIN_BASE;
-        if (spendable < player.base_price - PURSE_EPS) continue;
-        const need = st.counts[player.role] < arc.roleMins[player.role] ? 1.5 : 0.7;
-        const overseasBias = player.is_overseas ? arc.overseasAppetite * 1.4 : 1;
-        let jitter = 1 + (rand() - 0.5) * 2 * arc.risk;
-        if (cal.taste > 0) jitter = jitter * Math.exp(cal.taste * (rand() + rand() + rand() + rand() - 2.0) * SQRT3);
-        let pressure = 1;
-        if (leaguePerSlot > 0) {
-          pressure = Math.min(
-            PRESSURE_MAX,
-            Math.max(PRESSURE_MIN, (perSlotOf(i) / leaguePerSlot) ** PRESSURE_EXP),
-          );
-        }
-        let wtp = (lotValue.get(player.cricsheet_id) as number) * market * arc.aggression * need * overseasBias * jitter * pressure;
-        wtp = Math.min(wtp, spendable);
-        if (wtp < player.base_price - PURSE_EPS) continue;
-        if (wtp > bestBid) {
-          secondBid = bestBid > 0 ? bestBid : player.base_price;
-          bestBid = wtp;
-          bestTeam = i;
-        } else if (wtp > secondBid) {
-          secondBid = wtp;
-        }
-      }
-      if (bestTeam >= 0) {
-        const price = Math.min(bestBid, secondBid * 1.02);
-        buy(bestTeam, player, Math.max(player.base_price, price));
-        sold.add(player.cricsheet_id);
-        if (onSale) onSale(player, bestTeam, bestBid, Math.max(player.base_price, price));
-      }
-    }
-  };
+  for (const player of order) offer(player); // the sets
+  for (const player of order) if (!sold.has(player.cricsheet_id)) offer(player); // the accelerated round
 
-  bidRound(MIN_SQUAD); // everyone reaches the minimum first
-  bidRound(opts.squadSize); // then top up toward the cap
-
-  // Safety: any team still under MIN gets the cheapest leftovers at base price.
+  // The squad minimum is a rule: a team still short buys the cheapest leftovers at base price.
   const leftovers = order.filter((p) => !sold.has(p.cricsheet_id)).sort((a, b) => a.base_price - b.base_price);
   for (const player of leftovers) {
     let pick = -1;
     let fewest = Infinity;
     for (let i = 0; i < states.length; i++) {
-      if (filledOf(states[i]) >= MIN_SQUAD) continue;
-      if (player.is_overseas && states[i].overseas >= opts.overseasCap) continue;
-      if (remPurseOf(i) < player.base_price) continue;
+      if (filledOf(states[i]) >= sqMin) continue;
+      if (player.is_overseas && states[i].overseas >= osCap) continue;
+      if (remPurseOf(i) < player.base_price - PURSE_EPS) continue;
       if (filledOf(states[i]) < fewest) {
         fewest = filledOf(states[i]);
         pick = i;
@@ -828,21 +839,20 @@ export function oneTrial(
   return states;
 }
 
-/** Lots per auction: the most valuable unretained players (a real auction lists far more, most go unsold). */
-export const AUCTION_LOTS = 200;
-// At most this share of the lots is overseas, as on a real shortlist (2024: 119 overseas of 333,
-// Wikipedia's 2024 personnel page). The market price values overseas players higher, so without it
-// the top 200 would be two-thirds overseas and the eight-per-squad cap would leave squads unfilled.
-export const AUCTION_OVERSEAS_SHARE = 0.36;
+/** Lots per open squad place on the real shortlists 2018-2024 (mini: median of 4.56, 4.63, 4.66, 4.32;
+ * mega: mean of 3.18, 2.76) and their overseas share (median 0.357). Mirror of auction.py. */
+export const LOTS_PER_PLACE: Record<AuctionMode, number> = { mega: 3.0, mini: 4.6 };
+export const OVERSEAS_SHARE = 0.357;
 
-/** The lots: the most valuable unretained players (pool order), at most AUCTION_LOTS of them and at
- * most AUCTION_OVERSEAS_SHARE of those overseas. Mirror of auction.py `auction_lots`. */
-export function auctionLots(auctionPool: PoolPlayer[]): PoolPlayer[] {
-  const maxOs = Math.round(AUCTION_LOTS * AUCTION_OVERSEAS_SHARE);
+/** The lots: the most valuable unretained players (pool order), LOTS_PER_PLACE[mode] × the open squad
+ * places of them, at most OVERSEAS_SHARE of those overseas. Mirror of auction.py `auction_lots`. */
+export function auctionLots(auctionPool: PoolPlayer[], openPlaces: number, mode: AuctionMode = "mini"): PoolPlayer[] {
+  const n = Math.max(1, Math.round((LOTS_PER_PLACE[mode] ?? LOTS_PER_PLACE.mini) * Math.max(openPlaces, 0)));
+  const maxOs = Math.round(n * OVERSEAS_SHARE);
   const out: PoolPlayer[] = [];
   let nOs = 0;
   for (const p of auctionPool) {
-    if (out.length >= AUCTION_LOTS) break;
+    if (out.length >= n) break;
     if (p.is_overseas) {
       if (nOs >= maxOs) continue;
       nOs++;
@@ -852,16 +862,18 @@ export function auctionLots(auctionPool: PoolPlayer[]): PoolPlayer[] {
   return out;
 }
 
-export function simulateAuction(
-  pool: PoolPlayer[],
-  teamCfg: { team: string; personality: string }[],
-  opts: SimOpts,
-): SimResult {
+/** The auction's open squad places: squad maximum less the retained, summed over the teams. */
+export function openSquadPlaces(bases: { retained: unknown[] }[], squadSize: number): number {
+  let t = 0;
+  for (const b of bases) t += Math.max(0, squadSize - b.retained.length);
+  return t;
+}
+
+export function simulateAuction(pool: PoolPlayer[], teamCfg: { team: string }[], opts: SimOpts): SimResult {
   const { bases, auctionPool } = buildFranchises(pool, teamCfg, opts);
-  const usePool = auctionLots(auctionPool);
+  const usePool = auctionLots(auctionPool, openSquadPlaces(bases, opts.squadSize), opts.mode);
   const agg = bases.map((b) => ({
     team: b.team,
-    personality: b.personality,
     retained: b.retained.length,
     retVal: b.retained.reduce((s, p) => s + p.projected_value, 0),
     bought: 0,
@@ -906,9 +918,9 @@ export function simulateAuction(
   // outcomes = retained (in team order) then every auctioned player (pool order)
   const outcomes: PlayerOutcome[] = [];
   bases.forEach((b) => {
-    const costs = retentionSpend(b.team, b.retained, opts).each;
-    b.retained.forEach((p, i) => {
-      const cost = costs[i];
+    const ret = b.retained;
+    const costs = retentionSpend(b.team, ret, opts).each;
+    ret.forEach((p, i) => {
       outcomes.push({
         cricsheet_id: p.cricsheet_id,
         name: p.name,
@@ -917,7 +929,7 @@ export function simulateAuction(
         status: "retained",
         team: b.team,
         soldPct: 0,
-        avgPrice: cost,
+        avgPrice: costs[i],
         winners: [],
       });
     });
@@ -944,7 +956,6 @@ export function simulateAuction(
     auctioned: usePool.length,
     teams: agg.map((a) => ({
       team: a.team,
-      personality: a.personality,
       retained: a.retained,
       avgBought: a.bought / n,
       avgSpend: a.spend / n,

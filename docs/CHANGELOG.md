@@ -8,6 +8,60 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Auction room: bidding fitted on real auctions; Bid plan without hand-set strength constants (2026-10-23)
+
+- **A demand model replaces the personalities** (audit item 7; `scripts/auction_demand_fit.py` →
+  `config/auction_demand.json`, `web_parity/auction.py` ⇄ `site/src/lib/auction.ts`, METHODOLOGY §7, AUCTION_MATH
+  Part 3). For each lot, each team with room and purse decides whether to bid (logistic) and how high (ln bid =
+  mu + the lot's heat + a Gumbel own view), from his market, base and last price, the money per open place
+  across the market, the auction's stage, and its own places short in his role, open overseas places, purse per
+  open place and the upgrade he'd be. Fitted by exact likelihood on every sold lot of 2019–2026 (who bought him,
+  at what price), each team's squad, overseas count, purse and best player per role rebuilt lot by lot from the
+  history's set order (inside a set the page's order; no unsold lots, so the fit conditions on a sale). Gone:
+  the six archetypes and their per-team defaults, need 1.5 / 0.7, the budget pressure clamped to 0.75–1.6, the
+  1.02 clearing step, MIN_SQUAD 20, the calibrated level / curve / anchor / shock / tightness
+  (`auction_calibrate.py` now checks the fitted room instead of tuning it).
+- **Frozen protocol, round 1**: nine candidates (market price only; + needs; + purse per place; + upgrade; + stage; + a
+  mega level; + team effects; + needs in whether a team bids; + his own contribution, declared after the 2022–23
+  validation replays and before the test), chosen by leave-one-auction-out log-likelihood on 2019–2024 (D7,
+  −4.402 against −4.488 for market price only), tested once on 2025 / 2026 (−5.136 / −4.464 against −5.405 /
+  −4.666; best of the nine), refitted on 2019–2026. Team effects lost out of time. Lots' market prices: from
+  the other 2018–2024 auctions for 2019–2024 (the walk-forward recipes of 2019–2021 learned from three auctions),
+  walk-forward for the test.
+- **Round 2, after the owner's review** (Pant's typical simulated price 9.0 cr against a real 27 and a market
+  price of 21.5): the causes tested on 2019–2024 only, with a reality criterion declared first (a second look at
+  2025–26, disclosed). The likelihood already uses the order statistics and fits both spreads; a heavy-tailed heat
+  collapsed to one component; a bid in proportion to the market price (R1), or without the base price in the
+  level (R2), loses out of time. A calibrated room's own top 10 lie inside its 10–90% range 70% of the time at
+  2.3× its median: the real top 10 of 2019–2024 managed 43% at 4.3×, a shortfall in the mini auctions (the
+  market price missed their stars: 2–8× it) and none in the 2022 mega. Shipped: **R4, D7 + a slope of its own for
+  the market price above 2 cr** (LOAO −4.399, best; test −5.137 / −4.453), 7 of the 2025 real top 10 inside their
+  range (D7 6), calibration level.
+- **Out of time, all ten teams bidding** (R4; against the room before on the same inputs): real price inside the
+  simulated 10–90% 67% / 70% of 2025 / 2026 sold lots (64% / 56%), contested lots 69% / 85% (62% / 50%), the
+  real buyer the most frequent simulated one 16% / 19% (9% / 16%), the 10 dearest simulated lots 1.06× / 0.81×
+  their real price (1.15× / 0.78×); lot error 0.65 / 0.60 (0.62 / 0.64). The typical price of a star is still
+  low (Pant 10.6, range 3.2–32.3, real 27; Shreyas Iyer 11.5, real 26.75; the room before: 20.6 / 14.7).
+- **Lots and rules from the real lists**: lots per open place 4.6 (mini) / 3.0 (mega) and 35.7% overseas from
+  the 2018–2024 shortlists; capped sets before uncapped, an accelerated round for the unsold; the IPL bid ladder
+  (5 / 10 / 20 / 25 lakh; Business Today 2024-11-23, checked on the real prices); the purse rule and squad
+  minimum 18. `auction_lots(pool, open_places, mode)`, `lot_sequence`, `ladder_next`.
+- **Bid plan** (audit item 8; `web_parity/bidplan.py` ⇄ `bidplan.ts`, METHODOLOGY §12): DEPTH 0.25 on the next
+  four and NEED 0.63 a place are gone. The bench now fills the XI's missed matches (Σ over the XI of 1 −
+  P(plays), best contribution a match first, one appearance a match each), so the depth weight is the fitted
+  P(plays); role needs are reported, not scored. Rivals bid by the fitted model; the price to beat is the next
+  ladder step above the best rival's bid (was × 1.02).
+- **Bid plan replayed** (`bidplan_backtest.py --inputs`, now also over 2019–2024 for the reliability of P(≤ max
+  bid)): at the real team's spend, next-season output, ahead of the real squad for **6 of 10 teams in 2025 (+2.5
+  runs a match) and 3 of 10 in 2026 (−0.2)** with the R4 rivals (D7 rivals: 6 and 4), from 8 and 0: about level,
+  so **beta stays**. P(≤ max bid) is no longer over-confident: top band 0.92 → 0.89 came true (2025), 0.91 → 1.00
+  (2026); 0.35 / 0.35 on the lots a 2025 team bought itself; it errs low in the validation (0.40 / 0.56); no
+  recalibration map (decided after seeing the test tables; disclosed).
+- **Surfaces**: the Auction page, TUI and Streamlit lose the personality pickers; `cricdex.auction.real_pool` is
+  the franchise list only; the Auction and Bid plan pages, README, About, AUCTION_MATH, METHODOLOGY §7 / §12,
+  STUDY_GUIDE and ROADMAP (I2, #12, #26) rewritten. `tests/test_auction_demand.py` locks the constants to the fit
+  (Python and TS); the parity tests run the new simulator with every demand path on.
+
 ### League translation: fitted per league and role, no 300-ball switch (2026-10-23)
 
 - **Fitted, not hand-set** (audit item 5; `scripts/league_translation_fit.py`, `src/cricdex/scout/translation.py`,

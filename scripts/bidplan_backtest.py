@@ -13,7 +13,7 @@ For each auction and each franchise, using only what was known before that aucti
 * **The pool** is every player sold at that auction with a Cricsheet id (the pages list no
   unsold players, so this is the one set known to have been available), at his real base price.
 * **Squads and purses** are the real retentions (data/curated/ipl_auction_history.json): the purse
-  less what each retained player cost. Rivals bid with the Auction room's personalities.
+  less what each retained player cost. Rivals bid by the Auction room's fitted demand model.
 
 Then Bid plan builds the team's plan (200 rival runs) twice: with its real purse left, and with a
 purse equal to what the team actually spent ("same spend"). Scored against what really happened:
@@ -25,9 +25,14 @@ purse equal to what the team actually spent ("same spend"). Scored against what 
     against our max bid; and over every target, whether he sold at or under our max bid against the
     plan's P(we land him at ≤ max bid) (a calibration check of the rival model).
 
-Resumable: each team's result is cached under --work; rerun to continue. About 10 minutes.
+The 2019-2024 auctions are replayed the same way (full purse only; each lot priced from the other
+2018-2024 auctions) to check the reliability of P(≤ max bid) before the test; rivals bid by the
+demand model fitted on 2019-2024 (`params_le2024` in config/auction_demand.json). The season inputs
+come from `scripts/auction_demand_fit.py inputs` / `mk` (--inputs).
 
-    uv run python scripts/bidplan_backtest.py --work <dir> [--trials 200] [--out report.json]
+Resumable: each team's result is cached under --work; rerun to continue. About 20 minutes.
+
+    uv run python scripts/bidplan_backtest.py --work <dir> --inputs <demand-fit dir> [--trials 200] [--out report.json]
 """
 
 from __future__ import annotations
@@ -47,9 +52,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import ipl_price_model as ipm  # noqa: E402
 
-from cricdex.scout.identity import master  # noqa: E402
 from cricdex.web_parity import bidplan as bp  # noqa: E402
-from cricdex.web_parity.auction import IPL_TEAMS_DEFAULT  # noqa: E402
 from cricdex.web_parity.pricing import load_price_model, market_price  # noqa: E402
 
 app = typer.Typer(add_completion=False)
@@ -60,15 +63,17 @@ TOP = 10
 
 def _fit_price_model(price_rows: list[dict], ret_rows: list[dict], season: int) -> dict:
     """The shipped price recipe (its features, regression and retention treatment), trained on
-    auctions 2018 … season − 1 only."""
+    auctions 2018 … season − 1 only (for the 2019 and 2020 replays, which have fewer than two
+    auctions since 2018 to choose the ridge on: the three auctions before)."""
     spec = ipm.shipped_spec()
     shipped = load_price_model() or {}
+    first = min(2018, season - 3)
     return {
         "floor_cr": 0.3,
         "competition": {"cycle": "mini", "purse": 125.0},
-        "price": ipm.fit_price_part(price_rows, ret_rows, spec, 2018, season),
+        "price": ipm.fit_price_part(price_rows, ret_rows, spec, first, season),
         "bought": shipped.get("bought"),
-        "trained_on": [2018, season - 1],
+        "trained_on": [first, season - 1],
     }
 
 
@@ -264,6 +269,7 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
                 "projected_value": mk["price"],
                 "p_bought": mk["p_bought"],
                 "base_price": float(lot.get("base_price_cr") or 0.3),
+                "capped": bool(f.get("intl_caps")),
                 "tags": tags(cid, role, ov),
                 "from_team": None,
                 "anchor_price": (f["prev_share"] * purse) if f.get("prev_share") else None,
@@ -297,6 +303,7 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
                 "projected_value": mk["price"],
                 "p_bought": mk["p_bought"],
                 "base_price": price_tier(mk["price"]),
+                "capped": bool(f.get("intl_caps")),
                 "tags": tags(cid, role, ov),
                 "from_team": None,
                 "anchor_price": (f["prev_share"] * purse) if f.get("prev_share") else None,
@@ -328,12 +335,11 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
             "next": _next_season_values(season)}  # fmt: skip
 
 
-def _team_result(si: dict, team: str, trials: int, tags) -> dict:
+def _team_result(si: dict, team: str, trials: int, tags, demand: dict | None = None,
+                 same: bool = True) -> dict:  # fmt: skip
     purse = si["purse"]
-    pers = {c["team"]: c["personality"] for c in IPL_TEAMS_DEFAULT}
     rivals = [
-        {"team": t, "personality": pers.get(t, "Balanced"), "kept": v["kept"],
-         "purse_left": purse - v["cost"]}
+        {"team": t, "kept": v["kept"], "purse_left": purse - v["cost"]}
         for t, v in sorted(si["teams"].items()) if t != team
     ]  # fmt: skip
     me = si["teams"][team]
@@ -351,6 +357,11 @@ def _team_result(si: dict, team: str, trials: int, tags) -> dict:
         "rivals": rivals,
         "available": avail,
         "register": True,
+        # the replay's lots are that auction's (sold + unsold alternatives), at its lowest base price,
+        # rivals bidding by the demand model fitted on 2019-2024 (scripts/auction_demand_fit.py)
+        "all_lots": True,
+        "demand": demand,
+        "min_base": min(min(float(x.get("base_price_cr") or 99) for x in si["lots"]), 0.3),
     }
     prices = bp.rival_prices(ctx, trials)
     real = [math.inf if r["_price"] is None else r["_price"] for r in si["avail"]]
@@ -378,10 +389,10 @@ def _team_result(si: dict, team: str, trials: int, tags) -> dict:
          "market": r["projected_value"]}
         for i, r in enumerate(si["avail"]) if r["_sold_to"] == team and r["_price"]
     ]  # fmt: skip
-    for label, left in (
-        ("full", ctx["purse_left"]),
-        ("same", min(ctx["purse_left"], actual_spend)),
-    ):
+    runs = [("full", ctx["purse_left"])]
+    if same:
+        runs.append(("same", min(ctx["purse_left"], actual_spend)))
+    for label, left in runs:
         c = {**ctx, "purse_left": left}
         res = bp.plan(c, prices=prices)
         fol = bp.follow_plan(c, res, real)
@@ -619,46 +630,94 @@ def _md(summ: dict) -> str:
     return "\n".join(lines)
 
 
+VALIDATION = (2019, 2020, 2021, 2022, 2023, 2024)  # the reliability of P(≤ max bid) is checked here
+BANDS = ((0.0, 0.2), (0.2, 0.4), (0.4, 0.6), (0.6, 0.8), (0.8, 1.01))
+
+
+def reliability(results: dict, seasons) -> list[dict]:
+    """P(≤ max bid) against what happened, over every target that sold (the full-purse plan of each
+    team): predicted mean and the share whose real price was at or under the max bid, by band. The
+    real price is the second-best bid of all ten teams, never above the best rival's, so the share
+    is an upper bound on the true chance (it can only flatter the plan)."""
+    pts = []
+    for s in seasons:
+        for r in results.get(str(s), {}).values():
+            for x in r["full"]["targets"]:
+                if x["price"] is not None:
+                    pts.append((x["p_le_max"], 1.0 if x["price"] <= x["max_bid"] + 1e-9 else 0.0))
+    out = []
+    for lo, hi in BANDS:
+        sel = [(q, y) for q, y in pts if lo <= q < hi]
+        if sel:
+            out.append({"band": f"{lo:.1f}-{min(hi, 1):.1f}", "n": len(sel),
+                        "predicted": statistics.fmean(q for q, _ in sel),
+                        "actual": statistics.fmean(y for _, y in sel)})  # fmt: skip
+    if pts:
+        out.append({"band": "all", "n": len(pts), "predicted": statistics.fmean(q for q, _ in pts),
+                    "actual": statistics.fmean(y for _, y in pts),
+                    "brier": statistics.fmean((q - y) ** 2 for q, y in pts)})  # fmt: skip
+    return out
+
+
 @app.command()
 def main(
     work: Path = typer.Option(..., "--work", help="Folder for the cached per-team results."),
+    inputs: Path = typer.Option(
+        ..., "--inputs", help="scripts/auction_demand_fit.py's --work (season inputs)."
+    ),
     trials: int = typer.Option(bp.TRIALS, "--trials"),
+    seasons: str = typer.Option("2019,2020,2021,2022,2023,2024,2025,2026", "--seasons"),
     out: Path | None = typer.Option(None, "--out", help="Write the full report JSON here."),
 ) -> None:
+    """Replays from the demand fit's cached season inputs (each lot priced from the other 2018-2024
+    auctions for 2019-2024, walk-forward for 2025 / 2026), rivals bidding by the demand model fitted on
+    2019-2024. The validation seasons (≤ 2024) run the full-purse plan only (for the reliability of
+    P(≤ max bid)); the test seasons run both plans and are scored once."""
+    import auction_demand_fit as adf
+
     work.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
-    ipm.AUCTIONS_DATES.update(ipm.auction_dates())
-    print("building the auction-time features …", flush=True)
-    price_rows, risk_rows, hist, ret_rows = ipm.build_rows()
-    pm = master.load()
-    apps = ipm.ipl_appearances()
-    tags = _tags_fn()
-    print(f"  features in {time.time() - t0:.0f}s", flush=True)
+    cfg = json.loads(adf.OUT.read_text(encoding="utf-8"))
+    demand = {k: v for k, v in cfg["params_le2024"].items() if not isinstance(v, dict)}
     results: dict = {}
-    for season in SEASONS:
-        si = _season_inputs(season, (price_rows, ret_rows, risk_rows), hist, pm, apps, tags)
+    for season in [int(x) for x in seasons.split(",") if x]:
+        adf.MK_SOURCE["mode"] = "mk24" if season in adf.SELECT else "walk"
+        si = adf.load_season(inputs, season)
+        adf.MK_SOURCE["mode"] = "walk"
         print(f"{season}: {sum(1 for r in si['avail'] if r['_price'])} sold lots + "
-              f"{sum(1 for r in si['avail'] if not r['_price'])} unsold, {len(si['teams'])} teams; price model "
-              f"trained on {si['model']['trained_on']}", flush=True)  # fmt: skip
+              f"{sum(1 for r in si['avail'] if not r['_price'])} unsold, {len(si['teams'])} teams", flush=True)  # fmt: skip
         results[str(season)] = {}
+        same = season not in VALIDATION
         for team in sorted(si["teams"]):
             f = work / f"{season}_{team}_{trials}.json"
             if f.exists():
                 results[str(season)][team] = json.loads(f.read_text(encoding="utf-8"))
                 continue
             t = time.time()
-            r = _team_result(si, team, trials, tags)
+            r = _team_result(si, team, trials, None, demand, same=same)
             f.write_text(json.dumps(r, indent=1), encoding="utf-8")
             results[str(season)][team] = r
             print(f"  {season} {team}: {time.time() - t:.0f}s", flush=True)
-    summ = _summarise(results)
-    report = {"trials": trials, "results": results, "summary": summ}
+    test = {k: v for k, v in results.items() if int(k) not in VALIDATION}
+    summ = _summarise(test)
+    rel = {
+        "validation_2019_2024": reliability(results, VALIDATION),
+        **{f"test_{s}": reliability(results, (s,)) for s in (2025, 2026)},
+    }
+    report = {"trials": trials, "demand": demand, "results": results, "summary": summ,
+              "reliability": rel}  # fmt: skip
     if out:
         out.write_text(json.dumps(report, indent=1, default=float), encoding="utf-8")
     print(_md(summ))
+    for k, rows in rel.items():
+        print(
+            f"\nreliability {k}: "
+            + "; ".join(
+                f"{x['band']}: predicted {x['predicted']:.2f}, actual {x['actual']:.2f} (n={x['n']})"
+                for x in rows
+            )
+        )
     print(f"done in {time.time() - t0:.0f}s")
-    if any(math.isnan(x) for s in summ.values() for x in (s["mean_gap_total"],)):
-        raise SystemExit(1)
 
 
 if __name__ == "__main__":

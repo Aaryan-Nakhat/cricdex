@@ -10,8 +10,8 @@ import {
   retentionInputs,
   retentionSpend,
   type SimOpts,
-  ARCHETYPES,
   IPL_TEAMS_DEFAULT,
+  LOTS_PER_PLACE,
   type PoolPlayer,
   type SimResult,
   type AuctionMode,
@@ -142,36 +142,35 @@ function AuctionMath() {
             toward the overseas cap. Everyone else goes under the hammer.
           </p>
           <p className="text-sm leading-relaxed text-muted">
-            Then players go up one at a time, stars first. Each team sets a <b>max bid</b>:
+            The lots: as many as real shortlists held for the open places ({LOTS_PER_PLACE.mini}× them in a mini
+            auction, {LOTS_PER_PLACE.mega}× in a mega, about a third overseas), capped players first, then the
+            uncapped, dearest first. For each lot, every team with a place, an overseas place if he's overseas,
+            and the purse for his base price decides <b>whether it bids at all</b> and <b>how high</b>, both
+            from a demand model fitted on who really bought whom, and for how much, at the 2019–2026 auctions:
           </p>
-          <Code>{`max bid = value × aggression × need × overseas-bias × luck`}</Code>
+          <Code>{`bids at all?  more likely for a better-priced player (and by its needs)
+its max bid  = e^(level + its needs + the lot's heat + its own view)
+  level     : his market price and base price, the last price he went for, the money per
+              open place across the bidding teams, how far the auction has gone
+  its needs : places short in his role, open overseas places, its purse per place against
+              the others', how much he'd improve its best player in his role
+  heat      : how hot he is on the day (shared by every team); own view: each team's taste`}</Code>
           <ul className="mt-2 space-y-1 text-sm text-muted">
-            <li>• <b className="text-fg">aggression</b> — team style (MarqueeChaser 1.35 splurges, ValueHunter 0.85 holds back)</li>
-            <li>• <b className="text-fg">need</b> — 1.5 if it still needs that role, else 0.7</li>
-            <li>• <b className="text-fg">overseas-bias</b> — higher for imports if the team loves them; 1 for Indians</li>
-            <li>• <b className="text-fg">luck</b> — small random nudge sized by the team's risk; makes runs differ</li>
-            <li>• capped at the team's remaining money / squad / overseas slots</li>
+            <li>• a team bids at most its purse less the minimum base price for each place it still needs to reach 18 (the IPL purse rule)</li>
+            <li>• the highest bid wins and pays one <b>ladder step above the second-highest</b> (5 lakh below 1 cr, 10 lakh to 2 cr, 20 lakh to 5 cr, 25 lakh above), or the base price when nobody else bids</li>
+            <li>• unsold lots come back once in an accelerated round; a team still short of 18 buys the cheapest leftovers at base</li>
           </ul>
           <p className="mt-3 text-sm leading-relaxed text-muted">
-            Highest max bid wins — but pays just <b>above the second-highest bid</b> (like a real
-            auction, you stop when everyone else drops).
-          </p>
-          <Code>{`Bidding for Player X (worth 10):
-  MI  (MarqueeChaser, needs a batter): 10 × 1.35 × 1.5 × 1 = 20.3
-  CSK (Balanced, batters full):        10 × 1.00 × 0.7 × 1 =  7.0
-  → MI wins, pays ≈ 7.1 cr (just over CSK), not its full 20.3`}</Code>
-          <p className="mt-3 text-sm leading-relaxed text-muted">
-            Two passes so the pool is shared fairly: every team first fills to a <b>20-man minimum</b>,
-            then tops up toward the <b>25 cap</b>. That's one mock auction. Run it ~300 times (reshuffled
-            slightly) and average → each team's typical spend &amp; squad, and each star's win-share
-            ("Bumrah → MI 62%, CSK 21%" = your odds in a bidding war).
+            That's one mock auction. Run it ~300 times and average → each team's typical spend &amp; squad, and
+            each star's win-share ("Bumrah → MI 62%, CSK 21%" = your odds in a bidding war). There are no
+            team personalities: teams differ by their squads and purses, which is what the fit found matters.
           </p>
         </div>
 
         <p className="rounded-lg border border-willow/20 bg-willow/5 px-3 py-2 text-xs leading-relaxed text-muted">
-          <b className="text-willow">Honest caveat:</b> prices are invented from skill, not real auction
-          data — so this models auction <i>behaviour</i> and relative outcomes, it doesn't predict the
-          actual crore amounts.
+          <b className="text-willow">Honest caveat:</b> the bidding is fitted on real auctions and checked on
+          the 2025 and 2026 auctions it never saw (METHODOLOGY §7), but a lot's price still rests on the market
+          model, which can't see scouting, injury or brand: treat a price as a range, not a forecast.
         </p>
       </div>
     </Collapsible>
@@ -235,7 +234,7 @@ export function Auction() {
       <PageTitle
         title="Auction room"
         icon={<Gavel className="h-6 w-6" />}
-        desc="Simulate the real IPL auction over ACTIVE players. Each franchise first RETAINS its core (Mega = ~5 keepers, the real 2025 lists; Mini = keep most of the squad) — editable below — then the ten teams bid for everyone else by their own personality, hundreds of times, so you see who lands each remaining star and how each squad shapes up."
+        desc="Simulate the real IPL auction over ACTIVE players. Each franchise first RETAINS its core (Mega = ~5 keepers, the real 2025 lists; Mini = keep most of the squad) — editable below — then the ten teams bid for everyone else by a demand model fitted on real auctions (each team's squad, overseas places and purse at every lot), hundreds of times, so you see who lands each remaining star and how each squad shapes up."
       />
 
       {/* what is this for */}
@@ -244,8 +243,10 @@ export function Auction() {
         Player values + estimated crore prices come from the Bayesian skill model (calibrated to recent
         auction prices), over <b>active</b> players only. Pick <b>Mega</b> or <b>Mini</b>, tweak any
         team's <b>retentions</b>, then run — each of the ten franchises bids for the un-retained pool by
-        its personality (marquee-chaser, value-hunter…), repeated hundreds of times, showing who likely
-        lands each remaining star and how every squad ends up.
+        a demand model fitted on who really bought whom, and for how much, at the 2019–2026 auctions (its
+        open places by role and overseas, its purse per place, how much he'd improve its squad, how far the
+        auction has gone), repeated hundreds of times, showing who likely lands each remaining star and how
+        every squad ends up.
       </Card>
 
       <AuctionMath />
@@ -304,7 +305,7 @@ function Simulate({
   navigate: (p: string) => void;
 }) {
   const { nm, linkFor, staleBadge, searchText } = useAuctionNames();
-  const [teams, setTeams] = useState(IPL_TEAMS_DEFAULT);
+  const teams = IPL_TEAMS_DEFAULT;
   const [mode, setSimMode] = useState<AuctionMode>("mega");
   const [purse, setPurse] = useState(120);
   const [squadSize, setSquadSize] = useState(25);
@@ -491,33 +492,6 @@ function Simulate({
         </div>
         <p className="mt-2 text-xs text-muted">{MODE_BLURB[mode]}</p>
 
-        {/* team personalities */}
-        <div className="mb-3 mt-5 flex items-center gap-2 text-sm font-semibold text-fg">
-          <Dices className="h-4 w-4 text-accent" /> Franchise personalities
-          <InfoTip title="Bidding archetypes">
-            <div className="space-y-1">
-              {ARCHETYPES.map((a) => (
-                <div key={a.id}><b className="text-fg">{a.id}</b>: {a.blurb}</div>
-              ))}
-            </div>
-          </InfoTip>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          {teams.map((t, i) => (
-            <div key={t.team} className="rounded-lg border border-border bg-surface/50 p-2">
-              <div className="mb-1 text-xs font-bold text-fg">{t.team}</div>
-              <select
-                value={t.personality}
-                onChange={(e) => setTeams((ts) => ts.map((x, j) => (j === i ? { ...x, personality: e.target.value } : x)))}
-                className="input w-full cursor-pointer py-1 text-xs"
-              >
-                {ARCHETYPES.map((a) => (
-                  <option key={a.id} value={a.id} className="bg-card">{a.id}</option>
-                ))}
-              </select>
-            </div>
-          ))}
-        </div>
         {/* editable retentions */}
         <div className="mb-2 mt-5 flex items-center gap-2 text-sm font-semibold text-fg">
           <Users className="h-4 w-4 text-accent" /> Retentions
@@ -578,18 +552,17 @@ function Simulate({
 
       <div ref={resultsRef} className="scroll-mt-20" />
       {!result ? (
-        <Empty>Pick the auction type &amp; personalities, then <b className="mx-1 text-accent-glow">Run simulation</b>.</Empty>
+        <Empty>Pick the auction type &amp; retentions, then <b className="mx-1 text-accent-glow">Run simulation</b>.</Empty>
       ) : (
         <>
       {/* per-team outcomes */}
       <Card className="overflow-hidden">
-        <CardHeader title="How each squad shapes up" subtitle={`${result.mode === "mega" ? "Mega" : "Mini"} auction · ${result.auctioned} of ${result.poolSize} unretained players under the hammer (the most valuable) · averaged over ${trials} runs`} />
+        <CardHeader title="How each squad shapes up" subtitle={`${result.mode === "mega" ? "Mega" : "Mini"} auction · ${result.auctioned} of ${result.poolSize} unretained players under the hammer (the most valuable, as many as real shortlists hold for the open places) · averaged over ${trials} runs`} />
         <div className="overflow-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr>
                 <th className="th">Team</th>
-                <th className="th">Personality</th>
                 <th className="th text-right">Retained</th>
                 <th className="th text-right">Bought</th>
                 <th className="th text-right">Auction spend</th>
@@ -601,7 +574,6 @@ function Simulate({
               {[...result.teams].sort((a, b) => b.avgValue - a.avgValue).map((t) => (
                 <tr key={t.team} className="hover:bg-surface/50">
                   <td className="td font-bold text-fg">{t.team}</td>
-                  <td className="td"><Badge tone="accent">{t.personality}</Badge></td>
                   <td className="td stat-num text-right text-muted">{t.retained}</td>
                   <td className="td stat-num text-right">{Math.round(t.avgBought)}</td>
                   <td className="td stat-num text-right">{fmt(t.avgSpend, 1)} cr</td>

@@ -21,7 +21,7 @@ from test_web_parity import _approx_eq  # test_scripts/ is on sys.path (rootdir 
 
 from cricdex.config import SITE_DATA
 from cricdex.web_parity import build_pool
-from cricdex.web_parity.auction import auction_lots, one_trial
+from cricdex.web_parity.auction import auction_lots, one_trial, open_squad_places
 from cricdex.web_parity.bidplan import (
     REPLACEMENT,
     best_xi,
@@ -237,30 +237,43 @@ def _cases() -> list[dict]:
     return out
 
 
-CALIBS = [
-    {"level_mega": 1.3, "level_mini": 1.7, "curve": 1.2, "sd": 0.7, "anchor": 0.5, "tight": 1},
-    {"level_mega": 0.8, "level_mini": 2.0, "curve": 1.0, "sd": 0.0, "anchor": 0.0, "tight": 1},
-]
+# demand models with every path switched on (interest by needs, heat, anchor, stage, mega), and a
+# near-deterministic one (no heat, every team bids)
+DEMANDS = [
+    {"a": 0.4, "c": 0.3, "sigma": 0.5, "tau": 0.7, "p0": -1.5, "p1": 0.4, "p2": 0.2, "base": 0.2,
+     "anchor": 0.1, "money": 0.6, "stage": -1.3, "mega": 0.2, "need": 0.35, "os": 1.3, "pps": 0.5,
+     "up": 0.03, "i_need": 0.3, "i_os": -0.3, "i_pps": -0.4, "i_up": 0.01, "val": 0.05, "i_val": 0.1, "heat_q": 0.2, "tau2": 1.5, "hinge": 0.3},
+    {"a": 0.0, "c": 1.0, "sigma": 0.3, "tau": 0.0, "p0": 5.0, "p1": 0.0, "p2": 0.0, "base": 0.0,
+     "anchor": 0.0, "money": 0.0, "stage": 0.0, "mega": 0.0, "need": 0.0, "os": 0.0, "pps": 0.0,
+     "up": 0.0, "i_need": 0.0, "i_os": 0.0, "i_pps": 0.0, "i_up": 0.0, "val": 0.0, "i_val": 0.0, "heat_q": 0.0, "tau2": 0.0, "hinge": 0.0},
+]  # fmt: skip
 
 
 def _sim_cases() -> list[dict]:
-    """The simulator with every calibration path switched on, on a synthetic league's rivals and pool."""
+    """The simulator with every demand path switched on, on a synthetic league's rivals and pool
+    (some lots uncapped, some with a last price as a purse share)."""
     data = {k: v for k, v in LEAGUE.items() if k != "_pool"}
     ctx = build_context(data, build_pool(LEAGUE["_pool"]), "AAA", {}, None, 5)
     bases = [
-        {"team": r["team"], "personality": r["personality"],
-         "retained": [{"cricsheet_id": p["id"], "role": p["role"], "is_overseas": p["os"]} for p in r["kept"]],
+        {"team": r["team"],
+         "retained": [{"cricsheet_id": p["id"], "role": p["role"], "is_overseas": p["os"], "v": p["v"]}
+                      for p in r["kept"]],
          "retainSpend": RULES["purse"] - r["purse_left"], "retain_spend": RULES["purse"] - r["purse_left"],
          "retainOverseas": sum(1 for p in r["kept"] if p["os"]),
          "retain_overseas": sum(1 for p in r["kept"] if p["os"])}
         for r in ctx["rivals"]
     ]  # fmt: skip
-    lots = auction_lots(ctx["available"])
+    lots = [dict(x) for x in auction_lots(ctx["available"], open_squad_places(bases, 20), "mini")]
+    for i, x in enumerate(lots):
+        x["capped"] = i % 3 != 0
+        if i % 4 == 1 and not x.get("anchor_price"):
+            x["prior_share"] = 0.01 + 0.003 * i
     assert any(x.get("anchor_price") for x in lots)
     return [
         {"bases": bases, "lots": lots, "seeds": [1000, 8919, 16838],
-         "opts": {"purse": RULES["purse"], "squad_size": 20, "overseas_cap": 6, "mode": mode, "calib": c}}
-        for c in CALIBS for mode in ("mini", "mega")
+         "opts": {"purse": RULES["purse"], "squad_size": 20, "squad_min": 14, "overseas_cap": 6,
+                  "mode": mode, "demand": d}}
+        for d in DEMANDS for mode in ("mini", "mega")
     ]  # fmt: skip
 
 
@@ -283,7 +296,7 @@ def _python(cases: list[dict]) -> dict:
         display = {r["cricsheet_id"]: r["display_name"] for r in c["pool"] if r.get("display_name")}
         ctx = build_context(
             c["data"], pool, c["team"], c.get("decisions") or {}, c.get("purse"),
-            c["open_slots"], c.get("rules"), c.get("register"), None, display,
+            c["open_slots"], c.get("rules"), c.get("register"), display,
         )  # fmt: skip
         prices = rival_prices(ctx, c["trials"])
         res = plan(ctx, c.get("needs") or {}, c.get("overrides") or {}, c["trials"], prices)

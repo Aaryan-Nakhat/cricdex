@@ -249,6 +249,10 @@ export interface AuctionPoolRow {
   captain_ipl_seasons?: number | null;
   captain_intl_2y?: number | null;
   captain_teams?: string[] | null;
+  /** P(plays a match) as a free agent (playing_time free-agent model) */
+  p_play_free?: number | null;
+  /** his last IPL price as a share of that season's purse (the bidders' reference price) */
+  prior_share?: number | null;
 }
 /** The auction pool, with the fitted market-price model (`<c>/price_model.json`) installed for
  * `buildPool` / `marketPrice` before the rows arrive (a missing model leaves the on-field curve). */

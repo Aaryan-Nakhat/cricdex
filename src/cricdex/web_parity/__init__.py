@@ -21,7 +21,6 @@ are no longer the default user path.
 """
 
 from cricdex.web_parity.auction import (
-    ARCHETYPES,
     IPL_TEAMS_DEFAULT,
     build_pool,
     default_retentions,
@@ -45,7 +44,6 @@ from cricdex.web_parity.scout import (
 )
 
 __all__ = [
-    "ARCHETYPES",
     "COUNTRY_MODES",
     "IPL_TEAMS_DEFAULT",
     "SAME_SLOT",

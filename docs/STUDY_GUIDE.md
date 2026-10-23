@@ -80,7 +80,7 @@ Top-level layout:
 ```
 src/cricdex/
 ├── api/                   FastAPI REST surface + /docs
-├── auction/               IPL team list + bidding-personality defaults (the sim is in web_parity/)
+├── auction/               IPL team list (the sim is in web_parity/)
 ├── cli/                   typer console script (one file per command group)
 ├── common/                shared: db, llm.py (LiteLLM client), filters, metric catalog, sql, spark, venue_names
 ├── comparator/            Side-by-side metric table + skill head-to-head
@@ -1000,31 +1000,31 @@ Mini = each team keeps its 18 most valuable players free and bids only a
 small leftover purse (30 cr by default). Retained players leave the
 pool and count toward the overseas cap (8).
 
-**Bidding** runs player-by-player over the top 200 unretained players
-by value (`AUCTION_LOTS`), stars first (order nudged ±5% at random per
-trial). Each team's max bid is
-`value × aggression × need × overseas-bias × luck × budget`: `need` is
-1.5 below the personality's role minimum else 0.7, `overseas-bias` is
-overseas appetite × 1.4 for an overseas player, `luck` is ± the
-personality's risk. It's bounded by spendable money (remaining purse
-minus 0.3 cr for every other open slot), squad cap and overseas cap, and
-must reach the base price. `budget` is the team's purse
-per open slot vs the league average (square root, clamped 0.75–1.6), so
-a team sitting on a big purse bids harder instead of leaving it unspent.
-The highest max bid wins but pays just **above the second-highest**
-(`min(own max, 1.02 × second)`, never below base: second-price
-clearing; no price cap since 2026-10-22, the spendable purse is the
-only bound). The room prices the pool with the market model (6b), whose
-top end follows the market's own out-of-fold response (no ceiling); the
-curve here is the older on-field worth. A
-**two-phase fill** runs the auction so the pool is shared fairly: round
-1 fills every team to a 20-man minimum, round 2 tops up toward the 25
-cap, and a safety pass guarantees no team is left below 20.
+**Bidding** (since 2026-10-23) runs over as many lots as real
+shortlists held for the open squad places (`LOTS_PER_PLACE`: 4.6 a place
+in a mini auction, 3.0 in a mega; at most `OVERSEAS_SHARE` 35.7%
+overseas), capped sets before uncapped, dearest first, unsold lots once
+more in an accelerated round. For each lot every team with a place, an
+overseas place if needed and the purse for his base price draws whether
+it bids at all (a logistic in his market and base price and its needs)
+and how high: `ln bid = mu + heat + σ × Gumbel`, with `mu` from his
+market, base and last price, the money per open place across the
+market, the stage, and the team's places short in his role, open
+overseas places, purse per place against the others' and the upgrade he
+would be (`DEMAND`, fitted by `scripts/auction_demand_fit.py` on every
+sold lot of 2019–2026 with each team's squad and purse rebuilt lot by
+lot; METHODOLOGY §7). It's bounded by spendable money (remaining purse
+minus the lowest base price for each place still needed to reach 18).
+The highest bid wins at **the next IPL ladder step above the
+second-highest** (`ladder_next`), never below base; no price cap. A team
+still short of 18 at the end buys the cheapest leftovers at base. The
+hand-set personalities, need 1.5 / 0.7, budget pressure, 1.02 clearing
+and the two-phase fill are gone.
 
 ### 8.4 ~300 trials + post-sim search
 
-One mock auction is run ~300 times (trial `t` seeded `1000 + 7919·t`)
-with the bid order reshuffled each time, then averaged: each team's typical spend / squad size / value /
+One mock auction is run ~300 times (trial `t` seeded `1000 + 7919·t`),
+then averaged: each team's typical spend / squad size / value /
 overseas count, and for each star the **% of trials each team won him**
 ("Bumrah → MI 62%, CSK 21%"). The sim emits a per-player `outcomes`
 summary across all trials, which powers a **post-sim search** (web,

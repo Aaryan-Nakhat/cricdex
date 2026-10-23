@@ -17,7 +17,7 @@ const out = fx.cases.map((c: any) => {
   const pool = buildPool(c.pool);
   const display: Record<string, string> = {};
   for (const r of c.pool) if (r.display_name) display[r.cricsheet_id] = r.display_name;
-  const ctx = buildContext(c.data, pool, c.team, c.decisions ?? {}, c.purse ?? null, c.open_slots, c.rules ?? null, c.register ?? null, null, display);
+  const ctx = buildContext(c.data, pool, c.team, c.decisions ?? {}, c.purse ?? null, c.open_slots, c.rules ?? null, c.register ?? null, display);
   const prices = rivalPrices(ctx, c.trials);
   const res = plan(ctx, c.needs ?? {}, c.overrides ?? {}, c.trials, prices);
   return {
@@ -34,10 +34,10 @@ const xi = (fx.xi_cases ?? []).map((ps: any[]) => {
   const b = bestXi(pieces);
   return { xi: b.xi, ids: b.ids, fillers: b.fillers, strength: strength(pieces, fx.xi_needs) };
 });
-// the calibrated simulator on its own (every calibration path on: curve, demand shock, anchor, tightness)
+// the simulator on its own (every demand path on: interest by needs, heat, anchor, stage, mega)
 const sims = (fx.sim_cases ?? []).map((c: any) =>
   c.seeds.map((seed: number) =>
-    oneTrial(c.bases, c.lots, { purse: c.opts.purse, squadSize: c.opts.squad_size, overseasCap: c.opts.overseas_cap, mode: c.opts.mode, calib: c.opts.calib }, seed).map((st) => ({
+    oneTrial(c.bases, c.lots, { purse: c.opts.purse, squadSize: c.opts.squad_size, squadMin: c.opts.squad_min, overseasCap: c.opts.overseas_cap, mode: c.opts.mode, demand: c.opts.demand }, seed).map((st) => ({
       team: st.team,
       bought: st.bought.map((p) => p.cricsheet_id),
       prices: st.boughtPrices,

@@ -136,7 +136,8 @@ VENUES_INTRO = (
 
 AUCTION_SIMULATE_INTRO = (
     "Real-rules IPL auction Monte-Carlo — each franchise retains its core, "
-    "then the ten teams bid for the rest by personality over ~300 trials. "
+    "then the ten teams bid for the rest by a demand model fitted on real auctions "
+    "(their squads, overseas places and purses at each lot) over ~300 trials. "
     "Same engine as the web (cricdex.web_parity), seeded + reproducible."
 )
 

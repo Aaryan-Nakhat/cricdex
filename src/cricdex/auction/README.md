@@ -7,10 +7,10 @@ the web by `test_scripts/test_web_parity.py`).
 
 This package only holds:
 
-- `real_pool.py` — the real IPL franchise list + bidding-personality defaults
-  (`IPL_TEAMS_DEFAULT`, `PERSONALITY_IDS`, `load_team_overrides`) that the
-  desktop auction reads, plus a Bayes-priced pool builder kept for offline
-  experiments.
+- `real_pool.py` — the real IPL franchise list (`IPL_TEAMS`) the desktop
+  auction reads. Every franchise bids by the same fitted demand model
+  (`web_parity.auction.DEMAND`); the hand-set personalities were removed on
+  2026-10-23.
 
 The earlier MILP squad solver, Monte-Carlo price-band simulator, Gym/GRPO RL
 self-play, and graph-based war-room advisor have been removed (see

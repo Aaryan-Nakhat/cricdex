@@ -125,18 +125,19 @@ const SECTIONS: Section[] = [
         his squad, overseas places, experience, age, last season; for a free agent also whether players like him get
         bought) × his runs a match above a replacement, batting and bowling at the balls he actually gets, so an
         all-rounder counts both disciplines and a league-only veteran ranks low without a hand-set penalty — and
-        priced in crore at the market price fitted to real auctions (at most 36% of the lots overseas, as on a real shortlist). Each
-        franchise first <strong>retains</strong> its core (Mega = the real 2025 lists, ~5; Mini = keep
-        most of the squad — both editable), then the ten teams bid for the rest by their own
-        personality (marquee-chaser, value-hunter, overseas-heavy…), hundreds of times, filling 20–25-man
-        squads under the purse + overseas cap. A team with more money left per open slot than the rest
-        bids harder (so a side that retained little actually spends its purse), and the winner pays just
-        above the second-highest bid, never more than its purse allows (the purse less the base price of every
-        place it still has to fill). The bidding is
-        calibrated to real auctions (2022–24, tested on 2025–26): a fitted level per auction type, money spread
-        beyond the stars, a player's last price remembered, a demand shock per lot, and more money chasing fewer
-        places lifting every bid. You see
-        who likely lands each remaining star. Runs
+        priced in crore at the market price fitted to real auctions. Each franchise first{" "}
+        <strong>retains</strong> its core (Mega = the real 2025 lists, ~5; Mini = keep most of the squad — both
+        editable); then as many lots as real shortlists held for the open places (about a third overseas) come up,
+        capped players first. Every team bids by <strong>one demand model fitted on who really bought whom, and
+        for how much, at the 2019–2026 auctions</strong>: whether it bids at all and how high depend on its places
+        short in his role, its open overseas places, its purse per open place against the others', how much he'd
+        improve its squad, the money across the market and how far the auction has gone, plus how hot the player is
+        on the day. No hand-set team personalities: estimated team effects were tried and lost out of time. The
+        winner pays one ladder step above the second-highest bid, never more than its purse allows (the purse less
+        the base price of every place it still needs to reach 18). Chosen on 2019–2024 and tested once on the 2025
+        and 2026 auctions, about 7 in 10 real prices fall inside the simulated 10–90% range (the room before: 6 in
+        10 and 5 in 10). You see who likely lands each remaining star (the typical price of a star comes out
+        low: real bidding wars for the top names aren't predictable from the market price). Runs
         entirely in your browser — and identically on the CLI, TUI and Streamlit from the same inputs
         (one shared implementation with a seeded RNG, locked by a parity test).
       </>
@@ -206,15 +207,15 @@ const SECTIONS: Section[] = [
         above a replacement, each player's batting at the balls he faces and his bowling at the balls he bowls,
         times his chance of playing (an opener about
         21 a match, a No. 7 about 9, a frontline bowler about 23; the XI's balls held to a side's innings; at most 4
-        overseas, a keeper, five bowling and six batting options) plus a little for depth and minus a penalty for each
-        role need missed. In every run you bid for a player up to his gain in strength ÷ λ, an exchange rate in runs per
+        overseas, a keeper, five bowling and six batting options), plus the bench filling the matches the XI misses
+        (each player's chance of not playing; no hand-set depth weight or need penalty). In every run you bid for a player up to his gain in strength ÷ λ, an exchange rate in runs per
         crore chosen to give the best average squad. Each target gets a <strong>max bid</strong> (where his value per crore
         drops below the next-best use of the purse), the odds of landing him under it, and a{" "}
-        <strong>fallback chain</strong> per role. The rivals' bidding is calibrated to real auctions (fitted on 2022–24,
-        tested on 2025–26: real prices now fall inside the simulated range about as often as they should), and a team
+        <strong>fallback chain</strong> per role. The rivals bid by the Auction room's fitted demand model, and a team
         never buys back its own releases: a release worth more to the squad than his salary is flagged "reconsider
-        keeping". Replayed on the 2025 and 2026 auctions with only what was known beforehand, the plan's squads were
-        ahead of the real ones in 2025 (8 of 10 teams) and behind in 2026 (all 10): a starting sheet, not a forecast. Same optimiser on the CLI
+        keeping". Replayed on the 2025 and 2026 auctions with only what was known beforehand, at the real team's spend,
+        the plan's squads were ahead of the real ones for 6 of 10 teams in 2025 and 3 of 10 in 2026 on what the players
+        did next season: about level, so it stays in beta, a starting sheet, not a forecast. Same optimiser on the CLI
         (<code>cricdex bidplan</code>), locked by a parity test.
       </>
     ),

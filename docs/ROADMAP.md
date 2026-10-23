@@ -41,8 +41,9 @@ taxonomy (role, bowling type, batting slot, country).
   saving versus the pick, a gem flag, role and batting-slot filters, and one-click draft into the auction.
 - **Auction room**: real-rules IPL auction Monte-Carlo with a cross-league pool ranked by expected season
   value (P(plays) × contribution per match, METHODOLOGY §6c),
-  editable Mega / Mini retentions charged by the 2025 slab rule, team personalities, budget-aware bidding,
-  second-price clearing within each team's purse (no price cap since 2026-10-22), two-phase fill and a
+  editable Mega / Mini retentions charged by the 2025 slab rule, every team bidding by a demand model fitted
+  on the 2019–2026 auctions (since 2026-10-23; no hand-set personalities), lots as real shortlists in set
+  order, IPL ladder clearing within each team's purse (no price cap), an accelerated round and a
   post-auction player search.
 - Matchups, Phase, Form, Partnerships, Aging, Venues, Records (with On This Day), Player Profile and
   Compare pages.
@@ -248,7 +249,10 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   (`config/competitions.toml`, `cricdex.competitions`, used by Keep or release); wire the auction simulator
   (purse, squad limits, overseas cap, retention cost; still hard-coded IPL constants in `auction.ts` ⇄
   `auction.py` and `AUCTION_TARGET` in `export_site.py`) to that file, and start its Mini mode from the real
-  squads and the purses Keep or release computes. SA20 / ILT20 / MLC / WPL cycles are further entries.*
+  squads and the purses Keep or release computes. SA20 / ILT20 / MLC / WPL cycles are further entries.
+  2026-10-23: the room's lots follow the real lists (lots per open place and overseas share from the
+  2018–2024 shortlists, capped sets before uncapped, an accelerated round), its squad minimum is the rule's 18
+  (was 20) and its bids step up the IPL ladder; purse, squad and overseas defaults are still the room's own.*
 - [x] 13. Auction price model fitted to real IPL prices (M): Wikipedia personnel pages 2008–2026 (CC BY-SA;
   pre-2014 prices in US$); hurdle model — P(sold) logistic, log(price) hedonic on value, role, overseas,
   capped, age, base price, mega/mini; sale probability plus a price interval; out-of-time test.
@@ -295,9 +299,11 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   bowls overs 17–20.
 - [ ] 26. Auction value as wins added (M): replace the hand-set need 1.5/0.7 with marginal wins to a squad's
   best XI; calibrate team personalities against real auction moments.
-  *2026-10-21: the marginal-strength-to-the-best-XI measure exists now (Bid plan's `strength`; since
-  2026-10-22 in expected runs a match above replacement, each player at his balls and P(plays), not yet
-  wins); the simulator's rivals still use need 1.5/0.7; DEPTH 0.25 and NEED 0.63 are still hand-set. Open.*
+  *2026-10-23: need 1.5/0.7 and the personalities are gone: the simulator's teams bid by a demand model
+  fitted on the 2019–2026 auctions (places short in his role, overseas places, purse per place, the upgrade
+  he'd be; team effects lost out of time; METHODOLOGY §7). Bid plan's DEPTH 0.25 and NEED 0.63 are gone too
+  (the bench fills the XI's missed matches by P(plays); needs reported, not scored). Still open: strength in
+  wins rather than runs a match.*
 - [x] 26b. Bid plan (M): an auction bidding-plan optimiser for one franchise: rivals simulated for the price to
   beat, targets by marginal squad strength per crore, max bids, fallback chains per role, every assumption
   editable. *Done 2026-10-21/22: page Bid plan + `cricdex bidplan`, web ⇄ Python parity; the auction
@@ -305,7 +311,8 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   AUCTION_MATH Part 3b); no buying back own releases ("reconsider keeping" instead); the 2025 and 2026
   auctions replayed (`scripts/bidplan_backtest.py`: level with the real squads in 2025, worse in 2026).
   Next: the official 2027 auction list when published, Form forecast's three-season outlook for multi-year
-  buys, rivals that react to our buys, team personalities learned from real bids (#26).*
+  buys, rivals that react to our buys. (Team personalities learned from real bids: tried 2026-10-23 as
+  team effects in the fitted demand model; they lost out of time.)*
 - [ ] 27. Better evaluation (M): held-out ball-level log-likelihood, a split-half noise ceiling, calibration
   of P(A>B) and interval coverage, 3 ADVI seeds, a fair newcomer baseline with Holm-adjusted p,
   year-to-year stability of the bespoke metrics.
@@ -390,6 +397,11 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
   8/10 in the 2025 mega, 0/10 in the 2026 mini; before, on per-100-ball strength, 4/10 and 2/10); target lists
   overlap across teams because the plan is a price-taker. Make rivals react to the plan's targets
   (equilibrium across teams) and re-validate; drop "beta" only when the replay beats the real franchises.
+  *2026-10-23, still open:* rivals now bid by the fitted demand model and strength has no hand-set depth or
+  need constants; the replay at equal spend is 6/10 (2025 mega, +2.5 runs a match) and 3/10 (2026 mini, −0.2):
+  about level, not ahead in either type, so beta stays. P(≤ max bid) is no longer over-confident (top band
+  0.92 → 0.89 came true in 2025, 0.91 → 1.00 in 2026; 0.35 / 0.35 on the lots a 2025 team bought itself).
+  Left: rivals reacting to the plan, multi-season values, strength in wins (METHODOLOGY §12).
 - [ ] I3. Star prices still low out of time (lots ≥10 cr predicted at ~0.5× their price). *Re-examined
   2026-10-22, not ticked:* the ratio is regression to the mean, not a fixable level. Lots picked by their
   real price sit above any model; a model whose prices were exactly right on average would show 0.30×
@@ -514,9 +526,11 @@ Bigger pieces, most needing new data, a GPU or hosting.
 - Photo-based identity disambiguation for namesakes across tiers (only needed once a grassroots tier exists).
 
 **Auction v2**
-- Multi-agent self-play (every franchise its own learned bidding policy) instead of today's fixed
-  personalities.
-- Team personalities learned from real auction bid history instead of hand-assigned.
+- Multi-agent self-play (every franchise its own learned bidding policy) instead of today's one fitted demand
+  model.
+- Bid-by-bid (paddle) data, if it ever becomes available: who bid against whom, not only who won and at what
+  price, would identify team-specific demand (the 2026-10-23 team effects, fitted on winners and prices,
+  lost out of time).
 
 **Video and voice (year 2)**
 - Ball tracking and pitch maps from broadcast video; a bowler-action (elbow flex) estimate from pose;

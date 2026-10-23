@@ -4,21 +4,25 @@
 // both). The method in plain words: docs/METHODOLOGY.md §12.
 //
 // 1. Rivals: the Auction room's simulator (auction.ts `oneTrial`) runs the other nine franchises,
-//    each with its own Keep-or-release plan and personality, `trials` times → for every player the
-//    price we'd have to beat in each run (his base price when no rival bid).
-// 2. Squad strength: the best XI's contribution in runs per match above replacement (batting and
-//    bowling at each player's balls a match, the XI's balls held to a side's innings; ≤ 4 overseas,
-//    ≥ 1 keeper, 5 bowling and 6 batting options; replacement-level fillers), + a smaller weight on
-//    the next four, − a penalty per role need missed.
+//    each with its own Keep-or-release plan, bidding by the room's fitted demand model, `trials`
+//    times → for every player the price we'd have to beat in each run (the next ladder step above
+//    the winning rival's bid; his base price when no rival bid).
+// 2. Squad strength: the best XI's expected contribution in runs per match above replacement (batting
+//    and bowling at each player's balls a match × P(plays), the XI's balls held to a side's innings;
+//    ≤ 4 overseas, ≥ 1 keeper, 5 bowling and 6 batting options; replacement-level fillers), + the
+//    bench filling the matches the XI misses (Σ (1 − P(plays)), best bench contribution first). Role
+//    needs are reported, not scored.
 // 3. The bidding rule: in lot order, bid up to (gain in strength) / λ, within purse, squad and
 //    overseas room; λ chosen to maximise the mean strength over the runs; the gain counts the
 //    likely buys still to come (a lookahead iterated to a fixed point).
 // 4. The plan: each target's max bid = his gain to the likely squad / λ (capped by the purse left
 //    after the rest of the likely buys), plus a fallback chain per role.
 import {
-  IPL_TEAMS_DEFAULT,
   auctionLots,
+  ladderNext,
   oneTrial,
+  openSquadPlaces,
+  type Demand,
   priceTier,
   type FranchiseBase,
   type PoolPlayer,
@@ -38,10 +42,9 @@ export const REPLACEMENT = 0.0;
 /** A side's legal balls per innings (playing_time_model.json, IPL 2023-2026): an XI's expected balls
  * faced (bowled) beyond it are scaled down to it, every member alike. */
 export const TEAM_BALLS = 115.0;
-export const DEPTH_N = 4;
-export const DEPTH_WEIGHT = 0.25;
-/** The hand-set 3 runs per 100 balls, in runs per match (× 2 × 115 / 11 / 100 ≈ 0.209). */
-export const NEED_PENALTY = 0.63;
+// Depth: an XI member counts P(plays) × his contribution; the XI's missed appearances, Σ (1 − P), go to
+// the bench, best contribution a match first, at most one appearance a match each (bidplan.py
+// `bench_fill`). Role needs are targets the plan reports against; they don't cost strength.
 export type Need = "keeper" | "opener" | "death" | "spinner" | "pace";
 export const NEED_ORDER: Need[] = ["keeper", "opener", "death", "spinner", "pace"];
 export const DEFAULT_NEEDS: Record<Need, number> = { keeper: 2, opener: 3, death: 3, spinner: 3, pace: 4 };
@@ -93,6 +96,9 @@ export interface Piece {
   id: string;
   name: string;
   v: number;
+  /** P(plays) and the contribution a match he plays (v ÷ P): the bench fill */
+  pp: number;
+  c: number;
   /** the batting and bowling parts of v and the balls they come from (a match) */
   cb: number;
   cw: number;
@@ -146,9 +152,10 @@ export function piece(
   let cw = 0;
   let fb = 0;
   let wb = 0;
+  let pp = 1.0;
   if (parts !== null && rated) {
     // expected contribution: every part and ball × P(plays) (mirror of bidplan.py `piece`)
-    const pp = parts.length > 4 ? parts[4] : 1.0;
+    pp = parts.length > 4 ? parts[4] : 1.0;
     cb = pp * parts[0];
     cw = pp * parts[1];
     fb = pp * parts[2];
@@ -169,6 +176,8 @@ export function piece(
     id,
     name,
     v,
+    pp,
+    c: pp > 0 ? v / pp : 0.0,
     cb,
     cw,
     fb,
@@ -246,17 +255,33 @@ export interface Strength {
   fillers: number;
 }
 
+/** The bench's expected runs a match: the XI's missed appearances (Σ 1 − P(plays)) filled by the bench,
+ * best contribution a match first, at most one appearance a match each. Mirror of bidplan.py `bench_fill`. */
+export function benchFill(xiIds: string[], pieces: Piece[], bench: Piece[]): number {
+  const ids = new Set(xiIds);
+  let miss = fsum(pieces.filter((p) => ids.has(p.id)).map((p) => 1.0 - Math.min(1.0, Math.max(0.0, p.pp))));
+  let out = 0.0;
+  const order = bench.filter((q) => q.c > REPLACEMENT).sort((a, b) => (a.c !== b.c ? (a.c > b.c ? -1 : 1) : cmpStr(a.id, b.id)));
+  for (const p of order) {
+    if (miss <= 0.0) break;
+    const a = miss < 1.0 ? miss : 1.0;
+    out += a * p.c;
+    miss -= a;
+  }
+  return out;
+}
+
 export function strength(pieces: Piece[], needs: Record<Need, number>): Strength {
   const b = bestXi(pieces);
-  const depth = fsum(b.bench.slice(0, DEPTH_N).map((p) => p.v - REPLACEMENT));
+  const depth = benchFill(b.ids, pieces, b.bench);
   const counts = needCounts(pieces);
   let short = 0;
   for (const n of NEED_ORDER) short += Math.max(0, (needs[n] ?? 0) - counts[n]);
-  const total = b.xi + DEPTH_WEIGHT * depth - NEED_PENALTY * short;
+  const total = b.xi + depth;
   return { total, xi: b.xi, depth, short, counts, ids: b.ids, fillers: b.fillers };
 }
 
-export const upperGain = (p: Piece) => 2 * Math.max(0, p.v - REPLACEMENT) + NEED_PENALTY * p.needs.length;
+export const upperGain = (p: Piece) => 2 * Math.max(0, p.c - REPLACEMENT);
 
 // ---- the context ----
 
@@ -273,11 +298,14 @@ export interface Lot extends ContribFields {
   from_team: string | null;
   /** his last IPL price (cr), when known: the simulator's reference price */
   anchor_price?: number;
+  /** his last IPL price as a share of that season's purse (the reference price when no anchor) */
+  prior_share?: number | null;
+  /** the set he comes up in (capped first; absent = capped) */
+  capped?: boolean | null;
 }
 
 export interface Rival {
   team: string;
-  personality: string;
   kept: Piece[];
   purse_left: number;
 }
@@ -295,10 +323,14 @@ export interface BidContext {
   rivals: Rival[];
   available: Lot[];
   register: boolean;
+  /** replays only: every available player is a lot; the demand model and the lowest base price of that auction */
+  all_lots?: boolean;
+  demand?: Partial<Demand> | null;
+  min_base?: number | null;
 }
 
 function availRow(
-  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; projected_value: number; p_bought?: number | null; base_price: number } & ContribFields,
+  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; projected_value: number; p_bought?: number | null; base_price: number; capped?: boolean | null; prior_share?: number | null } & ContribFields,
   tags: string,
   fromTeam: string | null,
 ): Lot {
@@ -324,6 +356,8 @@ function availRow(
   };
   const anchor = (r as { anchor_price?: number | null }).anchor_price;
   if (anchor) out.anchor_price = anchor;
+  if (r.capped !== null && r.capped !== undefined) out.capped = r.capped;
+  if (r.prior_share) out.prior_share = r.prior_share;
   return out;
 }
 
@@ -390,14 +424,12 @@ export function buildContext(
   openSlots: number = OPEN_SLOTS,
   rules: Partial<KeepRules> | null = null,
   register: RegisterEntry[] | null = null,
-  personalities: { team: string; personality: string }[] | null = null,
   display: Record<string, string> | null = null,
 ): BidContext {
   const compRules: KeepRules = { ...data.competition.rules };
   if (rules) for (const [k, v] of Object.entries(rules)) if (v !== null && v !== undefined) (compRules as unknown as Record<string, unknown>)[k] = v;
   if (purse !== null && purse !== undefined) compRules.purse = Number(purse);
   const form = data.form ?? null;
-  const pers: Record<string, string> = Object.fromEntries((personalities ?? IPL_TEAMS_DEFAULT).map((c) => [c.team, c.personality]));
   const poolById = new Map(pool.map((r) => [r.cricsheet_id, r]));
   const tagsOf = data.pool_tags ?? {};
 
@@ -416,7 +448,7 @@ export function buildContext(
     const purseLeft = Number(compRules.purse) - purseCharged(kept, compRules);
     for (const p of res.players) if (!p.kept && p.id && p.value !== null && p.value !== undefined) released.push(p);
     if (t === team) ours = { players: res.players, kept: pieces, purse_left: purseLeft, salary_kept: salaryKept, warnings: res.warnings };
-    else rivals.push({ team: t, personality: pers[t] ?? "Balanced", kept: pieces, purse_left: purseLeft });
+    else rivals.push({ team: t, kept: pieces, purse_left: purseLeft });
   }
   if (!ours) throw new Error(`unknown team ${team}`);
 
@@ -493,27 +525,33 @@ export function buildContext(
  * bidplan.py `rival_prices`). */
 export function rivalPrices(ctx: BidContext, trials: number = TRIALS): number[][] {
   const purse = Number(ctx.rules.purse);
+  const sqMax = Math.trunc(Number(ctx.rules.squad_max));
   const bases: FranchiseBase[] = ctx.rivals.map((r) => ({
     team: r.team,
-    personality: r.personality,
-    retained: r.kept.map((p) => ({ cricsheet_id: p.id, role: p.role, is_overseas: p.os }) as unknown as PoolPlayer),
+    retained: r.kept.map((p) => ({ cricsheet_id: p.id, role: p.role, is_overseas: p.os, v: p.v }) as unknown as PoolPlayer),
     retainSpend: purse - r.purse_left,
     retainOverseas: r.kept.filter((p) => p.os).length,
   }));
   const avail = ctx.available;
   const index = new Map(avail.map((p, i) => [p.cricsheet_id, i]));
-  const lots = auctionLots(avail as unknown as PoolPlayer[]);
+  const cycle = ctx.cycle ?? "mini";
+  // the lots: as many as real shortlists hold for the auction's open places (ours included)
+  const places = openSquadPlaces(bases, sqMax) + Math.max(0, sqMax - ctx.kept.length);
+  const lots = ctx.all_lots ? (avail as unknown as PoolPlayer[]) : auctionLots(avail as unknown as PoolPlayer[], places, cycle);
   const opts = {
     purse,
-    squadSize: Number(ctx.rules.squad_max),
-    overseasCap: Number(ctx.rules.overseas_max),
-    mode: ctx.cycle ?? "mini", // the calibrated bid level for this auction type
+    squadSize: sqMax,
+    squadMin: Math.trunc(Number(ctx.rules.squad_min ?? 18)),
+    overseasCap: Math.trunc(Number(ctx.rules.overseas_max)),
+    mode: cycle,
+    ...(ctx.demand ? { demand: ctx.demand } : {}),
+    ...(ctx.min_base ? { minBase: Number(ctx.min_base) } : {}),
   };
   const out = avail.map((p) => new Array<number>(trials).fill(Number(p.base_price)));
   for (let t = 0; t < trials; t++) {
     oneTrial(bases, lots, opts, 1000 + t * 7919, (player, _team, bestBid) => {
       const i = index.get(player.cricsheet_id) as number;
-      const beat = bestBid * 1.02;
+      const beat = ladderNext(bestBid);
       out[i][t] = Math.max(Number(player.base_price), beat);
     });
   }

@@ -22,11 +22,8 @@ import { buildPool } from "@/lib/auction";
 import { cr, fmtNum, STALE_REASON_MIN, toCsv, type Decision, type KeepData } from "@/lib/keep";
 import {
   DEFAULT_NEEDS,
-  DEPTH_N,
-  DEPTH_WEIGHT,
   NEED_LABEL,
   NEED_ORDER,
-  NEED_PENALTY,
   OPEN_SLOTS,
   REPLACEMENT,
   SLOT_LABEL,
@@ -119,10 +116,12 @@ function HowItWorks({ res }: { res: Plan | null }) {
           When the official auction list is published it replaces this guess.
         </p>
         <p>
-          <b className="text-fg">2. What rivals would pay.</b> The other nine franchises, each with its own squad, purse and
-          bidding personality, run through the Auction room's simulator {res ? res.trials : TRIALS} times, its bidding
-          calibrated to real auctions (rivals remember a player's last price; how hot a player is varies from run to run).
-          For every player that gives the price a rival would have paid in each run: the price you'd have to beat. "Rivals
+          <b className="text-fg">2. What rivals would pay.</b> The other nine franchises, each with its own squad and purse,
+          run through the Auction room's simulator {res ? res.trials : TRIALS} times, bidding by its demand model fitted on
+          real auctions (whether a team bids at all and how high, from its open places by role and overseas, its purse per
+          place, how much he'd improve its squad, his market and last price; how hot a player is varies from run to run).
+          For every player that gives the price a rival would have paid in each run: the price you'd have to beat (one
+          ladder step above the best rival's bid). "Rivals
           pay" is the middle of those runs, "usually enough" what wins him in 9 runs of 10, "P(≤ max)" the share of runs in
           which your max bid is enough. Your own releases are never bought back: if one is worth more to your squad than
           his salary, the plan says "reconsider keeping".
@@ -133,11 +132,12 @@ function HowItWorks({ res }: { res: Plan | null }) {
           bowls, times his chance of playing (a lot's as a free agent: how often players like him play at all) (an opener
           faces about 21, a No. 7 about 9, a frontline bowler bowls about 23), the XI's balls held to a side's{" "}
           {TEAM_BALLS} a innings; at most {XI_OVERSEAS} overseas, a keeper, five bowling and six batting options; a place
-          your squad can't fill goes to a replacement-level player ({fmtNum(REPLACEMENT, 0)}). The next {DEPTH_N} players
-          count {Math.round(DEPTH_WEIGHT * 100)}% of their contribution (depth), and each role need you miss (keepers,
-          openers, death bowlers, spinners, pace) costs {fmtNum(NEED_PENALTY, 2)} runs a match.
+          your squad can't fill goes to a replacement-level player ({fmtNum(REPLACEMENT, 0)}). Depth: the XI misses the
+          matches its players don't play (1 − their chance of playing, added up), and the bench fills them, best first.
+          Role needs (keepers, openers, death bowlers, spinners, pace) are targets the plan reports against; they don't
+          change the strength.
         </p>
-        <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs leading-relaxed text-fg">{`strength = best XI + ${DEPTH_WEIGHT} × depth − ${NEED_PENALTY} × role places short
+        <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs leading-relaxed text-fg">{`strength = best XI + the bench filling the XI's missed matches
 gain     = strength with him − strength without him
 max bid  = gain ÷ λ   (at most the purse left after the other likely buys)`}</pre>
         <p>
@@ -157,10 +157,10 @@ max bid  = gain ÷ λ   (at most the purse left after the other likely buys)`}</
           P(≤ max) × (gain − λ × the price you'd expect to pay).
         </p>
         <p className="rounded-lg border border-willow/20 bg-willow/5 px-3 py-2 text-xs">
-          <b className="text-willow">Honest caveat:</b> the rivals' bidding is calibrated to real auctions (2022–24, tested on
-          2025–26), but prices rest on the market model (a typical player is off by a factor of about 1.7) and nobody's
-          scouting is in it; values are ratings, not certainties. Replayed on the 2025 and 2026 auctions, the plan's squads
-          were ahead of the real ones in 2025 (8 of 10 teams) and behind in 2026 (all 10) on what the players did next season: see How it works and
+          <b className="text-willow">Honest caveat:</b> the rivals bid by a demand model fitted on the 2019–24 auctions and
+          tested once on 2025–26, but prices rest on the market model, which can't see scouting, injury or brand; values are
+          ratings, not certainties. Replayed on the 2025 and 2026 auctions at the real team's spend, the plan's squads were
+          ahead of the real ones for 6 of 10 teams in 2025 and 3 of 10 in 2026 on what the players did next season: see
           docs/METHODOLOGY.md §12. Treat it as a starting sheet for the war room, not a verdict.
         </p>
       </div>
@@ -182,11 +182,13 @@ export function BidPlan() {
       <Card className="mb-4 border-gold/40 bg-gold/5 px-4 py-3 text-sm leading-relaxed text-muted">
         <Badge tone="gold" className="mr-2">Beta</Badge>
         <b className="text-fg">Not yet proven.</b> Replaying the real auctions with only what was known
-        beforehand, this plan built a stronger squad than the real franchise for 8 of 10 teams in the 2025
-        mega auction and none in the 2026 mini auction. Its edge comes from spotting players the market
-        under-prices, which is where the price model is weakest (scouted youngsters, unusual prices), and it
-        doesn't see rivals chasing the same names. Use it to explore bid limits and fallbacks, not as a
-        verdict. Full results in the methodology (Bid plan section).
+        beforehand, at the real franchise's spend, this plan built a stronger squad (on what the players did
+        next season) for 6 of 10 teams in the 2025 mega auction and 3 of 10 in the 2026 mini auction: about
+        level, not ahead. "P(≤ max)" is no longer over-confident: where it said 0.8–1.0 the real price
+        stayed at or under the max bid 89% of the time in 2025 and 100% in 2026 (before the fitted rivals:
+        said 0.88, came true 0.44 in 2026); in the middle it now errs low. The plan doesn't see rivals chasing the same names, or scouting the price model
+        misses. Use it to explore bid limits and fallbacks, not as a verdict. Full results in the
+        methodology (Bid plan section).
       </Card>
       {keep.error || poolData.error ? (
         <ErrorBox message={(keep.error || poolData.error)!} />
@@ -257,7 +259,7 @@ function Planner({ data, raw, register }: { data: KeepData; raw: AuctionPoolRow[
   const ctx: BidContext | null = useMemo(() => {
     try {
       return buildContext(data, pool, team, decisions, purse, openSlots,
-        { squad_max: squadMax, squad_min: squadMin, overseas_max: osMax }, register, null, display);
+        { squad_max: squadMax, squad_min: squadMin, overseas_max: osMax }, register, display);
     } catch {
       return null;
     }
@@ -695,7 +697,6 @@ function Rivals({ ctx }: { ctx: BidContext }) {
           <thead>
             <tr>
               <th className="th">Team</th>
-              <th className="th">Bidding style</th>
               <th className="th text-right">Kept</th>
               <th className="th text-right">Open places</th>
               <th className="th text-right">Purse left</th>
@@ -705,7 +706,6 @@ function Rivals({ ctx }: { ctx: BidContext }) {
             {ctx.rivals.map((r) => (
               <tr key={r.team}>
                 <td className="td font-medium text-fg">{r.team}</td>
-                <td className="td text-muted">{r.personality}</td>
                 <td className="td stat-num text-right">{r.kept.length}</td>
                 <td className="td stat-num text-right">{Number(ctx.rules.squad_max) - r.kept.length}</td>
                 <td className="td stat-num text-right">{cr(r.purse_left)} cr</td>
@@ -715,8 +715,8 @@ function Rivals({ ctx }: { ctx: BidContext }) {
         </table>
       </div>
       <p className="mt-3 text-xs text-muted">
-        Each keeps Keep or release's default calls for its squad, opens the same number of places, and bids in the style the
-        Auction room gives it. {ctx.available.length} players are in the pool.
+        Each keeps Keep or release's default calls for its squad, opens the same number of places, and bids by the Auction
+        room's fitted demand model (its squad, overseas places and purse at each lot). {ctx.available.length} players are in the pool.
       </p>
     </Collapsible>
   );
@@ -732,11 +732,11 @@ function Assumptions({ ctx, res, data, openSlots, trials, register }: {
     ["Squad", `${ctx.rules.squad_min}–${ctx.rules.squad_max} players, ${ctx.rules.overseas_max} overseas`, assumed.has("squad_min")],
     ["Places each team opens", openSlots ? `at least ${openSlots}, lowest-valued players released first` : "none: Keep or release's plans exactly", true],
     ["The pool", register ? "the official auction list" : "free agents + every plan's releases (our guess)", !register],
-    ["Rivals", `the Auction room's simulator, ${trials} runs, its personalities`, true],
+    ["Rivals", `the Auction room's simulator, ${trials} runs, its fitted demand model`, false],
     ["Best XI", `≤ ${XI_OVERSEAS} overseas, a keeper, 5 bowling and 6 batting options`, false],
     ["Replacement level", `${fmtNum(REPLACEMENT, 0)} (contributions are runs a match above it)`, false],
     ["XI balls", `held to ${TEAM_BALLS} a side's innings, faced and bowled`, false],
-    ["Depth and needs", `next ${DEPTH_N} at ${DEPTH_WEIGHT}; ${fmtNum(NEED_PENALTY, 2)} runs a match per role place short`, true],
+    ["Depth", "the bench fills the matches the XI misses (its chance of playing); role needs reported, not scored", false],
     ["Exchange rate λ", `${fmtNum(res.lam, 2)} runs per crore (chosen by the plan)`, false],
     ["Plan converged", res.converged ? `yes, in ${res.rounds} round${res.rounds === 1 ? "" : "s"}` : `stopped after ${res.rounds} rounds`, false],
   ];
