@@ -14,7 +14,7 @@ it predicts anything.
 ![License](https://img.shields.io/badge/license-MIT-informational)
 [![CI](https://github.com/Aaryan-Nakhat/cricdex/actions/workflows/ci.yml/badge.svg)](https://github.com/Aaryan-Nakhat/cricdex/actions/workflows/ci.yml)
 
-<p align="center"><a href="https://github.com/Aaryan-Nakhat/cricdex/raw/main/docs/media/hero.mp4"><img src="docs/media/hero.gif" alt="A 45-second tour of CricDex: the IPL mega auction run 300 times; a real chase scored ball by ball for win probability; Bayesian ratings with their uncertainty; cross-league look-alikes with estimated prices; the honest backtest" width="100%"></a></p>
+<p align="center"><a href="https://github.com/Aaryan-Nakhat/cricdex/raw/main/docs/media/hero.mp4"><img src="docs/media/hero.gif" alt="A 54-second tour of CricDex: the IPL mega auction run 300 times on a bidding model fitted on real auctions; Keep or release and Bid plan (beta); a real chase scored ball by ball for win probability; Bayesian ratings with their uncertainty; cross-league look-alikes at market prices; the honest backtest" width="100%"></a></p>
 
 <p align="center"><b><a href="https://aaryan-nakhat.github.io/cricdex/">Open the live site</a></b> · no install, runs in your browser</p>
 
@@ -30,7 +30,7 @@ ball-by-ball data, and every model explained in plain English.**
 
 ## 🔨 Run the IPL mega auction yourself
 
-<p align="center"><img src="docs/media/auction.png" alt="The mega auction: purse used per team, the top buys with their most likely team, and how a team bids" width="100%"></p>
+<p align="center"><img src="docs/media/auction.png" alt="The mega auction: purse used per team, the top buys with their most likely team, and how a team bids by the fitted demand model" width="100%"></p>
 
 Ten franchises keep their real 2025 retentions, then bid for every active T20 player. One auction is
 played 300 times, so you see **who lands each star, how often, and for how much**, and how every squad
@@ -69,6 +69,8 @@ behaves, not the exact crore of a real sale. → [How the auction works](docs/AU
 
 ## 🧾 Keep or release, before the retention deadline
 
+<p align="center"><img src="docs/media/keep.png" alt="Keep or release for one franchise: cost to keep, market price, the chance a franchise keeps a player like him and the call, with the model's test record and the squad that follows" width="100%"></p>
+
 IPL 2027 retention lists are due on 15 November 2026 (as reported). Pick a franchise and see what keeping each
 player costs (his salary, or for a 2025 mega-auction retention the 2025 retention slabs, assumed to carry into
 2027) against his market price (what players like him have fetched at real auctions), and a **Keep / Release
@@ -86,7 +88,9 @@ purse isn't published yet). In the terminal: `cricdex keep --team RCB`.
 
 ## 📋 Bid plan, for the auction room (beta)
 
-**Beta, not yet proven:** in replays of the real 2025 and 2026 auctions, at the real franchise's spend, its squad beat the real one on next-season output for 6 of 10 teams in the 2025 mega auction and 3 of 10 in the 2026 mini: about level. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
+<p align="center"><img src="docs/media/bidplan.png" alt="Bid plan (beta): a live 2027 sheet for RCB (top five targets, max bids and a fallback chain), how its chance of landing a player under the max bid held up at the 2025 and 2026 auctions, and the replay against the real franchises" width="100%"></p>
+
+**Beta, not yet proven:** in replays of the real 2025 and 2026 auctions, at the real franchise's spend, its squad beat the real one on next-season output for 7 of 10 teams in the 2025 mega auction and 2 of 10 in the 2026 mini: ahead in the mega, behind in the mini. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
 purse from Keep or release (your own calls carry over), lets the other nine teams bid in the Auction room's
 simulator 200 times to see what each player would cost, and picks the targets that add the most to your
 best XI for the money: each with a **max bid**, the odds of landing him under it, and a **fallback chain**
@@ -94,9 +98,10 @@ per role ("if he goes above 8 cr, the next spinner is worth up to 8.5"). Every a
 link keeps them, and the sheet exports to CSV or prints. The rivals bid by the Auction room's fitted demand
 model; squad strength counts each player at his chance of playing, with the bench filling the matches the XI
 misses (no hand-set depth weight or need penalty); a team never buys back its own releases (it flags
-"reconsider keeping" instead). Its "P(≤ max bid)" is checked against what happened and is no longer
-over-confident: where it said 0.8–1.0 (0.92 on average), the real price stayed at or under the max bid 89% of
-the time in 2025 and 100% in 2026 (before the fitted rivals: said 0.88, came true 0.44 in 2026). A starting sheet, not a
+"reconsider keeping" instead). The pool is everyone not under a 2027 contract, minus announced retirements
+(each with its source) and anyone without a T20 match in three years. Its "P(≤ max bid)" is checked against
+what happened: about right overall (said 0.38, came true 0.39 in 2025; 0.48 / 0.52 in 2026), high in the top band
+(said 0.89, came true 0.76 in 2025). A starting sheet, not a
 forecast. In the terminal: `cricdex bidplan --team RCB`.
 → [How it plans, and the replay](docs/METHODOLOGY.md#12-bid-plan-beta)
 
@@ -149,7 +154,7 @@ better than B?") use both ranges, so a thin record can't win the argument on its
 
 ## 🔭 Same mould, other leagues
 
-<p align="center"><img src="docs/media/scout.png" alt="Scout: an IPL bowler and look-alikes from six pools, with match score, estimated price and saving" width="100%"></p>
+<p align="center"><img src="docs/media/scout.png" alt="Scout: an IPL bowler and look-alikes from seven pools, with match score, market price and saving, a stale-data badge on the SMAT pool, and the fitted league translation" width="100%"></p>
 
 Pick an IPL player. **Scout** finds players of the same role and type across every pool (IPL, SMAT,
 and each overseas league: BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC and more), ranks them by how they stand **within their own league**, and prices each

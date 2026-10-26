@@ -1,5 +1,6 @@
 """Render the README's designed images: every docs/media/src/img-*.html -> docs/media/<name>.png.
 
+    uv run python scripts/media_data.py                                      # the numbers -> data.js
     uv run --with playwright python scripts/render_images.py                 # all of them
     uv run --with playwright python scripts/render_images.py auction ngi     # just these
 
@@ -36,10 +37,16 @@ def main(names: list[str]) -> None:
             headless=True, channel=None if CHANNEL == "chromium" else CHANNEL
         )
         page = browser.new_page(viewport={"width": 1600, "height": 900}, device_scale_factor=1)
+        # a page that fails to fill from data.js would render half empty: stop instead
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
         for src in pages:
+            errors.clear()
             page.goto(src.resolve().as_uri())
             page.wait_for_function(FONTS_READY)
             page.wait_for_timeout(250)
+            if errors:
+                sys.exit(f"{src}: {errors[0]}")
             out = OUT / f"{src.stem.removeprefix('img-')}.png"
             page.locator("#stage").screenshot(path=str(out))
             print(f"wrote {out} ({out.stat().st_size / 1e3:.0f} KB)")

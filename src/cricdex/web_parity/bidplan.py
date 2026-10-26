@@ -176,6 +176,10 @@ def piece(
         # P(plays) and the contribution a match he plays (v ÷ P): the bench fill (`strength`)
         "pp": pp,
         "c": v / pp if pp > 0 else 0.0,
+        # the most bench appearances a match he can give (`bench_fill`): 1 for a squad player (his
+        # P(plays) is the chance he's picked ahead of the others, so he plays when one is missing);
+        # an auction candidate's is set to his P(plays) in `_cands`
+        "cap": 1.0,
         "cb": cb,
         "cw": cw,
         "fb": fb,
@@ -259,14 +263,19 @@ def need_counts(pieces: list[dict]) -> dict[str, int]:
 def bench_fill(xi_ids: list[str], pieces: list[dict], bench: list[dict]) -> float:
     """The bench's expected runs a match: the XI's missed appearances, Σ (1 − P(plays)) over its
     members, filled by the bench in order of the contribution a match each makes when he plays (ties
-    by id), at most one appearance a match each, players above replacement only."""
+    by id), at most `cap` appearances a match each (1 for a squad player, an auction candidate's
+    P(plays): a free agent players like him rarely play for adds what they actually add, on the bench
+    as in the XI), players above replacement only. Until 2026-10-23 every bench player gave a whole
+    appearance, so a 40-year-old free agent with P(plays) 0.04 filled the XI's absences at his full
+    contribution and topped the targets (audit item 8, follow-up)."""
     ids = set(xi_ids)
     miss = fsum([1.0 - min(1.0, max(0.0, p["pp"])) for p in pieces if p["id"] in ids])
     out = 0.0
     for p in sorted((q for q in bench if q["c"] > REPLACEMENT), key=lambda q: (-q["c"], q["id"])):
         if miss <= 0.0:
             break
-        a = miss if miss < 1.0 else 1.0
+        cap = min(1.0, max(0.0, p.get("cap", 1.0)))  # a piece without one is a squad player
+        a = miss if miss < cap else cap
         out += a * p["c"]
         miss -= a
     return out
@@ -703,6 +712,8 @@ def _cands(ctx: dict) -> list[dict]:
     for r in ctx["available"]:
         p = piece(r["cricsheet_id"], r["name"], r.get("contrib"), r["role"], r["is_overseas"],
                   r["tags"], contrib_parts(r))  # fmt: skip
+        # a candidate gives the bench at most his P(plays) appearances a match (`bench_fill`)
+        p["cap"] = p["pp"]
         p["ub"] = upper_gain(p)
         p["own"] = r.get("from_team") is not None and r.get("from_team") == ctx["team"]
         out.append(p)

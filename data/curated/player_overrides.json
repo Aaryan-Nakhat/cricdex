@@ -1,23 +1,5 @@
 {
- "_note": "Reviewed corrections to the player master (scripts/build_player_master.py). Keyed by cricsheet_id; every field here wins over every other source. Fields: display_name, full_name, aliases (added to the searchable list), primary_role (batter|bowler|allrounder|wk_batter), bowling_style (right-arm-fast|right-arm-fast-medium|right-arm-medium|left-arm-fast|left-arm-medium|off-spin|leg-spin|left-arm-orthodox|left-arm-wrist-spin), batting_hand (left|right), country (ISO alpha-3, or ENG/SCO/WIN), team (IPL franchise code or null), retired (true) + retired_scope (ipl|all), dob (YYYY-MM-DD). Give every entry a `_name` and an `_evidence` (a source a reviewer can check). Disagreements still to settle are listed in data/curated/player_master_review.json.",
- "495d42a5": {
-  "_name": "R Ashwin",
-  "retired": true,
-  "retired_scope": "ipl",
-  "_evidence": "Retired from the IPL on 27 August 2025 (Cricbuzz, https://m.cricbuzz.com/cricket-news/135418/ravichandran-ashwin-retires-from-ipl; listed under 'Retired players' on Wikipedia's 'List of 2026 Indian Premier League personnel changes'). Retired from international cricket in December 2024."
- },
- "bbd41817": {
-  "_name": "Andre Russell",
-  "retired": true,
-  "retired_scope": "ipl",
-  "_evidence": "Retired from the IPL on 30 November 2025 (News18, https://www.news18.com/cricket/andre-russell-announces-retirement-from-ipl-ws-l-9740387.html; Wikipedia 2026 IPL personnel changes). Still plays other T20 leagues, so he stays active elsewhere but is out of the IPL auction pool."
- },
- "759ac88f": {
-  "_name": "Mohit Sharma",
-  "retired": true,
-  "retired_scope": "all",
-  "_evidence": "Retired from all forms of cricket on 3 December 2025 (ESPNcricinfo, https://www.espncricinfo.com/story/mohit-sharma-retires-from-ipl-and-all-forms-of-cricket-1514249; Wikipedia 2026 IPL personnel changes)."
- },
+ "_note": "Reviewed corrections to the player master (scripts/build_player_master.py). Keyed by cricsheet_id; every field here wins over every other source. Retirements live in data/curated/ipl_availability.json. Fields: display_name, full_name, aliases (added to the searchable list), primary_role (batter|bowler|allrounder|wk_batter), bowling_style (right-arm-fast|right-arm-fast-medium|right-arm-medium|left-arm-fast|left-arm-medium|off-spin|leg-spin|left-arm-orthodox|left-arm-wrist-spin), batting_hand (left|right), country (ISO alpha-3, or ENG/SCO/WIN), team (IPL franchise code or null), dob (YYYY-MM-DD). Give every entry a `_name` and an `_evidence` (a source a reviewer can check). Disagreements still to settle are listed in data/curated/player_master_review.json.",
  "13fc5c6d": {
   "_name": "DS Rathi (Digvesh Rathi)",
   "display_name": "Digvesh Rathi",
@@ -73,7 +55,9 @@
   "display_name": "Sahil Parakh",
   "full_name": "Sahil Parakh",
   "country": "IND",
-  "aliases": ["Sahil Parekh"],
+  "aliases": [
+   "Sahil Parekh"
+  ],
   "_evidence": "Sahil Parakh, 18, Nashik (Maharashtra), bought by DC for 30 lakh, debuted for DC v RCB on 27 April 2026 (Outlook India, https://www.outlookindia.com/amp/story/sports/cricket/who-is-sahil-parakh-delhi-capitals-vs-royal-challengers-bengaluru-ipl-2026-match-39): the first IPL match of SU Parakh (register 926c7443) in our data, for Delhi Capitals. Wikipedia's squad list spells him 'Sahil Parekh'. Issue I6, 2026-10-22."
  }
 }

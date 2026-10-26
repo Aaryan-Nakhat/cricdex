@@ -327,6 +327,37 @@ def squad_rows(comp: Competition, squads: dict[str, Any] | None = None) -> dict[
     return out
 
 
+def availability_path(league: str = "ipl") -> Path:
+    """data/curated/<league>_availability.json: announced retirements and auction opt-outs, sourced."""
+    return _ROOT / "data" / "curated" / f"{league}_availability.json"
+
+
+def load_availability(league: str = "ipl") -> dict[str, dict]:
+    """cricsheet id → the reviewed availability record (status, scope, date, seasons, _evidence);
+    {} when there is no file."""
+    p = availability_path(league)
+    if not p.exists():
+        return {}
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    return {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
+
+
+def unavailable(
+    season: int, league: str = "ipl", records: dict[str, dict] | None = None
+) -> dict[str, str]:
+    """cricsheet id → why he can't be bought at the auction for `season`: "retired" (announced, any
+    scope, dated before that season) or "not_registered" (he skipped that season's auction)."""
+    recs = load_availability(league) if records is None else records
+    out: dict[str, str] = {}
+    for cid, r in recs.items():
+        st = r.get("status")
+        if st == "retired" and int(str(r.get("date") or "0000")[:4]) < season:
+            out[cid] = "retired"
+        elif st == "not_registered" and season in (r.get("seasons") or []):
+            out[cid] = "not_registered"
+    return out
+
+
 def slab_holder(squads: dict[str, Any], team: str, row: dict) -> str | None:
     """ "capped" / "uncapped" when `row` is a player `team` retained at the cycle's mega auction and
     still holds that retention (the squads file's `mega_retentions_2025`), else None. A player who

@@ -214,8 +214,8 @@ const SECTIONS: Section[] = [
         <strong>fallback chain</strong> per role. The rivals bid by the Auction room's fitted demand model, and a team
         never buys back its own releases: a release worth more to the squad than his salary is flagged "reconsider
         keeping". Replayed on the 2025 and 2026 auctions with only what was known beforehand, at the real team's spend,
-        the plan's squads were ahead of the real ones for 6 of 10 teams in 2025 and 3 of 10 in 2026 on what the players
-        did next season: about level, so it stays in beta, a starting sheet, not a forecast. Same optimiser on the CLI
+        the plan's squads were ahead of the real ones for 7 of 10 teams in 2025 and 2 of 10 in 2026 on what the players
+        did next season: ahead in the mega auction, behind in the mini, so it stays in beta, a starting sheet, not a forecast. Same optimiser on the CLI
         (<code>cricdex bidplan</code>), locked by a parity test.
       </>
     ),

@@ -391,8 +391,10 @@ Scout:
 
 All to fix. Order: data fixes and price model first, then Bid plan, then visuals and a rebuild.
 
-- [ ] I1. README auction / Scout images were rendered before the market price model — refresh every visual
-  from current data (last, after the price fixes).
+- [x] I1. README auction / Scout images were rendered before the market price model — refresh every visual
+  from current data (last, after the price fixes). *Done 2026-10-23:* every image and the hero video re-rendered
+  from data (`scripts/media_data.py` → `docs/media/src/data.js`), plus new Keep or release and Bid plan (beta)
+  images and a hero scene for them.
 - [ ] I2. Bid plan (beta) doesn't beat real franchises in replay (re-run 2026-10-22 on expected contributions:
   8/10 in the 2025 mega, 0/10 in the 2026 mini; before, on per-100-ball strength, 4/10 and 2/10); target lists
   overlap across teams because the plan is a price-taker. Make rivals react to the plan's targets
@@ -402,6 +404,10 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
   about level, not ahead in either type, so beta stays. P(≤ max bid) is no longer over-confident (top band
   0.92 → 0.89 came true in 2025, 0.91 → 1.00 in 2026; 0.35 / 0.35 on the lots a 2025 team bought itself).
   Left: rivals reacting to the plan, multi-season values, strength in wins (METHODOLOGY §12).
+  *Re-run 2026-10-23 (evening) with the bench capped at a lot's P(plays) (I16):* 7/10 in the 2025 mega (+6.5)
+  and 2/10 in the 2026 mini (−2.4, where the plan also spent far less than the real teams); P(≤ max bid) about
+  right overall (0.38 / 0.39 in 2025, 0.48 / 0.52 in 2026) but high in the top band (0.89 / 0.76 in 2025,
+  0.89 / 0.67 in the validation). Still beta.
 - [ ] I3. Star prices still low out of time (lots ≥10 cr predicted at ~0.5× their price). *Re-examined
   2026-10-22, not ticked:* the ratio is regression to the mean, not a fixable level. Lots picked by their
   real price sit above any model; a model whose prices were exactly right on average would show 0.30×
@@ -482,6 +488,27 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
   league stars new to the IPL came out too high in the 2023–25 intake.
 - [x] I12. Style twins still give odd matches (item 25) — rebuild the similarity features and check 20 famous
   players by eye. *Done 2026-10-22: see item 25; 20 players read by eye, `tests/test_style_twins.py`.*
+- [x] I16. Bid plan's 2027 sheets weren't presentable: retired players in the pool (Warner at 16–19 cr max bids,
+  Bravo, Dinesh Karthik, Amit Mishra, Shikhar Dhawan, Rayudu) and Sarthak Ranjan (rated −9.1) first for CSK, DC
+  and RCB. *Done 2026-10-23:* three causes fixed, none in the ranking's sign. (1) The bench filled the XI's
+  missed matches with whole appearances whatever the player's P(plays), so a free agent who plays 4% of the time
+  counted at his full career contribution: a lot now gives the bench at most his P(plays) of an appearance
+  (`bench_fill`, Python ⇄ TS, parity-locked). (2) A player with no batting position in the window was measured
+  against the tail's replacement level (−61.6) at a batter's balls: Sarthak Ranjan +8.2 runs a match; he now
+  takes his role's typical position (+1.2, `playing_time.expected_usage`). (3) The pool had no sourced
+  retirements and took franchises from the player master: `data/curated/ipl_availability.json` (15 retirements
+  with dated sources, 2 auction opt-outs recorded), contracts from the competition's squads (Rahane, retired in
+  July, was still a KKR player), and the 3-year activity rule justified from the data (`scripts/inactivity_gap.py`:
+  after 3 years away 1.9% of players, 4.4% of former IPL players, played an IPL match again). METHODOLOGY §6c,
+  §7, §12; all ten sheets re-checked by hand.
+- [ ] I17. Left from the I16 review (2026-10-23): (a) lower-order hitters rate far below the average ball
+  (Ramandeep Singh −37 per 100 balls) yet beat the tail replacement level of positions 8–11, so a No. 8 batter
+  is a cheap target on every sheet; a No. 8 may need its own replacement group (ratings and playing time
+  together). (b) Where λ hits its floor (KKR, LSG, MI) the max bids run far above what rivals pay: unspent
+  purse is worth nothing to the rule. (c) The README's room is a mega auction on the 2025 retention lists, so
+  players bought in 2025 (Suryavanshi, Noor Ahmad) are lots there; the 2027 mini room is in METHODOLOGY §12.
+  (d) Bangladesh players' 2027 eligibility is unreported (the BCCI had KKR release Mustafizur Rahman in Jan
+  2026). (e) Some dates of birth look wrong (Mukesh Choudhary 40, Venkatesh Iyer 36).
 
 ### Guardrails
 

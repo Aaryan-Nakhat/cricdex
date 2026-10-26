@@ -249,3 +249,30 @@ def test_slab_rule_reproduces_2025_and_2026_purses(ipl):
         assert abs(chk["purse"] - charged - published) < 0.01, t
         salaries = other + sum(h["salary"] for h in holders)
         assert abs(charged - salaries - chk.get("slab_charge", {}).get(t, 0.0)) < 0.01, t
+
+
+def test_availability_file_is_sourced():
+    """data/curated/ipl_availability.json: every record says what (status, scope or seasons) and
+    when, with at least one dated source a reviewer can open."""
+    recs = competitions.load_availability("ipl")
+    assert recs, "no availability records"
+    for cid, r in recs.items():
+        assert r.get("_name"), cid
+        assert r["status"] in ("retired", "not_registered"), cid
+        if r["status"] == "retired":
+            assert r["scope"] in ("ipl", "all") and len(r["date"]) == 10, cid
+        else:
+            assert r["seasons"] and all(isinstance(s, int) for s in r["seasons"]), cid
+        ev = r.get("_evidence") or []
+        assert ev and all(e["url"].startswith("https://") and e.get("date") for e in ev), cid
+
+
+def test_unavailable_by_season():
+    recs = {
+        "a": {"status": "retired", "scope": "ipl", "date": "2026-07-30"},
+        "b": {"status": "not_registered", "seasons": [2026]},
+        "c": {"status": "retired", "scope": "all", "date": "2027-02-01"},
+    }
+    assert competitions.unavailable(2027, records=recs) == {"a": "retired"}
+    assert competitions.unavailable(2026, records=recs) == {"b": "not_registered"}
+    assert competitions.unavailable(2028, records=recs) == {"a": "retired", "c": "retired"}

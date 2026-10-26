@@ -1,68 +1,71 @@
 <!doctype html><html><head><meta charset="utf-8"><title>Auction room</title><link rel="stylesheet" href="theme.css">
 <style>
-  .tr2 { display: grid; grid-template-columns: 60px 196px 1fr 64px; align-items: center; gap: 14px; height: 46px; }
-  .pers { white-space: nowrap; }
+  .tr2 { display: grid; grid-template-columns: 60px 150px 1fr 64px; align-items: center; gap: 14px; height: 46px; }
   .stack { display: flex; height: 16px; border-radius: 8px; overflow: hidden; background: var(--surface); }
   .stack i { display: block; height: 100%; }
   .num { font: 800 17px/1 Inter; font-variant-numeric: tabular-nums; text-align: right; }
-  .pers { font: 600 13.5px/1.2 Inter; color: var(--muted); }
+  .pers { font: 600 13.5px/1.2 Inter; color: var(--muted); white-space: nowrap; }
   table { width: 100%; border-collapse: collapse; margin-top: 14px; }
   td { padding: 10px 0; border-top: 1px solid var(--line2); font: 600 16px/1.2 Inter; vertical-align: middle; }
   td.r { text-align: right; font-variant-numeric: tabular-nums; }
-  .formula { margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: var(--surface); font: 600 15px/1.55 "JetBrains Mono"; color: var(--fg); }
+  .formula { margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: var(--surface); font: 600 14.5px/1.6 "JetBrains Mono"; color: var(--fg); white-space: pre; }
 </style></head><body>
+<script src="data.js"></script><script src="fill.js"></script>
 <div id="stage">
   <div class="orb" style="width:620px;height:620px;left:-220px;top:-260px;background:#34d399"></div>
   <div class="orb" style="width:540px;height:540px;right:-200px;top:300px;background:#f5c542"></div>
   <div class="gridbg"></div>
   <div class="kicker">🏏 Auction room</div>
   <h1>A real-rules IPL mega auction, <span class="grad">run 300 times.</span></h1>
-  <p class="lede">Every franchise keeps its real 2025 retentions, then bids for the rest by its own personality. Who lands each star, and for how much, across 300 simulated auctions.</p>
+  <p class="lede">Every franchise keeps its real 2025 retentions, then bids for the rest by a demand model fitted on who really bought whom at the 2019–2026 auctions. Who lands each star, and for how much, across 300 simulated auctions.</p>
 
   <div style="display:grid;grid-template-columns:1.12fr 1fr;gap:22px;margin-top:30px">
     <div class="card">
-      <h3>Purse used per team · of 120 cr</h3>
-      <div style="margin-top:14px">
-        <div class="tr2"><span class="team CSK">CSK</span><span class="pers">5 kept · Balanced</span><div class="stack"><i style="width:54.2%;background:var(--green)"></i><i style="width:45.2%;background:#5fd0b9"></i></div><span class="num">119.3</span></div>
-        <div class="tr2"><span class="team MI">MI</span><span class="pers">5 kept · Marquee chaser</span><div class="stack"><i style="width:62.5%;background:var(--green)"></i><i style="width:37.0%;background:#5fd0b9"></i></div><span class="num">119.4</span></div>
-        <div class="tr2"><span class="team RCB">RCB</span><span class="pers">3 kept · Marquee chaser</span><div class="stack"><i style="width:30.8%;background:var(--green)"></i><i style="width:68.7%;background:#5fd0b9"></i></div><span class="num">119.4</span></div>
-        <div class="tr2"><span class="team KKR">KKR</span><span class="pers">4 kept · All-rounder stack</span><div class="stack"><i style="width:34.2%;background:var(--green)"></i><i style="width:65.3%;background:#5fd0b9"></i></div><span class="num">119.4</span></div>
-        <div class="tr2"><span class="team DC">DC</span><span class="pers">4 kept · Indian focus</span><div class="stack"><i style="width:36.5%;background:var(--green)"></i><i style="width:62.4%;background:#5fd0b9"></i></div><span class="num">118.7</span></div>
-        <div class="tr2"><span class="team PBKS">PBKS</span><span class="pers" style="color:var(--gold)">2 kept · Value hunter</span><div class="stack"><i style="width:7.9%;background:var(--green)"></i><i style="width:91.1%;background:#f5c542"></i></div><span class="num">118.9</span></div>
-        <div class="tr2"><span class="team SRH">SRH</span><span class="pers">5 kept · Overseas heavy</span><div class="stack"><i style="width:62.5%;background:var(--green)"></i><i style="width:37.0%;background:#5fd0b9"></i></div><span class="num">119.5</span></div>
-        <div class="tr2"><span class="team GT">GT</span><span class="pers">5 kept · Balanced</span><div class="stack"><i style="width:42.5%;background:var(--green)"></i><i style="width:56.7%;background:#5fd0b9"></i></div><span class="num">119.0</span></div>
-        <div class="tr2"><span class="team RR">RR</span><span class="pers">6 kept · Value hunter</span><div class="stack"><i style="width:65.8%;background:var(--green)"></i><i style="width:33.3%;background:#5fd0b9"></i></div><span class="num">119.0</span></div>
-        <div class="tr2"><span class="team LSG">LSG</span><span class="pers">5 kept · Overseas heavy</span><div class="stack"><i style="width:42.5%;background:var(--green)"></i><i style="width:56.7%;background:#5fd0b9"></i></div><span class="num">119.1</span></div>
-      </div>
+      <h3 id="purse-h"></h3>
+      <div style="margin-top:14px" id="purse"></div>
       <div style="display:flex;gap:18px;margin-top:16px;font:600 14px Inter" class="muted">
-        <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--green);vertical-align:-1px"></i> retained (IPL slabs)</span>
+        <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--green);vertical-align:-1px"></i> retained (the 2025 charge)</span>
         <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#5fd0b9;vertical-align:-1px"></i> bought at auction</span>
-        <span style="margin-left:auto;color:var(--gold)">Punjab kept two players, so it bids hardest</span>
+        <span style="margin-left:auto;color:var(--gold)" id="fewest"></span>
       </div>
     </div>
 
     <div class="col" style="gap:22px">
       <div class="card">
         <h3>Top buys · average price · most likely team</h3>
-        <table>
-          <tr><td>KL Rahul</td><td class="r" style="width:90px">26.8 cr</td><td class="r" style="width:120px"><span class="team KKR">KKR</span> 26%</td></tr>
-          <tr><td>Jos Buttler</td><td class="r">25.3 cr</td><td class="r"><span class="team SRH">SRH</span> 43%</td></tr>
-          <tr><td>Phil Salt</td><td class="r">24.1 cr</td><td class="r"><span class="team SRH">SRH</span> 29%</td></tr>
-          <tr><td>Priyansh Arya</td><td class="r">24.1 cr</td><td class="r"><span class="team RCB">RCB</span> 54%</td></tr>
-          <tr><td>Vaibhav Suryavanshi</td><td class="r">23.6 cr</td><td class="r"><span class="team RCB">RCB</span> 74%</td></tr>
-          <tr><td>Bhuvneshwar Kumar</td><td class="r">21.1 cr</td><td class="r"><span class="team DC">DC</span> 42%</td></tr>
-        </table>
+        <table id="top"></table>
       </div>
       <div class="card">
-        <h3>How a team bids</h3>
-        <div class="formula">max bid = value × aggression × need<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;× overseas bias × luck × budget</div>
-        <p class="t">Highest bid wins, but pays just above the second-best bid, never past his own price ceiling (27 cr, less for a thin IPL record).</p>
+        <h3>How a team bids · fitted, not hand-set</h3>
+        <div class="formula">bids at all?  likelier for a dearer player
+              and by its needs
+max bid     = e^(level + needs + heat + own view)</div>
+        <p class="t">Needs: places short in his role, overseas places, purse per place. The highest bid wins and pays one ladder step above the second-best, within its purse.</p>
       </div>
     </div>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:22px">
     <span class="chip">💰 120 cr purse</span><span class="chip">🔒 Real 2025 retentions, editable</span><span class="chip">✈️ 8 overseas max</span>
-    <span class="chip">👥 20 to 25-man squads</span><span class="chip">🌏 Pool from 14 leagues</span><span class="chip">🎲 Seeded and reproducible</span>
+    <span class="chip">👥 18 to 25-man squads</span><span class="chip" id="pools"></span><span class="chip">🎲 Seeded and reproducible</span>
   </div>
-  <div class="foot"><span>Simulated. Prices come from the skill model, calibrated to recent auctions, not from real sale data.</span><span>Mega mode · 300 runs</span></div>
-</div></body></html>
+  <div class="foot"><span>Simulated. Prices start from a market model fitted on real IPL auction prices 2018–2026: read a star's price as a range.</span><span id="foot-r"></span></div>
+</div>
+<script>
+  const A = M.auction, P = A.purse;
+  fill("purse-h", `Purse used per team · of ${fx(P, 0)} cr`);
+  fill("purse", A.teams.map((t) => {
+    const hi = t.team === A.fewest.team;
+    return `<div class="tr2"><span class="team ${t.team}">${t.team}</span><span class="pers"${hi ? ' style="color:var(--gold)"' : ""}>${t.kept} kept · ${t.n_bought} bought</span>`
+      + `<div class="stack"><i style="width:${(100 * t.retain / P).toFixed(1)}%;background:var(--green)"></i><i style="width:${(100 * t.bought / P).toFixed(1)}%;background:${hi ? "#f5c542" : "#5fd0b9"}"></i></div>`
+      + `<span class="num">${fx(t.used)}</span></div>`;
+  }).join(""));
+  fill("fewest", `${teamName[A.fewest.team]} kept ${numWord(A.fewest.kept)}, so it has the most to spend`);
+  fill("top", A.top.slice(0, 6).map((b, i) => {
+    const w = b.winners[0];
+    return `<tr><td>${esc(b.name)}</td><td class="r"${i === 0 ? ' style="width:90px"' : ""}>${fx(b.price)} cr</td>`
+      + `<td class="r"${i === 0 ? ' style="width:120px"' : ""}><span class="team ${w.team}">${w.team}</span> ${w.pct}%</td></tr>`;
+  }).join(""));
+  fill("pools", `🌏 Pool from ${M.scout.n_pools} leagues`);
+  fill("foot-r", `Mega mode · ${A.trials} runs · data to ${asOf(M.data_as_of)}`);
+</script>
+</body></html>

@@ -22,6 +22,7 @@
       <div class="blk">🗂️ One league registry<small><span class="mono">config/leagues.toml</span>: which leagues, tiers and Scout pools</small></div>
       <div class="blk">🪪 People Register<small>one id per player across every league</small></div>
       <div class="blk">🌐 Wikidata, once<small>dates of birth, photos</small></div>
+      <div class="blk">📚 Wikipedia IPL pages<small>squads, salaries, retentions and every auction price 2008–2026 (CC BY-SA)</small></div>
       <div class="blk">🏷️ Player roles<small>role, bowling type and country tagged by an LLM via LiteLLM, marked "AI-classified"</small></div></div>
     <div class="arr">→</div>
     <div class="stage-col"><div class="hd" style="color:var(--teal)">Local store</div>
@@ -31,22 +32,25 @@
     <div class="stage-col"><div class="hd" style="color:var(--gold)">Models (Python)</div>
       <div class="blk">📈 NGI<small>calibrated win-probability model, gradient-boosted trees, tested on unseen matches</small></div>
       <div class="blk">🎯 Bayesian ratings<small>NumPyro: scoring + survival, economy + strike, each with its uncertainty</small></div>
+      <div class="blk">🌏 League translation, playing time<small>other leagues onto the IPL scale; the chance he plays × his runs a match</small></div>
+      <div class="blk">💰 Market price + bidding<small>fitted on real IPL auctions 2018–2026: price, who bids, how high</small></div>
+      <div class="blk">🧾 Keep model + form forecast<small>learned from real retention deadlines; next three seasons</small></div>
       <div class="blk">📊 10 metrics + fielding<small>pressure, intent, dot-ball recovery, wicket quality…</small></div>
       <div class="blk">🧪 Backtests<small>walk-forward, out of sample, bootstrapped</small></div></div>
     <div class="arr">→</div>
     <div class="stage-col"><div class="hd" style="color:var(--green)">Exported JSON</div>
-      <div class="blk" style="padding:22px 18px;border-color:rgba(5,150,105,.45)">📦 site/public/data<small>leaderboards, ratings, profiles, matchups, scout index, auction pool, real retentions</small></div>
+      <div class="blk" style="padding:22px 18px;border-color:rgba(5,150,105,.45)">📦 site/public/data<small>leaderboards, ratings, profiles, matchups, scout index, auction pool, price model, squads and forecasts for Keep or release</small></div>
       <div class="blk">🔁 Refresh on demand<small>one workflow re-ingests and redeploys</small></div></div>
     <div class="arr">→</div>
     <div class="stage-col"><div class="hd" style="color:var(--violet)">Surfaces</div>
-      <div class="blk" style="border-color:rgba(124,58,237,.35)">🌐 Website<small>React static site, the canonical UI; auction runs in the browser</small></div>
+      <div class="blk" style="border-color:rgba(124,58,237,.35)">🌐 Website<small>React static site, the canonical UI; the auction, Keep or release and Bid plan run in the browser</small></div>
       <div class="blk">⌨️ CLI · <span class="mono">cricdex</span></div><div class="blk">🖥️ Terminal UI</div><div class="blk">📊 Streamlit dashboard</div><div class="blk">🔌 REST API<small>FastAPI, OpenAPI docs</small></div></div>
   </div>
   <div class="lock">
     <div style="font-size:34px">🔒</div>
     <div><div style="font:800 20px/1.3 Inter">One logic everywhere: <span class="mono" style="font-size:18px;color:var(--green)">cricdex.web_parity</span></div>
-      <div class="muted" style="font:500 15.5px/1.45 Inter;margin-top:4px">A Python port of the website's TypeScript auction and Scout, with a bit-exact seeded random generator. The same inputs give the same auction, trial for trial, on every surface.</div></div>
+      <div class="muted" style="font:500 15.5px/1.45 Inter;margin-top:4px">A Python port of the website's TypeScript auction, Scout, Keep or release and Bid plan, with a bit-exact seeded random generator. The same inputs give the same auction, trial for trial, on every surface.</div></div>
     <span class="tag tg" style="font-size:14px;padding:9px 12px">LOCKED BY PARITY TESTS</span>
   </div>
-  <div class="foot"><span>No scraping, no live feed: Cricsheet only · every number is computed, not generated</span><span>MIT · open source</span></div>
+  <div class="foot"><span>No live feed: open data only · every number is computed, not generated</span><span>MIT · open source</span></div>
 </div></body></html>

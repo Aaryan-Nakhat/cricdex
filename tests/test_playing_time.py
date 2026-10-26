@@ -37,6 +37,33 @@ def test_contribution_counts_both_disciplines_at_their_balls():
     assert p4["repl_bowl"] == -27.0
 
 
+def test_unknown_position_takes_the_roles_typical_one():
+    """A player with no batting position in the window (no recent match) gets his role's median
+    position, so a batter is measured against a batter's replacement level, not a tail-ender's:
+    a batter rated −9 must not be worth +8 runs a match (audit item 6, follow-up)."""
+    import polars as pl
+
+    rows = []
+    for k, (cid, pos) in enumerate([("b1", 2), ("b2", 4), ("b3", 3), ("w1", 10), ("w2", 9)]):
+        for m in range(3):
+            rows.append({"match_id": f"m{k}{m}", "date": "2026-04-0" + str(m + 1), "team": "T",
+                         "cid": cid, "bat_pos": float(pos), "faced": 20.0 if pos < 8 else 2.0,
+                         "bowled": 0.0 if pos < 8 else 24.0, "team_faced": 115.0,
+                         "team_bowled": 115.0, "league": "ipl", "season": 2026})  # fmt: skip
+    u = pl.DataFrame(rows)
+    roles = {"b1": "batter", "b2": "batter", "b3": "batter", "w1": "bowler", "w2": "bowler",
+             "new_bat": "batter", "new_bowl": "bowler"}  # fmt: skip
+    bm = {"bat": pt.BallsModel("bat", mu={"batter": 0.15, "bowler": 0.02}),
+          "bowl": pt.BallsModel("bowl", mu={"batter": 0.0, "bowler": 0.18})}  # fmt: skip
+    us = pt.expected_usage(u, "2026-12-01", list(roles), bm, 115.0, roles)
+    assert us["b2"]["pos"] == 4.0  # his own
+    assert us["new_bat"]["pos"] == 3.0  # batters' median (2, 3, 4)
+    assert us["new_bowl"]["pos"] == 9.5  # bowlers' median: still the tail
+    c, _, parts = pt.contribution((-9.0, 17.0), None, us["new_bat"]["faced"], 0.0,
+                                  us["new_bat"]["pos"], REPL)  # fmt: skip
+    assert parts["repl_bat"] == REPL["bat"]["top"] and c < 0
+
+
 def test_projected_xi_overseas_and_line():
     squad = [pt.squad_member(f"o{i}", 9.0 - i, "batter", True) for i in range(6)]
     squad += [pt.squad_member(f"b{i}", 4.0 - i * 0.5, "bowler", False) for i in range(6)]

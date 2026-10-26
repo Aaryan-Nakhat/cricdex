@@ -1,0 +1,76 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Bid plan</title><link rel="stylesheet" href="theme.css">
+<style>
+  .beta { display: inline-block; font: 800 15px/1 "JetBrains Mono"; letter-spacing: .08em; padding: 8px 12px; border-radius: 9px; background: var(--gold-lo); color: var(--gold); border: 1px solid rgba(180,120,6,.4); vertical-align: 10px; margin-left: 14px; }
+  .step { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--line2); }
+  .step:first-child { border-top: 0; }
+  .step b.n { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--green-lo); color: var(--green); font: 800 15px Inter; }
+  .step div { font: 700 16px/1.35 Inter; } .step small { display: block; font: 500 14.5px/1.45 Inter; color: var(--muted); margin-top: 2px; }
+  .rp { display: grid; grid-template-columns: 1fr auto; align-items: baseline; padding: 14px 0; border-top: 1px solid var(--line2); }
+  .dots { display: flex; gap: 6px; margin-top: 10px; } .dots i { width: 22px; height: 22px; border-radius: 6px; background: var(--surface); }
+  .lg { display: flex; gap: 18px; font: 600 14px Inter; color: var(--muted); margin-top: 8px; }
+</style></head><body>
+<script src="data.js"></script><script src="fill.js"></script>
+<div id="stage">
+  <div class="orb" style="width:620px;height:620px;left:-220px;top:-260px;background:#34d399"></div>
+  <div class="orb" style="width:540px;height:540px;right:-200px;top:300px;background:#f5c542"></div>
+  <div class="gridbg"></div>
+  <div class="kicker">📋 Bid plan</div>
+  <h1>Whom to bid for, and how high. <span class="beta">BETA</span><br><span class="grad">Checked against real auctions.</span></h1>
+  <p class="lede">Your squad and purse come from Keep or release. The other nine teams bid in the Auction room's fitted simulator 200 times, so every player has a price to beat; the plan picks the targets that add the most to your best XI for the money.</p>
+
+  <div style="display:grid;grid-template-columns:480px 1fr 340px;gap:22px;margin-top:30px">
+    <div class="card">
+      <h3 id="sheet-h">The live sheet</h3>
+      <div id="sheet" style="margin-top:6px"></div>
+      <div id="chain" style="margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--green-lo);font:600 14px/1.45 Inter"></div>
+    </div>
+    <div class="card" style="position:relative">
+      <h3>Is P(≤ max bid) honest? · said vs came true</h3>
+      <svg id="cal" width="100%" height="372" viewBox="0 0 560 380" style="margin-top:12px" font-family="Inter"></svg>
+      <div class="lg"><span><i style="display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--green);vertical-align:-1px"></i> 2025 mega (test)</span>
+        <span><i style="display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--gold-hi);vertical-align:-1px"></i> 2026 mini (test)</span><span style="margin-left:auto">dot size = targets</span></div>
+    </div>
+    <div class="card">
+      <h3>The replay · real spend</h3>
+      <div id="replay" style="margin-top:8px"></div>
+      <div style="margin-top:14px;padding:14px 16px;border-radius:14px;background:var(--gold-lo);font:700 15.5px/1.45 Inter;color:var(--gold)">Ahead in the mega auction, behind in the mini: Bid plan stays in beta.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Plans built with only what was known before each auction; squads scored on the season that followed · METHODOLOGY §12</span><span>A starting sheet, not a forecast · cricdex bidplan --team RCB</span></div>
+</div>
+<script>
+  const BP = M.bidplan;
+  // the live sheet: one team's top five targets (rivals usually pay → max bid) and a fallback chain
+  const SH = BP.sheet;
+  fill("sheet-h", `Live sheet · ${SH.team} for 2027 · ${fx(SH.purse_left, 1)} cr to spend`);
+  fill("sheet", SH.targets.map((t, i) => `<div class="step"><b class="n">${i + 1}</b><div>${t.name}`
+    + `<small>${t.slot}${t.from ? ` · ${t.from} release` : " · free agent"} · rivals pay ${fx(t.rivals, 1)} · max <b style="color:var(--fg)">${fx(t.max, 1)} cr</b> · ${t.p_le}% ≤ max</small></div></div>`).join(""));
+  fill("chain", SH.chain ? `${SH.chain.label}${SH.missing.length ? " (short)" : ""}: `
+    + SH.chain.steps.map((s, i) => `${i ? " → if he goes higher: " : ""}${s.name} ≤ ${fx(s.max, 1)} cr`).join("") : "");
+  // calibration: 0..1 on both axes, plot 60..540 x 20..340
+  const X = (p) => 60 + 480 * p, Y = (p) => 340 - 320 * p;
+  let s = `<line x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="#b8c3cc" stroke-width="2" stroke-dasharray="6 6"/>`;
+  for (const t of [0, 0.5, 1]) {
+    s += `<line x1="${X(0)}" y1="${Y(t)}" x2="${X(1)}" y2="${Y(t)}" stroke="#e6ecef"/>`
+      + `<text x="${X(0) - 10}" y="${Y(t) + 5}" text-anchor="end" fill="#8996a6" font-size="13" font-weight="600">${t * 100}%</text>`
+      + `<text x="${X(t)}" y="${Y(0) + 24}" text-anchor="middle" fill="#8996a6" font-size="13" font-weight="600">${t * 100}%</text>`;
+  }
+  s += `<text x="${X(0.5)}" y="${Y(0) + 40}" text-anchor="middle" fill="#8996a6" font-size="13" font-weight="600">the plan said</text>`
+    + `<text x="16" y="${Y(0.5)}" text-anchor="middle" fill="#8996a6" font-size="13" font-weight="600" transform="rotate(-90 16 ${Y(0.5)})">came true</text>`
+    + `<text x="${X(0.62)}" y="${Y(0.53)}" fill="#8996a6" font-size="13" font-weight="600" transform="rotate(-33.7 ${X(0.62)} ${Y(0.53)})">perfectly calibrated</text>`;
+  for (const [key, col] of [["y2026", "#f5c542"], ["y2025", "#059669"]]) {
+    for (const b of BP.calibration) {
+      const [said, true_, n] = b[key];
+      s += `<circle cx="${X(said)}" cy="${Y(true_)}" r="${(4 + 1.6 * Math.sqrt(n)).toFixed(1)}" fill="${col}" fill-opacity=".8" stroke="#fff" stroke-width="2"/>`;
+    }
+  }
+  const hiBand = BP.calibration[BP.calibration.length - 1];
+  s += `<text x="${X(1)}" y="${Y(0.03)}" text-anchor="end" fill="#0e1820" font-size="14" font-weight="700">Top band: said ${fx(hiBand.y2025[0], 2)} · came true ${fx(hiBand.y2025[1], 2)} in 2025, ${fx(hiBand.y2026[1], 2)} in 2026</text>`;
+  document.getElementById("cal").innerHTML = s;
+  const dots = (k, n, good) => Array.from({ length: n }, (_, i) => `<i style="background:${i < k ? good : "var(--surface)"}"></i>`).join("");
+  fill("replay", Object.values(BP.replay).map((r) => `<div class="rp"><span style="font:700 17px Inter">${r.label}</span>`
+    + `<span style="font:800 26px Inter;font-variant-numeric:tabular-nums">${r.ahead} <span class="muted" style="font-size:16px">of ${r.teams}</span></span>`
+    + `<div style="grid-column:1/3"><div class="dots">${dots(r.ahead, r.teams, "var(--green)")}</div>`
+    + `<div class="muted" style="font:500 14px/1.4 Inter;margin-top:8px">plan's squad stronger next season · mean ${sgn(r.mean)} runs a match</div></div></div>`).join(""));
+</script>
+</body></html>

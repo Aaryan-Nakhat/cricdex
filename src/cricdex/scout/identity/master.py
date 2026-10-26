@@ -11,7 +11,8 @@
 - Cricsheet's men's T20I / ODI / Test XIs for the capped flag;
 - the 2026 IPL squads and retirements (Wikipedia personnel page, cached and hand-editable);
 - the LLM taxonomy (`player_taxonomy.json`, the old single source) and the LLM name check;
-- `player_overrides.json`, the reviewed file that always wins.
+- `player_overrides.json`, the reviewed file that always wins;
+- `ipl_availability.json`, the reviewed retirements (with evidence) behind `retired` / `retired_scope`.
 
 It writes `data/curated/player_master.json` (what the exporter reads) and
 `data/curated/player_master_review.json` (every disagreement between sources, for a human to settle
@@ -501,6 +502,9 @@ def build(
         ]
         llm_cache = names.verify_with_llm(todo, limit=llm_limit)
 
+    from cricdex.competitions import load_availability
+
+    availability = load_availability("ipl")
     retired_ipl = {}
     for r in squads.get("retired") or []:
         cid = title_to_cid.get(r.get("wiki_title") or "") or name_to_cid.get(
@@ -656,15 +660,18 @@ def build(
             lasts.append(cap["last"])
         last = max(lasts) if lasts else None
         firsts = [lg["first"] for lg in rec["leagues"].values() if lg.get("first")]
-        retired = bool(ov.get("retired"))
-        retired_scope = ov.get("retired_scope") if retired else None
+        # retirements: the reviewed availability file (data/curated/ipl_availability.json), or an
+        # override's own `retired` flag
+        av = availability.get(cid) or {}
+        retired = bool(ov.get("retired")) or av.get("status") == "retired"
+        retired_scope = (ov.get("retired_scope") or av.get("scope")) if retired else None
         if not retired and cid in retired_ipl:
             review["todo"].append(
                 {
                     "cricsheet_id": cid,
                     "name": nm["display_name"],
                     "issue": "listed as retired from the IPL on the Wikipedia personnel page but "
-                    "not flagged in player_overrides.json — verify and add `retired: true`",
+                    "not in ipl_availability.json — verify and add a `retired` record with evidence",
                     "evidence": retired_ipl[cid],
                 }
             )

@@ -10,6 +10,7 @@
   .axis div { position: relative; height: 16px; } .axis div span { position: absolute; transform: translateX(-50%); }
   .h2h { display: grid; grid-template-columns: 1fr 62px; gap: 8px 14px; align-items: center; font: 600 16px/1.3 Inter; }
 </style></head><body>
+<script src="data.js"></script><script src="fill.js"></script>
 <div id="stage">
   <div class="orb" style="width:620px;height:620px;left:-220px;top:-260px;background:#34d399"></div>
   <div class="orb" style="width:540px;height:540px;right:-200px;top:280px;background:#7c9cf5;opacity:.25"></div>
@@ -19,73 +20,72 @@
   <p class="lede">Every player is fitted at once, so runs against a great attack count for more than runs against a weak one. Batters get scoring and survival, bowlers get economy and strike, and every rating says how sure it is.</p>
 
   <div style="display:grid;grid-template-columns:1fr 460px;gap:22px;margin-top:30px">
-    <div class="card" style="position:relative;height:430px">
-      <h3>Batting skill · IPL · the same model, two very different sample sizes</h3>
-      <svg width="860" height="330" viewBox="-20 -10 860 330" style="position:absolute;left:26px;top:70px;overflow:visible" fill="none" font-family="Inter">
-        <line x1="0" y1="270" x2="800" y2="270" stroke="#d8e0e5" stroke-width="2"/>
-        <g fill="#8996a6" font-size="14" font-weight="600" text-anchor="middle">
-          <text x="44.4" y="294">avg</text><text x="222.2" y="294">+20</text><text x="400.0" y="294">+40</text><text x="577.8" y="294">+60</text><text x="755.6" y="294">+80</text></g>
-        <text x="400" y="320" text-anchor="middle" fill="#8996a6" font-size="13.5" font-weight="600">runs per 100 balls above an average batter →</text>
-        <defs>
-          <linearGradient id="kf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#4f6bed" stop-opacity=".30"/><stop offset="1" stop-color="#4f6bed" stop-opacity=".02"/></linearGradient>
-          <linearGradient id="sf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f5c542" stop-opacity=".45"/><stop offset="1" stop-color="#f5c542" stop-opacity=".04"/></linearGradient>
-        </defs>
-        <path d="M0.0 270.0 L4.0 270.0 L8.0 270.0 L12.0 270.0 L16.0 270.0 L20.0 270.0 L24.0 270.0 L28.0 270.0 L32.0 270.0 L36.0 270.0 L40.0 270.0 L44.0 270.0 L48.0 270.0 L52.0 270.0 L56.0 270.0 L60.0 270.0 L64.0 270.0 L68.0 270.0 L72.0 270.0 L76.0 270.0 L80.0 270.0 L84.0 270.0 L88.0 270.0 L92.0 270.0 L96.0 270.0 L100.0 270.0 L104.0 270.0 L108.0 270.0 L112.0 270.0 L116.0 270.0 L120.0 270.0 L124.0 270.0 L128.0 270.0 L132.0 270.0 L136.0 270.0 L140.0 270.0 L144.0 270.0 L148.0 270.0 L152.0 270.0 L156.0 270.0 L160.0 269.9 L164.0 269.9 L168.0 269.9 L172.0 269.9 L176.0 269.9 L180.0 269.9 L184.0 269.9 L188.0 269.9 L192.0 269.9 L196.0 269.8 L200.0 269.8 L204.0 269.8 L208.0 269.8 L212.0 269.7 L216.0 269.7 L220.0 269.7 L224.0 269.6 L228.0 269.6 L232.0 269.5 L236.0 269.5 L240.0 269.4 L244.0 269.3 L248.0 269.3 L252.0 269.2 L256.0 269.1 L260.0 269.0 L264.0 268.9 L268.0 268.8 L272.0 268.7 L276.0 268.5 L280.0 268.4 L284.0 268.2 L288.0 268.0 L292.0 267.8 L296.0 267.6 L300.0 267.4 L304.0 267.2 L308.0 266.9 L312.0 266.7 L316.0 266.4 L320.0 266.0 L324.0 265.7 L328.0 265.3 L332.0 265.0 L336.0 264.6 L340.0 264.1 L344.0 263.7 L348.0 263.2 L352.0 262.7 L356.0 262.1 L360.0 261.5 L364.0 260.9 L368.0 260.3 L372.0 259.6 L376.0 259.0 L380.0 258.2 L384.0 257.5 L388.0 256.7 L392.0 255.9 L396.0 255.0 L400.0 254.1 L404.0 253.2 L408.0 252.3 L412.0 251.3 L416.0 250.3 L420.0 249.3 L424.0 248.2 L428.0 247.1 L432.0 246.0 L436.0 244.9 L440.0 243.8 L444.0 242.6 L448.0 241.5 L452.0 240.3 L456.0 239.1 L460.0 237.9 L464.0 236.7 L468.0 235.5 L472.0 234.3 L476.0 233.1 L480.0 231.9 L484.0 230.8 L488.0 229.6 L492.0 228.5 L496.0 227.4 L500.0 226.3 L504.0 225.3 L508.0 224.3 L512.0 223.3 L516.0 222.4 L520.0 221.5 L524.0 220.6 L528.0 219.8 L532.0 219.1 L536.0 218.4 L540.0 217.8 L544.0 217.2 L548.0 216.7 L552.0 216.3 L556.0 215.9 L560.0 215.6 L564.0 215.4 L568.0 215.2 L572.0 215.1 L576.0 215.1 L580.0 215.1 L584.0 215.3 L588.0 215.4 L592.0 215.7 L596.0 216.0 L600.0 216.4 L604.0 216.9 L608.0 217.4 L612.0 218.0 L616.0 218.6 L620.0 219.3 L624.0 220.1 L628.0 220.9 L632.0 221.8 L636.0 222.7 L640.0 223.6 L644.0 224.6 L648.0 225.6 L652.0 226.7 L656.0 227.8 L660.0 228.9 L664.0 230.0 L668.0 231.2 L672.0 232.4 L676.0 233.5 L680.0 234.7 L684.0 235.9 L688.0 237.1 L692.0 238.3 L696.0 239.5 L700.0 240.7 L704.0 241.9 L708.0 243.0 L712.0 244.2 L716.0 245.3 L720.0 246.4 L724.0 247.5 L728.0 248.6 L732.0 249.6 L736.0 250.6 L740.0 251.6 L744.0 252.6 L748.0 253.5 L752.0 254.4 L756.0 255.3 L760.0 256.1 L764.0 257.0 L768.0 257.7 L772.0 258.5 L776.0 259.2 L780.0 259.9 L784.0 260.5 L788.0 261.2 L792.0 261.8 L796.0 262.3 L800.0 262.8 L800 270 L0 270 Z" fill="url(#sf)"/>
-        <path d="M0.0 270.0 L4.0 270.0 L8.0 270.0 L12.0 270.0 L16.0 270.0 L20.0 270.0 L24.0 270.0 L28.0 270.0 L32.0 270.0 L36.0 270.0 L40.0 270.0 L44.0 270.0 L48.0 270.0 L52.0 270.0 L56.0 270.0 L60.0 270.0 L64.0 270.0 L68.0 270.0 L72.0 270.0 L76.0 270.0 L80.0 270.0 L84.0 270.0 L88.0 270.0 L92.0 270.0 L96.0 270.0 L100.0 270.0 L104.0 270.0 L108.0 270.0 L112.0 270.0 L116.0 270.0 L120.0 270.0 L124.0 270.0 L128.0 270.0 L132.0 270.0 L136.0 270.0 L140.0 270.0 L144.0 270.0 L148.0 270.0 L152.0 270.0 L156.0 270.0 L160.0 269.9 L164.0 269.9 L168.0 269.9 L172.0 269.9 L176.0 269.9 L180.0 269.9 L184.0 269.9 L188.0 269.9 L192.0 269.9 L196.0 269.8 L200.0 269.8 L204.0 269.8 L208.0 269.8 L212.0 269.7 L216.0 269.7 L220.0 269.7 L224.0 269.6 L228.0 269.6 L232.0 269.5 L236.0 269.5 L240.0 269.4 L244.0 269.3 L248.0 269.3 L252.0 269.2 L256.0 269.1 L260.0 269.0 L264.0 268.9 L268.0 268.8 L272.0 268.7 L276.0 268.5 L280.0 268.4 L284.0 268.2 L288.0 268.0 L292.0 267.8 L296.0 267.6 L300.0 267.4 L304.0 267.2 L308.0 266.9 L312.0 266.7 L316.0 266.4 L320.0 266.0 L324.0 265.7 L328.0 265.3 L332.0 265.0 L336.0 264.6 L340.0 264.1 L344.0 263.7 L348.0 263.2 L352.0 262.7 L356.0 262.1 L360.0 261.5 L364.0 260.9 L368.0 260.3 L372.0 259.6 L376.0 259.0 L380.0 258.2 L384.0 257.5 L388.0 256.7 L392.0 255.9 L396.0 255.0 L400.0 254.1 L404.0 253.2 L408.0 252.3 L412.0 251.3 L416.0 250.3 L420.0 249.3 L424.0 248.2 L428.0 247.1 L432.0 246.0 L436.0 244.9 L440.0 243.8 L444.0 242.6 L448.0 241.5 L452.0 240.3 L456.0 239.1 L460.0 237.9 L464.0 236.7 L468.0 235.5 L472.0 234.3 L476.0 233.1 L480.0 231.9 L484.0 230.8 L488.0 229.6 L492.0 228.5 L496.0 227.4 L500.0 226.3 L504.0 225.3 L508.0 224.3 L512.0 223.3 L516.0 222.4 L520.0 221.5 L524.0 220.6 L528.0 219.8 L532.0 219.1 L536.0 218.4 L540.0 217.8 L544.0 217.2 L548.0 216.7 L552.0 216.3 L556.0 215.9 L560.0 215.6 L564.0 215.4 L568.0 215.2 L572.0 215.1 L576.0 215.1 L580.0 215.1 L584.0 215.3 L588.0 215.4 L592.0 215.7 L596.0 216.0 L600.0 216.4 L604.0 216.9 L608.0 217.4 L612.0 218.0 L616.0 218.6 L620.0 219.3 L624.0 220.1 L628.0 220.9 L632.0 221.8 L636.0 222.7 L640.0 223.6 L644.0 224.6 L648.0 225.6 L652.0 226.7 L656.0 227.8 L660.0 228.9 L664.0 230.0 L668.0 231.2 L672.0 232.4 L676.0 233.5 L680.0 234.7 L684.0 235.9 L688.0 237.1 L692.0 238.3 L696.0 239.5 L700.0 240.7 L704.0 241.9 L708.0 243.0 L712.0 244.2 L716.0 245.3 L720.0 246.4 L724.0 247.5 L728.0 248.6 L732.0 249.6 L736.0 250.6 L740.0 251.6 L744.0 252.6 L748.0 253.5 L752.0 254.4 L756.0 255.3 L760.0 256.1 L764.0 257.0 L768.0 257.7 L772.0 258.5 L776.0 259.2 L780.0 259.9 L784.0 260.5 L788.0 261.2 L792.0 261.8 L796.0 262.3 L800.0 262.8" stroke="#b47806" stroke-width="4"/>
-        <path d="M0.0 270.0 L4.0 270.0 L8.0 270.0 L12.0 270.0 L16.0 270.0 L20.0 270.0 L24.0 270.0 L28.0 270.0 L32.0 270.0 L36.0 270.0 L40.0 270.0 L44.0 270.0 L48.0 270.0 L52.0 270.0 L56.0 270.0 L60.0 270.0 L64.0 270.0 L68.0 269.9 L72.0 269.8 L76.0 269.7 L80.0 269.5 L84.0 269.1 L88.0 268.4 L92.0 267.3 L96.0 265.7 L100.0 263.2 L104.0 259.6 L108.0 254.6 L112.0 247.6 L116.0 238.3 L120.0 226.4 L124.0 211.6 L128.0 193.8 L132.0 173.3 L136.0 150.4 L140.0 126.1 L144.0 101.3 L148.0 77.6 L152.0 56.3 L156.0 38.9 L160.0 26.7 L164.0 20.6 L168.0 21.1 L172.0 28.2 L176.0 41.3 L180.0 59.4 L184.0 81.2 L188.0 105.2 L192.0 129.9 L196.0 154.1 L200.0 176.6 L204.0 196.8 L208.0 214.1 L212.0 228.5 L216.0 239.9 L220.0 248.8 L224.0 255.5 L228.0 260.3 L232.0 263.7 L236.0 266.0 L240.0 267.5 L244.0 268.5 L248.0 269.1 L252.0 269.5 L256.0 269.7 L260.0 269.9 L264.0 269.9 L268.0 270.0 L272.0 270.0 L276.0 270.0 L280.0 270.0 L284.0 270.0 L288.0 270.0 L292.0 270.0 L296.0 270.0 L300.0 270.0 L304.0 270.0 L308.0 270.0 L312.0 270.0 L316.0 270.0 L320.0 270.0 L324.0 270.0 L328.0 270.0 L332.0 270.0 L336.0 270.0 L340.0 270.0 L344.0 270.0 L348.0 270.0 L352.0 270.0 L356.0 270.0 L360.0 270.0 L364.0 270.0 L368.0 270.0 L372.0 270.0 L376.0 270.0 L380.0 270.0 L384.0 270.0 L388.0 270.0 L392.0 270.0 L396.0 270.0 L400.0 270.0 L404.0 270.0 L408.0 270.0 L412.0 270.0 L416.0 270.0 L420.0 270.0 L424.0 270.0 L428.0 270.0 L432.0 270.0 L436.0 270.0 L440.0 270.0 L444.0 270.0 L448.0 270.0 L452.0 270.0 L456.0 270.0 L460.0 270.0 L464.0 270.0 L468.0 270.0 L472.0 270.0 L476.0 270.0 L480.0 270.0 L484.0 270.0 L488.0 270.0 L492.0 270.0 L496.0 270.0 L500.0 270.0 L504.0 270.0 L508.0 270.0 L512.0 270.0 L516.0 270.0 L520.0 270.0 L524.0 270.0 L528.0 270.0 L532.0 270.0 L536.0 270.0 L540.0 270.0 L544.0 270.0 L548.0 270.0 L552.0 270.0 L556.0 270.0 L560.0 270.0 L564.0 270.0 L568.0 270.0 L572.0 270.0 L576.0 270.0 L580.0 270.0 L584.0 270.0 L588.0 270.0 L592.0 270.0 L596.0 270.0 L600.0 270.0 L604.0 270.0 L608.0 270.0 L612.0 270.0 L616.0 270.0 L620.0 270.0 L624.0 270.0 L628.0 270.0 L632.0 270.0 L636.0 270.0 L640.0 270.0 L644.0 270.0 L648.0 270.0 L652.0 270.0 L656.0 270.0 L660.0 270.0 L664.0 270.0 L668.0 270.0 L672.0 270.0 L676.0 270.0 L680.0 270.0 L684.0 270.0 L688.0 270.0 L692.0 270.0 L696.0 270.0 L700.0 270.0 L704.0 270.0 L708.0 270.0 L712.0 270.0 L716.0 270.0 L720.0 270.0 L724.0 270.0 L728.0 270.0 L732.0 270.0 L736.0 270.0 L740.0 270.0 L744.0 270.0 L748.0 270.0 L752.0 270.0 L756.0 270.0 L760.0 270.0 L764.0 270.0 L768.0 270.0 L772.0 270.0 L776.0 270.0 L780.0 270.0 L784.0 270.0 L788.0 270.0 L792.0 270.0 L796.0 270.0 L800.0 270.0 L800 270 L0 270 Z" fill="url(#kf)"/>
-        <path d="M0.0 270.0 L4.0 270.0 L8.0 270.0 L12.0 270.0 L16.0 270.0 L20.0 270.0 L24.0 270.0 L28.0 270.0 L32.0 270.0 L36.0 270.0 L40.0 270.0 L44.0 270.0 L48.0 270.0 L52.0 270.0 L56.0 270.0 L60.0 270.0 L64.0 270.0 L68.0 269.9 L72.0 269.8 L76.0 269.7 L80.0 269.5 L84.0 269.1 L88.0 268.4 L92.0 267.3 L96.0 265.7 L100.0 263.2 L104.0 259.6 L108.0 254.6 L112.0 247.6 L116.0 238.3 L120.0 226.4 L124.0 211.6 L128.0 193.8 L132.0 173.3 L136.0 150.4 L140.0 126.1 L144.0 101.3 L148.0 77.6 L152.0 56.3 L156.0 38.9 L160.0 26.7 L164.0 20.6 L168.0 21.1 L172.0 28.2 L176.0 41.3 L180.0 59.4 L184.0 81.2 L188.0 105.2 L192.0 129.9 L196.0 154.1 L200.0 176.6 L204.0 196.8 L208.0 214.1 L212.0 228.5 L216.0 239.9 L220.0 248.8 L224.0 255.5 L228.0 260.3 L232.0 263.7 L236.0 266.0 L240.0 267.5 L244.0 268.5 L248.0 269.1 L252.0 269.5 L256.0 269.7 L260.0 269.9 L264.0 269.9 L268.0 270.0 L272.0 270.0 L276.0 270.0 L280.0 270.0 L284.0 270.0 L288.0 270.0 L292.0 270.0 L296.0 270.0 L300.0 270.0 L304.0 270.0 L308.0 270.0 L312.0 270.0 L316.0 270.0 L320.0 270.0 L324.0 270.0 L328.0 270.0 L332.0 270.0 L336.0 270.0 L340.0 270.0 L344.0 270.0 L348.0 270.0 L352.0 270.0 L356.0 270.0 L360.0 270.0 L364.0 270.0 L368.0 270.0 L372.0 270.0 L376.0 270.0 L380.0 270.0 L384.0 270.0 L388.0 270.0 L392.0 270.0 L396.0 270.0 L400.0 270.0 L404.0 270.0 L408.0 270.0 L412.0 270.0 L416.0 270.0 L420.0 270.0 L424.0 270.0 L428.0 270.0 L432.0 270.0 L436.0 270.0 L440.0 270.0 L444.0 270.0 L448.0 270.0 L452.0 270.0 L456.0 270.0 L460.0 270.0 L464.0 270.0 L468.0 270.0 L472.0 270.0 L476.0 270.0 L480.0 270.0 L484.0 270.0 L488.0 270.0 L492.0 270.0 L496.0 270.0 L500.0 270.0 L504.0 270.0 L508.0 270.0 L512.0 270.0 L516.0 270.0 L520.0 270.0 L524.0 270.0 L528.0 270.0 L532.0 270.0 L536.0 270.0 L540.0 270.0 L544.0 270.0 L548.0 270.0 L552.0 270.0 L556.0 270.0 L560.0 270.0 L564.0 270.0 L568.0 270.0 L572.0 270.0 L576.0 270.0 L580.0 270.0 L584.0 270.0 L588.0 270.0 L592.0 270.0 L596.0 270.0 L600.0 270.0 L604.0 270.0 L608.0 270.0 L612.0 270.0 L616.0 270.0 L620.0 270.0 L624.0 270.0 L628.0 270.0 L632.0 270.0 L636.0 270.0 L640.0 270.0 L644.0 270.0 L648.0 270.0 L652.0 270.0 L656.0 270.0 L660.0 270.0 L664.0 270.0 L668.0 270.0 L672.0 270.0 L676.0 270.0 L680.0 270.0 L684.0 270.0 L688.0 270.0 L692.0 270.0 L696.0 270.0 L700.0 270.0 L704.0 270.0 L708.0 270.0 L712.0 270.0 L716.0 270.0 L720.0 270.0 L724.0 270.0 L728.0 270.0 L732.0 270.0 L736.0 270.0 L740.0 270.0 L744.0 270.0 L748.0 270.0 L752.0 270.0 L756.0 270.0 L760.0 270.0 L764.0 270.0 L768.0 270.0 L772.0 270.0 L776.0 270.0 L780.0 270.0 L784.0 270.0 L788.0 270.0 L792.0 270.0 L796.0 270.0 L800.0 270.0" stroke="#4f6bed" stroke-width="4"/>
-        <line x1="165.7" y1="20" x2="165.7" y2="270" stroke="#4f6bed" stroke-dasharray="4 5" stroke-width="2"/>
-        <line x1="575.3" y1="215.1" x2="575.3" y2="270" stroke="#b47806" stroke-dasharray="4 5" stroke-width="2"/>
-      </svg>
-      <div style="position:absolute;left:270px;top:92px">
-        <div style="font:800 22px/1.2 Inter;color:var(--sky)">Virat Kohli</div>
-        <div class="muted" style="font:600 15px/1.35 Inter;margin-top:4px">+13.6 ± 2.8 · 6,926 balls · narrow</div></div>
-      <div style="position:absolute;left:560px;top:216px">
-        <div style="font:800 22px/1.2 Inter;color:var(--gold)">Vaibhav Suryavanshi</div>
-        <div class="muted" style="font:600 15px/1.35 Inter;margin-top:4px">+59.7 ± 12.5 · 449 balls · wide</div></div>
-    </div>
-    <div class="card" style="height:430px;position:relative">
-      <h3>Head to head · chance A is better than B</h3>
-      <div style="font:700 18px/1.35 Inter;margin-top:18px">Vaibhav Suryavanshi over Virat Kohli</div>
-      <div style="display:flex;align-items:baseline;gap:14px;margin-top:8px">
-        <div class="big" style="font-size:72px;color:var(--gold)">&gt;99%</div>
-        <div class="muted" style="font:600 16px/1.4 Inter">wide band,<br>far from Kohli's</div>
-      </div>
-      <div style="height:1px;background:var(--line);margin:20px 0 18px"></div>
-      <div class="h2h">
-        <span>Sai Sudharsan vs Kohli</span><span style="text-align:right;color:var(--teal)">63%</span>
-        <div class="bar" style="grid-column:1/3"><i style="width:63%;background:var(--teal)"></i></div>
-        <span style="margin-top:8px">Shubman Gill vs Kohli</span><span style="text-align:right;color:var(--sky);margin-top:8px">78%</span>
-        <div class="bar" style="grid-column:1/3"><i style="width:78%;background:var(--sky)"></i></div>
-      </div>
-      <p class="t" style="position:absolute;left:26px;right:26px;bottom:22px">Both players' uncertainty goes into the odds, so a thin record can't win the argument on its own.</p>
-    </div>
+    <div class="card" style="position:relative;height:430px" id="curves"></div>
+    <div class="card" style="height:430px;position:relative" id="h2h"></div>
   </div>
 
   <div class="grid2" style="margin-top:22px">
-    <div class="card"><h3>Top active IPL batters · runs per 100 balls · 90% range</h3><div id="bat" style="margin-top:12px"></div></div>
-    <div class="card"><h3>Top active IPL bowlers · runs per 100 balls · 90% range</h3><div id="bowl" style="margin-top:12px"></div></div>
+    <div class="card"><h3>Top IPL batters in a current squad · runs per 100 balls · 90% range</h3><div id="bat" style="margin-top:12px"></div></div>
+    <div class="card"><h3>Top IPL bowlers in a current squad · runs per 100 balls · 90% range</h3><div id="bowl" style="margin-top:12px"></div></div>
   </div>
-  <div class="foot"><span>NumPyro model · runs per 100 balls better than an average player · active, 600+ balls · range = ±1.645 sd</span><span>Wider bar = fewer balls or a less settled record</span></div>
+  <div class="foot"><span id="foot-l"></span><span>Wider bar = fewer balls or a less settled record</span></div>
 </div>
 <script>
+  const R = M.ratings, A = R.a, B = R.b;
+  // the two posteriors: x from -5 to 85 runs over 800 px; the narrower curve peaks at 250 px, areas equal
+  const X0 = -5, X1 = 85, SX = 800 / (X1 - X0), xp = (x) => ((x - X0) * SX).toFixed(1);
+  const pkA = 250 * Math.min(1, B.sd / A.sd), pkB = 250 * Math.min(1, A.sd / B.sd);
+  const ticks = [0, 20, 40, 60, 80].map((t) => `<text x="${xp(t)}" y="294">${t ? "+" + t : "avg"}</text>`).join("");
+  const label = (p, color) => `<div style="font:800 22px/1.2 Inter;color:${color}">${esc(p.name)}</div>`
+    + `<div class="muted" style="font:600 15px/1.35 Inter;margin-top:4px">${sgn(p.mean)} ± ${fx(p.sd)} · ${p.balls.toLocaleString("en-IN")} balls · ${p.sd < 6 ? "narrow" : "wide"}</div>`;
+  fill("curves", `<h3>Batting skill · IPL · the same model, two very different sample sizes</h3>
+    <svg width="860" height="330" viewBox="-20 -10 860 330" style="position:absolute;left:26px;top:70px;overflow:visible" fill="none" font-family="Inter">
+      <line x1="0" y1="270" x2="800" y2="270" stroke="#d8e0e5" stroke-width="2"/>
+      <g fill="#8996a6" font-size="14" font-weight="600" text-anchor="middle">${ticks}</g>
+      <text x="400" y="320" text-anchor="middle" fill="#8996a6" font-size="13.5" font-weight="600">runs per 100 balls above an average batter →</text>
+      <defs>
+        <linearGradient id="kf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#4f6bed" stop-opacity=".30"/><stop offset="1" stop-color="#4f6bed" stop-opacity=".02"/></linearGradient>
+        <linearGradient id="sf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f5c542" stop-opacity=".45"/><stop offset="1" stop-color="#f5c542" stop-opacity=".04"/></linearGradient>
+      </defs>
+      <path d="${normalPath(B.mean, B.sd, X0, X1, SX, 270, pkB, true)}" fill="url(#sf)"/>
+      <path d="${normalPath(B.mean, B.sd, X0, X1, SX, 270, pkB, false)}" stroke="#b47806" stroke-width="4"/>
+      <path d="${normalPath(A.mean, A.sd, X0, X1, SX, 270, pkA, true)}" fill="url(#kf)"/>
+      <path d="${normalPath(A.mean, A.sd, X0, X1, SX, 270, pkA, false)}" stroke="#4f6bed" stroke-width="4"/>
+      <line x1="${xp(A.mean)}" y1="${270 - pkA}" x2="${xp(A.mean)}" y2="270" stroke="#4f6bed" stroke-dasharray="4 5" stroke-width="2"/>
+      <line x1="${xp(B.mean)}" y1="${270 - pkB}" x2="${xp(B.mean)}" y2="270" stroke="#b47806" stroke-dasharray="4 5" stroke-width="2"/>
+    </svg>
+    <div style="position:absolute;left:${+xp(A.mean) + 70}px;top:92px">${label(A, "var(--sky)")}</div>
+    <div style="position:absolute;left:${Math.min(+xp(B.mean) - 20, 560)}px;top:${Math.max(120, 270 - pkB - 10)}px">${label(B, "var(--gold)")}</div>`);
+  const [lead, ...rest] = R.h2h;
+  const short = (n) => n.split(" ").slice(-1)[0];
+  const colors = ["var(--teal)", "var(--sky)"];
+  fill("h2h", `<h3>Head to head · chance A is better than B</h3>
+    <div style="font:700 18px/1.35 Inter;margin-top:18px">${esc(lead.a)} over ${esc(lead.b)}</div>
+    <div style="display:flex;align-items:baseline;gap:14px;margin-top:8px">
+      <div class="big" style="font-size:72px;color:var(--gold)">${esc(pct(lead.p))}</div>
+      <div class="muted" style="font:600 16px/1.4 Inter">wide band,<br>far from ${esc(short(lead.b))}'s</div>
+    </div>
+    <div style="height:1px;background:var(--line);margin:20px 0 18px"></div>
+    <div class="h2h">${rest.map((h, i) => `<span${i ? ' style="margin-top:8px"' : ""}>${esc(h.a)} vs ${esc(short(h.b))}</span>`
+      + `<span style="text-align:right;color:${colors[i]}${i ? ";margin-top:8px" : ""}">${pct(h.p)}</span>`
+      + `<div class="bar" style="grid-column:1/3"><i style="width:${(100 * h.p).toFixed(0)}%;background:${colors[i]}"></i></div>`).join("")}</div>
+    <p class="t" style="position:absolute;left:26px;right:26px;bottom:22px">Both players' uncertainty goes into the odds, so a thin record can't win the argument on its own.</p>`);
   const LO = 0, HI = 40;
-  const pct = (v) => `${(100 * (v - LO)) / (HI - LO)}%`;
+  const at = (v) => `${(100 * (v - LO)) / (HI - LO)}%`;
   function forest(el, rows, color) {
     let h = "";
-    for (const [name, m, sd] of rows) {
-      const a = Math.max(LO, m - 1.645 * sd), b = Math.min(HI, m + 1.645 * sd);
-      h += `<div class="fr"><span>${name}</span><div class="track">` +
-        [10, 20, 30].map((t) => `<i class="tick" style="left:${pct(t)}"></i>`).join("") +
-        `<i class="ci" style="left:${pct(a)};width:calc(${pct(b)} - ${pct(a)});background:${color};opacity:.28"></i>` +
-        `<i class="pt" style="left:${pct(m)};background:${color}"></i></div><span class="val">+${m.toFixed(1)} ± ${sd.toFixed(1)}</span></div>`;
+    for (const r of rows) {
+      const a = Math.max(LO, r.mean - 1.645 * r.sd), b = Math.min(HI, r.mean + 1.645 * r.sd);
+      h += `<div class="fr"><span>${esc(r.name)}</span><div class="track">` +
+        [10, 20, 30].map((t) => `<i class="tick" style="left:${at(t)}"></i>`).join("") +
+        `<i class="ci" style="left:${at(a)};width:calc(${at(b)} - ${at(a)});background:${color};opacity:.28"></i>` +
+        `<i class="pt" style="left:${at(r.mean)};background:${color}"></i></div><span class="val">${sgn(r.mean)} ± ${fx(r.sd)}</span></div>`;
     }
-    h += `<div class="axis"><span></span><div>${[0, 10, 20, 30, 40].map((t) => `<span style="left:${pct(t)}">${t ? "+" + t : "avg"}</span>`).join("")}</div><span></span></div>`;
-    document.getElementById(el).innerHTML = h;
+    h += `<div class="axis"><span></span><div>${[0, 10, 20, 30, 40].map((t) => `<span style="left:${at(t)}">${t ? "+" + t : "avg"}</span>`).join("")}</div><span></span></div>`;
+    fill(el, h);
   }
-  forest("bat", [["David Warner", 24.8, 3.7], ["Andre Russell", 24.5, 5.8], ["Abhishek Sharma", 22.9, 7.1], ["Phil Salt", 22.6, 9.4],
-    ["Travis Head", 20.7, 9.3], ["Jonny Bairstow", 20.4, 6.9], ["Jos Buttler", 20.3, 4.3], ["KL Rahul", 19.4, 3.5]], "#4f6bed");
-  forest("bowl", [["Sunil Narine", 24.0, 2.5], ["Jasprit Bumrah", 23.2, 2.7], ["Rashid Khan", 20.3, 2.9], ["Bhuvneshwar Kumar", 14.9, 2.9],
-    ["Varun Chakravarthy", 13.3, 3.4], ["Jofra Archer", 13.0, 4.3], ["Axar Patel", 12.1, 3.0], ["Mitchell Santner", 11.9, 4.7]], "#059669");
+  forest("bat", R.batters, "#4f6bed");
+  forest("bowl", R.bowlers, "#059669");
+  fill("foot-l", `NumPyro model · runs per 100 balls better than an average player · 600+ balls, not retired · range = ±1.645 sd · data to ${asOf(M.data_as_of)}`);
 </script>
 </body></html>

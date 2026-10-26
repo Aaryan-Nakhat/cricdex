@@ -1,5 +1,6 @@
 """Render a docs/media/src/*.html motion page (see motion.js) to MP4 + GIF, frame by frame.
 
+    uv run python scripts/media_data.py               # first: the numbers the scenes show -> data.js
     uv run --with playwright python scripts/render_video.py docs/media/src/hero.html --out docs/media/hero
     uv run --with playwright python scripts/render_video.py docs/media/src/hero.html --stills 3,9,17,25,33,39,45
 
@@ -35,9 +36,15 @@ def _launch(pw):
 def _page(pw, src: Path):
     browser = _launch(pw)
     page = browser.new_page(viewport={"width": W, "height": H}, device_scale_factor=1)
+    # a scene that fails to fill from data.js would film half empty: stop instead
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
     page.goto(src.resolve().as_uri())
     page.wait_for_function(FONTS_READY)
     page.wait_for_timeout(300)
+    if errors:
+        browser.close()
+        sys.exit(f"{src}: {errors[0]}")
     return browser, page
 
 

@@ -99,6 +99,9 @@ export interface Piece {
   /** P(plays) and the contribution a match he plays (v ÷ P): the bench fill */
   pp: number;
   c: number;
+  /** the most bench appearances a match he can give: 1 for a squad player, an auction candidate's
+   * P(plays) (set in `cands`; bidplan.py `piece` / `bench_fill`) */
+  cap: number;
   /** the batting and bowling parts of v and the balls they come from (a match) */
   cb: number;
   cw: number;
@@ -178,6 +181,7 @@ export function piece(
     v,
     pp,
     c: pp > 0 ? v / pp : 0.0,
+    cap: 1.0,
     cb,
     cw,
     fb,
@@ -256,7 +260,8 @@ export interface Strength {
 }
 
 /** The bench's expected runs a match: the XI's missed appearances (Σ 1 − P(plays)) filled by the bench,
- * best contribution a match first, at most one appearance a match each. Mirror of bidplan.py `bench_fill`. */
+ * best contribution a match first, at most `cap` appearances a match each (1 for a squad player, an
+ * auction candidate's P(plays)). Mirror of bidplan.py `bench_fill`. */
 export function benchFill(xiIds: string[], pieces: Piece[], bench: Piece[]): number {
   const ids = new Set(xiIds);
   let miss = fsum(pieces.filter((p) => ids.has(p.id)).map((p) => 1.0 - Math.min(1.0, Math.max(0.0, p.pp))));
@@ -264,7 +269,8 @@ export function benchFill(xiIds: string[], pieces: Piece[], bench: Piece[]): num
   const order = bench.filter((q) => q.c > REPLACEMENT).sort((a, b) => (a.c !== b.c ? (a.c > b.c ? -1 : 1) : cmpStr(a.id, b.id)));
   for (const p of order) {
     if (miss <= 0.0) break;
-    const a = miss < 1.0 ? miss : 1.0;
+    const cap = Math.min(1.0, Math.max(0.0, p.cap ?? 1.0)); // a piece without one is a squad player
+    const a = miss < cap ? miss : cap;
     out += a * p.c;
     miss -= a;
   }
@@ -797,6 +803,8 @@ export function plan(
   const nTrials = prices.length ? prices[0].length : trials;
   const cands = ctx.available.map((r) => {
     const p = piece(r.cricsheet_id, r.name, r.contrib, r.role, r.is_overseas, r.tags, contribParts(r));
+    // a candidate gives the bench at most his P(plays) appearances a match (`benchFill`)
+    p.cap = p.pp;
     p.ub = upperGain(p);
     p.own = r.from_team !== null && r.from_team !== undefined && r.from_team === ctx.team;
     return p;

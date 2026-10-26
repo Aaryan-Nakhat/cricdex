@@ -293,19 +293,39 @@ def expected_usage(
 ) -> dict[str, dict]:
     """cid -> {faced, bowled, pos}: his expected legal balls faced and bowled per match he plays (the
     expected-balls models x the IPL's balls per innings `T`) and his usual batting position, from his
-    matches before `before`. A player with no match in the window gets his role's mean share."""
+    matches before `before`. A player with no match in the window gets his role's mean share.
+
+    A player with no batting position in the window (no match in it, or none where he batted) gets his
+    role's typical one (`role_positions`): his balls are his role's mean share, so his replacement
+    level must be his role's too. Until 2026-10-23 he fell to the tail (`slot_group(None)`), whose
+    replacement level (about −62 runs per 100 balls) is far below a batter's (about −9 at the top):
+    a batter rated −9 with no recent match was credited with +8 runs a match, more than most
+    international openers (audit item 6, follow-up)."""
     pri = {d: prior_usage(u, before, d) for d in {bm["bat"].decay, bm["bowl"].decay}}
+    typical = role_positions(pri[bm["bat"].decay], roles)
     out = {}
     for cid in cids:
         pb = pri[bm["bat"].decay].get(cid, EMPTY_PRIOR)
         pw = pri[bm["bowl"].decay].get(cid, EMPTY_PRIOR)
         role = roles.get(cid, "batter")
+        pos = pb.get("bat_pos")
         out[cid] = {
             "faced": bm["bat"].predict(_disc(pb, "bat"), role) * T,
             "bowled": bm["bowl"].predict(_disc(pw, "bowl"), role) * T,
-            "pos": pb.get("bat_pos"),
+            "pos": pos if pos is not None else typical.get(role),
         }
     return out
+
+
+def role_positions(prior: dict[str, dict], roles: dict[str, str]) -> dict[str, float | None]:
+    """role → the median usual batting position (`prior_usage`'s `bat_pos`) of the players of that role
+    with one (None for a role with none: then the tail, as `slot_group(None)`)."""
+    by: dict[str, list[float]] = {}
+    for cid, role in roles.items():
+        p = (prior.get(cid) or {}).get("bat_pos")
+        if p is not None and not (isinstance(p, float) and math.isnan(p)):
+            by.setdefault(role, []).append(float(p))
+    return {r: float(np.median(v)) for r, v in by.items() if v}
 
 
 # ---- 3. replacement levels -----------------------------------------------------------------------------

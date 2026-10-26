@@ -99,7 +99,7 @@ polite batches (rerun = only what's missing; `--force` refetches, `--no-fetch` w
 | `batting_hand` | overrides → Wikipedia infobox batting → Wikidata playing hand → LLM taxonomy |
 | `country` | overrides → latest international side (Cricsheet) → Wikidata country for sport → infobox → LLM, normalised to ISO alpha-3 (ENG / SCO / WIN for the non-ISO sides) by `countries.normalise` |
 | `active` | played any exported league or a men's international in the last 18 months (`master.ACTIVE_MONTHS`) of the data |
-| `retired` | overrides (with evidence); the Wikipedia IPL personnel page's retirements are listed as review TODOs |
+| `retired` | `data/curated/ipl_availability.json` (announced retirements, each with dated sources; since 2026-10-23, when the three in the overrides file moved there) or an override's own flag; the Wikipedia IPL personnel page's retirements not in it are listed as review TODOs |
 | `team` | the 2026 IPL squads (retained + bought + replacements) from Wikipedia's "List of 2026 Indian Premier League personnel changes", cached and hand-editable in `data/curated/ipl_squads_2026.json` (which `scripts/ipl_squad_salaries.py` extends with each player's salary, acquisition, nationality and Cricsheet id, and the 2027-cycle trades and retirements, for Keep or release) |
 | `dob` | overrides → Wikidata (P569) → Wikipedia infobox → the older `wikidata_enrichment.json` |
 
@@ -113,6 +113,15 @@ rejected or applied name corrections, squad rows that didn't match a player, ret
 verify) is written to `data/curated/player_master_review.json`. Settle a row by adding the right
 value to `data/curated/player_overrides.json` (keyed by `cricsheet_id`, with `_name` and
 `_evidence`); overrides always win.
+
+**Availability** (`data/curated/ipl_availability.json`, since 2026-10-23). Who can't be bought at the next
+IPL auction, keyed by `cricsheet_id`: `status` `retired` (an announced retirement; `scope` `ipl` = out of
+the IPL and Indian cricket, may still play other leagues, or `all`; `date`; `role_now` for a coaching or
+staff role) or `not_registered` (skipped the auctions in `seasons` only; kept in later pools and recorded so
+a reviewer sees why a veteran is still there), each with `_evidence` = [{title, url, date}]. The export
+leaves a retired player out of every auction pool (METHODOLOGY §7, `competitions.unavailable`), and the
+player master reads its `retired` / `retired_scope` from it. A retirement reported later goes here with
+its source; `tests/test_competitions.py` checks every record has one.
 
 **Squad players with no obvious match** (issue I6, 22 Oct 2026). Of the 22 IPL squad players left
 unmatched, three had played IPL 2026 under initials and were matched through the People Register's

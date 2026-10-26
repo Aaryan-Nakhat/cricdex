@@ -205,7 +205,29 @@ XI_CASES = [
       "overseas": False, "tags": "o", "parts": [6.0 - 0.2 * i, 0.0, 25.0, 0.0]} for i in range(8)]
     + [{"id": f"w{i}", "name": f"W{i}", "value": 4.0 - i, "role": "all_rounder", "overseas": False,
         "tags": "d", "parts": [0.5, 3.5 - i, 8.0, 24.0, 0.9 - 0.15 * i]} for i in range(5)],
+    # an XI that misses matches (P(plays) 0.7), a squad bench player and two auction candidates on the
+    # bench: a veteran free agent (P(plays) 0.04, the best contribution a match) gives at most 0.04 of
+    # an appearance a match, the rest goes to the next names
+    [{"id": f"x{i}", "name": f"X{i}", "value": 3.0, "role": ROLES[i % 4], "overseas": False,
+      "tags": "k" if i % 4 == 3 else "", "parts": [1.5, 1.5, 12.0, 12.0, 0.7]} for i in range(11)]
+    + [{"id": "vet", "name": "Veteran", "value": 7.0, "role": "batter", "overseas": False, "tags": "o",
+        "parts": [7.0, 0.0, 22.0, 0.0, 0.04], "cap": 0.04},
+       {"id": "kid", "name": "Kid", "value": 2.0, "role": "batter", "overseas": False, "tags": "",
+        "parts": [2.0, 0.0, 15.0, 0.0, 0.3], "cap": 0.3},
+       {"id": "sub", "name": "Sub", "value": 1.0, "role": "bowler", "overseas": False, "tags": "",
+        "parts": [0.0, 1.0, 2.0, 18.0, 0.2]}],
 ]  # fmt: skip
+
+
+def _pieces(ps: list[dict]) -> list[dict]:
+    out = []
+    for p in ps:
+        q = piece(p["id"], p["name"], p["value"], p["role"], p["overseas"], p["tags"],
+                  tuple(p["parts"]) if p.get("parts") else None)  # fmt: skip
+        if "cap" in p:
+            q["cap"] = p["cap"]
+        out.append(q)
+    return out
 
 
 def _keep_model() -> dict | None:
@@ -314,11 +336,7 @@ def _python(cases: list[dict]) -> dict:
         )
     xi = []
     for ps in XI_CASES:
-        pieces = [
-            piece(p["id"], p["name"], p["value"], p["role"], p["overseas"], p["tags"],
-                  tuple(p["parts"]) if p.get("parts") else None)
-            for p in ps
-        ]  # fmt: skip
+        pieces = _pieces(ps)
         b = best_xi(pieces)
         xi.append({"xi": b["xi"], "ids": b["ids"], "fillers": b["fillers"],
                    "strength": strength(pieces, XI_NEEDS)})  # fmt: skip
@@ -388,6 +406,36 @@ def test_best_xi_balls_budget():
     assert b["xi"] == pytest.approx(
         sb * sum(p["cb"] for p in chosen) + sw * sum(p["cw"] for p in chosen)
     )
+
+
+def test_bench_cap_by_p_play():
+    """The XI's missed appearances (11 × 0.3 = 3.3 a match) go to the bench, best contribution a
+    match first, each candidate at most his P(plays): the veteran (7 a match, P 0.04) fills 0.04,
+    the kid (2 a match, P 0.3) 0.3, the squad's bench bowler (1 a match) a whole appearance."""
+    from cricdex.web_parity.bidplan import bench_fill
+
+    pieces = _pieces(XI_CASES[4])
+    b = best_xi(pieces)
+    assert set(b["ids"]) == {f"x{i}" for i in range(11)}
+    depth = bench_fill(b["ids"], pieces, b["bench"])
+    assert depth == pytest.approx(0.04 * 7.0 + 0.3 * 2.0 + 1.0 * 1.0)
+    # without the cap the veteran alone would have filled a whole appearance a match
+    for p in pieces:
+        p["cap"] = 1.0
+    assert bench_fill(b["ids"], pieces, b["bench"]) == pytest.approx(7.0 + 2.0 + 1.0 * 1.0)
+
+
+def test_no_target_at_or_below_replacement():
+    """A candidate whose contribution a match is at or below replacement level adds nothing to any
+    squad, so the plan never bids for him (unless you set a max bid yourself)."""
+    data = {k: v for k, v in LEAGUE.items() if k != "_pool"}
+    ctx = build_context(data, build_pool(LEAGUE["_pool"]), "AAA", {}, None, 4)
+    low = {r["cricsheet_id"] for r in ctx["available"]
+           if r.get("contrib") is None or r["contrib"] <= REPLACEMENT}  # fmt: skip
+    assert low
+    res = plan(ctx, {}, {}, 25, rival_prices(ctx, 25))
+    assert not [t for t in res["targets"] if t["id"] in low]
+    assert all(t["gain"] > 0 for t in res["targets"] if t["max_bid"] > 0)
 
 
 def test_plan_respects_purse_and_room():

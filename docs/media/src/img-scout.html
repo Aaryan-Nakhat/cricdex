@@ -1,57 +1,71 @@
 <!doctype html><html><head><meta charset="utf-8"><title>Scout</title><link rel="stylesheet" href="theme.css">
 <style>
-  .lk { display: grid; grid-template-columns: 72px 1fr 120px 110px 120px; align-items: center; gap: 14px; padding: 13px 18px; border-radius: 14px; border: 1px solid var(--line); background: #fff; }
+  .lk { display: grid; grid-template-columns: 92px 1fr 100px 110px 120px; align-items: center; gap: 14px; padding: 13px 18px; border-radius: 14px; border: 1px solid var(--line); background: #fff; }
   .lk .nm { font: 800 19px/1.15 Inter; } .lk .meta { font: 500 14px/1.3 Inter; color: var(--muted); margin-top: 3px; }
-  .lg { font: 800 12.5px/1 "JetBrains Mono"; padding: 7px 0; border-radius: 8px; text-align: center; }
+  .lg { font: 800 12px/1 "JetBrains Mono"; padding: 7px 0; border-radius: 8px; text-align: center; white-space: nowrap; }
   .r { text-align: right; font: 800 18px/1 Inter; font-variant-numeric: tabular-nums; }
-  .hd { display: grid; grid-template-columns: 72px 1fr 120px 110px 120px; gap: 14px; padding: 0 19px 8px; font: 700 12.5px/1 Inter; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .hd { display: grid; grid-template-columns: 92px 1fr 100px 110px 120px; gap: 14px; padding: 0 19px 8px; font: 700 12.5px/1 Inter; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
   .pen { display: grid; grid-template-columns: 100px 1fr 56px; gap: 10px; align-items: center; font: 600 15px Inter; height: 30px; }
+  .stale { display: inline-block; margin-left: 8px; padding: 3px 7px; border-radius: 6px; border: 1px solid rgba(180,120,6,.4); background: var(--gold-lo); color: var(--gold); font: 700 11.5px/1 Inter; vertical-align: 2px; }
 </style></head><body>
+<script src="data.js"></script><script src="fill.js"></script>
 <div id="stage">
   <div class="orb" style="width:620px;height:620px;left:-220px;top:-260px;background:#34d399"></div>
   <div class="orb" style="width:540px;height:540px;right:-200px;top:260px;background:#f5c542"></div>
   <div class="gridbg"></div>
   <div class="kicker">🔭 Scout</div>
   <h1>Same mould, other leagues. <span class="grad">Crores cheaper.</span></h1>
-  <p class="lede">Pick an IPL player. Scout finds players of the same role and type across 14 leagues, lines them up by how they stand in their own league, and prices each one with the auction's own curve.</p>
+  <p class="lede" id="lede"></p>
 
   <div style="display:grid;grid-template-columns:330px 1fr;gap:22px;margin-top:30px">
-    <div class="card" style="display:flex;flex-direction:column">
-      <h3>Your pick · IPL</h3>
-      <div style="font:800 40px/1.06 Inter;letter-spacing:-.02em;margin-top:18px">Jasprit<br>Bumrah</div>
-      <div style="display:flex;gap:8px;margin-top:14px"><span class="tag tb">SEAM BOWLER</span><span class="tag tg">INDIA</span></div>
-      <div class="muted" style="font:600 15px Inter;margin-top:30px">Estimated auction price</div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px"><div class="big" style="font-size:60px">20.5</div><div class="muted" style="font:700 24px Inter">cr</div></div>
-      <div class="muted" style="font:600 15px Inter;margin-top:26px">Bowling skill in the IPL</div>
-      <div class="big" style="font-size:34px;margin-top:6px;color:var(--green)">+23.2</div>
-      <div class="t" style="margin-top:4px">runs per 100 balls better than an average bowler; third in the IPL Scout pool</div>
-      <div style="margin-top:auto;padding:14px 16px;border-radius:14px;background:var(--surface)"><div class="muted" style="font:600 14px Inter">Real 2025 retention</div><div style="font:800 22px Inter;margin-top:4px">18 cr <span class="team MI" style="vertical-align:3px;margin-left:6px">MI</span></div></div>
-    </div>
+    <div class="card" style="display:flex;flex-direction:column" id="pick"></div>
     <div class="card">
-      <div class="hd"><span>League</span><span>Look-alike</span><span style="text-align:right">Match</span><span style="text-align:right">Est. price</span><span style="text-align:right">Saving</span></div>
-      <div style="display:grid;gap:10px">
-        <div class="lk"><span class="lg" style="background:var(--sky-lo);color:var(--sky)">IPL</span><div><div class="nm">Bhuvneshwar Kumar</div><div class="meta">seam · India · an IPL peer</div></div><span class="r muted">57%</span><span class="r">10.9 cr</span><span class="r ok">9.6 cr</span></div>
-        <div class="lk"><span class="lg" style="background:#fff4d6;color:#a16207">BPL</span><div><div class="nm">Binura Fernando</div><div class="meta">seam · Sri Lanka</div></div><span class="r muted">82%</span><span class="r">7.9 cr</span><span class="r ok">12.5 cr</span></div>
-        <div class="lk"><span class="lg" style="background:var(--green-lo);color:var(--green)">SMAT</span><div><div class="nm">CV Stephen</div><div class="meta">seam · India domestic</div></div><span class="r muted">78%</span><span class="r">4.4 cr</span><span class="r ok">16.1 cr</span></div>
-        <div class="lk"><span class="lg" style="background:#fde8e8;color:#b91c1c">SA20</span><div><div class="nm">Anrich Nortje</div><div class="meta">seam · South Africa</div></div><span class="r muted">72%</span><span class="r">8.0 cr</span><span class="r ok">12.5 cr</span></div>
-        <div class="lk"><span class="lg" style="background:var(--sky-lo);color:var(--sky)">HUNDRED</span><div><div class="nm">Adam Milne</div><div class="meta">seam · New Zealand</div></div><span class="r muted">66%</span><span class="r">4.8 cr</span><span class="r ok">15.7 cr</span></div>
-        <div class="lk"><span class="lg" style="background:var(--violet-lo);color:var(--violet)">BLAST</span><div><div class="nm">David Payne</div><div class="meta">seam · England</div></div><span class="r muted">56%</span><span class="r">4.6 cr</span><span class="r ok">15.9 cr</span></div>
-        <div class="lk"><span class="lg" style="background:var(--teal-lo);color:var(--teal)">S.SMASH</span><div><div class="nm">Kyle Jamieson</div><div class="meta">seam · New Zealand</div></div><span class="r muted">50%</span><span class="r">2.9 cr</span><span class="r ok">17.5 cr</span></div>
-      </div>
+      <div class="hd"><span>League</span><span>Look-alike</span><span style="text-align:right">Match</span><span style="text-align:right">Price</span><span style="text-align:right">Saving</span></div>
+      <div style="display:grid;gap:10px" id="rows"></div>
     </div>
   </div>
 
   <div class="grid3" style="margin-top:22px">
     <div class="card"><h3>1 · Same role, same type</h3><h4>Seam with seam, spin with spin</h4><p class="t">Batters can be narrowed to a batting slot. Role and bowling type come from the player taxonomy.</p></div>
     <div class="card"><h3>2 · Standing within the league</h3><h4>Ranked by skill standing</h4><p class="t">Each player's Bayesian rating as a z-score inside their own league, so a domestic star and an IPL star line up fairly.</p></div>
-    <div class="card"><h3>3 · Priced like the auction</h3>
-      <div style="margin-top:12px">
-        <div class="pen"><span class="tag tb" style="text-align:center">IPL</span><div class="bar"><i style="width:0%"></i></div><span class="mono" style="text-align:right">0</span></div>
-        <div class="pen"><span class="tag ta" style="text-align:center">BBL +4</span><div class="bar"><i style="width:35%;background:var(--gold)"></i></div><span class="mono" style="text-align:right">−6.0</span></div>
-        <div class="pen"><span class="tag tt" style="text-align:center">Blast +6</span><div class="bar"><i style="width:50%;background:var(--teal)"></i></div><span class="mono" style="text-align:right">−8.5</span></div>
-        <div class="pen"><span class="tag tg" style="text-align:center">SMAT</span><div class="bar"><i style="width:100%;background:var(--green)"></i></div><span class="mono" style="text-align:right">−17.0</span></div>
-      </div>
-      <p class="t" style="margin-top:6px">League discount in runs per 100 balls, before pricing (BBL, SA20, PSL, ILT20, Hundred · Blast, CPL, MLC, BPL, LPL, Super Smash, CSA T20)</p></div>
+    <div class="card"><h3>3 · Translated onto the IPL</h3>
+      <div style="margin-top:12px" id="trans"></div>
+      <p class="t" style="margin-top:6px" id="trans-t"></p></div>
   </div>
-  <div class="foot"><span>One shared Scout on the website, CLI, terminal UI and Streamlit · one click drafts a prospect into the auction</span><span>All countries shown · prices are model estimates</span></div>
-</div></body></html>
+  <div class="foot"><span>One shared Scout on the website, CLI, terminal UI and Streamlit · one click drafts a prospect into the auction</span><span id="foot-r"></span></div>
+</div>
+<script>
+  const S = M.scout, K = S.pick;
+  const LG = { ipl: ["var(--sky-lo)", "var(--sky)"], bpl: ["#fff4d6", "#a16207"], smat: ["var(--green-lo)", "var(--green)"],
+    sa20: ["#fde8e8", "#b91c1c"], hundred: ["var(--sky-lo)", "var(--sky)"], blast: ["var(--violet-lo)", "var(--violet)"],
+    super_smash: ["var(--teal-lo)", "var(--teal)"], bbl: ["var(--gold-lo)", "var(--gold)"], csa_t20: ["#fde8e8", "#b91c1c"] };
+  const short = (s) => ({ "T20 Blast": "BLAST", "Super Smash": "S.SMASH", "Hundred": "HUNDRED", "CSA T20": "CSA T20" })[s] || s.toUpperCase();
+  fill("lede", `Pick an IPL player. Scout finds players of the same role and type across ${S.n_pools} leagues, lines them up by how they stand in their own league, translates each rating onto the IPL and prices it at the auction's market price.`);
+  const [first, ...last] = K.name.split(" ");
+  const ord = ["", "first", "second", "third", "fourth", "fifth"][K.rank] || `${K.rank}th`;
+  fill("pick", `<h3>Your pick · IPL</h3>
+    <div style="font:800 40px/1.06 Inter;letter-spacing:-.02em;margin-top:18px">${esc(first)}<br>${esc(last.join(" "))}</div>
+    <div style="display:flex;gap:8px;margin-top:14px"><span class="tag tb">${(K.type ? K.type + " " : "").toUpperCase()}${K.role.toUpperCase()}</span><span class="tag tg">${esc(K.country).toUpperCase()}</span></div>
+    <div class="muted" style="font:600 15px Inter;margin-top:30px">Market price</div>
+    <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px"><div class="big" style="font-size:60px">${fx(K.price)}</div><div class="muted" style="font:700 24px Inter">cr</div></div>
+    <div class="muted" style="font:600 15px Inter;margin-top:26px">${K.role === "bowler" ? "Bowling" : "Batting"} skill in the IPL</div>
+    <div class="big" style="font-size:34px;margin-top:6px;color:var(--green)">${sgn(K.value)}</div>
+    <div class="t" style="margin-top:4px">runs per 100 balls better than an average ${K.role}; ${ord} of ${K.rank_of} in the IPL Scout pool</div>
+    ${K.real ? `<div style="margin-top:auto;padding:14px 16px;border-radius:14px;background:var(--surface)"><div class="muted" style="font:600 14px Inter">Real 2025 retention</div><div style="font:800 22px Inter;margin-top:4px">${fx(K.real.price, 0)} cr <span class="team ${K.real.team}" style="vertical-align:3px;margin-left:6px">${K.real.team}</span></div></div>` : ""}`);
+  fill("rows", S.rows.map((r) => {
+    const [bg, fg] = LG[r.tier] || ["var(--surface)", "var(--muted)"];
+    const meta = `${r.type} · ${r.domestic ? r.country + " domestic" : r.country}${r.ipl_peer ? " · an IPL peer" : ""}`;
+    return `<div class="lk"><span class="lg" style="background:${bg};color:${fg}">${short(r.league)}</span>`
+      + `<div><div class="nm">${esc(r.name)}${r.stale ? `<span class="stale">data to ${asOf(r.stale)} · stale</span>` : ""}</div><div class="meta">${esc(meta)}</div></div>`
+      + `<span class="r muted">${r.sim}%</span><span class="r">${fx(r.price)} cr</span><span class="r ok">${r.saving > 0 ? fx(r.saving) + " cr" : "—"}</span></div>`;
+  }).join(""));
+  const T = S.translations, pick = [T[0], T.find((t) => t.league === "BBL"), T.find((t) => t.league === "T20 Blast"), T[T.length - 1]]
+    .filter((t, i, a) => t && a.indexOf(t) === i);
+  const tone = ["tg", "ta", "tt", "tr"];
+  fill("trans", pick.map((t, i) => `<div class="pen"><span class="tag ${tone[i]}" style="text-align:center">${short(t.league)}</span>`
+    + `<div class="bar"><i style="width:${Math.max(2, 10 * t.at10).toFixed(0)}%;background:var(--${["green", "gold", "teal", "red"][i]})"></i></div>`
+    + `<span class="mono" style="text-align:right">${sgn(t.at10)}</span></div>`).join(""));
+  fill("trans-t", `A +10 ${S.side === "bowler" ? "bowling" : "batting"} rating there, on the IPL scale: fitted per league and role on the players seen in both leagues, for all ${T.length} pools. No hand-set discounts.`);
+  fill("foot-r", `All countries shown · data to ${asOf(M.data_as_of)}`);
+</script>
+</body></html>

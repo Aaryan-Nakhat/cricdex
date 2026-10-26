@@ -109,8 +109,10 @@ function HowItWorks({ res }: { res: Plan | null }) {
     <Collapsible title="How the plan is made (plain English)" icon={<Calculator className="h-4 w-4" />}>
       <div className="space-y-4 text-sm leading-relaxed text-muted">
         <p>
-          <b className="text-fg">1. Who's in the auction.</b> Every free agent in the auction pool, plus every player the ten
-          franchises release under their Keep-or-release plans (yours with your own Keep / Release calls). Before a mini
+          <b className="text-fg">1. Who's in the auction.</b> Every free agent in the auction pool (not under contract with a
+          franchise; not retired, by an announced retirement with its source; a T20 match somewhere in the last three
+          years), plus every player the ten franchises release under their Keep-or-release plans (yours with your own Keep /
+          Release calls). Before a mini
           auction teams clear room, so each plan opens at least the number of places you set ({OPEN_SLOTS} by default, the
           median number a team bought at the 2023, 2024 and 2026 mini auctions), releasing its lowest-valued players first.
           When the official auction list is published it replaces this guess.
@@ -133,7 +135,9 @@ function HowItWorks({ res }: { res: Plan | null }) {
           faces about 21, a No. 7 about 9, a frontline bowler bowls about 23), the XI's balls held to a side's{" "}
           {TEAM_BALLS} a innings; at most {XI_OVERSEAS} overseas, a keeper, five bowling and six batting options; a place
           your squad can't fill goes to a replacement-level player ({fmtNum(REPLACEMENT, 0)}). Depth: the XI misses the
-          matches its players don't play (1 − their chance of playing, added up), and the bench fills them, best first.
+          matches its players don't play (1 − their chance of playing, added up), and the bench fills them, best first: a
+          squad player up to one appearance a match, an auction lot only as often as players like him play at all (a
+          retired-looking veteran with a 4% chance fills 4% of a match, not a whole one).
           Role needs (keepers, openers, death bowlers, spinners, pace) are targets the plan reports against; they don't
           change the strength.
         </p>
@@ -160,7 +164,7 @@ max bid  = gain ÷ λ   (at most the purse left after the other likely buys)`}</
           <b className="text-willow">Honest caveat:</b> the rivals bid by a demand model fitted on the 2019–24 auctions and
           tested once on 2025–26, but prices rest on the market model, which can't see scouting, injury or brand; values are
           ratings, not certainties. Replayed on the 2025 and 2026 auctions at the real team's spend, the plan's squads were
-          ahead of the real ones for 6 of 10 teams in 2025 and 3 of 10 in 2026 on what the players did next season: see
+          ahead of the real ones for 7 of 10 teams in 2025 and 2 of 10 in 2026 on what the players did next season: see
           docs/METHODOLOGY.md §12. Treat it as a starting sheet for the war room, not a verdict.
         </p>
       </div>
@@ -183,10 +187,10 @@ export function BidPlan() {
         <Badge tone="gold" className="mr-2">Beta</Badge>
         <b className="text-fg">Not yet proven.</b> Replaying the real auctions with only what was known
         beforehand, at the real franchise's spend, this plan built a stronger squad (on what the players did
-        next season) for 6 of 10 teams in the 2025 mega auction and 3 of 10 in the 2026 mini auction: about
-        level, not ahead. "P(≤ max)" is no longer over-confident: where it said 0.8–1.0 the real price
-        stayed at or under the max bid 89% of the time in 2025 and 100% in 2026 (before the fitted rivals:
-        said 0.88, came true 0.44 in 2026); in the middle it now errs low. The plan doesn't see rivals chasing the same names, or scouting the price model
+        next season) for 7 of 10 teams in the 2025 mega auction and 2 of 10 in the 2026 mini auction: ahead in
+        the mega, behind in the mini, not clearly ahead overall. "P(≤ max)" is about right overall (said 0.38, came
+        true 0.39 in 2025; 0.48 / 0.52 in 2026), but where it said 0.8–1.0 the real price stayed at or under the max
+        bid 76% of the time in 2025 (100% in 2026): its top band runs high. The plan doesn't see rivals chasing the same names, or scouting the price model
         misses. Use it to explore bid limits and fallbacks, not as a verdict. Full results in the
         methodology (Bid plan section).
       </Card>

@@ -7,6 +7,7 @@
   .step small { display: block; font: 500 14.5px/1.45 Inter; color: var(--muted); margin-top: 2px; }
   .brd { display: grid; grid-template-columns: 22px 1fr 70px; gap: 10px; align-items: center; font: 600 16px/1.2 Inter; padding: 9px 0; border-top: 1px solid var(--line2); }
 </style></head><body>
+<script src="data.js"></script><script src="fill.js"></script>
 <div id="stage">
   <div class="orb" style="width:620px;height:620px;left:-220px;top:-260px;background:#34d399"></div>
   <div class="orb" style="width:520px;height:520px;right:-200px;top:200px;background:#2dd4bf"></div>
@@ -72,12 +73,13 @@
     </div>
     <div class="card">
       <h3>IPL all-time · win chance added / match</h3>
-      <div style="margin-top:10px">
-        <div class="brd"><span class="faint">1</span><span>Sunil Narine</span><span class="ok" style="text-align:right">+6.2%</span></div>
-        <div class="brd"><span class="faint">2</span><span>Phil Salt</span><span class="ok" style="text-align:right">+6.0%</span></div>
-        <div class="brd"><span class="faint">3</span><span>Ryan Rickelton</span><span class="ok" style="text-align:right">+5.5%</span></div>
-      </div>
+      <div style="margin-top:10px" id="board"></div>
     </div>
   </div>
   <div class="foot"><span>Cricsheet ball-by-ball · NGI is computed for every league and every window (all-time, last 3 years, last year, the IPL's Impact Player era)</span><span>Every ball scored out of fold</span></div>
-</div></body></html>
+</div>
+<script>
+  fill("board", M.ngi.top.map((r, i) => `<div class="brd"><span class="faint">${i + 1}</span><span>${esc(r.name)}</span>`
+    + `<span class="ok" style="text-align:right">${sgn(r.pct)}%</span></div>`).join(""));
+</script>
+</body></html>

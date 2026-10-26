@@ -494,8 +494,17 @@ AUCTION_POOL_COLLECTIONS = [lg.key for lg in leagues.auction_pool()]
 AUCTION_TARGET = leagues.auction_target().key
 auction_eligible = leagues.auction_target().auction_eligible
 # Who may be in the pool (each threshold with its reason; METHODOLOGY §7):
-# * active in the last ~3 years in any pool league: an auction draws on current players, and a
-#   player idle for three seasons has no usage or form to project;
+# * under contract: the next competition's squads (competitions.squad_rows: the squads file with the
+#   last auction, trades and retirements applied) — a contracted player keeps his franchise, everyone
+#   else is a free agent;
+# * available: not in data/curated/ipl_availability.json as retired (an announced retirement, with
+#   evidence) or as not registering for that auction (competitions.unavailable);
+# * a T20 match in some pool league in the last AUCTION_RECENCY_DAYS (3 years). The data rule, from
+#   every spell without a match in any covered league that began by Sept 2021 (scripts/inactivity_gap.py,
+#   data/metrics/inactivity_gap_ipl.json): after 2 years away 3.6% of players (9.5% of former IPL
+#   players) played an IPL match again; after 3 years 1.9% (4.4%); after 4 years 0.6% (1.4%). Three
+#   years is the shortest gap after which fewer than 1 former IPL player in 20 came back; the
+#   free-agent P(plays) model (its `gap` term) prices the shorter gaps;
 # * the top AUCTION_POOL_CAP by expected season value (P(plays) × contribution per match,
 #   scout/playing_time.py): a size limit for the browser and the room's Monte-Carlo, not a quality
 #   cut (the room auctions 200 lots; Bid plan's free agents are this list). Until 2026-10-22 the
@@ -503,7 +512,7 @@ auction_eligible = leagues.auction_target().auction_eligible
 #   players under 150 balls were dropped outright; the penalty is replaced by the fitted P(plays) and
 #   the 150-ball cut by the ratings' own shrinkage (a thin record is pulled to its slot's mean and
 #   carries a low P(plays) through no IPL experience).
-AUCTION_RECENCY_DAYS = 1100
+AUCTION_RECENCY_DAYS = 1096  # 3 years (was a hand-set 1100 days until 2026-10-23)
 AUCTION_POOL_CAP = 600
 AUCTION_TARGET = "ipl"  # the league the auction is for (competition-rules config, later sprint)
 
@@ -800,6 +809,22 @@ def _export_auction_pool(
         "bowler": "bowler",
         "batter": "batter",
     }
+    # under contract for the next competition: its squads (the squads file with the last auction,
+    # trades, retirements and releases applied, competitions.squad_rows); without a competition, the
+    # player master's team (else the latest season's)
+    contract: dict[str, str] | None = None
+    unavail: dict[str, str] = {}
+    if comp is not None:
+        from cricdex import competitions as _comps
+
+        contract = {
+            r["cricsheet_id"]: t
+            for t, rows in _comps.squad_rows(comp).items()
+            for r in rows
+            if r.get("cricsheet_id")
+        }
+        # announced retirements and auction opt-outs (data/curated/ipl_availability.json)
+        unavail = _comps.unavailable(comp.season, AUCTION_TARGET)
     activity: dict[str, dict] = {}
     out = []
     extra_rows: dict[str, dict] = {}
@@ -808,15 +833,19 @@ def _export_auction_pool(
         ld = _last_any(cid)
         tax = taxonomy.get(cid, {})
         country = tax.get("country")
-        # IPL franchise (the 2026 squads in the player master), else None (free agent)
-        team = tax.get("team") if tax.get("display_name") else teams.get(cid)
+        # IPL franchise under contract, else None (free agent)
+        if contract is not None:
+            team = contract.get(cid)
+        else:
+            team = tax.get("team") if tax.get("display_name") else teams.get(cid)
         pooled = (
             cid in best
             and bool(name)
             and bool(ld)
-            # active somewhere in the last ~3 years
+            # a T20 match in some pool league in the last 3 years (AUCTION_RECENCY_DAYS)
             and not (cutoff and ld < cutoff)
-            # retired from the IPL (or from cricket): not in any auction
+            # retired (the availability file, or the player master's flag) or not registering
+            and cid not in unavail
             and not tax.get("retired")
             and bool(team or auction_eligible(country))
         )

@@ -8,6 +8,53 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Bid plan's 2027 sheets: who is in the auction, and a bench that respects P(plays) (issue I16, 2026-10-23)
+
+- **Why the sheets were wrong.** Not the ranking's sign. (1) The bench filled the XI's missed matches with whole
+  appearances at each player's full contribution, ignoring his P(plays): a free agent who plays 4% of the time
+  (David Warner, 40) added 4–5 runs a match and drew max bids of 16–19 cr. An auction lot now gives the bench at
+  most his P(plays) of an appearance (`bench_fill`, `web_parity/bidplan.py` ⇄ `site/src/lib/bidplan.ts`, a new
+  parity case and unit tests). (2) A player with no batting position in the four seasons before was measured
+  against the tail's replacement level (−61.6) at a batter's balls: Sarthak Ranjan (rated −9.1, nothing in the
+  data since 2018) came out at +8.2 runs a match and first on CSK's, DC's and RCB's sheets. He now takes his
+  role's typical position (`playing_time.expected_usage`; +1.2, P(plays) as a free agent 0.01). (3) The pool
+  had no sourced retirements and took each player's franchise from the player master.
+- **Who is in the 2027 pool** (METHODOLOGY §7): players not under contract in the competition's squads (the
+  squads file with the 2026 auction, trades, retirements and releases; Ajinkya Rahane, retired in July, had
+  stayed a KKR player), not in the new **`data/curated/ipl_availability.json`** (15 announced retirements, each
+  with dated sources: Bravo, Dinesh Karthik, Shikhar Dhawan, Amit Mishra, Rayudu, Pollard, Saha, Chawla,
+  Gowtham, Rishi Dhawan, Finch, Ashwin, Russell, Mohit Sharma, Rahane; Warner and du Plessis recorded as not
+  registering for 2026 only, so they stay), and with a T20 match in a pool league in the last **3 years**, now
+  justified from the data (`scripts/inactivity_gap.py`: after 3 years away 1.9% of players, 4.4% of former IPL
+  players, played an IPL match again; after 2 years 3.6% / 9.5%). The player master reads its `retired` flags
+  from the same file (the three retirements in `player_overrides.json` moved there). An official auction list
+  still replaces the inferred pool.
+- **All ten 2027 sheets re-checked** (METHODOLOGY §12 table): active players outside a 2027 contract or
+  released by a plan, cheap IPL regulars and young free agents first. **Replay re-run**: at the real spend the
+  plan's squad was stronger next season for 7 of 10 teams in the 2025 mega (+6.5 runs a match) and 2 of 10 in
+  the 2026 mini (−2.4; it spent far less), from 6 and 3; P(≤ max bid) about right overall, high in the top band
+  (0.89 said, 0.76 came true in 2025). Still beta.
+- README `bidplan.png` shows a live 2027 sheet (RCB's top five targets, max bids, a fallback chain) from
+  `scripts/media_data.py --bidplan-team`.
+
+### README visuals refreshed from current data (issue I1, 2026-10-23)
+
+- **Every visual is now filled from data, not typed in.** `scripts/media_data.py` computes the numbers from the
+  exported site data with the same `cricdex.web_parity` code the CLI uses (the default 300-run mega auction, Keep
+  or release for RCB, Scout for Jasprit Bumrah, ratings and head to heads, the NGI leaders, the backtest JSON) and
+  writes `docs/media/src/data.js`; the `img-*.html` pages and `hero.html` read it. `render_images.py` and
+  `render_video.py` stop on a page error instead of filming a half-filled page.
+- **auction.png / hero**: the fitted bidding room (no personalities, no 27 cr cap tag): purse used, the dearest
+  buys at the market model's prices, how a team bids by the demand model. **scout.png**: market prices, the
+  fitted league translation instead of hand-set discounts, the SMAT staleness badge. **ratings.png**: top batters
+  and bowlers limited to current IPL squads, retired players left out. **backtest.png**: the current figures
+  (newcomer batters 0.12 vs 0.08, ahead in 70% of resamples; bowlers 0.25 vs 0.26). **architecture.png**: the
+  league translation, playing time, market price and bidding, keep and forecast models; Wikipedia's IPL pages as a
+  source. **ngi.png**: leaders from the leaderboard file (unchanged).
+- **New**: `keep.png` (RCB: cost, market price, chance kept, the call; 78% / 82% on the test deadlines) and
+  `bidplan.png` (BETA label; P(≤ max bid) said vs came true and the 6 / 10, 3 / 10 replay), placed in their README
+  sections; the hero video gains a Keep or release + Bid plan scene (about 54 s now).
+
 ### Auction room: bidding fitted on real auctions; Bid plan without hand-set strength constants (2026-10-23)
 
 - **A demand model replaces the personalities** (audit item 7; `scripts/auction_demand_fit.py` →

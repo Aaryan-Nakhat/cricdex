@@ -30,7 +30,11 @@ const out = fx.cases.map((c: any) => {
 });
 // the strength model on its own, on fixed squads
 const xi = (fx.xi_cases ?? []).map((ps: any[]) => {
-  const pieces = ps.map((p) => piece(p.id, p.name, p.value, p.role, p.overseas, p.tags, p.parts ?? null));
+  const pieces = ps.map((p) => {
+    const q = piece(p.id, p.name, p.value, p.role, p.overseas, p.tags, p.parts ?? null);
+    if (p.cap !== undefined) q.cap = p.cap; // an auction candidate's bench cap (his P(plays))
+    return q;
+  });
   const b = bestXi(pieces);
   return { xi: b.xi, ids: b.ids, fillers: b.fillers, strength: strength(pieces, fx.xi_needs) };
 });

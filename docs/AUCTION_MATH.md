@@ -260,15 +260,24 @@ re-fitted:
 A real IPL auction draws from the whole **active T20 world**, not just past
 IPL squads. So the pool is **cross-collection**:
 
-- **IPL players** — retainable; each carries his current franchise.
-- **Free agents** — overseas talent via the **BBL** (Australia), **SA20**
+- **IPL players under contract** — in the next competition's squads (the
+  squads file with the 2026 auction, trades, retirements and releases
+  applied); retainable, each carries his franchise.
+- **Free agents** — everyone else: overseas talent via the **BBL** (Australia), **SA20**
   (South Africa), **CPL** (West Indies) and the **T20 Blast** (England), and
   uncapped Indians via the **SMAT** (Syed Mushtaq Ali Trophy).
 
 With guardrails so it stays realistic:
 
-- **Active only** — last match within ~3 years (a player idle for three
-  seasons has no usage or form to project).
+- **Not retired** — an announced retirement (with its dated sources) in
+  `data/curated/ipl_availability.json` keeps a player out (Bravo, Dinesh
+  Karthik, Shikhar Dhawan, Amit Mishra, Rayudu, Pollard, Rahane, …). A
+  player who only skipped an earlier auction (Warner, du Plessis in 2026)
+  stays, priced by his P(plays).
+- **Active only** — a T20 match in a pool league within 3 years. From the
+  data: after 3 years without a match 1.9% of players (4.4% of former IPL
+  players) played an IPL match again, after 2 years 3.6% (9.5%)
+  (`scripts/inactivity_gap.py`, METHODOLOGY §7).
 - **Ranked by expected season value** (since 2026-10-22): P(plays a match)
   × his runs above a replacement a match, batting and bowling at the balls
   he actually gets, × 14 (METHODOLOGY §6c). A squad player's P(plays) comes
@@ -453,9 +462,11 @@ auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-beta)).
    he faces a match plus his bowling at the balls he bowls, × his P(plays), a lot's as a free agent,
    METHODOLOGY §6c; the XI's balls held to a side's 115 an innings; ≤ 4 overseas, a keeper, 5 bowling and 6
    batting options, a replacement player, 0, for any gap) + the bench filling the matches the XI misses:
-   Σ (1 − P(plays)) over the XI, best bench contribution first, at most one appearance a match each. Role
-   needs are reported, not scored. (Until 2026-10-23: + 0.25 × the next four − 0.63 per role need missed, both
-   hand-set.)
+   Σ (1 − P(plays)) over the XI, best bench contribution first, at most one appearance a match for a squad
+   player and at most his P(plays) for an auction lot (since 2026-10-23: until then a 40-year-old free agent
+   who plays 4% of the time filled a whole appearance a match at his career contribution and topped the
+   lists). Role needs are reported, not scored. (Until 2026-10-23: + 0.25 × the next four − 0.63 per role
+   need missed, both hand-set.)
 3. **The rule.** Stars first, bid up to *gain in strength ÷ λ*; λ (runs per crore) is the rate that
    gives the highest average strength across the 200 runs.
 
