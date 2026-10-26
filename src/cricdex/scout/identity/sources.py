@@ -109,7 +109,12 @@ _FIELD_QUERIES = {
     "qid": 'BIND(STRAFTER(STR(?item), "entity/") AS ?v)',
     "label": '?item rdfs:label ?v FILTER(LANG(?v) = "en")',
     "alias": '?item skos:altLabel ?v FILTER(LANG(?v) = "en")',
-    "dob": "?item wdt:P569 ?v",
+    # every non-deprecated birth date with its precision ("time|precision"): `wdt:` drops the
+    # precision, so a year-only date (precision 9, stored as 1 January) read as a full date
+    "dob": "?item p:P569 ?st . ?st psv:P569 ?n . ?n wikibase:timeValue ?t ; "
+    "wikibase:timePrecision ?pr . ?st wikibase:rank ?rk "
+    "FILTER(?rk != wikibase:DeprecatedRank) "
+    'BIND(CONCAT(STR(?t), "|", STR(?pr)) AS ?v)',
     "birth_name": "?item wdt:P1477 ?v",
     "sport_country": '?item wdt:P1532 ?c . ?c rdfs:label ?v FILTER(LANG(?v) = "en")',
     "citizenship_iso": "?item wdt:P27 ?c . ?c wdt:P298 ?v",
@@ -129,6 +134,32 @@ def _field_query(key: str, ids: list[str]) -> str:
 
 _MULTI = {"alias", "sport_country", "citizenship_iso", "position", "hand"}
 
+DOB_SCHEMA = 2  # birth dates carry their precision (`_dob_v`); a record without it is re-queried
+DAY_PRECISION = 11  # Wikidata time precision: 9 = year, 10 = month, 11 = day
+
+
+def _fold_dob(rec: dict, v: str) -> None:
+    """One P569 binding ("+1996-07-06T00:00:00Z|11") into `rec`: day-precision dates go to
+    `dob_all`; `dob` is set only when exactly one distinct day-precision date is listed (two
+    different ones are a conflict, `dob_conflict`, settled by the other sources). A year- or
+    month-only date is kept as `dob_year` and never used as a birth date. An old cache row (no
+    precision) folds as before."""
+    t, _, pr = v.partition("|")
+    d = t.lstrip("+")[:10]
+    rec["_dob_v"] = DOB_SCHEMA
+    if pr and int(pr) < DAY_PRECISION:
+        rec.setdefault("dob_year", d[:4])
+        return
+    vals = rec.setdefault("dob_all", [])
+    if d not in vals:
+        vals.append(d)
+    vals.sort()
+    if len(vals) == 1:
+        rec["dob"] = vals[0]
+    else:
+        rec.pop("dob", None)
+        rec["dob_conflict"] = True
+
 
 def _fold_bindings(bindings: list[dict]) -> dict[str, dict]:
     """SPARQL rows (id, key, value) → {cricinfo_id: {key: value | [values]}}."""
@@ -143,9 +174,7 @@ def _fold_bindings(bindings: list[dict]) -> dict[str, dict]:
             if v not in vals:
                 vals.append(v)
         elif k == "dob":
-            # keep the earliest-listed full date; "+1993-10-11T00:00:00Z" → "1993-10-11"
-            d = v.lstrip("+")[:10]
-            rec.setdefault("dob", d)
+            _fold_dob(rec, v)
         elif k == "qid" and "qid" in rec and rec["qid"] != v:
             # two items claim the same cricinfo id (a duplicate on Wikidata): keep both, flag it
             rec.setdefault("qid_conflict", [rec["qid"]]).append(v)
@@ -200,6 +229,38 @@ def fetch_wikidata(players: dict[str, list[str]], force: bool = False) -> dict[s
     write_json(WIKIDATA_CACHE, cache)
     ok = sum(1 for v in cache.values() if v.get("_status") == "ok")
     logger.info(f"wikidata: cache {len(cache)} players, {ok} resolved")
+    return refresh_wikidata_dob(cache)
+
+
+_DOB_KEYS = ("dob", "dob_all", "dob_year", "dob_conflict", "_dob_v")
+
+
+def refresh_wikidata_dob(cache: dict[str, dict] | None = None, force: bool = False) -> dict:
+    """Re-query the birth dates (with their precision, `_fold_dob`) of every resolved record cached
+    before DOB_SCHEMA (or all of them with `force`), by its cricinfo id. Until 2026-10-26 the date
+    was read without its precision, so a year-only Wikidata date became 1 January of that year."""
+    cache = read_json(WIKIDATA_CACHE, {}) if cache is None else cache
+    todo = {str(r["cricinfo_id"]): cid for cid, r in cache.items()
+            if r.get("_status") == "ok" and r.get("cricinfo_id")
+            and (force or r.get("_dob_v") != DOB_SCHEMA)}  # fmt: skip
+    if not todo:
+        return cache
+    logger.info(f"wikidata: refreshing {len(todo)} birth dates with their precision")
+    keys = sorted(todo)
+    with _client() as cx:
+        for n, chunk in enumerate(_chunks(keys, SPARQL_CHUNK), 1):
+            r = _get_with_retry(cx, SPARQL_ENDPOINT,
+                                {"query": _field_query("dob", chunk), "format": "json"},
+                                f"wikidata dob chunk {n}")  # fmt: skip
+            got = _fold_bindings(r.json()["results"]["bindings"])
+            for ci in chunk:
+                rec = cache[todo[ci]]
+                for k in _DOB_KEYS:
+                    rec.pop(k, None)
+                rec.update({k: v for k, v in (got.get(ci) or {}).items() if k in _DOB_KEYS})
+                rec["_dob_v"] = DOB_SCHEMA
+            time.sleep(SPARQL_SLEEP_S)
+    write_json(WIKIDATA_CACHE, cache)
     return cache
 
 

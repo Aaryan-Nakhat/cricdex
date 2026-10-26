@@ -149,9 +149,13 @@ max bid  = gain ÷ λ   (at most the purse left after the other likely buys)`}</
           player up to his gain divided by λ, an exchange rate in runs per crore, as long as the purse (keeping 0.3 cr for
           each place still needed to reach the squad minimum), the squad and the overseas cap allow. His gain counts the
           likely buys still to come, so an early lot isn't overpaid while a cheaper fit is due later; if a likely buy goes
-          elsewhere, his substitutes bid higher. λ is the rate that gives the highest average strength over all the runs
-          {res ? <> (here <b className="text-fg">{fmtNum(res.lam, 2)} runs per crore</b>)</> : null}: a low λ spends freely on the
-          first good lots, a high one waits for bargains.
+          elsewhere, his substitutes bid higher. λ is what a crore can still buy at that point of the auction: the lots
+          still to come, ranked by the strength each adds to your likely squad per crore of his expected price (the
+          rivals' median), filled down within your money and places; λ is the ratio of the first lot your money no
+          longer covers{res ? <> (at the start, <b className="text-fg">{fmtNum(res.lam, 2)} runs per crore</b>)</> : null}.
+          Money left after the auction buys nothing for the season (a replacement's fee is capped at the fee of the
+          player he replaces and sits outside the cap), so when your money covers everything still worth buying, λ is 0
+          and the purse is the limit.
         </p>
         <p>
           <b className="text-fg">5. The plan.</b> Targets are the players the rule lands in at least 5% of the runs (or that
@@ -741,7 +745,8 @@ function Assumptions({ ctx, res, data, openSlots, trials, register }: {
     ["Replacement level", `${fmtNum(REPLACEMENT, 0)} (contributions are runs a match above it)`, false],
     ["XI balls", `held to ${TEAM_BALLS} a side's innings, faced and bowled`, false],
     ["Depth", "the bench fills the matches the XI misses (its chance of playing); role needs reported, not scored", false],
-    ["Exchange rate λ", `${fmtNum(res.lam, 2)} runs per crore (chosen by the plan)`, false],
+    ["Exchange rate λ", `${fmtNum(res.lam, 2)} runs per crore at the start (what a crore still buys; it changes lot by lot)`, false],
+    ["Unspent purse", "worth what the later lots can still buy at their expected prices; nothing after the auction", false],
     ["Plan converged", res.converged ? `yes, in ${res.rounds} round${res.rounds === 1 ? "" : "s"}` : `stopped after ${res.rounds} rounds`, false],
   ];
   return (

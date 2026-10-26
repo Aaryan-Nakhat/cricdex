@@ -373,49 +373,250 @@ def balls_models(pars: dict, spec_name: str) -> dict[str, pt.BallsModel]:
     return out
 
 
-def replacement_from_minbuys(
-    hist: dict, u: pl.DataFrame, before: int, bm: dict[str, pt.BallsModel], T: float
-) -> dict[str, dict]:
-    """The replacement levels: the mean rating, at the auction, of the players bought at that
-    auction's lowest price (no franchise bid more: freely available talent), by the slot group of his
-    usual batting position and by bowling group (frontline when he is expected to bowl
-    FRONTLINE_BALLS+ a match), over the auctions REPL_FIRST ... before - 1. `bm` / `T`: the
-    expected-balls models and balls per innings fitted before `before`."""
-    floors: dict[int, float] = {}
-    for r in hist["lots"]:
-        if r.get("sold") and r.get("price_cr"):
-            floors[r["season"]] = min(floors.get(r["season"], math.inf), float(r["price_cr"]))
-    acc: dict[tuple[str, str], list[float]] = {}
-    roles = _roles()
-    for s in range(REPL_FIRST, before):
-        a = hist["auctions"].get(str(s))
-        if not a:
-            continue
-        date = a["date"]
-        buys = [r["cricsheet_id"] for r in hist["lots"]
-                if r["season"] == s and r.get("sold") and r.get("cricsheet_id")
-                and r.get("price_cr") and float(r["price_cr"]) <= floors[s] + 1e-9]  # fmt: skip
-        if not buys:
-            continue
-        vals = _asof(s, date)
-        us_all = pt.expected_usage(u, date, buys, bm, T, roles)
-        for cid in buys:
-            v = vals.get(cid, {})
-            us = us_all[cid]
-            if "batter" in v:
-                x = acc.setdefault(("bat", pt.slot_group(us["pos"])), [0.0, 0.0])
-                x[0] += 1
-                x[1] += v["batter"][0]
-            if "bowler" in v:
-                g = "frontline" if us["bowled"] >= pt.FRONTLINE_BALLS else "part_time"
-                x = acc.setdefault(("bowl", g), [0.0, 0.0])
-                x[0] += 1
-                x[1] += v["bowler"][0]
-    out: dict[str, dict] = {"bat": {}, "bowl": {}, "n": {}}
-    for (d, g), (n, s) in acc.items():
-        out[d][g] = round(s / n, 3)
-        out["n"][f"{d}:{g}"] = int(n)
+def minbuy_pairs(hist: dict, u: pl.DataFrame, season: int, bm: dict[str, pt.BallsModel],
+                 T: float) -> list[dict]:  # fmt: skip
+    """The players bought at auction `season`'s lowest price (no franchise bid more: freely
+    available talent), each with his ratings at the auction and his usage before it: {season, cid,
+    pos (usual batting position, his role's typical one if none), bat (batting value or None),
+    bowled (expected balls bowled a match), bowl (bowling value or None)}. `bm` / `T`: the
+    expected-balls models and balls per innings fitted before that auction."""
+    a = hist["auctions"].get(str(season))
+    if not a:
+        return []
+    prices = [float(r["price_cr"]) for r in hist["lots"]
+              if r["season"] == season and r.get("sold") and r.get("price_cr")]  # fmt: skip
+    if not prices:
+        return []
+    floor = min(prices)
+    date = a["date"]
+    buys = sorted({r["cricsheet_id"] for r in hist["lots"]
+                   if r["season"] == season and r.get("sold") and r.get("cricsheet_id")
+                   and r.get("price_cr") and float(r["price_cr"]) <= floor + 1e-9})  # fmt: skip
+    if not buys:
+        return []
+    vals = _asof(season, date)
+    us_all = pt.expected_usage(u, date, buys, bm, T, _roles())
+    out = []
+    for cid in buys:
+        v = vals.get(cid, {})
+        us = us_all[cid]
+        out.append({"season": season, "cid": cid, "pos": us["pos"],
+                    "bat": v["batter"][0] if "batter" in v else None,
+                    "bowled": us["bowled"],
+                    "bowl": v["bowler"][0] if "bowler" in v else None})  # fmt: skip
     return out
+
+
+# The replacement-curve candidates (ROADMAP I17a), declared 2026-10-26 before any test number. The
+# pairs are (usual batting position, batting value) and (expected balls bowled a match, bowling value)
+# of the minimum-price buys; R0 is the slot-group means shipped until then.
+REPL_CANDIDATES = {
+    "R0 slot groups (reference)": {"method": "groups"},
+    "R1 linear": {"method": "linear"},
+    "R2 isotonic (monotone)": {"method": "isotonic"},
+    "R3 kernel": {"method": "kernel"},
+}
+REPL_BANDWIDTH = {"bat": (0.5, 1.0, 1.5, 2.0, 3.0), "bowl": (2.0, 4.0, 6.0, 9.0, 12.0)}
+REPL_VALID = tuple(range(2018, VALID + 1))  # each predicted from the auctions before it
+# batting: a lower position has the weaker replacement; bowling: a heavier load the better one
+REPL_INCREASING = {"bat": False, "bowl": True}
+
+
+def _pairs_xy(pairs: list[dict], disc: str) -> tuple[list[float], list[float]]:
+    xs, ys = [], []
+    for p in pairs:
+        y = p[disc]
+        if y is None or not math.isfinite(y):
+            continue
+        if disc == "bat":
+            x = pt.NO_POSITION if p["pos"] is None else float(p["pos"])
+        else:
+            x = float(p["bowled"])
+        xs.append(x)
+        ys.append(float(y))
+    return xs, ys
+
+
+def _group_curve(pairs: list[dict], disc: str) -> dict:
+    """R0: the slot-group (bowling-group) means, the form shipped until 2026-10-26."""
+    acc: dict[str, list[float]] = {}
+    for p in pairs:
+        y = p[disc]
+        if y is None or not math.isfinite(y):
+            continue
+        if disc == "bat":
+            g = pt.slot_group(p["pos"])
+        else:
+            g = "frontline" if p["bowled"] >= pt.FRONTLINE_BALLS else "part_time"
+        a = acc.setdefault(g, [0.0, 0.0])
+        a[0] += 1
+        a[1] += y
+    return {g: round(s / n, 3) for g, (n, s) in acc.items()}
+
+
+def fit_replacement(pairs: list[dict], spec: dict) -> dict:
+    """{"bat": curve or groups, "bowl": ..., "n": {"bat", "bowl"}, "method": ...} from minimum-price
+    buys' pairs with a candidate spec ({"method", "h": {"bat", "bowl"}} for the kernel)."""
+    out: dict = {"method": spec["method"], "n": {}}
+    for disc in ("bat", "bowl"):
+        xs, ys = _pairs_xy(pairs, disc)
+        out["n"][disc] = len(xs)
+        if spec["method"] == "groups":
+            out[disc] = _group_curve(pairs, disc)
+        else:
+            knots = pt.BAT_KNOTS if disc == "bat" else pt.BOWL_KNOTS
+            h = (spec.get("h") or {}).get(disc)
+            out[disc] = pt.fit_curve(xs, ys, spec["method"], knots, REPL_INCREASING[disc], h)
+            if h:
+                out[disc]["h"] = h
+    return out
+
+
+def _repl_err(repl: dict, pairs: list[dict], disc: str) -> list[float]:
+    """Squared errors of the replacement level against held-out minimum-price buys' values."""
+    out = []
+    for p in pairs:
+        y = p[disc]
+        if y is None or not math.isfinite(y):
+            continue
+        r = pt.repl_bat(repl, p["pos"]) if disc == "bat" else pt.repl_bowl(repl, p["bowled"])
+        out.append((y - r) ** 2)
+    return out
+
+
+CACHE_PAIRS = DATA_DIR / "metrics" / ".playing_time" / "minbuy_pairs.pkl"
+
+
+def all_minbuy_pairs(hist: dict, u: pl.DataFrame, last: int) -> dict[int, list[dict]]:
+    """season → minimum-price buys' pairs, auctions REPL_FIRST ... last, each with the expected-balls
+    models fitted before it (the walk-forward ones cached by `play` from 2018; the 2018 ones for the
+    earlier auctions, fitted on 2012-2017: a small look-ahead in the shrinkage constants only, as in
+    `asof-contrib`). Cached per translation (`_WHICH`)."""
+    import pickle
+
+    cache: dict = pickle.loads(CACHE_PAIRS.read_bytes()) if CACHE_PAIRS.exists() else {}
+    key = _WHICH["which"]
+    got = cache.setdefault(key, {})
+    balls = _balls_by_season(hist, u)
+    for s in range(REPL_FIRST, last + 1):
+        if s in got:
+            continue
+        b = balls[max(s, PLAY_SEASONS[0])] if max(s, PLAY_SEASONS[0]) in balls else None
+        if b is None:
+            continue
+        got[s] = minbuy_pairs(hist, u, s, b["bm"], b["T"])
+        CACHE_PAIRS.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_PAIRS.write_bytes(pickle.dumps(cache))
+        typer.echo(f"  min-price buys {s}: {len(got[s])}")
+    return {s: v for s, v in got.items() if s <= last}
+
+
+CACHE_BALLS = DATA_DIR / "metrics" / ".playing_time" / "walk_balls.pkl"
+
+
+def _balls_by_season(hist: dict, u: pl.DataFrame) -> dict[int, dict]:
+    """season → {"bm", "T"}: the expected-balls models and balls per innings fitted before each
+    auction of PLAY_SEASONS (walk-forward), cached; seeded from `play`'s row cache when present."""
+    import pickle
+
+    cache: dict = pickle.loads(CACHE_BALLS.read_bytes()) if CACHE_BALLS.exists() else {}
+    if not cache and CACHE_PLAY.exists():
+        old = pickle.loads(CACHE_PLAY.read_bytes())
+        cache = {s: {"bm": d["bm"], "T": d["T"]} for s, d in old.items()}
+    missing = [s for s in PLAY_SEASONS if s not in cache]
+    if missing:
+        roles = _roles()
+        starts = season_starts(u)
+        chosen = (_read().get("balls") or {}).get("chosen")
+        for s in missing:
+            bm, T = walk_forward_balls(u, roles, starts, hist, s, chosen)
+            cache[s] = {"bm": {k: v.to_json() for k, v in bm.items()}, "T": T}
+    CACHE_BALLS.parent.mkdir(parents=True, exist_ok=True)
+    CACHE_BALLS.write_bytes(pickle.dumps(cache))
+    return {s: {"bm": {k: pt.BallsModel.from_json(v) for k, v in d["bm"].items()}, "T": d["T"]}
+            for s, d in cache.items()}  # fmt: skip
+
+
+def replacement_from_minbuys(hist: dict, u: pl.DataFrame, before: int) -> dict[str, dict]:
+    """The replacement levels for auction `before`: the shipped curve (`_read()["replacement"]`'s
+    chosen candidate; the slot groups if `repl` hasn't run) fitted on the minimum-price buys of
+    auctions REPL_FIRST ... before - 1."""
+    pairs = [p for s, ps in all_minbuy_pairs(hist, u, before - 1).items() if s < before for p in ps]
+    rep = _read().get("replacement") or {}
+    spec = rep.get("chosen_spec") or REPL_CANDIDATES["R0 slot groups (reference)"]
+    return fit_mixed(pairs, spec)
+
+
+@app.command()
+def repl() -> None:
+    """Replacement curves (ROADMAP I17a): each candidate fitted on the minimum-price buys of the
+    auctions before each of 2018-2024 and scored on that auction's buys (validation, pooled); the
+    best per discipline refitted on 2012-2024 and scored once on 2025 and 2026."""
+    u = _u()
+    hist = json.loads(ipm.HISTORY.read_text(encoding="utf-8"))
+    pairs = all_minbuy_pairs(hist, u, max(TEST))
+    specs: dict[str, dict] = {}
+    for name, sp in REPL_CANDIDATES.items():
+        if sp["method"] == "kernel":
+            for hb, hw in zip(REPL_BANDWIDTH["bat"], REPL_BANDWIDTH["bowl"], strict=True):
+                specs[f"{name} (h bat {hb}, bowl {hw})"] = {**sp, "h": {"bat": hb, "bowl": hw}}
+        else:
+            specs[name] = sp
+    sel: dict[str, dict] = {}
+    for label, sp in specs.items():
+        errs: dict[str, list[float]] = {"bat": [], "bowl": []}
+        for s in REPL_VALID:
+            train = [p for y, ps in pairs.items() if y < s for p in ps]
+            r = fit_replacement(train, sp)
+            for disc in errs:
+                errs[disc] += _repl_err(r, pairs.get(s, []), disc)
+        sel[label] = {d: {"mse": round(float(np.mean(e)), 2), "n": len(e)} for d, e in errs.items()}
+        typer.echo(f"{label[:52]:52} bat MSE {sel[label]['bat']['mse']:8.1f} (n {len(errs['bat'])})"
+                   f"  bowl MSE {sel[label]['bowl']['mse']:7.1f} (n {len(errs['bowl'])})")  # fmt: skip
+    chosen: dict[str, str] = {}
+    for disc in ("bat", "bowl"):
+        chosen[disc] = min(sel, key=lambda k, d=disc: (sel[k][d]["mse"], k))
+    typer.echo(f"chosen: bat {chosen['bat']}; bowl {chosen['bowl']}")
+    # the chosen spec per discipline (a kernel's own bandwidth for that discipline)
+    spec_bat, spec_bowl = specs[chosen["bat"]], specs[chosen["bowl"]]
+    chosen_spec = {"method": "mixed", "bat": spec_bat, "bowl": spec_bowl}
+    train = [p for y, ps in pairs.items() if y <= VALID for p in ps]
+    test: dict[str, dict] = {}
+    for label in dict.fromkeys([chosen["bat"], chosen["bowl"], "R0 slot groups (reference)",
+                                "R1 linear"]):  # fmt: skip
+        r = fit_replacement(train, specs[label])
+        test[label] = {}
+        for s in TEST:
+            test[label][str(s)] = {d: {"mse": round(float(np.mean(e)), 2), "n": len(e)}
+                                   for d in ("bat", "bowl")
+                                   if (e := _repl_err(r, pairs.get(s, []), d))}  # fmt: skip
+        typer.echo(f"TEST {label[:52]:52} {json.dumps(test[label])}")
+    rep = _read()
+    rep["replacement"] = {
+        "protocol": "candidates fitted on the minimum-price buys of the auctions before each of "
+                    "2018-2024 and scored on that auction's (pooled squared error of the replacement "
+                    "level against each buy's value at his position / bowling load); the best per "
+                    "discipline refitted on 2012-2024 and scored once on the 2025 and 2026 buys",
+        "selection": sel, "chosen": chosen, "chosen_spec": chosen_spec, "test": test,
+        "curve_le2024": fit_mixed(train, chosen_spec),
+        "pairs_by_season": {str(s): len(v) for s, v in sorted(pairs.items())},
+    }  # fmt: skip
+    _write(rep)
+
+
+def fit_mixed(pairs: list[dict], spec: dict) -> dict:
+    """fit_replacement with a per-discipline spec ({"method": "mixed", "bat": spec, "bowl": spec}) or
+    one spec for both."""
+    if spec.get("method") != "mixed":
+        return fit_replacement(pairs, spec)
+    b = fit_replacement(pairs, spec["bat"])
+    w = fit_replacement(pairs, spec["bowl"])
+    return {
+        "method": f"bat {spec['bat']['method']}, bowl {spec['bowl']['method']}",
+        "bat": b["bat"],
+        "bowl": w["bowl"],
+        "n": {"bat": b["n"]["bat"], "bowl": w["n"]["bowl"]},
+    }
 
 
 # ---- P(plays): the squads of every season with a complete retained list ------------------------------
@@ -429,9 +630,9 @@ def _asof(season: int, date: str) -> dict:
     return _ASOF[season]
 
 
-def walk_forward(u, roles, starts, hist, s: int, chosen: str) -> tuple[dict, float, dict]:
-    """(expected-balls models, balls per innings, replacement levels) fitted on what was known
-    before season `s`'s auction."""
+def walk_forward_balls(u, roles, starts, hist, s: int, chosen: str) -> tuple[dict, float]:
+    """(expected-balls models, balls per innings) fitted on what was known before season `s`'s
+    auction."""
     seasons = list(range(BALLS_FIRST, s))
     spec = BALLS_CANDIDATES[chosen]
     rows = _balls_rows(u, roles, seasons)
@@ -439,9 +640,18 @@ def walk_forward(u, roles, starts, hist, s: int, chosen: str) -> tuple[dict, flo
     pars = {disc: fit_balls(rows, pri, disc, spec) for disc in ("sf", "sb")}
     bm = balls_models(pars, chosen)
     date = hist["auctions"][str(s)]["date"]
-    T = pt.team_balls(u, date)
-    repl = replacement_from_minbuys(hist, u, s, bm, T)
-    return bm, T, repl
+    return bm, pt.team_balls(u, date)
+
+
+def walk_forward(u, roles, starts, hist, s: int, chosen: str) -> tuple[dict, float, dict]:
+    """(expected-balls models, balls per innings, replacement levels) fitted on what was known
+    before season `s`'s auction (the balls models from `_balls_by_season`'s cache when there)."""
+    b = _balls_by_season(hist, u).get(s)
+    if b is not None:
+        bm, T = b["bm"], b["T"]
+    else:
+        bm, T = walk_forward_balls(u, roles, starts, hist, s, chosen)
+    return bm, T, replacement_from_minbuys(hist, u, s)
 
 
 def squads(hist: dict, s: int) -> dict[str, set[str]]:
@@ -917,7 +1127,7 @@ def ship(next_auction: str = typer.Option("2026-12-16", "--before")) -> None:
         m.trained_on = (min(seasons), max(seasons))
     T = pt.team_balls(u, next_auction)
     last = max(int(k) for k in hist["auctions"])
-    repl = replacement_from_minbuys(hist, u, last + 1, bm, T)
+    repl = replacement_from_minbuys(hist, u, last + 1)
     prow = _all_play_rows()
     pm_ = pt.fit_play_model(prow, PLAY_CANDIDATES[chosen_play], alpha)
     import pickle

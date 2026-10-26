@@ -95,7 +95,11 @@ def test_shipped_model_sane():
     assert 100 < m["balls_per_innings"] < 125
     assert m["balls_per_innings"] == pytest.approx(bp.TEAM_BALLS, abs=1.0)
     r = m["replacement"]
-    assert r["bat"]["top"] > r["bat"]["tail"] and r["bowl"]["frontline"] > r["bowl"]["part_time"]
+    # curves since 2026-10-26 (ROADMAP I17a): a lower position, a weaker replacement batter; a
+    # heavier bowling load, a better replacement bowler
+    yb, yw = r["bat"]["y"], r["bowl"]["y"]
+    assert all(a >= b for a, b in zip(yb, yb[1:], strict=False)) and yb[0] > yb[-1]
+    assert all(a <= b + 1e-9 for a, b in zip(yw, yw[1:], strict=False)) and yw[-1] > yw[0]
     pm = pt.PlayModel.from_json(m["play"])
     regular = {"contrib": 6.0, "in_xi": True, "margin": 3.0, "rank": 2, "overseas": False,
                "os_rank": 0, "ipl_matches": 120, "age": 28.0, "last_share": 1.0, "keeper": False,
@@ -115,3 +119,35 @@ def test_piece_counts_expected_contribution():
     assert p["v"] == pytest.approx(2.5) and p["fb"] == pytest.approx(6.0)
     q = bp.piece("b", "B", 5.0, "batter", False, "", (5.0, 0.0, 20.0, 0.0))  # no P: counts whole
     assert q["v"] == pytest.approx(5.0)
+
+
+def test_replacement_curve_is_continuous_in_position():
+    """ROADMAP I17a: the replacement batting level moves smoothly with a player's usual position, so
+    a No. 7.5 is measured against a level between a No. 7's and a No. 8's, not against the 8-11
+    group's (set by bowlers batting at 9-11)."""
+    curve = {"bat": {"x": [1.0, 7.0, 8.0, 11.0], "y": [-8.0, -28.0, -58.0, -72.0]},
+             "bowl": {"x": [0.0, 24.0], "y": [-15.0, -5.0]}}  # fmt: skip
+    assert pt.curve_at(curve["bat"], 7.5) == pytest.approx(-43.0)
+    assert pt.curve_at(curve["bat"], 0.0) == -8.0 and pt.curve_at(curve["bat"], 12.0) == -72.0
+    assert pt.repl_bat(curve, None) == -72.0  # never batted: the last man in
+    assert pt.repl_bowl(curve, 12.0) == pytest.approx(-10.0)
+    _, _, parts = pt.contribution((-37.0, 5.0), None, 10.0, 0.0, 7.5, curve)
+    assert parts["repl_bat"] == pytest.approx(-43.0) and parts["bat"] == pytest.approx(0.6)
+    # the slot-group form (shipped until 2026-10-26) is still read
+    assert pt.repl_bat(REPL, 7.5) == REPL["bat"]["tail"]
+
+
+def test_fit_curve_isotonic_is_monotone():
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    x = rng.uniform(1, 11, 300).round(1)
+    y = -5.0 - 6.0 * x + rng.normal(0, 15, 300)
+    c = pt.fit_curve(x, y, "isotonic", pt.BAT_KNOTS, increasing=False)
+    assert all(a >= b for a, b in zip(c["y"], c["y"][1:], strict=False))
+    lin = pt.fit_curve(x, y, "linear", pt.BAT_KNOTS, increasing=False)
+    assert lin["y"][0] == pytest.approx(-11.0, abs=4.0) and lin["y"][-1] == pytest.approx(
+        -71.0, abs=4.0
+    )
+    k = pt.fit_curve(x, y, "kernel", pt.BAT_KNOTS, increasing=False, h=1.0)
+    assert k["y"][0] > k["y"][-1]

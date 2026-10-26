@@ -19,10 +19,11 @@ match, and the ball-by-ball record), each out of time:
    apart, as a credibility (shrinkage) estimate: his past IPL matches (recent seasons count more), his
    matches in the other leagues (discounted: a different side uses him differently) and the mean share of
    players of his role, weighted by fitted pseudo-counts. Times the IPL's balls per innings.
-3. **Replacement levels.** What a side gets from the balls its fringe players play (players who played
-   fewer than half of their side's matches that season), balls-weighted, per batting-slot group (top 1-3,
-   middle 4-5, lower middle 6-7, tail 8-11, as the ratings' slot priors) and bowling group (frontline:
-   15+ balls a match; part-time).
+3. **Replacement levels.** The rating of the players bought at an auction's lowest price, as a curve in
+   usual batting position and a curve in balls bowled a match (`fit_curve`, `curve_at`; fitted by
+   `scripts/playing_time_fit.py repl`). Until 2026-10-26 one level per batting-slot group (1-3, 4-5, 6-7,
+   8-11) and bowling group (frontline 15+ balls a match, part-time); `replacement_levels` below, the
+   fringe-player version tried before that, is kept for reference.
 4. **P(plays)** (`PlayModel`). A logistic model of the share of his side's matches a squad player plays
    (retained and bought players of every season with a complete retained list, 2018 on), from what is
    known at the auction: where his contribution ranks in his squad (the projected XI and the distance to
@@ -377,6 +378,117 @@ def replacement_levels(
     return out
 
 
+# ---- 3b. replacement curves: continuous in batting position and in balls bowled ---------------------------
+#
+# Until 2026-10-26 the replacement level was one number per slot group (positions 1-3, 4-5, 6-7, 8-11)
+# and per bowling group (frontline 15+ balls a match, part-time). A No. 7.5 batter (his median position
+# over four seasons) was measured against the 8-11 group, whose mean is set by bowlers batting at 9-11
+# (about -62 runs per 100 balls), while a No. 7 was measured against -23: a jump of 38 runs per 100
+# balls at one position, which put a lower-order hitter rated -37 at the top of eight Bid plans (ROADMAP
+# I17a). The curves below give every position (and every bowling load) its own level, fitted from the
+# same minimum-price buys; `scripts/playing_time_fit.py repl` chooses the smoother on auctions up to
+# 2024 and tests it once on 2025-26 (METHODOLOGY §6c).
+
+BAT_KNOTS = tuple(1.0 + 0.5 * k for k in range(21))  # batting positions 1, 1.5, ..., 11
+BOWL_KNOTS = tuple(float(k) for k in range(25))  # balls bowled a match 0 ... 24 (four overs)
+NO_POSITION = 11.0  # never batted in the window, and no role position either: the last man in
+
+
+def curve_at(curve: dict, x: float) -> float:
+    """A replacement curve {"x": knots ascending, "y": levels} at x: linear between knots, the end
+    level beyond them."""
+    xs, ys = curve["x"], curve["y"]
+    if x <= xs[0]:
+        return float(ys[0])
+    if x >= xs[-1]:
+        return float(ys[-1])
+    lo, hi = 0, len(xs) - 1
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if xs[mid] <= x:
+            lo = mid
+        else:
+            hi = mid
+    t = (x - xs[lo]) / (xs[hi] - xs[lo])
+    return float(ys[lo] + t * (ys[hi] - ys[lo]))
+
+
+def _isotonic(x: np.ndarray, y: np.ndarray, increasing: bool) -> tuple[np.ndarray, np.ndarray]:
+    """Weighted isotonic regression (pool-adjacent-violators) of y on x, ties in x pooled first.
+    Returns (block centres = the mean x of each block, block levels), x ascending."""
+    order = np.argsort(x, kind="stable")
+    x, y = x[order], y[order]
+    ux, inv = np.unique(x, return_inverse=True)
+    w = np.bincount(inv).astype(float)
+    sy = np.bincount(inv, weights=y)
+    sx = np.bincount(inv, weights=x)
+    sign = 1.0 if increasing else -1.0
+    blocks: list[list[float]] = []  # [weight, Σ y, Σ x]
+    for k in range(len(ux)):
+        blocks.append([w[k], sy[k], sx[k]])
+        while len(blocks) > 1 and sign * (blocks[-2][1] / blocks[-2][0]) > sign * (
+            blocks[-1][1] / blocks[-1][0]
+        ):
+            b = blocks.pop()
+            blocks[-1] = [blocks[-1][0] + b[0], blocks[-1][1] + b[1], blocks[-1][2] + b[2]]
+    cx = np.array([b[2] / b[0] for b in blocks])
+    cy = np.array([b[1] / b[0] for b in blocks])
+    return cx, cy
+
+
+def fit_curve(
+    xs, ys, method: str, knots: tuple[float, ...], increasing: bool, h: float | None = None
+) -> dict:
+    """A replacement curve on `knots` from the (x, level) pairs of minimum-price buys:
+
+    - "linear": least squares y = a + b x;
+    - "isotonic": monotone in x (`increasing`, else decreasing), linear between the blocks' centres;
+    - "kernel": a Gaussian-weighted mean (Nadaraya-Watson) with bandwidth `h`.
+
+    Every pair weighs the same (one player)."""
+    x = np.asarray(xs, dtype=float)
+    y = np.asarray(ys, dtype=float)
+    k = np.asarray(knots, dtype=float)
+    if len(x) == 0:
+        return {"x": list(knots), "y": [0.0] * len(knots)}
+    if method == "linear":
+        if np.ptp(x) == 0:
+            v = np.full(len(k), y.mean())
+        else:
+            b, a = np.polyfit(x, y, 1)
+            v = a + b * k
+    elif method == "isotonic":
+        cx, cy = _isotonic(x, y, increasing)
+        v = np.interp(k, cx, cy)
+    elif method == "kernel":
+        if not h:
+            raise ValueError("kernel needs a bandwidth")
+        wk = np.exp(-0.5 * ((k[:, None] - x[None, :]) / h) ** 2)
+        v = (wk * y[None, :]).sum(axis=1) / np.maximum(wk.sum(axis=1), 1e-300)
+    else:
+        raise ValueError(f"unknown replacement smoother {method!r}")
+    return {"x": [float(q) for q in k], "y": [round(float(q), 3) for q in v]}
+
+
+def repl_bat(repl: dict, pos: float | None) -> float:
+    """The replacement batting level for a usual position: the curve's (`{"x", "y"}`) or, for the
+    slot-group levels used until 2026-10-26, his group's."""
+    r = repl["bat"]
+    if "x" in r:
+        return curve_at(r, NO_POSITION if pos is None or (isinstance(pos, float) and math.isnan(pos))
+                        else float(pos))  # fmt: skip
+    return r.get(slot_group(pos), 0.0)
+
+
+def repl_bowl(repl: dict, bowled: float) -> float:
+    """The replacement bowling level for his expected balls bowled a match (curve or, until
+    2026-10-26, frontline / part-time)."""
+    r = repl["bowl"]
+    if "x" in r:
+        return curve_at(r, float(bowled))
+    return r["frontline" if bowled >= FRONTLINE_BALLS else "part_time"]
+
+
 # ---- 4. contribution per match ---------------------------------------------------------------------------
 
 
@@ -390,9 +502,10 @@ def contribution(
 ) -> tuple[float, float, dict]:
     """(runs per match above replacement, its sd, the parts) from his (value, sd) per discipline (None
     = no rating: counted at replacement), his expected legal balls faced and bowled per match, his usual
-    batting position and the replacement levels."""
-    rb = repl["bat"].get(slot_group(pos), 0.0)
-    rw = repl["bowl"]["frontline" if bowled >= FRONTLINE_BALLS else "part_time"]
+    batting position and the replacement levels (curves in position and balls bowled; the slot-group
+    form of before 2026-10-26 is still read)."""
+    rb = repl_bat(repl, pos)
+    rw = repl_bowl(repl, bowled)
     vb, sb = bat if bat else (rb, 0.0)
     vw, sw = bowl if bowl else (rw, 0.0)
     cb = (vb - rb) * faced / 100.0

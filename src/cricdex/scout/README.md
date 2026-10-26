@@ -12,6 +12,10 @@ DuckDB + exported JSON; no graph database.
   replacement for the removed Neo4j FACED traversal (axis chosen by ball volume:
   batter → `shared_bowlers`, bowler → `shared_batters`). `export_site.py` writes it
   to `cohorts/<cid>.json`, rendered on the Player Profile.
+- `playing_time.py` — who plays and what he adds a match (METHODOLOGY §6c): expected balls, P(plays), and the
+  replacement levels, since 2026-10-26 curves in usual batting position and balls bowled (`curve_at`,
+  `fit_curve`; the slot-group form is still read). Fitted by `scripts/playing_time_fit.py` into
+  `config/playing_time_model.json`.
 
 ## Subpackages
 
@@ -19,6 +23,6 @@ DuckDB + exported JSON; no graph database.
   - `cricsheet.py` — ball-by-ball.
   - `people_register.py` — Cricsheet cross-ID register + name variations — see [`docs/IDENTITY.md`](../../../docs/IDENTITY.md).
   - `wikidata.py` — DOB / photo / socials enrichment via the Wikidata entity API.
-- `identity/` — empty placeholder; name resolution lives in `cricdex.profiles.identity`.
+- `identity/` — the player master (`master.py`, `sources.py`; docs/IDENTITY.md): names, roles, country, squads and dates of birth (overrides → Wikipedia infobox → Wikidata at day precision, since 2026-10-26).
 - `ratings/` — dismissal-aware Bayesian hierarchical rating with opponent bridging via NumPyro / JAX (ADVI default, NUTS available); `head_to_head.py` for P(A>B).
 - `search/` — `style_twin.py`, the cosine style-twin k-NN (on the Player Profile).

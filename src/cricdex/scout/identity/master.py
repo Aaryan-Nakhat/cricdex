@@ -68,6 +68,67 @@ def _age_years(dob: str | None, on: str | None) -> float | None:
         return None
 
 
+def _pick_dob(
+    cid: str,
+    scorecard: str,
+    ov: dict,
+    w: dict,
+    ib: dict,
+    legacy: dict,
+    first_m: str | None,
+    last: str | None,
+    review: dict,
+) -> tuple[str | None, str | None]:
+    """(date of birth, its source). Order: a reviewed override, the English Wikipedia infobox, Wikidata
+    (a single day-precision date), the legacy Wikidata enrichment.
+
+    The infobox comes before Wikidata since 2026-10-26 (ROADMAP I17e). The two agree for 93% of
+    the players that have both (4,024 of 4,327). Where they differed, seven IPL players checked
+    against their iplt20.com profiles and other published profiles had the infobox's date every
+    time (Mukesh Choudhary 1996, Wikidata 1986; Venkatesh Iyer 1994, Wikidata 1990; Deepak Chahar
+    1992, Wikidata 1972; Jaydev Unadkat, Jacob Duffy, Kuldeep Sen, Gulbadin Naib). Until this
+    change Wikidata's dates were also read without their precision, so a year-only date became
+    1 January. A disagreement is logged in the review (`dob_disagree`).
+
+    A source date that makes him implausibly young at debut or old at his last match (an id match
+    on a namesake) is skipped for the next source and logged."""
+    cands: list[tuple[str, str]] = []
+    if ov.get("dob"):
+        return str(ov["dob"]), "override"
+    if ib.get("dob"):
+        cands.append((ib["dob"], "wikipedia"))
+    if w.get("dob"):
+        cands.append((w["dob"], "wikidata"))
+    if legacy.get("_status") == "ok" and legacy.get("dob"):
+        cands.append((legacy["dob"], "wikidata"))
+    if ib.get("dob") and (w.get("dob") or w.get("dob_all")) and w.get("dob") != ib["dob"]:
+        review.setdefault("dob_disagree", []).append(
+            {"cricsheet_id": cid, "scorecard": scorecard, "wikipedia": ib["dob"],
+             "wikidata": w.get("dob") or w.get("dob_all"), "kept": "wikipedia"}
+        )  # fmt: skip
+    for dob, src in cands:
+        age_first = _age_years(dob, first_m)
+        age_last = _age_years(dob, last)
+        if (age_first is not None and age_first < DOB_MIN_DEBUT_AGE) or (
+            age_last is not None and age_last > DOB_MAX_PLAYING_AGE
+        ):
+            review["dob"].append(
+                {
+                    "cricsheet_id": cid,
+                    "scorecard": scorecard,
+                    "dob": dob,
+                    "source": src,
+                    "first_match": first_m,
+                    "last_match": last,
+                    "issue": "implausible age at debut or last match — skipped; add the right "
+                    "`dob` to player_overrides.json if no other source has it",
+                }
+            )
+            continue
+        return dob, src
+    return None, None
+
+
 IDENTITY_FIELDS = (
     "display_name",
     "full_name",
@@ -524,6 +585,7 @@ def build(
         "country": [],
         "names": [],
         "dob": [],
+        "dob_disagree": [],
         "squads_unmatched": squad_unmatched,
         "todo": [],
     }
@@ -680,47 +742,10 @@ def build(
         if "team" in ov:
             team = ov["team"]
 
-        dob = (
-            ov.get("dob")
-            or w.get("dob")
-            or ib.get("dob")
-            or (
-                (legacy.get(cid) or {}).get("dob")
-                if (legacy.get(cid) or {}).get("_status") == "ok"
-                else None
-            )
-        )
-        dob_src = (
-            "override"
-            if ov.get("dob")
-            else "wikidata"
-            if w.get("dob")
-            else "wikipedia"
-            if ib.get("dob")
-            else ("wikidata" if dob else None)
-        )
-        # An id match can land on a namesake (a 1923 birth date for a current player): drop a source
-        # date that makes the player implausibly young at debut or old at his last match, and log it.
-        if dob and dob_src != "override":
-            first_m = min(firsts) if firsts else None
-            age_first = _age_years(dob, first_m)
-            age_last = _age_years(dob, last)
-            if (age_first is not None and age_first < DOB_MIN_DEBUT_AGE) or (
-                age_last is not None and age_last > DOB_MAX_PLAYING_AGE
-            ):
-                review["dob"].append(
-                    {
-                        "cricsheet_id": cid,
-                        "scorecard": scorecard[cid],
-                        "dob": dob,
-                        "source": dob_src,
-                        "first_match": first_m,
-                        "last_match": last,
-                        "issue": "implausible age at debut or last match — dropped; add the right "
-                        "`dob` to player_overrides.json",
-                    }
-                )
-                dob, dob_src = None, None
+        dob, dob_src = _pick_dob(
+            cid, scorecard[cid], ov, w, ib, legacy.get(cid) or {},
+            min(firsts) if firsts else None, last, review,
+        )  # fmt: skip
 
         master[cid] = {
             "cricsheet_id": cid,

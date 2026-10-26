@@ -30,6 +30,7 @@ from cricdex.web_parity.bidplan import (
     piece,
     plan,
     rival_prices,
+    rival_runs,
     strength,
     to_csv_rows,
 )
@@ -320,8 +321,10 @@ def _python(cases: list[dict]) -> dict:
             c["data"], pool, c["team"], c.get("decisions") or {}, c.get("purse"),
             c["open_slots"], c.get("rules"), c.get("register"), display,
         )  # fmt: skip
-        prices = rival_prices(ctx, c["trials"])
-        res = plan(ctx, c.get("needs") or {}, c.get("overrides") or {}, c["trials"], prices)
+        runs = rival_runs(ctx, c["trials"])
+        prices = runs["prices"]
+        res = plan(ctx, c.get("needs") or {}, c.get("overrides") or {}, c["trials"], prices,
+                   rate=runs["rate"])  # fmt: skip
         out.append(
             {
                 "ctx": {
@@ -329,6 +332,7 @@ def _python(cases: list[dict]) -> dict:
                     for k in ("kept", "purse_left", "rivals", "available", "squad", "rules")
                 },  # fmt: skip
                 "prices": prices,
+                "market": {k: runs[k] for k in ("rate", "rival_gain", "rival_spend")},
                 "plan": res,
                 "csv": to_csv_rows(res),
                 "chains": [chain_text(ch) for ch in res["chains"]],
@@ -454,3 +458,30 @@ def test_plan_respects_purse_and_room():
     assert res["mean_strength"] >= res["before"]["total"] - 1e-9
     # open places: the team keeps at most squad_max − 6 (nobody here was decided by hand)
     assert len(ctx["kept"]) <= ctx["rules"]["squad_max"] - 6
+
+
+def test_unspent_purse_worth_what_later_lots_can_buy():
+    """ROADMAP I17b (2026-10-27): a crore's worth at a lot is the gain per crore of the marginal later
+    lot the money could still buy at its expected price, and a place's worth the gain of the lot it
+    would push out when places run out first; both 0 after the last lot."""
+    from cricdex.web_parity.bidplan import DEFAULT_NEEDS, _cands, _Gains, _median, _MoneyValue
+
+    data = {k: v for k, v in LEAGUE.items() if k != "_pool"}
+    ctx = build_context(data, build_pool(LEAGUE["_pool"]), "CCC", {}, None, 6)
+    runs = rival_runs(ctx, 25)
+    cands = _cands(ctx)
+    gains = _Gains(ctx["kept"], cands, dict(DEFAULT_NEEDS))
+    mv = _MoneyValue(cands, gains, [], [_median(ps) for ps in runs["prices"]])
+    assert mv.items and all(a[0] >= b[0] for a, b in zip(mv.items, mv.items[1:], strict=False))
+    assert mv.value(len(cands) - 1, 100.0, 10) == (0.0, 0.0)  # nothing left to buy
+    assert mv.value(-1, 1e9, 10**6) == (0.0, 0.0)  # money and places cover everything
+    assert mv.value(-1, 0.0, 10) == (mv.items[0][0], 0.0)  # no money: the best later lot's ratio
+    # one place and plenty of money: the place is worth the gain of the lot that would fill it
+    assert mv.value(-1, 1e9, 1) == (0.0, mv.items[0][3])
+    # more money never makes a crore worth more (diminishing returns)
+    rates = [mv.value(-1, m, 25)[0] for m in (0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0)]
+    assert all(a >= b for a, b in zip(rates, rates[1:], strict=False))
+    res = plan(ctx, {}, {}, 25, runs["prices"], rate=runs["rate"])
+    assert res["money"] == "auction" and res["purse_rate"] == res["lam"]
+    for t in res["targets"]:
+        assert 0 <= t["max_bid"] <= max(0.0, ctx["purse_left"]) + 1e-9

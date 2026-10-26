@@ -227,6 +227,39 @@ def test_parse_infobox():
     assert sources.parse_infobox("no infobox here") is None
 
 
+def test_wikidata_dob_keeps_only_day_precision():
+    """ROADMAP I17e: a year-only Wikidata birth date (precision 9, stored as 1 January) is not a
+    birth date; two different day-precision dates are a conflict, left to the other sources."""
+
+    def fold(*vals):
+        rows = [{"id": {"value": "1"}, "k": {"value": "dob"}, "v": {"value": v}} for v in vals]
+        return sources._fold_bindings(rows)["1"]
+
+    assert fold("+1996-07-06T00:00:00Z|11")["dob"] == "1996-07-06"
+    y = fold("+2001-01-01T00:00:00Z|9")
+    assert "dob" not in y and y["dob_year"] == "2001"
+    c = fold("+1990-11-25T00:00:00Z|11", "+1994-12-25T00:00:00Z|11")
+    assert "dob" not in c and c["dob_conflict"] and c["dob_all"] == ["1990-11-25", "1994-12-25"]
+    assert fold("+1996-07-06T00:00:00Z|11", "+1996-07-06T00:00:00Z|11")["dob"] == "1996-07-06"
+
+
+def test_dob_prefers_the_infobox_and_skips_implausible_dates():
+    from cricdex.scout.identity import master as m
+
+    review = {"dob": []}
+    # the infobox wins a disagreement with Wikidata, which is logged
+    dob, src = m._pick_dob("c1", "X", {}, {"dob": "1986-07-06"}, {"dob": "1996-07-06"}, {},
+                           "2019-11-08", "2026-05-21", review)  # fmt: skip
+    assert (dob, src) == ("1996-07-06", "wikipedia") and review["dob_disagree"][0]["wikidata"]
+    # an override beats both
+    assert m._pick_dob("c1", "X", {"dob": "1996-07-07"}, {"dob": "1986-07-06"},
+                       {"dob": "1996-07-06"}, {}, None, None, review)[1] == "override"  # fmt: skip
+    # a source date that makes him 9 at debut is skipped for the next source
+    dob, src = m._pick_dob("c2", "Y", {}, {"dob": "1990-03-01"}, {"dob": "2010-03-01"}, {},
+                           "2019-11-08", "2026-05-21", review)  # fmt: skip
+    assert (dob, src) == ("1990-03-01", "wikidata") and review["dob"]
+
+
 PERSONNEL = """intro
 == Pre-auction ==
 {| class="wikitable plainrowheaders"

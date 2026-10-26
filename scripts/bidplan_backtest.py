@@ -188,7 +188,7 @@ def _next_season_values(season: int) -> dict[str, tuple[float, tuple]]:
     """What each player actually contributed in the IPL season the auction was for, in the strength
     measure's currency: per role with NEXT_MIN_BALLS+ balls in it, (his season value in runs per 100
     balls above that season's average ball, `runs_value.observed_value`, less the replacement level
-    for the slot or group he actually played in) × his balls a match / 100, at the share of his
+    at the position and bowling load he actually had, `playing_time.repl_bat` / `repl_bowl`) × his balls a match / 100, at the share of his
     side's matches he actually played (the realised P(plays)); a role under NEXT_MIN_BALLS counts at
     replacement (0). Missing = he barely played: replacement level. Replacement levels are the
     walk-forward ones of that auction (playing_time_fit `play`)."""
@@ -213,10 +213,9 @@ def _next_season_values(season: int) -> dict[str, tuple[float, tuple]]:
         m, pos, faced, bowled = per[cid]
         p = parts.setdefault(cid, [0.0, 0.0, faced / m, bowled / m, share.get((season, cid), 0.0)])
         if role == "batter":
-            p[0] = (v - repl["bat"].get(pt.slot_group(pos), 0.0)) * (faced / m) / 100.0
+            p[0] = (v - pt.repl_bat(repl, pos)) * (faced / m) / 100.0
         else:
-            g = "frontline" if bowled / m >= pt.FRONTLINE_BALLS else "part_time"
-            p[1] = (v - repl["bowl"][g]) * (bowled / m) / 100.0
+            p[1] = (v - pt.repl_bowl(repl, bowled / m)) * (bowled / m) / 100.0
     return {cid: (p[0] + p[1], tuple(p)) for cid, p in parts.items()}  # parts end with his share
 
 
@@ -336,7 +335,7 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
 
 
 def _team_result(si: dict, team: str, trials: int, tags, demand: dict | None = None,
-                 same: bool = True) -> dict:  # fmt: skip
+                 same: bool = True, money: str = bp.MONEY) -> dict:  # fmt: skip
     purse = si["purse"]
     rivals = [
         {"team": t, "kept": v["kept"], "purse_left": purse - v["cost"]}
@@ -363,7 +362,8 @@ def _team_result(si: dict, team: str, trials: int, tags, demand: dict | None = N
         "demand": demand,
         "min_base": min(min(float(x.get("base_price_cr") or 99) for x in si["lots"]), 0.3),
     }
-    prices = bp.rival_prices(ctx, trials)
+    rr = bp.rival_runs(ctx, trials)
+    prices = rr["prices"]
     real = [math.inf if r["_price"] is None else r["_price"] for r in si["avail"]]
     actual_lots = [lot for lot in si["lots"] if lot["team"] == team]
     actual_spend = sum(float(lot["price_cr"]) for lot in actual_lots)
@@ -394,7 +394,7 @@ def _team_result(si: dict, team: str, trials: int, tags, demand: dict | None = N
         runs.append(("same", min(ctx["purse_left"], actual_spend)))
     for label, left in runs:
         c = {**ctx, "purse_left": left}
-        res = bp.plan(c, prices=prices)
+        res = bp.plan(c, prices=prices, rate=rr["rate"], money=money)
         fol = bp.follow_plan(c, res, real)
         act = bp.strength(me["kept"] + actual_pieces, res["needs"])
         got = set(fol["bought"])
@@ -403,6 +403,7 @@ def _team_result(si: dict, team: str, trials: int, tags, demand: dict | None = N
         nx_act = _next_strength(me["kept"] + actual_pieces, si["next"], res["needs"])
         out[label] = {
             "lam": res["lam"],
+            "purse_rate": res["purse_rate"],
             "before": res["before"]["total"],
             "before_xi": res["before"]["xi"],
             "plan_expected": res["mean_strength"],
@@ -668,6 +669,9 @@ def main(
     trials: int = typer.Option(bp.TRIALS, "--trials"),
     seasons: str = typer.Option("2019,2020,2021,2022,2023,2024,2025,2026", "--seasons"),
     out: Path | None = typer.Option(None, "--out", help="Write the full report JSON here."),
+    money: str = typer.Option(
+        bp.MONEY, "--money", help=f"How an unspent crore is valued: {bp.MONEY_RULES}."
+    ),
 ) -> None:
     """Replays from the demand fit's cached season inputs (each lot priced from the other 2018-2024
     auctions for 2019-2024, walk-forward for 2025 / 2026), rivals bidding by the demand model fitted on
@@ -689,12 +693,12 @@ def main(
         results[str(season)] = {}
         same = season not in VALIDATION
         for team in sorted(si["teams"]):
-            f = work / f"{season}_{team}_{trials}.json"
+            f = work / f"{season}_{team}_{trials}_{money}.json"
             if f.exists():
                 results[str(season)][team] = json.loads(f.read_text(encoding="utf-8"))
                 continue
             t = time.time()
-            r = _team_result(si, team, trials, None, demand, same=same)
+            r = _team_result(si, team, trials, None, demand, same=same, money=money)
             f.write_text(json.dumps(r, indent=1), encoding="utf-8")
             results[str(season)][team] = r
             print(f"  {season} {team}: {time.time() - t:.0f}s", flush=True)

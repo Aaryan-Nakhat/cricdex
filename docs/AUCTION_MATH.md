@@ -467,11 +467,21 @@ auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-beta)).
    who plays 4% of the time filled a whole appearance a match at his career contribution and topped the
    lists). Role needs are reported, not scored. (Until 2026-10-23: + 0.25 × the next four − 0.63 per role
    need missed, both hand-set.)
-3. **The rule.** Stars first, bid up to *gain in strength ÷ λ*; λ (runs per crore) is the rate that
-   gives the highest average strength across the 200 runs.
+   "Above replacement" means above the freely available player (a minimum-price buy) **at his own batting
+   position and bowling load**: since 2026-10-26 a smooth curve in each, fitted on past minimum-price buys,
+   not four position groups (a No. 7.5 lower-order hitter used to be measured against bowlers batting at
+   9–11 and topped nine sheets; METHODOLOGY §6c).
+3. **The rule.** Stars first, bid up to *(gain in strength − a squad place's worth) ÷ λ*, where λ is what
+   a crore can still buy later in this auction: the lots still to come, ranked by gain ÷ expected price, filled
+   within the money and places left; λ = the ratio of the first lot the money no longer covers. Money left
+   after the auction buys nothing for the season, so when the places run out first λ is 0 (the purse is the
+   limit) and a place is worth the gain of the lot it would push out. Chosen on the 2024 auction against what
+   real teams spent (a median 0.76 of the purse at mini auctions, 0.99 at megas). Until 2026-10-26 one λ for
+   the whole auction, chosen for the most strength, left 30–90% of the purse unspent.
 
 ```
-Worked example (made-up numbers). λ = 0.2 runs a match per crore.
+Worked example (made-up numbers).
+(Say λ = 0.2 at this lot: the later lots' marginal gain per crore.)
 Spinner A adds 1.66 runs a match of strength → max bid 8.3 cr. Rivals' prices to beat
 over 200 runs: median 1.2 cr, 100% of runs ≤ 8.3 → "P(≤ max) 100%".
 If A goes above 8.3, spinner B (who now fills the gap A leaves) adds 1.7

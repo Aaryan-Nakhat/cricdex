@@ -68,6 +68,11 @@ export const LAMBDA_GRID = [
   1.6, 1.90273, 2.26274, 2.69087, 3.2,
 ];
 export const MIN_SLOT_PRICE = 0.3;
+/** How a crore left unspent is valued (bidplan.py MONEY_RULES): "auction" = what it can still buy
+ * from the later lots at their expected prices (`MoneyValue`), 0 at the end of the auction;
+ * "market" = the rivals' runs per crore; "none" = nothing (one λ for the whole auction). */
+export type MoneyRule = "auction" | "market" | "none";
+export const MONEY: MoneyRule = "auction";
 export const TARGET_MIN_SHARE = 0.05;
 export const LIKELY_SHARE = 0.5;
 export const LOOKAHEAD_ROUNDS = 4;
@@ -530,6 +535,21 @@ export function buildContext(
 /** For each available player and each run: the price we'd have to beat (mirror of
  * bidplan.py `rival_prices`). */
 export function rivalPrices(ctx: BidContext, trials: number = TRIALS): number[][] {
+  return rivalRuns(ctx, trials).prices;
+}
+
+export interface RivalRuns {
+  prices: number[][];
+  /** the market's runs per crore: Σ strength the rivals' buys added to their squads ÷ Σ they paid;
+   * the value of a crore we leave unspent (bidplan.py `rival_runs`) */
+  rate: number;
+  rival_gain: number;
+  rival_spend: number;
+}
+
+/** The rivals' auction, `trials` times: the prices to beat and the market's runs per crore (mirror
+ * of bidplan.py `rival_runs`). */
+export function rivalRuns(ctx: BidContext, trials: number = TRIALS): RivalRuns {
   const purse = Number(ctx.rules.purse);
   const sqMax = Math.trunc(Number(ctx.rules.squad_max));
   const bases: FranchiseBase[] = ctx.rivals.map((r) => ({
@@ -554,14 +574,41 @@ export function rivalPrices(ctx: BidContext, trials: number = TRIALS): number[][
     ...(ctx.min_base ? { minBase: Number(ctx.min_base) } : {}),
   };
   const out = avail.map((p) => new Array<number>(trials).fill(Number(p.base_price)));
+  const lotPieces = candsOf(ctx);
+  const baseTotal = ctx.rivals.map((r) => strength(r.kept, DEFAULT_NEEDS).total);
+  let gainSum = 0;
+  let spendSum = 0;
   for (let t = 0; t < trials; t++) {
-    oneTrial(bases, lots, opts, 1000 + t * 7919, (player, _team, bestBid) => {
+    const buys: number[][] = bases.map(() => []);
+    const paid: number[][] = bases.map(() => []);
+    oneTrial(bases, lots, opts, 1000 + t * 7919, (player, team, bestBid, price) => {
       const i = index.get(player.cricsheet_id) as number;
       const beat = ladderNext(bestBid);
       out[i][t] = Math.max(Number(player.base_price), beat);
+      buys[team].push(i);
+      paid[team].push(Number(price));
+    });
+    ctx.rivals.forEach((r, k) => {
+      if (!buys[k].length) return;
+      const after = strength([...r.kept, ...buys[k].map((i) => lotPieces[i])], DEFAULT_NEEDS).total;
+      gainSum += after - baseTotal[k];
+      spendSum += fsum(paid[k]);
     });
   }
-  return out;
+  const rate = spendSum > 0 ? gainSum / spendSum : 0;
+  return { prices: out, rate, rival_gain: gainSum, rival_spend: spendSum };
+}
+
+/** The auction candidates as strength pieces (bidplan.py `_cands`). */
+function candsOf(ctx: BidContext): Piece[] {
+  return ctx.available.map((r) => {
+    const p = piece(r.cricsheet_id, r.name, r.contrib, r.role, r.is_overseas, r.tags, contribParts(r));
+    // a candidate gives the bench at most his P(plays) appearances a match (`benchFill`)
+    p.cap = p.pp;
+    p.ub = upperGain(p);
+    p.own = r.from_team !== null && r.from_team !== undefined && r.from_team === ctx.team;
+    return p;
+  });
 }
 
 // ---- step 2: the bidding rule ----
@@ -611,7 +658,88 @@ interface Run {
   st: GainState;
 }
 
-function replay(ctx: BidContext, cands: Piece[], prices: number[], lam: number, overrides: Record<string, number>, gains: Gains, future: number[]): Run {
+/** What a crore and a squad place are still worth at each lot: the later lots ranked by gain on
+ * the likely squad ÷ expected price, filled within the money and places left. Money runs out first:
+ * λ = the ratio of the first lot it no longer covers, a place costs nothing. Places run out first:
+ * λ = 0, a place is worth the smallest gain among the lots that fill them. Neither: both 0
+ * (mirror of bidplan.py `_MoneyValue`). */
+class MoneyValue {
+  items: [number, number, number, number][] = [];
+  suffix = new Map<number, [number[], number[], number[]]>();
+  constructor(cands: Piece[], gains: Gains, future: number[], expected: number[]) {
+    const base = gains.state(future);
+    const fut = new Set(future);
+    cands.forEach((c, j) => {
+      if (c.own || (c.ub as number) <= 0 || expected[j] <= 0) return;
+      const g = fut.has(j) ? gains.gain(gains.state(future.filter((k) => k !== j)), j) : gains.gain(base, j);
+      if (g > 0) this.items.push([g / expected[j], j, expected[j], g]);
+    });
+    this.items.sort((a, b) => (a[0] !== b[0] ? (a[0] > b[0] ? -1 : 1) : a[1] - b[1]));
+  }
+  suf(i: number): [number[], number[], number[]] {
+    let got = this.suffix.get(i);
+    if (!got) {
+      const cum: number[] = [];
+      const rat: number[] = [];
+      const gmin: number[] = [];
+      let t = 0;
+      let m = Infinity;
+      for (const [r, j, e, g] of this.items) {
+        if (j > i) {
+          t += e;
+          m = m < g ? m : g;
+          cum.push(t);
+          rat.push(r);
+          gmin.push(m);
+        }
+      }
+      got = [cum, rat, gmin];
+      this.suffix.set(i, got);
+    }
+    return got;
+  }
+  /** [λ, slot] after lot i given `money` crores and `room` places (bidplan.py `value`). */
+  value(i: number, money: number, room: number, skip: Set<number> | null = null): [number, number] {
+    if (skip && skip.size) {
+      if (room <= 0) return [0, 0];
+      let t = 0;
+      let k = 0;
+      let m = Infinity;
+      for (const [r, j, e, g] of this.items) {
+        if (j <= i || skip.has(j)) continue;
+        if (t + e > money + 1e-9) return [r, 0];
+        t += e;
+        k += 1;
+        m = m < g ? m : g;
+        if (k >= room) return [0, m];
+      }
+      return [0, 0];
+    }
+    if (room <= 0) return [0, 0];
+    const [cum, rat, gmin] = this.suf(i);
+    // bisect_right(cum, money + 1e-9)
+    let lo = 0;
+    let hi = cum.length;
+    const x = money + 1e-9;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (x < cum[mid]) hi = mid;
+      else lo = mid + 1;
+    }
+    if (lo >= room && room <= cum.length) return [0, gmin[room - 1]];
+    if (lo < cum.length) return [rat[lo], 0];
+    return [0, 0];
+  }
+}
+
+/** (gain − a place's worth) ÷ a crore's worth; the purse when a crore is worth nothing (bidplan.py `_cap`). */
+function capOf(g: number, lam: number, slot: number): number {
+  const net = g - slot;
+  if (net <= 0) return 0;
+  return lam > 0 ? net / lam : Infinity;
+}
+
+function replay(ctx: BidContext, cands: Piece[], prices: number[], lam: number, overrides: Record<string, number>, gains: Gains, future: number[], mv: MoneyValue | null = null): Run {
   const sqMax = Number(ctx.rules.squad_max);
   const sqMin = Number(ctx.rules.squad_min);
   const osMax = Number(ctx.rules.overseas_max);
@@ -631,9 +759,10 @@ function replay(ctx: BidContext, cands: Piece[], prices: number[], lam: number, 
     let cap: number;
     if (Object.prototype.hasOwnProperty.call(overrides, c.id)) cap = overrides[c.id];
     else {
-      if ((c.ub as number) < lam * r) continue;
+      const [lamI, slotI] = mv === null ? [lam, 0] : mv.value(i, left - reserve, sqMax - n - 1);
+      if ((c.ub as number) <= slotI || (c.ub as number) < lamI * r + slotI) continue;
       const ahead = [...bought, ...future.filter((j) => j > i)];
-      cap = gains.gain(gains.state(ahead), i) / lam;
+      cap = capOf(gains.gain(gains.state(ahead), i), lamI, slotI);
     }
     if (cap >= r && cap > 0) {
       bought.push(i);
@@ -647,17 +776,30 @@ function replay(ctx: BidContext, cands: Piece[], prices: number[], lam: number, 
   return { bought, paid, spend: fsum(paid), total: st.total, st };
 }
 
-function search(ctx: BidContext, cands: Piece[], byRun: number[][], over: Record<string, number>, gains: Gains, future: number[]): [number, { lam: number; strength: number }[]] {
+export interface CurvePoint {
+  lam: number;
+  strength: number;
+  /** strength + the purse left unspent × the market's runs per crore */
+  value: number;
+}
+
+/** λ maximising the mean value over the runs: strength plus the unspent purse at the market's runs
+ * per crore `rate` (bidplan.py `_search`). */
+function search(ctx: BidContext, cands: Piece[], byRun: number[][], over: Record<string, number>, gains: Gains, future: number[], rate: number): [number, CurvePoint[]] {
   const trials = byRun.length;
   let bestLam = LAMBDA_GRID[LAMBDA_GRID.length - 1];
   let bestMean = -Infinity;
-  const curve: { lam: number; strength: number }[] = [];
+  const curve: CurvePoint[] = [];
+  const left = Number(ctx.purse_left);
   for (const lam of [...LAMBDA_GRID].reverse()) {
-    const tot = fsum(byRun.map((pr) => replay(ctx, cands, pr, lam, over, gains, future).total));
+    const runs = byRun.map((pr) => replay(ctx, cands, pr, lam, over, gains, future));
+    const tot = fsum(runs.map((r) => r.total));
+    const val = fsum(runs.map((r) => r.total + rate * (left - r.spend)));
     const mean = trials ? tot / trials : 0;
-    curve.push({ lam, strength: mean });
-    if (mean > bestMean) {
-      bestMean = mean;
+    const mval = trials ? val / trials : 0;
+    curve.push({ lam, strength: mean, value: mval });
+    if (mval > bestMean) {
+      bestMean = mval;
       bestLam = lam;
     }
   }
@@ -751,7 +893,10 @@ export interface StrengthSummary {
 export interface BidPlan {
   team: string;
   lam: number;
-  curve: { lam: number; strength: number }[];
+  curve: CurvePoint[];
+  /** the market's runs per crore: the value of a crore left unspent (`rivalRuns`) */
+  purse_rate: number;
+  money: MoneyRule;
   rounds: number;
   converged: boolean;
   trials: number;
@@ -792,6 +937,8 @@ export function plan(
   overrides: Record<string, number> = {},
   trials: number = TRIALS,
   pricesIn: number[][] | null = null,
+  rateIn: number | null = null,
+  money: MoneyRule = MONEY,
 ): BidPlan {
   const tgt: Record<Need, number> = { ...DEFAULT_NEEDS };
   for (const [k, v] of Object.entries(needs)) {
@@ -799,16 +946,22 @@ export function plan(
   }
   const over: Record<string, number> = {};
   for (const [k, v] of Object.entries(overrides)) if (v !== null && v !== undefined && v >= 0) over[k] = Number(v);
-  const prices = pricesIn ?? rivalPrices(ctx, trials);
+  let prices: number[][];
+  let rate: number | null = rateIn;
+  if (pricesIn === null) {
+    const rr0 = rivalRuns(ctx, trials);
+    prices = rr0.prices;
+    rate = rr0.rate;
+  } else prices = pricesIn;
   const nTrials = prices.length ? prices[0].length : trials;
-  const cands = ctx.available.map((r) => {
-    const p = piece(r.cricsheet_id, r.name, r.contrib, r.role, r.is_overseas, r.tags, contribParts(r));
-    // a candidate gives the bench at most his P(plays) appearances a match (`benchFill`)
-    p.cap = p.pp;
-    p.ub = upperGain(p);
-    p.own = r.from_team !== null && r.from_team !== undefined && r.from_team === ctx.team;
-    return p;
-  });
+  if (money === "none") rate = 0;
+  else if (money === "market" && rate === null) rate = rivalRuns(ctx, nTrials).rate;
+  const marketRate: number = rate ?? 0;
+  const cands = candsOf(ctx);
+  const expected = prices.map((ps) => median(ps));
+  const sqMax = Number(ctx.rules.squad_max);
+  const sqMin = Number(ctx.rules.squad_min);
+  const reserve0 = Math.max(0, sqMin - ctx.kept.length) * MIN_SLOT_PRICE;
   const gains = new Gains(ctx.kept, cands, tgt);
   const byRun: number[][] = [];
   for (let t = 0; t < nTrials; t++) byRun.push(cands.map((_, i) => prices[i][t]));
@@ -816,7 +969,7 @@ export function plan(
   let future: number[] = [];
   let rounds = 0;
   let lam = 0;
-  let curve: { lam: number; strength: number }[] = [];
+  let curve: CurvePoint[] = [];
   let land: number[] = [];
   let priceSum: number[] = [];
   let runs: Run[] = [];
@@ -824,12 +977,17 @@ export function plan(
   const same = (a: number[], b: number[]) => a.length === b.length && a.every((x, i) => x === b[i]);
   for (;;) {
     rounds += 1;
-    [lam, curve] = search(ctx, cands, byRun, over, gains, future);
+    let mv: MoneyValue | null = null;
+    if (money === "auction") {
+      mv = new MoneyValue(cands, gains, future, expected);
+      lam = mv.value(-1, Number(ctx.purse_left) - reserve0, sqMax - ctx.kept.length)[0];
+      curve = [];
+    } else [lam, curve] = search(ctx, cands, byRun, over, gains, future, marketRate);
     land = new Array(cands.length).fill(0);
     priceSum = new Array(cands.length).fill(0);
     runs = [];
     for (let t = 0; t < nTrials; t++) {
-      const rr = replay(ctx, cands, byRun[t], lam, over, gains, future);
+      const rr = replay(ctx, cands, byRun[t], lam, over, gains, future, mv);
       runs.push(rr);
       rr.bought.forEach((i, k) => {
         land[i] += 1;
@@ -856,10 +1014,10 @@ export function plan(
     for (const n of NEED_ORDER) if (s.counts[n] >= tgt[n]) needMet[n] += 1;
   }
 
-  const sqMax = Number(ctx.rules.squad_max);
   const osMax = Number(ctx.rules.overseas_max);
-  const sqMin = Number(ctx.rules.squad_min);
   const likelySet = new Set(likely);
+  // the money value on the final likely squad (bidplan.py `mv_final`)
+  const mvFinal = money === "auction" ? new MoneyValue(cands, gains, likely, expected) : null;
   const likelyPieces = [...ctx.kept, ...likely.map((i) => cands[i])];
   const expPaid = new Map(likely.map((i) => [i, priceSum[i] / land[i]]));
 
@@ -867,12 +1025,22 @@ export function plan(
     const base = [...ctx.kept, ...likely.filter((j) => !drop.has(j)).map((j) => cands[j])];
     return strength([...base, cands[i]], tgt).total - strength(base, tgt).total;
   };
+  const budgetOf = (rest: number[]) => {
+    const reserve = Math.max(0, sqMin - ctx.kept.length - rest.length - 1) * MIN_SLOT_PRICE;
+    return Number(ctx.purse_left) - fsum(rest.map((j) => expPaid.get(j) as number)) - reserve;
+  };
+  const lamAt = (drop: Set<number>, i: number): [number, number] => {
+    if (mvFinal === null) return [lam, 0];
+    const rest = likely.filter((j) => !drop.has(j));
+    const room = sqMax - ctx.kept.length - rest.length - 1;
+    return mvFinal.value(i, budgetOf(rest), room, new Set([...rest, ...drop]));
+  };
   const maxBid = (drop: Set<number>, i: number): [number, number, boolean] => {
     const g = gainWithout(drop, i);
     const rest = likely.filter((j) => !drop.has(j));
-    const reserve = Math.max(0, sqMin - ctx.kept.length - rest.length - 1) * MIN_SLOT_PRICE;
-    const budget = Number(ctx.purse_left) - fsum(rest.map((j) => expPaid.get(j) as number)) - reserve;
-    const byValue = Math.max(0, g / lam);
+    const budget = budgetOf(rest);
+    const [li, slot] = lamAt(drop, i);
+    const byValue = capOf(g, li, slot);
     const mb = Math.min(Math.max(0, budget), byValue);
     return [mb, g, mb < byValue];
   };
@@ -915,7 +1083,7 @@ export function plan(
       p_land: share,
       avg_paid: land[i] ? priceSum[i] / land[i] : 0,
       likely: likelySet.has(i),
-      net: pLe * (g - lam * meanUnder),
+      net: pLe * (g - lamAt(new Set([i]), i)[1] - lamAt(new Set([i]), i)[0] * meanUnder),
       priority: 0,
     });
   });
@@ -940,8 +1108,7 @@ export function plan(
   const reconsider: BidPlan["reconsider"] = [];
   cands.forEach((c, i) => {
     if (!c.own || !salaryOf.has(c.id) || !c.rated) return;
-    const g = gainWithout(new Set([i]), i);
-    const worth = Math.max(0, g / lam);
+    const [worth, g] = maxBid(new Set([i]), i);
     const sq = salaryOf.get(c.id) as AssessedPlayer;
     const sal = Number(sq.salary);
     if (worth >= sal) reconsider.push({ id: c.id, name: sq.name, salary: sal, worth, gain: g, auto_release: sq.auto_release ?? null });
@@ -964,6 +1131,8 @@ export function plan(
     team: ctx.team,
     lam,
     curve,
+    purse_rate: money === "auction" ? lam : marketRate,
+    money,
     rounds,
     converged,
     trials: nTrials,

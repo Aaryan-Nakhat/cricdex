@@ -105,7 +105,7 @@ def bidplan(
         build_context,
         chain_text,
         plan,
-        rival_prices,
+        rival_runs,
         to_csv_rows,
     )
     from cricdex.web_parity.keep import cr, fmt_num, player_key, squad_of
@@ -168,8 +168,8 @@ def bidplan(
         overrides[row["cricsheet_id"]] = val
     n_trials = trials or TRIALS
     with _render.spinner(f"Running {n_trials} rival auctions and the plan…"):
-        prices = rival_prices(ctx, n_trials)
-        res = plan(ctx, needs, overrides, n_trials, prices)
+        runs = rival_runs(ctx, n_trials)
+        res = plan(ctx, needs, overrides, n_trials, runs["prices"], rate=runs["rate"])
 
     comp = data["competition"]
     assumed = set(comp.get("assumed") or [])
@@ -219,7 +219,8 @@ def bidplan(
             }
             for x in res["targets"]
         ],
-        title=f"Targets ({len(res['targets'])}): max bid = gain ÷ {fmt_num(res['lam'], 2)} runs per crore",
+        title=f"Targets ({len(res['targets'])}): max bid = gain ÷ what a crore still buys from the later "
+        f"lots ({fmt_num(res['lam'], 2)} runs per crore at the start; 0 = the purse is the limit)",
         column_styles={"player": "bold cyan"},
     )
     c = console()

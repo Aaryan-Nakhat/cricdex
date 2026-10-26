@@ -8,6 +8,49 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Replacement curves, a value for unspent purse, and dates of birth (issue I17, 2026-10-26)
+
+- **Replacement level as a curve** (METHODOLOGY §6c). The levels were one number per batting-slot group and per
+  bowling group, so a lower-order hitter whose usual position is 7.5 (Ramandeep Singh, −37 runs per 100 balls)
+  was measured against the 8–11 group's −61.6, set by bowlers batting at 9–11, and was first on 9 of 10 Bid plans.
+  The level is now a curve in usual batting position (monotone, isotonic) and in balls bowled a match (a kernel
+  mean), fitted on minimum-price buys. Candidates declared first, chosen on the 2018–24 auctions, tested once on
+  2025–26: the curves predict a buy's rating no better than the groups did, but there is no longer a 38-run jump
+  at one position (`playing_time.curve_at` / `fit_curve`, `scripts/playing_time_fit.py repl`). The same fix
+  removes a jump at the 15-ball frontline line (Jadeja and Hardik bowl 14–15 balls and gained 1–1.5 runs a match
+  from it). P(plays) refitted: squad test log loss 0.558 → 0.556, free agents 0.0856 → 0.0853. Ramandeep 1.9 →
+  0.5 runs a match, pool rank 80 → 171, in no team's top five; the pool's top ten keeps nine of its ten (Pooran
+  in, Suryakumar Yadav 11th).
+- **What unspent purse is worth** (METHODOLOGY §12 step 4, AUCTION_MATH Part 4). Money left after an IPL auction
+  buys nothing for the season (replacement fees are capped at the replaced player's and sit outside the cap), so a
+  crore is worth what the later lots can still buy at their expected prices (the rivals' median), lots ranked by
+  gain on the likely squad ÷ price, and a squad place what it would push out (`_MoneyValue` ⇄ `MoneyValue`,
+  parity-locked; `plan(money=...)`, `bidplan_backtest.py --money`). Calibration target, the real spend shares:
+  minis a median 0.76 of the purse (2024 0.90), megas 0.99, hardly depending on purse or open places. Chosen on 2024
+  over the old single λ ("none", spend error 0.46) and the market rate of 2026-10-26 ("market", 0.72): error 0.11.
+  Test 2025–26: spend error 0.01 / 0.11, but next-season squads at the same spend were weaker than the real ones for
+  8 and 10 of 10 teams ("none": 3 and 5). A place-cost term was added after the test; the result held (seen twice).
+  The 2027 sheets spend 0.87–0.99 of the purse; λ is 0 at the first lot (places run out first), so max bids are
+  purse-bound. The replay inputs were rebuilt (`auction_demand_fit.py inputs` / `mk` on the new as-of
+  contributions).
+- **The reality gate** (METHODOLOGY §13, `tests/test_reality_gate.py`): seven checks of the real IPL outputs with
+  thresholds from real data or cited records (spend vs real teams with similar purses, first-target concentration
+  vs the fitted chance franchises bid, minimum-price players, 18 cr stars in the top N, IPL age records, Keep on the
+  18 cr stars, star prices vs the documented error). It fails four today. They are marked as strict known
+  failures, each pointing to ROADMAP I18.
+- **Dates of birth** (docs/IDENTITY.md). The player master took Wikidata's date before the Wikipedia infobox, and
+  read it without its precision, so a year-only date became 1 January. Where both exist they disagree for 7%
+  of players, and the infobox matched the published profiles (iplt20.com and others) in every case checked
+  (Mukesh Choudhary 1996, Wikidata 1986; Venkatesh Iyer 1994, Wikidata 1990). Now: overrides → infobox → Wikidata
+  at day precision → legacy, and a date implausible at debut or last match falls through to the next source
+  (`master._pick_dob`; `sources.refresh_wikidata_dob` re-read 4,814 cached Wikidata dates: 128 year-only).
+  50 IPL players changed. After the fix, every IPL player over 38 with a match since 2025 is a known veteran,
+  and the only debut under 15 is Vaibhav Suryavanshi (real). Disagreements are listed in the review
+  (`dob_disagree`, 222).
+- **Mustafizur Rahman, 2027**: no BCCI or IPL statement on Bangladesh players found; left in the pool and flagged
+  as unknown (METHODOLOGY §12), not recorded in `ipl_availability.json`.
+- IPL site data re-exported (`export_site.py --collection ipl --skip-prep`).
+
 ### Bid plan's 2027 sheets: who is in the auction, and a bench that respects P(plays) (issue I16, 2026-10-23)
 
 - **Why the sheets were wrong.** Not the ranking's sign. (1) The bench filled the XI's missed matches with whole

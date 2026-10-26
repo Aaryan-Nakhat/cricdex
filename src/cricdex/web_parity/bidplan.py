@@ -33,6 +33,7 @@ docs/METHODOLOGY.md §12.
 
 from __future__ import annotations
 
+import bisect
 import math
 from collections.abc import Callable
 from typing import Any
@@ -108,6 +109,13 @@ LAMBDA_GRID = [
     1.6, 1.90273, 2.26274, 2.69087, 3.2,
 ]  # fmt: skip
 MIN_SLOT_PRICE = 0.3
+# How a crore left unspent is valued (ROADMAP I17b; METHODOLOGY §12 step 4):
+# - "auction": what it can still buy from the later lots at their expected prices (`_MoneyValue`); 0
+#   at the end of the auction (no carry-over into the season, replacement fees outside the cap);
+# - "market": the rivals' runs per crore in the same runs (`rival_runs`), the rule of 2026-10-26;
+# - "none": nothing, one λ for the whole auction (the rule until 2026-10-26).
+MONEY_RULES = ("auction", "market", "none")
+MONEY = "auction"
 # A player is a target when the plan lands him in at least this share of the runs (or you set his
 # max bid); "likely" when it lands him in at least half of them.
 TARGET_MIN_SHARE = 0.05
@@ -527,12 +535,26 @@ def build_context(
 
 
 def rival_prices(ctx: dict, trials: int = TRIALS) -> list[list[float]]:
-    """For each available player (ctx["available"] order) and each run: the price we would have to
-    beat, i.e. the next ladder step above the winning rival's bid (a rival bids at most his
-    spendable purse), at least his base price; his base price when no rival bid (or he wasn't among
-    the simulator's lots). The rivals bid by the Auction room's fitted demand model. Runs t = 0 …
-    trials − 1 use the Auction room's seeds (1000 + 7919 t). `ctx["demand"]` (optional) overrides the
-    demand model (the replays' out-of-time fit)."""
+    """The price we would have to beat, per available player and run (`rival_runs`'s "prices")."""
+    return rival_runs(ctx, trials)["prices"]
+
+
+def rival_runs(ctx: dict, trials: int = TRIALS) -> dict[str, Any]:
+    """The rivals' auction, `trials` times. {"prices", "rate", "rival_gain", "rival_spend"}:
+
+    - prices: for each available player (ctx["available"] order) and each run, the price we would
+      have to beat, i.e. the next ladder step above the winning rival's bid (a rival bids at most his
+      spendable purse), at least his base price; his base price when no rival bid (or he wasn't among
+      the simulator's lots).
+    - rate: the **market's runs per crore**, what the rivals' crores bought in these runs: Σ over
+      rivals and runs of the strength their buys added to their own squad (`strength`, each lot at
+      his free-agent P(plays), as ours are counted) ÷ Σ what they paid. It is the value of a crore we
+      leave unspent (`plan`): the rate at which this market turns money into squad strength, from
+      the fitted demand model's own buys, not a set number (ROADMAP I17b).
+
+    The rivals bid by the Auction room's fitted demand model. Runs t = 0 … trials − 1 use the
+    Auction room's seeds (1000 + 7919 t). `ctx["demand"]` (optional) overrides the demand model
+    (the replays' out-of-time fit)."""
     rules = ctx["rules"]
     purse = float(rules["purse"])
     sq_max = int(rules["squad_max"])
@@ -568,15 +590,38 @@ def rival_prices(ctx: dict, trials: int = TRIALS) -> list[list[float]]:
     if ctx.get("min_base"):
         opts["min_base"] = float(ctx["min_base"])
     out = [[float(p["base_price"])] * trials for p in avail]
+    lot_pieces = _cands(ctx)
+    base_total = [strength(r["kept"], DEFAULT_NEEDS)["total"] for r in ctx["rivals"]]
+    gain_sum = 0.0
+    spend_sum = 0.0
     for t in range(trials):
+        buys: list[list[int]] = [[] for _ in bases]
+        paid: list[list[float]] = [[] for _ in bases]
 
-        def on_sale(player: dict, team_i: int, best_bid: float, price: float, _t: int = t) -> None:
+        def on_sale(
+            player: dict,
+            team_i: int,
+            best_bid: float,
+            price: float,
+            _t: int = t,
+            _buys: list[list[int]] = buys,
+            _paid: list[list[float]] = paid,
+        ) -> None:
             i = index[player["cricsheet_id"]]
             beat = ladder_next(best_bid)
             out[i][_t] = max(float(player["base_price"]), beat)
+            _buys[team_i].append(i)
+            _paid[team_i].append(float(price))
 
         one_trial(bases, lots, opts, 1000 + t * 7919, on_sale)
-    return out
+        for k, r in enumerate(ctx["rivals"]):
+            if not buys[k]:
+                continue
+            after = strength(r["kept"] + [lot_pieces[i] for i in buys[k]], DEFAULT_NEEDS)["total"]
+            gain_sum += after - base_total[k]
+            spend_sum += fsum(paid[k])
+    rate = gain_sum / spend_sum if spend_sum > 0 else 0.0
+    return {"prices": out, "rate": rate, "rival_gain": gain_sum, "rival_spend": spend_sum}
 
 
 # ---- step 2: the bidding rule over the rival runs ---------------------------------------------------
@@ -609,6 +654,106 @@ class _Gains:
         return g
 
 
+class _MoneyValue:
+    """What a crore and a squad place are still worth at each lot (since 2026-10-27, ROADMAP I17b):
+    what they can buy from the lots still to come, at their expected prices.
+
+    Money left after an IPL auction buys nothing for the season being planned. A replacement
+    player's fee can't exceed the fee of the player he replaces, and it sits outside the salary
+    cap. Unspent purse only carries into the next auction through the cap (purse = cap − contracts),
+    and only within a cycle. So the later lots are ranked by gain ÷ expected price: each lot's gain
+    is measured on the plan's likely squad, which gives diminishing returns, and the expected price
+    is the rivals' median price to beat, from the demand model. The money and the places left are
+    filled down that ranking.
+    - If the **money** runs out first, a crore is worth the ratio of the first lot it no longer
+      covers (λ), and a place costs nothing.
+    - If the **places** run out first, a crore is worth 0, and a place is worth the smallest gain
+      among the lots that fill them: the one a buy now would push out (`slot`).
+    - If neither runs out, both are worth 0. That is always so at the last lot.
+    A lot is worth buying when gain − slot > 0, and up to (gain − slot) ÷ λ, or up to the purse when
+    λ = 0. Overseas places are not tracked in the ranking."""
+
+    def __init__(self, cands: list[dict], gains: _Gains, future: list[int],
+                 expected: list[float]):  # fmt: skip
+        base = gains.state(future)
+        fut = set(future)
+        items = []
+        for j, c in enumerate(cands):
+            if c["own"] or c["ub"] <= 0 or expected[j] <= 0:
+                continue
+            if j in fut:
+                g = gains.gain(gains.state([k for k in future if k != j]), j)
+            else:
+                g = gains.gain(base, j)
+            if g > 0:
+                items.append((g / expected[j], j, expected[j], g))
+        items.sort(key=lambda x: (-x[0], x[1]))
+        self.items = items
+        # suffix lists: for lot i, the ranked lots after it (cumulative cost, ratio, running min gain)
+        self._suffix: dict[int, tuple[list[float], list[float], list[float]]] = {}
+
+    def _suf(self, i: int) -> tuple[list[float], list[float], list[float]]:
+        got = self._suffix.get(i)
+        if got is None:
+            cum, rat, gmin = [], [], []
+            t = 0.0
+            m = math.inf
+            for r, j, e, g in self.items:
+                if j > i:
+                    t += e
+                    m = m if m < g else g
+                    cum.append(t)
+                    rat.append(r)
+                    gmin.append(m)
+            got = (cum, rat, gmin)
+            self._suffix[i] = got
+        return got
+
+    def value(self, i: int, money: float, room: int,
+              skip: set[int] | None = None) -> tuple[float, float]:  # fmt: skip
+        """(λ, slot): what a crore and a squad place are worth after lot i (`i` = −1: before every
+        lot) given `money` crores and `room` places for the later lots; `skip` = lots not counted
+        (already planned)."""
+        if skip:
+            return self._value_skip(i, money, room, skip)
+        if room <= 0:
+            return 0.0, 0.0
+        cum, rat, gmin = self._suf(i)
+        k = bisect.bisect_right(cum, money + 1e-9)  # lots the money covers, in rank order
+        if k >= room and room <= len(cum):
+            return 0.0, gmin[room - 1]
+        if k < len(cum):
+            return rat[k], 0.0
+        return 0.0, 0.0
+
+    def _value_skip(self, i: int, money: float, room: int, skip: set[int]) -> tuple[float, float]:
+        if room <= 0:
+            return 0.0, 0.0
+        t = 0.0
+        k = 0
+        m = math.inf
+        for r, j, e, g in self.items:
+            if j <= i or j in skip:
+                continue
+            if t + e > money + 1e-9:
+                return r, 0.0
+            t += e
+            k += 1
+            m = m if m < g else g
+            if k >= room:
+                return 0.0, m
+        return 0.0, 0.0
+
+
+def _cap(g: float, lam: float, slot: float) -> float:
+    """The most a lot is worth paying: (gain − the place's worth) ÷ a crore's worth; the purse when a
+    crore is worth nothing; 0 when the place is worth more than he adds."""
+    net = g - slot
+    if net <= 0:
+        return 0.0
+    return net / lam if lam > 0 else math.inf
+
+
 def _replay(
     ctx: dict,
     cands: list[dict],
@@ -617,13 +762,17 @@ def _replay(
     overrides: dict[str, float],
     gains: _Gains,
     future: list[int],
+    mv: _MoneyValue | None = None,
 ) -> dict:
     """One run of the bidding rule: lots in pool order; for each, bid up to (his gain / λ) or the
     user's max bid; buy when that reaches the price to beat and the purse, squad and overseas room
     allow. His gain is measured on the squad so far plus the likely buys still to come (`future`,
     the plan's likely buys in lot order), so an early lot isn't overpaid while a cheaper substitute
     is due later; a likely buy that was lost leaves the squad, so its substitutes bid higher.
-    `prices[i]` = that run's price to beat for candidate i."""
+    `prices[i]` = that run's price to beat for candidate i. With `mv` (the shipped rule since
+    2026-10-27), λ at each lot is what a crore can still buy from the lots after it (`_MoneyValue`),
+    given the money and places left in this run; 0 (bid up to what the purse allows) when the money
+    covers every later lot worth buying."""
     rules = ctx["rules"]
     sq_max = int(rules["squad_max"])
     sq_min = int(rules["squad_min"])
@@ -648,10 +797,13 @@ def _replay(
         if c["id"] in overrides:
             cap = overrides[c["id"]]
         else:
-            if c["ub"] < lam * r:
+            lam_i, slot_i = (
+                (lam, 0.0) if mv is None else mv.value(i, left - reserve, sq_max - n - 1)
+            )
+            if c["ub"] <= slot_i or c["ub"] < lam_i * r + slot_i:
                 continue
             ahead = bought + [j for j in future if j > i]
-            cap = gains.gain(gains.state(ahead), i) / lam
+            cap = _cap(gains.gain(gains.state(ahead), i), lam_i, slot_i)
         if cap >= r and cap > 0:
             bought.append(i)
             paid.append(r)
@@ -663,20 +815,27 @@ def _replay(
     return {"bought": bought, "paid": paid, "spend": fsum(paid), "total": st["total"], "st": st}
 
 
-def _search(ctx, cands, by_run, over, gains, future) -> tuple[float, list[dict]]:
-    """The exchange rate whose bidding rule gives the highest mean strength over the runs (ties:
-    the higher rate, i.e. the cheaper plan), and the curve of mean strength by rate."""
+def _search(ctx, cands, by_run, over, gains, future, rate: float) -> tuple[float, list[dict]]:
+    """The exchange rate whose bidding rule gives the highest mean **value** over the runs: squad
+    strength plus the purse left unspent at the market's runs per crore (`rate`, `rival_runs`), so
+    a crore kept is worth what the market turns a crore into (ties: the higher rate, i.e. the
+    cheaper plan). Until 2026-10-26 an unspent crore counted for nothing, so where few targets were
+    left λ fell to the bottom of its grid and the max bids ran far above what rivals pay (ROADMAP
+    I17b). Returns λ and the curve of mean strength and value by rate."""
     trials = len(by_run)
     best_lam = LAMBDA_GRID[-1]
     best_mean = -math.inf
     curve = []
+    left = float(ctx["purse_left"])
     for lam in reversed(LAMBDA_GRID):
-        tot = fsum([_replay(ctx, cands, by_run[t], lam, over, gains, future)["total"]
-                    for t in range(trials)])  # fmt: skip
+        runs = [_replay(ctx, cands, by_run[t], lam, over, gains, future) for t in range(trials)]
+        tot = fsum([r["total"] for r in runs])
+        val = fsum([r["total"] + rate * (left - r["spend"]) for r in runs])
         mean = tot / trials if trials else 0.0
-        curve.append({"lam": lam, "strength": mean})
-        if mean > best_mean:
-            best_mean = mean
+        mval = val / trials if trials else 0.0
+        curve.append({"lam": lam, "strength": mean, "value": mval})
+        if mval > best_mean:
+            best_mean = mval
             best_lam = lam
     curve.reverse()
     return best_lam, curve
@@ -749,19 +908,32 @@ def plan(
     trials: int = TRIALS,
     prices: list[list[float]] | None = None,
     progress: Callable[[int, int], None] | None = None,
+    rate: float | None = None,
+    money: str = MONEY,
 ) -> dict[str, Any]:
     """The bidding plan for ctx["team"]. `needs` overrides DEFAULT_NEEDS; `overrides` =
-    {player id: max bid in cr} (0 = never bid); `prices` = rival_prices(ctx, trials) if already
-    computed."""
+    {player id: max bid in cr} (0 = never bid); `prices` / `rate` = rival_runs(ctx, trials)'s
+    "prices" and "rate" if already computed (a missing rate is worked out from the same runs).
+    `money` = how an unspent crore is valued (MONEY_RULES; the replays compare them)."""
     tgt = dict(DEFAULT_NEEDS)
     for k, v in (needs or {}).items():
         if k in tgt and isinstance(v, int | float) and v >= 0:
             tgt[k] = int(v)
     over = {k: float(v) for k, v in (overrides or {}).items() if v is not None and v >= 0}
     if prices is None:
-        prices = rival_prices(ctx, trials)
+        rr0 = rival_runs(ctx, trials)
+        prices, rate = rr0["prices"], rr0["rate"]
     trials = len(prices[0]) if prices else trials
+    if money == "none":
+        rate = 0.0
+    elif money == "market" and rate is None:
+        rate = rival_runs(ctx, trials)["rate"]
     cands = _cands(ctx)
+    expected = [_median(ps) for ps in prices]
+    rules = ctx["rules"]
+    sq_max = int(rules["squad_max"])
+    sq_min = int(rules["squad_min"])
+    reserve0 = max(0, sq_min - len(ctx["kept"])) * MIN_SLOT_PRICE
     gains = _Gains(ctx["kept"], cands, tgt)
     by_run = [[prices[i][t] for i in range(len(cands))] for t in range(trials)]
 
@@ -771,12 +943,18 @@ def plan(
     rounds = 0
     while True:
         rounds += 1
-        lam, curve = _search(ctx, cands, by_run, over, gains, future)
+        mv = None
+        if money == "auction":
+            mv = _MoneyValue(cands, gains, future, expected)
+            lam = mv.value(-1, float(ctx["purse_left"]) - reserve0, sq_max - len(ctx["kept"]))[0]
+            curve = []
+        else:
+            lam, curve = _search(ctx, cands, by_run, over, gains, future, rate)
         land = [0] * len(cands)
         price_sum = [0.0] * len(cands)
         runs = []
         for t in range(trials):
-            rr = _replay(ctx, cands, by_run[t], lam, over, gains, future)
+            rr = _replay(ctx, cands, by_run[t], lam, over, gains, future, mv)
             runs.append(rr)
             for i, pr in zip(rr["bought"], rr["paid"], strict=True):
                 land[i] += 1
@@ -804,28 +982,41 @@ def plan(
             if s["counts"][n] >= tgt[n]:
                 need_met[n] += 1
 
-    rules = ctx["rules"]
-    sq_max = int(rules["squad_max"])
     os_max = int(rules["overseas_max"])
     likely_set = set(likely)
+    # the money value on the final likely squad (it differs from the last round's when the lookahead
+    # stopped before converging)
+    mv_final = _MoneyValue(cands, gains, likely, expected) if money == "auction" else None
     likely_pieces = ctx["kept"] + [cands[i] for i in likely]
 
     exp_paid = {i: price_sum[i] / land[i] for i in likely}
-    sq_min = int(rules["squad_min"])
 
     def gain_without(drop: set[int], i: int) -> float:
         base = ctx["kept"] + [cands[j] for j in likely if j not in drop]
         return strength(base + [cands[i]], tgt)["total"] - strength(base, tgt)["total"]
 
+    def lam_at(drop: set[int], i: int) -> tuple[float, float]:
+        """(λ, slot) for lot i: the global rate, or (money rule "auction") what a crore and a place
+        left after the rest of the likely buys could still buy from the lots after him."""
+        if mv_final is None:
+            return lam, 0.0
+        rest = [j for j in likely if j not in drop]
+        reserve = max(0, sq_min - len(ctx["kept"]) - len(rest) - 1) * MIN_SLOT_PRICE
+        budget = float(ctx["purse_left"]) - fsum([exp_paid[j] for j in rest]) - reserve
+        room = sq_max - len(ctx["kept"]) - len(rest) - 1
+        return mv_final.value(i, budget, room, set(rest) | drop)
+
     def max_bid(drop: set[int], i: int) -> tuple[float, float, bool]:
-        """(max bid, gain, purse-bound): his gain on the likely squad without `drop`, over λ;
-        at most what the purse leaves after the rest of the likely buys
-        at their average prices (keeping 0.3 cr a place to reach the squad minimum)."""
+        """(max bid, gain, purse-bound): his gain on the likely squad without `drop`, over λ (λ = 0:
+        nothing later is worth the money, so the purse is the limit); at most what the purse leaves
+        after the rest of the likely buys at their average prices (keeping 0.3 cr a place to reach
+        the squad minimum)."""
         g = gain_without(drop, i)
         rest = [j for j in likely if j not in drop]
         reserve = max(0, sq_min - len(ctx["kept"]) - len(rest) - 1) * MIN_SLOT_PRICE
         budget = float(ctx["purse_left"]) - fsum([exp_paid[j] for j in rest]) - reserve
-        by_value = max(0.0, g / lam)
+        li, slot = lam_at(drop, i)
+        by_value = _cap(g, li, slot)
         mb = min(max(0.0, budget), by_value)
         return mb, g, mb < by_value
 
@@ -867,7 +1058,7 @@ def plan(
                 "p_land": share,
                 "avg_paid": price_sum[i] / land[i] if land[i] else 0.0,
                 "likely": i in likely_set,
-                "net": p_le * (g - lam * mean_under),
+                "net": p_le * (g - lam_at({i}, i)[1] - lam_at({i}, i)[0] * mean_under),
             }
         )
     targets.sort(key=lambda x: (-x["net"], x["id"]))
@@ -897,8 +1088,7 @@ def plan(
     for i, c in enumerate(cands):
         if not c["own"] or c["id"] not in salary_of or not c["rated"]:
             continue
-        g = gain_without({i}, i)
-        worth = max(0.0, g / lam)
+        worth, g, _b = max_bid({i}, i)
         sq = salary_of[c["id"]]
         sal = float(sq["salary"])
         if worth >= sal:
@@ -919,6 +1109,9 @@ def plan(
         "team": ctx["team"],
         "lam": lam,
         "curve": curve,
+        # what a crore left unspent is worth at the start (runs a match per crore)
+        "purse_rate": lam if money == "auction" else rate,
+        "money": money,
         "rounds": rounds,
         "converged": converged,
         "trials": trials,
