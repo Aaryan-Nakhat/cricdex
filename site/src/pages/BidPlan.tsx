@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useAsync } from "@/lib/useAsync";
-import { getAuctionPool, getAuctionRegister, getKeep, type AuctionPoolRow } from "@/lib/data";
+import { fetchBidplanRivals, getAuctionPool, getAuctionRegister, getKeep, type AuctionPoolRow } from "@/lib/data";
 import { buildPool } from "@/lib/auction";
 import { cr, fmtNum, STALE_REASON_MIN, toCsv, type Decision, type KeepData } from "@/lib/keep";
 import {
@@ -37,6 +37,7 @@ import {
   type BidPlan as Plan,
   type Need,
   type RegisterEntry,
+  type RivalBids,
 } from "@/lib/bidplan";
 import { useUrlParams } from "@/lib/useUrlState";
 import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StatTile, StaleShareBadge } from "@/components/ui";
@@ -180,38 +181,38 @@ export function BidPlan() {
   const keep = useAsync(() => getKeep("ipl"), []);
   const poolData = useAsync(() => getAuctionPool("ipl"), []);
   const reg = useAsync(() => getAuctionRegister("ipl"), []);
+  const rivals = useAsync(() => fetchBidplanRivals("ipl"), []);
   return (
     <>
       <PageTitle
-        title="Bid plan (beta)"
+        title="Bid plan (draft)"
         icon={<ClipboardList className="h-6 w-6" />}
         desc="Whom to bid for at the auction, and how high. Your squad from Keep or release, rivals bidding hundreds of times in the Auction room's simulator, and the targets that add the most to your best XI for the purse: each with a max bid, the odds of landing him under it, and a fallback if he goes too high."
       />
       <Card className="mb-4 border-gold/40 bg-gold/5 px-4 py-3 text-sm leading-relaxed text-muted">
-        <Badge tone="gold" className="mr-2">Beta</Badge>
-        <b className="text-fg">Not yet proven.</b> Replaying the real auctions with only what was known
-        beforehand, at the real franchise's spend, this plan built a stronger squad (on what the players did
-        next season) for 7 of 10 teams in the 2025 mega auction and 2 of 10 in the 2026 mini auction: ahead in
-        the mega, behind in the mini, not clearly ahead overall. "P(≤ max)" is about right overall (said 0.38, came
-        true 0.39 in 2025; 0.48 / 0.52 in 2026), but where it said 0.8–1.0 the real price stayed at or under the max
-        bid 76% of the time in 2025 (100% in 2026): its top band runs high. The plan doesn't see rivals chasing the same names, or scouting the price model
-        misses. Use it to explore bid limits and fallbacks, not as a verdict. Full results in the
-        methodology (Bid plan section).
+        <Badge tone="gold" className="mr-2">Draft</Badge>
+        <b className="text-fg">Max bids are not reliable yet.</b> Money left after an IPL auction buys nothing,
+        so the plan spends like real teams do. But player ratings don't yet see age or recent decline, so older
+        players can look like bargains. Many max bids come out as just the purse left. Replaying the real
+        auctions with only what was known beforehand, at the real franchise's spend, the plan built a stronger
+        squad (on what the players did next season) for 3 of 10 teams in 2025 and 0 of 10 in 2026. Fix in
+        progress: ratings that see age and form (ROADMAP I18). Use it to explore targets and fallbacks, not as a
+        verdict. Full results in the methodology (Bid plan section).
       </Card>
       {keep.error || poolData.error ? (
         <ErrorBox message={(keep.error || poolData.error)!} />
-      ) : !keep.data || !poolData.data || reg.loading ? (
+      ) : !keep.data || !poolData.data || reg.loading || rivals.loading ? (
         <Spinner label="Loading the squads and the auction pool…" />
       ) : keep.data.players.length === 0 ? (
         <Empty>No squads exported yet.</Empty>
       ) : (
-        <Planner data={keep.data} raw={poolData.data} register={reg.data ?? null} />
+        <Planner data={keep.data} raw={poolData.data} register={reg.data ?? null} rivalBids={rivals.data ?? null} />
       )}
     </>
   );
 }
 
-function Planner({ data, raw, register }: { data: KeepData; raw: AuctionPoolRow[]; register: RegisterEntry[] | null }) {
+function Planner({ data, raw, register, rivalBids }: { data: KeepData; raw: AuctionPoolRow[]; register: RegisterEntry[] | null; rivalBids: RivalBids | null }) {
   const comp = data.competition;
   const teams = data.teams;
   const { params, update } = useUrlParams();
@@ -267,11 +268,11 @@ function Planner({ data, raw, register }: { data: KeepData; raw: AuctionPoolRow[
   const ctx: BidContext | null = useMemo(() => {
     try {
       return buildContext(data, pool, team, decisions, purse, openSlots,
-        { squad_max: squadMax, squad_min: squadMin, overseas_max: osMax }, register, display);
+        { squad_max: squadMax, squad_min: squadMin, overseas_max: osMax }, register, display, rivalBids);
     } catch {
       return null;
     }
-  }, [data, pool, team, decisions, purse, openSlots, squadMax, squadMin, osMax, register, display]);
+  }, [data, pool, team, decisions, purse, openSlots, squadMax, squadMin, osMax, register, display, rivalBids]);
 
   // the plan runs a few hundred rival auctions: compute it off the render, show "working" meanwhile
   const runKey = JSON.stringify([team, keepIds, relIds, purse, openSlots, squadMax, squadMin, osMax, needParam, maxParam, trials, !!register]);

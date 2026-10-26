@@ -623,6 +623,23 @@ def _export_price_model(out_dir: Path, col: str) -> bool:
     return True
 
 
+def _export_bidplan_rivals(out_dir: Path, col: str) -> None:
+    """data/<league>/bidplan_rivals.json: every franchise's default Bid plan, each built seeing the
+    others' (web_parity.bidplan.rival_plan_bids; ROADMAP I2 / I18). The page and `cricdex bidplan`
+    let the other nine teams bid for their own plans' targets from it. About a minute."""
+    from cricdex.web_parity import build_pool, load_auction_pool
+    from cricdex.web_parity.bidplan import rival_plan_bids
+    from cricdex.web_parity.loader import load_auction_register, load_keep
+
+    base = out_dir.parent
+    data = load_keep(col, base)
+    raw = load_auction_pool(col, base)
+    display = {r["cricsheet_id"]: r["display_name"] for r in raw if r.get("display_name")}
+    t = rival_plan_bids(data, build_pool(raw), load_auction_register(col, base), display)
+    _write(out_dir / "bidplan_rivals.json", t)
+    logger.info(f"  bidplan_rivals: {t['rounds']} passes, converged {t['converged']}")
+
+
 def _export_auction_register(out_dir: Path, col: str) -> int | None:
     """data/<league>/auction_register.json for Bid plan: the official auction list once published,
     hand-written to data/curated/<league>_auction_register.json as [{"id": cricsheet id,
@@ -938,6 +955,8 @@ def _export_auction_pool(
 PT_KEYS = (
     "contrib", "contrib_sd", "contrib_bat", "contrib_bowl", "balls_faced", "balls_bowled",
     "p_play", "p_play_free", "season_value",
+    # the buy model's inputs besides the squad (Bid plan's P(plays) of a lot it buys, ROADMAP I18)
+    "ipl_matches", "last_share",
 )  # fmt: skip
 
 
@@ -1045,6 +1064,8 @@ def _playing_time_rows(
             "p_play": None if p is None else round(p, 4),
             "p_play_free": round(pf, 4),
             "season_value": None if sv is None else round(sv, 3),
+            "ipl_matches": meta["ipl_matches"],
+            "last_share": None if meta["last_share"] is None else round(meta["last_share"], 4),
         }
     return out
 
@@ -1393,9 +1414,31 @@ def _export_keep(
         "pool_tags": pool_tags,
         # the retention model (config/keep_model.json; scripts/keep_backtest.py): keep.ts reads it
         "keep_model": _keep_model_payload(),
+        # P(plays) of an auction buy in the squad that bought him (config/playing_time_model.json
+        # `buy`; Bid plan, ROADMAP I18)
+        "buy_model": _buy_model_payload(comp) if BIDPLAN_BUY_MODEL else None,
     }
     _write(out_dir / "keep.json", out)
     return len(players)
+
+
+# Bid plan switches, both off (ROADMAP I18, 2026-10-27; METHODOLOGY §12). The buy model (a lot's P(plays) once
+# bought) is fitted and tested, but with it the 2027 sheets put David Warner (40), Mohammad Nabi (42) and
+# never-IPL domestic batters first: their contributions are career / translated ratings that don't see a
+# veteran's decline or a thin record, and only the free-agent P(plays) was keeping them off the lists.
+# The rival plans (I2) need max bids that measure value; under the "auction" money rule most max bids
+# are the purse left, so the rivals' plans bid each other's targets up to 10-15 cr.
+BIDPLAN_BUY_MODEL = False
+BIDPLAN_RIVAL_PLANS = False
+
+
+def _buy_model_payload(comp) -> dict | None:
+    """The buy model (intercept, coefficients) and the season it predicts, or None."""
+    m = playing_time.load_model() or {}
+    b = m.get("buy")
+    if not b:
+        return None
+    return {"intercept": b["intercept"], "coef": b["coef"], "season": comp.season if comp else None}
 
 
 def _keep_model_payload() -> dict | None:
@@ -2683,6 +2726,10 @@ def export(
                 n_reg = _export_auction_register(out_dir, col)
                 if n_reg is not None:
                     logger.info(f"  auction_register: {n_reg} players (Bid plan's pool)")
+                if BIDPLAN_RIVAL_PLANS:
+                    _export_bidplan_rivals(out_dir, col)
+                else:
+                    (out_dir / "bidplan_rivals.json").unlink(missing_ok=True)
                 logger.info(f"  auction_pool: {n_pool}, scout_index: {n_scout}, keep: {n_keep}")
             match_counts = _match_counts(con, col)
             n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)

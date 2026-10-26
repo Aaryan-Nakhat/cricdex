@@ -156,7 +156,10 @@ def bidplan(
     rules = {"squad_max": squad_max, "squad_min": squad_min, "overseas_max": overseas_cap}
     n_open = OPEN_SLOTS if open_slots is None else max(0, open_slots)
     display = {r["cricsheet_id"]: r["display_name"] for r in raw if r.get("display_name")}
-    ctx = build_context(data, pool, code, decisions, purse, n_open, rules, reg, display)
+    from cricdex.web_parity.loader import load_bidplan_rivals
+
+    ctx = build_context(data, pool, code, decisions, purse, n_open, rules, reg, display,
+                        load_bidplan_rivals("ipl"))  # fmt: skip
     overrides: dict[str, float] = {}
     for m in max_bid:
         nm, _, v = m.rpartition("=")

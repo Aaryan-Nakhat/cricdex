@@ -58,6 +58,14 @@ def load_keep(collection: str = "ipl", base: Path | str | None = None) -> dict:
     return _read(_base(base) / collection / "keep.json")
 
 
+def load_bidplan_rivals(collection: str = "ipl", base: Path | str | None = None) -> dict | None:
+    """Bid plan: every franchise's default plan, each seeing the others' (the export's
+    bidplan_rivals.json, `bidplan.rival_plan_bids`): {team: {player id: [max bid, share landed]}}, or
+    None when not exported (the rivals then bid by the demand model alone)."""
+    path = _base(base) / collection / "bidplan_rivals.json"
+    return json.loads(path.read_text(encoding="utf-8")).get("teams") if path.exists() else None
+
+
 def load_auction_register(collection: str = "ipl", base: Path | str | None = None) -> list | None:
     """Bid plan: the official auction list once published ([{id, base_price}], copied by the
     export from data/curated/<league>_auction_register.json), else None (the pool is inferred)."""

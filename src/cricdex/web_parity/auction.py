@@ -74,6 +74,11 @@ def build_pool(rows: list[dict], model: dict | None = None) -> list[dict]:
                 "capped": r.get("capped"),
                 # his last IPL price as a share of that season's purse (the bidders' reference price)
                 "prior_share": r.get("prior_share"),
+                # Bid plan's P(plays) of a buy reads these (ROADMAP I18); None in older exports
+                "age": r.get("age"),
+                "ipl_matches": r.get("ipl_matches"),
+                "last_share": r.get("last_share"),
+                "captain_ipl_last": r.get("captain_ipl_last"),
                 "base_price": base,
                 "vpc": pv / base,
             }

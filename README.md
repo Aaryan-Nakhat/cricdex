@@ -14,11 +14,11 @@ it predicts anything.
 ![License](https://img.shields.io/badge/license-MIT-informational)
 [![CI](https://github.com/Aaryan-Nakhat/cricdex/actions/workflows/ci.yml/badge.svg)](https://github.com/Aaryan-Nakhat/cricdex/actions/workflows/ci.yml)
 
-<p align="center"><a href="https://github.com/Aaryan-Nakhat/cricdex/raw/main/docs/media/hero.mp4"><img src="docs/media/hero.gif" alt="A 54-second tour of CricDex: the IPL mega auction run 300 times on a bidding model fitted on real auctions; Keep or release and Bid plan (beta); a real chase scored ball by ball for win probability; Bayesian ratings with their uncertainty; cross-league look-alikes at market prices; the honest backtest" width="100%"></a></p>
+<p align="center"><a href="https://github.com/Aaryan-Nakhat/cricdex/raw/main/docs/media/hero.mp4"><img src="docs/media/hero.gif" alt="A 54-second tour of CricDex: the IPL mega auction run 300 times on a bidding model fitted on real auctions; Keep or release and Bid plan (draft); a real chase scored ball by ball for win probability; Bayesian ratings with their uncertainty; cross-league look-alikes at market prices; the honest backtest" width="100%"></a></p>
 
 <p align="center"><b><a href="https://aaryan-nakhat.github.io/cricdex/">Open the live site</a></b> · no install, runs in your browser</p>
 
-**[Auction room](#-run-the-ipl-mega-auction-yourself)** · **[Keep or release](#-keep-or-release-before-the-retention-deadline)** · **[Bid plan](#-bid-plan-for-the-auction-room-beta)** · **[Form forecast](#-form-forecast-the-next-three-seasons)** · **[Net Game Impact](#-who-really-won-it)** ·
+**[Auction room](#-run-the-ipl-mega-auction-yourself)** · **[Keep or release](#-keep-or-release-before-the-retention-deadline)** · **[Bid plan](#-bid-plan-for-the-auction-room-draft)** · **[Form forecast](#-form-forecast-the-next-three-seasons)** · **[Net Game Impact](#-who-really-won-it)** ·
 **[Bayesian ratings](#-skill-judged-by-who-it-came-against)** · **[Scout](#-same-mould-other-leagues)** ·
 **[Ten metrics](#-ten-numbers-a-scorecard-hides)** · **[The backtest](#-does-any-of-it-predict-anything)** ·
 **[How it works](#-how-it-works)** · **[Quickstart](#-quickstart)** · **[Docs](#-docs)**
@@ -88,9 +88,9 @@ purse isn't published yet). In the terminal: `cricdex keep --team RCB`.
 
 ## 📋 Bid plan, for the auction room (beta)
 
-<p align="center"><img src="docs/media/bidplan.png" alt="Bid plan (beta): a live 2027 sheet for RCB (top five targets, max bids and a fallback chain), how its chance of landing a player under the max bid held up at the 2025 and 2026 auctions, and the replay against the real franchises" width="100%"></p>
+<p align="center"><img src="docs/media/bidplan.png" alt="Bid plan (draft): a live 2027 sheet for RCB (top five targets, max bids and a fallback chain), how its chance of landing a player under the max bid held up at the 2025 and 2026 auctions, and the replay against the real franchises" width="100%"></p>
 
-**Beta, not yet proven:** in replays of the real 2025 and 2026 auctions, at the real franchise's spend, its squad beat the real one on next-season output for 7 of 10 teams in the 2025 mega auction and 2 of 10 in the 2026 mini: ahead in the mega, behind in the mini. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
+**Draft, max bids not reliable yet:** player ratings don't yet see age or recent decline, so older players can look like bargains, and many max bids come out as just the purse left. In replays of the real 2025 and 2026 auctions, at the real franchise's spend, its squad beat the real one on next-season output for 3 of 10 teams in 2025 and 0 of 10 in 2026. The fix in progress is ratings that see age and form (ROADMAP I18). Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
 purse from Keep or release (your own calls carry over), lets the other nine teams bid in the Auction room's
 simulator 200 times to see what each player would cost, and picks the targets that add the most to your
 best XI for the money: each with a **max bid**, the odds of landing him under it, and a **fallback chain**
@@ -103,7 +103,7 @@ misses (no hand-set depth weight or need penalty); a team never buys back its ow
 what happened: about right overall (said 0.38, came true 0.39 in 2025; 0.48 / 0.52 in 2026), high in the top band
 (said 0.89, came true 0.76 in 2025). A starting sheet, not a
 forecast. In the terminal: `cricdex bidplan --team RCB`.
-→ [How it plans, and the replay](docs/METHODOLOGY.md#12-bid-plan-beta)
+→ [How it plans, and the replay](docs/METHODOLOGY.md#12-bid-plan-draft)
 
 
 ## 🔮 Form forecast: the next three seasons

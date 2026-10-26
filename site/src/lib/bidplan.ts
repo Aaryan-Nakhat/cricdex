@@ -22,6 +22,7 @@ import {
   ladderNext,
   oneTrial,
   openSquadPlaces,
+  rng,
   type Demand,
   priceTier,
   type FranchiseBase,
@@ -313,6 +314,18 @@ export interface Lot extends ContribFields {
   prior_share?: number | null;
   /** the set he comes up in (capped first; absent = capped) */
   capped?: boolean | null;
+  /** the buy model's inputs besides the squad (bidplan.py BUY_META_KEYS) */
+  age?: number | null;
+  ipl_matches?: number | null;
+  last_share?: number | null;
+  captain_ipl_last?: number | boolean | null;
+}
+
+/** P(plays) of an auction buy in the squad that bought him (keep.json `buy_model`). */
+export interface BuyModel {
+  intercept: number;
+  coef: Record<string, number>;
+  season: number | null;
 }
 
 export interface Rival {
@@ -338,10 +351,24 @@ export interface BidContext {
   all_lots?: boolean;
   demand?: Partial<Demand> | null;
   min_base?: number | null;
+  /** P(plays) of a buy in the squad that bought him; null = the lots keep their free-agent P(plays) */
+  buy_model?: BuyModel | null;
+  /** the other franchises' own plans: {team: {player id: [max bid, share of runs his plan lands him]}} */
+  rival_bids?: RivalBids;
 }
 
+export type RivalBids = Record<string, Record<string, [number, number]>>;
+
+type BuyMeta = { age?: number | null; ipl_matches?: number | null; last_share?: number | null; captain_ipl_last?: number | boolean | null };
+const buyMeta = (r: BuyMeta) => ({
+  age: r.age ?? null,
+  ipl_matches: r.ipl_matches ?? null,
+  last_share: r.last_share ?? null,
+  captain_ipl_last: r.captain_ipl_last ?? null,
+});
+
 function availRow(
-  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; projected_value: number; p_bought?: number | null; base_price: number; capped?: boolean | null; prior_share?: number | null } & ContribFields,
+  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; projected_value: number; p_bought?: number | null; base_price: number; capped?: boolean | null; prior_share?: number | null } & ContribFields & BuyMeta,
   tags: string,
   fromTeam: string | null,
 ): Lot {
@@ -364,6 +391,7 @@ function availRow(
     balls_faced: r.balls_faced ?? null,
     balls_bowled: r.balls_bowled ?? null,
     p_play: r.p_play ?? null,
+    ...buyMeta(r),
   };
   const anchor = (r as { anchor_price?: number | null }).anchor_price;
   if (anchor) out.anchor_price = anchor;
@@ -389,6 +417,7 @@ function squadRowAsLot(p: AssessedPlayer) {
     balls_faced: p.balls_faced ?? null,
     balls_bowled: p.balls_bowled ?? null,
     p_play: p.p_play ?? null,
+    ...buyMeta(p as unknown as BuyMeta),
   };
 }
 
@@ -436,6 +465,7 @@ export function buildContext(
   rules: Partial<KeepRules> | null = null,
   register: RegisterEntry[] | null = null,
   display: Record<string, string> | null = null,
+  rivalBids: RivalBids | null = null,
 ): BidContext {
   const compRules: KeepRules = { ...data.competition.rules };
   if (rules) for (const [k, v] of Object.entries(rules)) if (v !== null && v !== undefined) (compRules as unknown as Record<string, unknown>)[k] = v;
@@ -527,6 +557,8 @@ export function buildContext(
     rivals,
     available: avail,
     register: register !== null,
+    buy_model: (data as unknown as { buy_model?: BuyModel | null }).buy_model ?? null,
+    rival_bids: Object.fromEntries(Object.entries(rivalBids ?? {}).filter(([t]) => t !== team)),
   };
 }
 
@@ -581,13 +613,15 @@ export function rivalRuns(ctx: BidContext, trials: number = TRIALS): RivalRuns {
   for (let t = 0; t < trials; t++) {
     const buys: number[][] = bases.map(() => []);
     const paid: number[][] = bases.map(() => []);
-    oneTrial(bases, lots, opts, 1000 + t * 7919, (player, team, bestBid, price) => {
+    const onSaleT = (player: PoolPlayer, team: number, bestBid: number, price: number) => {
       const i = index.get(player.cricsheet_id) as number;
       const beat = ladderNext(bestBid);
       out[i][t] = Math.max(Number(player.base_price), beat);
       buys[team].push(i);
       paid[team].push(Number(price));
-    });
+    };
+    oneTrial(bases, lots, opts, 1000 + t * 7919, onSaleT);
+    applyRivalPlans(ctx, avail, out, t);
     ctx.rivals.forEach((r, k) => {
       if (!buys[k].length) return;
       const after = strength([...r.kept, ...buys[k].map((i) => lotPieces[i])], DEFAULT_NEEDS).total;
@@ -599,10 +633,158 @@ export function rivalRuns(ctx: BidContext, trials: number = TRIALS): RivalRuns {
   return { prices: out, rate, rival_gain: gainSum, rival_spend: spendSum };
 }
 
-/** The auction candidates as strength pieces (bidplan.py `_cands`). */
-function candsOf(ctx: BidContext): Piece[] {
-  return ctx.available.map((r) => {
-    const p = piece(r.cricsheet_id, r.name, r.contrib, r.role, r.is_overseas, r.tags, contribParts(r));
+// ---- P(plays) of a buy, in the squad that bought him (bidplan.py, ROADMAP I18) ----
+const PT_XI_SIZE = 11;
+const PT_XI_OVERSEAS = 4;
+interface Member {
+  cid: string;
+  c: number;
+  os: number;
+  k: number;
+  bowl: number;
+  bat: number;
+}
+
+/** playing_time.projected_xi (bidplan.py `projected_xi`). */
+export function projectedXi(squad: Member[]): Map<string, { in_xi: boolean; margin: number; rank: number; os_rank: number }> {
+  const order = [...squad].sort((a, b) => (a.c !== b.c ? (a.c > b.c ? -1 : 1) : cmpStr(a.cid, b.cid)));
+  const chosen: Member[] = [];
+  const outList: Member[] = [];
+  let k = 0;
+  let bw = 0;
+  let bt = 0;
+  let osN = 0;
+  for (const p of order) {
+    if (chosen.length >= PT_XI_SIZE || (p.os && osN >= PT_XI_OVERSEAS)) {
+      outList.push(p);
+      continue;
+    }
+    const nk = k + p.k;
+    const nbw = bw + p.bowl;
+    const nbt = bt + p.bat;
+    const room = PT_XI_SIZE - chosen.length - 1;
+    if (Math.max(0, 5 - nbw) + Math.max(Math.max(0, 1 - nk), Math.max(0, 6 - nbt)) > room) {
+      outList.push(p);
+      continue;
+    }
+    chosen.push(p);
+    k = nk;
+    bw = nbw;
+    bt = nbt;
+    osN += p.os;
+  }
+  let lastIn = 0;
+  if (chosen.length) {
+    lastIn = chosen[0].c;
+    for (const p of chosen) if (p.c < lastIn) lastIn = p.c;
+  }
+  let firstOut = lastIn;
+  if (outList.length) {
+    firstOut = outList[0].c;
+    for (const p of outList) if (p.c > firstOut) firstOut = p.c;
+  }
+  const line = 0.5 * (lastIn + firstOut);
+  const ids = new Set(chosen.map((p) => p.cid));
+  const res = new Map<string, { in_xi: boolean; margin: number; rank: number; os_rank: number }>();
+  let osRank = 0;
+  order.forEach((p, i) => {
+    if (p.os) osRank += 1;
+    res.set(p.cid, { in_xi: ids.has(p.cid), margin: p.c - line, rank: i + 1, os_rank: p.os ? osRank : 0 });
+  });
+  return res;
+}
+
+/** playing_time.play_features (bidplan.py `play_features`). */
+export function playFeatures(r: {
+  contrib: number; in_xi: boolean; margin: number; rank: number; overseas: boolean; os_rank: number;
+  age: number | null; ipl_matches: number | null; last_share: number | null; keeper: boolean; captain: boolean; season: number | null;
+}): Record<string, number> {
+  const a = r.age !== null && r.age !== undefined ? r.age - 28.0 : 0.0;
+  const m = Math.max(-6.0, Math.min(6.0, r.margin));
+  const ov = r.overseas ? 1.0 : 0.0;
+  const ls = r.last_share;
+  return {
+    contrib: Math.max(-6.0, Math.min(12.0, r.contrib)),
+    in_xi: r.in_xi ? 1.0 : 0.0,
+    margin: m,
+    rank_log: Math.log(Math.max(r.rank, 1)),
+    overseas: ov,
+    os_out: ov * (r.os_rank > PT_XI_OVERSEAS ? 1.0 : 0.0),
+    os_rank_gt4: ov * Math.max(0.0, r.os_rank - PT_XI_OVERSEAS),
+    ipl_exp: Math.log1p(Math.max(r.ipl_matches || 0.0, 0.0)),
+    never_ipl: !r.ipl_matches ? 1.0 : 0.0,
+    age: a / 5.0,
+    age_gt32: Math.max(0.0, a - 4.0) / 5.0,
+    last_share: ls !== null && ls !== undefined ? ls : 0.0,
+    no_last: ls !== null && ls !== undefined ? 0.0 : 1.0,
+    keeper: r.keeper ? 1.0 : 0.0,
+    captain: r.captain ? 1.0 : 0.0,
+    impact_era: (r.season || 0) >= 2023 ? 1.0 : 0.0,
+  };
+}
+
+const memberOf = (pc: Piece): Member => ({ cid: pc.id, c: pc.c, os: pc.os ? 1 : 0, k: pc.k ? 1 : 0, bowl: pc.bowl ? 1 : 0, bat: pc.bat ? 1 : 0 });
+
+/** P(plays) for a lot once this team has bought him at `price` (bidplan.py `buy_p`). */
+export function buyP(row: Lot, squad: Piece[], model: BuyModel, price: number, purse: number): number {
+  const me: Member = {
+    cid: row.cricsheet_id,
+    c: Number(row.contrib),
+    os: row.is_overseas ? 1 : 0,
+    k: row.role === "keeper" ? 1 : 0,
+    bowl: row.role === "bowler" || row.role === "all_rounder" ? 1 : 0,
+    bat: row.role === "batter" || row.role === "keeper" || row.role === "all_rounder" ? 1 : 0,
+  };
+  const sq = [...squad.filter((pc) => pc.id !== me.cid).map(memberOf), me];
+  const x = projectedXi(sq).get(me.cid) as { in_xi: boolean; margin: number; rank: number; os_rank: number };
+  const f = playFeatures({
+    contrib: me.c, in_xi: x.in_xi, margin: x.margin, rank: x.rank, os_rank: x.os_rank, overseas: !!row.is_overseas,
+    age: row.age ?? null, ipl_matches: row.ipl_matches ?? null, last_share: row.last_share ?? null,
+    keeper: row.role === "keeper", captain: !!row.captain_ipl_last, season: model.season ?? null,
+  });
+  f.price_share = Math.log(Math.max(price, 1e-6) / Math.max(purse, 1e-6));
+  let t = Number(model.intercept);
+  for (const [k, c] of Object.entries(model.coef)) t += Number(c) * f[k];
+  return 1.0 / (1.0 + Math.exp(-Math.max(-30.0, Math.min(30.0, t))));
+}
+
+/** Each lot's P(plays) if this team buys him at his expected price; null without a buy model
+ * (bidplan.py `lot_p`). */
+export function lotP(ctx: BidContext, expected: number[]): (number | null)[] | null {
+  const bm = ctx.buy_model;
+  if (!bm) return null;
+  const purse = Number(ctx.rules.purse);
+  return ctx.available.map((r, i) => (r.contrib !== null && r.contrib !== undefined ? buyP(r, ctx.kept, bm, expected[i], purse) : null));
+}
+
+const RIVAL_PLAN_SEED = 50021;
+
+/** The other franchises' own plans in run t (bidplan.py `_apply_rival_plans`): in the share of runs
+ * his plan lands him, a rival chases each target up to his max bid. */
+function applyRivalPlans(ctx: BidContext, avail: Lot[], out: number[][], t: number): void {
+  const rb = ctx.rival_bids ?? {};
+  if (!Object.keys(rb).length) return;
+  const rand = rng(RIVAL_PLAN_SEED + t * 7919);
+  for (const r of ctx.rivals) {
+    const bids = rb[r.team];
+    if (!bids || !Object.keys(bids).length) continue;
+    avail.forEach((p, i) => {
+      const b = bids[p.cricsheet_id];
+      if (!b) return;
+      if (rand() < Number(b[1])) {
+        const beat = Math.max(Number(p.base_price), ladderNext(Number(b[0])));
+        if (beat > out[i][t]) out[i][t] = beat;
+      }
+    });
+  }
+}
+
+/** The auction candidates as strength pieces (bidplan.py `_cands`); `pp` = each lot's P(plays) if bought. */
+function candsOf(ctx: BidContext, pp: (number | null)[] | null = null): Piece[] {
+  return ctx.available.map((r, i) => {
+    let parts = contribParts(r);
+    if (parts !== null && pp !== null && pp[i] !== null) parts = [...parts.slice(0, 4), pp[i] as number];
+    const p = piece(r.cricsheet_id, r.name, r.contrib, r.role, r.is_overseas, r.tags, parts);
     // a candidate gives the bench at most his P(plays) appearances a match (`benchFill`)
     p.cap = p.pp;
     p.ub = upperGain(p);
@@ -957,8 +1139,8 @@ export function plan(
   if (money === "none") rate = 0;
   else if (money === "market" && rate === null) rate = rivalRuns(ctx, nTrials).rate;
   const marketRate: number = rate ?? 0;
-  const cands = candsOf(ctx);
   const expected = prices.map((ps) => median(ps));
+  const cands = candsOf(ctx, lotP(ctx, expected));
   const sqMax = Number(ctx.rules.squad_max);
   const sqMin = Number(ctx.rules.squad_min);
   const reserve0 = Math.max(0, sqMin - ctx.kept.length) * MIN_SLOT_PRICE;

@@ -453,7 +453,7 @@ Cameron Green 17.3, Rishabh Pant 17.3, Jofra Archer 16.7, Arshdeep Singh 16.1, S
 
 The room answers "where does each star go?". **Bid plan** answers "what should *my* team bid?"
 (page *Bid plan*, `cricdex bidplan --team RCB`; full method and the replay of the 2025 and 2026
-auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-beta)).
+auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-draft)).
 
 1. **Rivals only.** Your team steps out; the other nine (their Keep-or-release squads, each opening
    at least 8 places) run through this simulator 200 times. In each run, for each player, the

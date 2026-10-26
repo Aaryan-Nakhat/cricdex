@@ -235,7 +235,7 @@ the plan never buys back its own releases). About 5–15 seconds (200 rival auct
 
 Reads `site/public/data/ipl/keep.json` + `auction_pool.json`; the same optimiser as the website's Bid plan
 page (`cricdex.web_parity.bidplan`, locked by `test_scripts/test_bidplan_parity.py`). Method and the replay
-of the 2025 and 2026 auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-beta).
+of the 2025 and 2026 auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-draft).
 
 ---
 

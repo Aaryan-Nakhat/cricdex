@@ -253,6 +253,9 @@ export interface AuctionPoolRow {
   p_play_free?: number | null;
   /** his last IPL price as a share of that season's purse (the bidders' reference price) */
   prior_share?: number | null;
+  /** the buy model's inputs (Bid plan, ROADMAP I18) */
+  ipl_matches?: number | null;
+  last_share?: number | null;
 }
 /** The auction pool, with the fitted market-price model (`<c>/price_model.json`) installed for
  * `buildPool` / `marketPrice` before the rows arrive (a missing model leaves the on-field curve). */
@@ -429,6 +432,13 @@ export const getKeep = async (c: string) => {
   registerKeepModel(d.keep_model ?? null);
   return d;
 };
+/** Bid plan: every franchise's default plan, each seeing the others' (bidplan_rivals.json, bidplan.py
+ * `rival_plan_bids`), or null when not exported (the rivals then bid by the demand model alone). */
+export const fetchBidplanRivals = (c: string) =>
+  getJSON<{ teams: import("./bidplan").RivalBids }>(`${c}/bidplan_rivals.json`)
+    .then((x) => x.teams)
+    .catch(() => null);
+
 /** Bid plan: the official auction list once it is published (data/curated/ipl_auction_register.json, copied by the
  * export as `<c>/auction_register.json`), else null: the plan then infers the pool. */
 export const getAuctionRegister = (c: string) =>

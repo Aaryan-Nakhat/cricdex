@@ -1050,6 +1050,227 @@ def free() -> None:
     _write(rep)
 
 
+# ---- P(plays) of an auction buy, given the squad that bought him (ROADMAP I18, 2026-10-27) -------------
+
+# Candidates declared 2026-10-27 before any number. B0 is what Bid plan used for a lot until then (his
+# free-agent chance, which includes the chance nobody buys him); the others are conditional on the
+# buy: his rank in the buying squad (the squad model's inputs), fitted on all squad players (B1) or
+# on the buys alone (B2), and B3 adds what he cost (teams play the players they paid for).
+BUY_CANDIDATES = {
+    "B0 the free-agent model (reference)": "fa",
+    "B1 the squad model, all squad players": "squad",
+    "B2 the squad model's inputs, fitted on auction buys": "buys",
+    "B3 B2 + his price (ln of price ÷ purse)": "buys_price",
+}
+BUY_FEATURES = PLAY_CANDIDATES["P5 P4 + keeper, captain, impact era"]
+
+
+def _buy_rows() -> list[dict]:
+    """The squad rows (`play`) of players bought at that season's auction, with ln(price ÷ purse)."""
+    import pickle
+
+    hist = json.loads(ipm.HISTORY.read_text(encoding="utf-8"))
+    price = {(r["season"], r["team"], r["cricsheet_id"]): float(r["price_cr"]) for r in hist["lots"]
+             if r.get("sold") and r.get("cricsheet_id") and r.get("price_cr")}  # fmt: skip
+    data = pickle.loads(CACHE_PLAY.read_bytes())
+    out = []
+    for s in PLAY_SEASONS:
+        purse = float(hist["auctions"][str(s)]["purse_cr"])
+        for r in data[s]["rows"]:
+            p = price.get((s, r["team"], r["cid"]))
+            if p is None:
+                continue
+            r = {**r, "price_share": math.log(p / purse)}
+            r["_f"] = {**pt.play_features(r), "price_share": r["price_share"]}
+            out.append(r)
+    return out
+
+
+@app.command()
+def buy() -> None:
+    """P(plays) for an auction buy in the squad that bought him: candidates fitted on 2018-2023, chosen
+    on the 2024 buys, the chosen one refitted on 2018-2024 and scored once on the 2025-26 buys."""
+    import pickle
+
+    rep = _read()
+    rows = _buy_rows()
+    allsq = _all_play_rows()
+    fa = pickle.loads(CACHE_FA.read_bytes())
+    fa_by = {(r["season"], r["cid"]): r for s in PLAY_SEASONS for r in fa[s]}
+    fa_feats = FA_CANDIDATES[rep["free_agent"]["chosen"]]
+    fa_alpha = rep["free_agent"]["alpha"]
+
+    def predict(kind: str, train_until: int, test: list[dict], alpha) -> np.ndarray:
+        if kind == "fa":
+            tr = [r for s in PLAY_SEASONS if s <= train_until for r in fa[s]]
+            for r in tr:
+                r["_f"] = pt.fa_features(r)
+            m = pt.fit_play_model(tr, fa_feats, fa_alpha)
+            return np.array([m.prob(pt.fa_features(fa_by[(r["season"], r["cid"])])) for r in test])
+        if kind == "squad":
+            tr = [r for r in allsq if r["season"] <= train_until]
+            m = pt.fit_play_model(tr, BUY_FEATURES, alpha)
+        else:
+            feats = BUY_FEATURES + (("price_share",) if kind == "buys_price" else ())
+            tr = [r for r in rows if r["season"] <= train_until]
+            m = pt.fit_play_model(tr, feats, alpha)
+        return np.array([m.prob(r["_f"]) for r in test])
+
+    # B0 needs his free-agent row: score every candidate on the buys that have one
+    rows = [r for r in rows if (r["season"], r["cid"]) in fa_by]
+    va = [r for r in rows if r["season"] == VALID]
+    te = [r for r in rows if r["season"] in TEST]
+    sel, best = {}, None
+    for name, kind in BUY_CANDIDATES.items():
+        for alpha in PLAY_ALPHAS if kind != "fa" else (None,):
+            p = predict(kind, VALID - 1, va, alpha)
+            m = _play_metrics(p, va)
+            label = name if alpha is None else f"{name} (alpha={alpha})"
+            sel[label] = m
+            typer.echo(f"{label[:66]:66} LL {m['log_loss']:.4f} Brier {m['brier_share']:.4f} "
+                       f"MAE {m['mae_share']:.3f} rho {m['spearman']:.3f} (n {m['n']})")  # fmt: skip
+            if kind != "fa" and (best is None or m["log_loss"] < best[0]):
+                best = (m["log_loss"], name, alpha)
+    _, chosen, alpha = best
+    typer.echo(f"chosen: {chosen} (alpha={alpha})")
+    test = {}
+    for name in dict.fromkeys([chosen, "B0 the free-agent model (reference)"]):
+        kind = BUY_CANDIDATES[name]
+        p = predict(kind, VALID, te, alpha if name == chosen else None)
+        test[name] = {"pooled": _play_metrics(p, te)}
+        for s in TEST:
+            idx = [k for k, r in enumerate(te) if r["season"] == s]
+            test[name][str(s)] = _play_metrics(p[idx], [te[k] for k in idx])
+        brief = {k: v for k, v in test[name]["pooled"].items() if k != "calibration_fifths"}
+        typer.echo(f"TEST {name[:60]:60} {json.dumps(brief)}")
+    rep["buy"] = {
+        "protocol": "candidates fitted on the squads / buys of 2018-2023, chosen on the 2024 buys by the "
+                    "binomial log loss per match; the chosen one refitted on 2018-2024 and scored once on "
+                    "the 2025 and 2026 buys",
+        "selection": sel, "chosen": chosen, "alpha": alpha, "test": test,
+        "rows_by_season": {str(s): sum(1 for r in rows if r["season"] == s) for s in PLAY_SEASONS},
+    }  # fmt: skip
+    _write(rep)
+
+
+# ---- what a buy actually adds: the expected contribution calibrated on real buys (ROADMAP I18) ----------
+
+# Candidates declared 2026-10-27 before any number. x = P(plays | bought) (the buy model, fitted on the
+# auctions before) × his contribution a match as of the auction; y = what he then added a match of his
+# side's season (his realised contribution × the share of matches he played; 0 if he barely played).
+# A lot the market passes over is often one our numbers overrate (a veteran whose career rating hides
+# his decline, a domestic batter whose translated rating is thin), so the expected value of a buy is
+# calibrated on what real buys delivered, by age, years away from the IPL and no IPL at all.
+VALUE_CANDIDATES = {
+    "V0 x as it stands (reference)": (),
+    "V1 one shrink factor": ("one",),
+    "V2 shrink by age past 32, years away, never in the IPL": (
+        "one",
+        "age_gt32",
+        "gap",
+        "never_ipl",
+    ),
+}
+
+
+def _value_feats(r: dict) -> dict[str, float]:
+    age = r.get("age")
+    a = (age - 28.0) if age is not None else 0.0
+    gap = r.get("gap")
+    return {"one": 1.0, "age_gt32": max(0.0, a - 4.0) / 5.0,
+            "gap": 0.0 if gap is None else min(max(gap, 0.0), pt.GAP_MAX),
+            "never_ipl": 1.0 if gap is None else 0.0}  # fmt: skip
+
+
+def _value_rows() -> list[dict]:
+    """Every real buy of 2019-2026 with x (walk-forward buy model × his as-of contribution), y and
+    the shrink inputs (age, years since his last IPL match)."""
+    import pickle
+
+    import bidplan_backtest as bt
+
+    rep = _read()
+    kind = BUY_CANDIDATES[rep["buy"]["chosen"]]
+    feats = BUY_FEATURES + (("price_share",) if kind == "buys_price" else ())
+    rows = _buy_rows()
+    fa = pickle.loads(CACHE_FA.read_bytes())
+    gap = {(r["season"], r["cid"]): r["gap"] for s in PLAY_SEASONS for r in fa[s]}
+    out = []
+    for s in PLAY_SEASONS[1:]:
+        m = pt.fit_play_model([r for r in rows if r["season"] < s], feats, rep["buy"]["alpha"])
+        nv = bt._next_season_values(s)
+        for r in rows:
+            if r["season"] != s:
+                continue
+            p = m.prob(r["_f"])
+            got = nv.get(r["cid"])
+            y = got[0] * got[1][-1] if got else 0.0
+            g = gap.get((s, r["cid"]), "missing")
+            if g == "missing":  # not in that auction's free-agent pool: no gap known
+                continue
+            out.append({"season": s, "cid": r["cid"], "name": r["name"], "x": p * r["contrib"],
+                        "y": y, "age": r.get("age"), "gap": g})  # fmt: skip
+    return out
+
+
+def _fit_value(rows: list[dict], feats: tuple[str, ...]) -> dict[str, float]:
+    """Least squares of y on x × each shrink input (no intercept): y ≈ x × Σ b_k f_k."""
+    if not feats:
+        return {}
+    X = np.array([[r["x"] * _value_feats(r)[k] for k in feats] for r in rows])
+    y = np.array([r["y"] for r in rows])
+    b, *_ = np.linalg.lstsq(X, y, rcond=None)
+    return {k: float(v) for k, v in zip(feats, b, strict=True)}
+
+
+def _pred_value(r: dict, coef: dict[str, float]) -> float:
+    if not coef:
+        return r["x"]
+    f = _value_feats(r)
+    return r["x"] * sum(c * f[k] for k, c in coef.items())
+
+
+@app.command()
+def value() -> None:
+    """Calibrate a buy's expected contribution on what real buys delivered: candidates fitted on the
+    2019-2023 buys, chosen on 2024, the chosen one refitted on 2019-2024 and scored once on 2025-26."""
+    rows = _value_rows()
+    va = [r for r in rows if r["season"] == VALID]
+    sel, best = {}, None
+    for name, feats in VALUE_CANDIDATES.items():
+        coef = _fit_value([r for r in rows if r["season"] < VALID], feats)
+        err = float(np.mean([(r["y"] - _pred_value(r, coef)) ** 2 for r in va]))
+        bias = float(np.mean([_pred_value(r, coef) - r["y"] for r in va]))
+        sel[name] = {"mse": round(err, 4), "bias": round(bias, 4), "n": len(va), "coef": coef}
+        typer.echo(f"{name:60} MSE {err:.4f} mean(pred − real) {bias:+.3f} (n {len(va)}) {coef}")
+        if best is None or err < best[0]:
+            best = (err, name)
+    chosen = best[1]
+    typer.echo(f"chosen: {chosen}")
+    test = {}
+    for name in dict.fromkeys([chosen, "V0 x as it stands (reference)"]):
+        coef = _fit_value([r for r in rows if r["season"] <= VALID], VALUE_CANDIDATES[name])
+        test[name] = {}
+        for s in TEST:
+            te = [r for r in rows if r["season"] == s]
+            test[name][str(s)] = {
+                "mse": round(float(np.mean([(r["y"] - _pred_value(r, coef)) ** 2 for r in te])), 4),
+                "bias": round(float(np.mean([_pred_value(r, coef) - r["y"] for r in te])), 4),
+                "n": len(te)}  # fmt: skip
+        typer.echo(f"TEST {name:55} {json.dumps(test[name])}")
+    rep = _read()
+    rep["value"] = {
+        "protocol": "candidates fitted on the 2019-2023 buys, chosen on the 2024 buys by squared error "
+                    "of what each buy added a match of his side's season; the chosen one refitted on "
+                    "2019-2024 and scored once on the 2025 and 2026 buys",
+        "selection": sel, "chosen": chosen, "test": test,
+        "coef_le2024": _fit_value([r for r in rows if r["season"] <= VALID], VALUE_CANDIDATES[chosen]),
+        "coef": _fit_value(rows, VALUE_CANDIDATES[chosen]),
+        "rows_by_season": {str(s): sum(1 for r in rows if r["season"] == s) for s in PLAY_SEASONS},
+    }  # fmt: skip
+    _write(rep)
+
+
 ASOF_CONTRIB = DATA_DIR / "metrics" / ".playing_time" / "asof_contrib.parquet"
 
 
@@ -1138,6 +1359,14 @@ def ship(next_auction: str = typer.Option("2026-12-16", "--before")) -> None:
         r["_f"] = pt.fa_features(r)
     chosen_fa, alpha_fa = rep["free_agent"]["chosen"], rep["free_agent"]["alpha"]
     fm_ = pt.fit_play_model(frows, FA_CANDIDATES[chosen_fa], alpha_fa)
+    # P(plays) of an auction buy in the squad that bought him (`buy`), refitted on every season's buys
+    buy_model = None
+    if rep.get("buy"):
+        kind = BUY_CANDIDATES[rep["buy"]["chosen"]]
+        feats = BUY_FEATURES + (("price_share",) if kind == "buys_price" else ())
+        src = _all_play_rows() if kind == "squad" else _buy_rows()
+        bm_ = pt.fit_play_model(src, feats, rep["buy"]["alpha"])
+        buy_model = {**bm_.to_json(), "alpha": rep["buy"]["alpha"], "chosen": rep["buy"]["chosen"]}
     model = {
         "schema": 1,
         "version": pt.VERSION,
@@ -1155,6 +1384,7 @@ def ship(next_auction: str = typer.Option("2026-12-16", "--before")) -> None:
         "replacement": repl,
         "play": {**pm_.to_json(), "alpha": alpha, "chosen": chosen_play},
         "free_agent": {**fm_.to_json(), "alpha": alpha_fa, "chosen": chosen_fa},
+        "buy": buy_model,
         "evaluation": {
             "balls": {"protocol": rep["balls"]["protocol"], "test": rep["balls"]["test"]},
             "play": {"protocol": rep["play"]["protocol"],

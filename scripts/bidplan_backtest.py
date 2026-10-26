@@ -157,6 +157,38 @@ def _p_play(season: int) -> tuple[dict, dict]:
     return _P[season]
 
 
+_BUY: dict = {}
+
+
+def _buy(season: int) -> tuple[dict | None, dict]:
+    """(the buy model fitted on the auctions before `season` (playing_time_fit `buy`, its chosen
+    candidate), {cid: the buy model's inputs known before the auction: age, IPL matches, last season's
+    share, last season's captain}) from the free-agent rows of that auction's pool."""
+    if season not in _BUY:
+        import pickle
+
+        import playing_time_fit as ptf
+
+        from cricdex.scout import playing_time as pt
+
+        rep_ = ptf._read()
+        model = None
+        if rep_.get("buy"):
+            kind = ptf.BUY_CANDIDATES[rep_["buy"]["chosen"]]
+            feats = ptf.BUY_FEATURES + (("price_share",) if kind == "buys_price" else ())
+            src = ptf._all_play_rows() if kind == "squad" else ptf._buy_rows()
+            m = pt.fit_play_model(
+                [r for r in src if r["season"] < season], feats, rep_["buy"]["alpha"]
+            )
+            model = {**m.to_json(), "season": season}
+        fa = pickle.loads(ptf.CACHE_FA.read_bytes())
+        meta = {r["cid"]: {"age": r["age"], "ipl_matches": r["ipl_matches"], "last_share": r["last_share"],
+                           "captain_ipl_last": 1 if r["captain"] else 0}
+                for r in fa.get(season, [])}  # fmt: skip
+        _BUY[season] = (model, meta)
+    return _BUY[season]
+
+
 def _contrib(season: int, cid: str | None, free: bool) -> tuple[float | None, tuple | None]:
     """(contribution per match, its parts (batting, bowling, balls faced, balls bowled, P(plays)))
     as of the auction (`scripts/playing_time_fit.py asof-contrib`; P(plays) as a free agent when
@@ -335,14 +367,16 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
 
 
 def _team_result(si: dict, team: str, trials: int, tags, demand: dict | None = None,
-                 same: bool = True, money: str = bp.MONEY) -> dict:  # fmt: skip
+                 same: bool = True, money: str = bp.MONEY, buy: bool = False) -> dict:  # fmt: skip
     purse = si["purse"]
     rivals = [
         {"team": t, "kept": v["kept"], "purse_left": purse - v["cost"]}
         for t, v in sorted(si["teams"].items()) if t != team
     ]  # fmt: skip
     me = si["teams"][team]
-    avail = [{k: v for k, v in r.items() if not k.startswith("_")} for r in si["avail"]]
+    buy_model, buy_meta = _buy(si["season"])
+    avail = [{**{k: v for k, v in r.items() if not k.startswith("_")},
+              **buy_meta.get(r["cricsheet_id"], {})} for r in si["avail"]]  # fmt: skip
     ctx = {
         "team": team,
         "rules": {**RULES, "purse": purse},
@@ -359,6 +393,7 @@ def _team_result(si: dict, team: str, trials: int, tags, demand: dict | None = N
         # the replay's lots are that auction's (sold + unsold alternatives), at its lowest base price,
         # rivals bidding by the demand model fitted on 2019-2024 (scripts/auction_demand_fit.py)
         "all_lots": True,
+        "buy_model": buy_model if buy else None,
         "demand": demand,
         "min_base": min(min(float(x.get("base_price_cr") or 99) for x in si["lots"]), 0.3),
     }
@@ -368,13 +403,20 @@ def _team_result(si: dict, team: str, trials: int, tags, demand: dict | None = N
     actual_lots = [lot for lot in si["lots"] if lot["team"] == team]
     actual_spend = sum(float(lot["price_cr"]) for lot in actual_lots)
     by_id = {r["cricsheet_id"]: r for r in si["avail"]}
+    # the real buys count at the same P(plays) the plan gives a lot it buys (the buy model, when there)
+    pp_lot = bp.lot_p(ctx, [bp._median(ps) for ps in prices])
+    pp_of = ({r["cricsheet_id"]: q for r, q in zip(ctx["available"], pp_lot, strict=True)}
+             if pp_lot is not None else {})  # fmt: skip
     actual_pieces = []
     for lot in actual_lots:
         cid = lot.get("cricsheet_id")
         r = by_id.get(cid or "")
         if r:
+            parts = bp.contrib_parts(r)
+            if parts is not None and pp_of.get(cid) is not None:
+                parts = (*parts[:4], pp_of[cid])
             actual_pieces.append(bp.piece(cid, r["name"], r.get("contrib"), r["role"],
-                                          r["is_overseas"], r["tags"], bp.contrib_parts(r)))  # fmt: skip
+                                          r["is_overseas"], r["tags"], parts))  # fmt: skip
         else:  # an uncapped player with no ball-by-ball: replacement level, role unknown
             ov = (lot.get("country") or "IND") != "IND"
             actual_pieces.append(bp.piece(f"name:{lot['name']}", lot["name"], None, "batter", ov,
@@ -395,10 +437,11 @@ def _team_result(si: dict, team: str, trials: int, tags, demand: dict | None = N
     for label, left in runs:
         c = {**ctx, "purse_left": left}
         res = bp.plan(c, prices=prices, rate=rr["rate"], money=money)
-        fol = bp.follow_plan(c, res, real)
+        fol = bp.follow_plan(c, res, real, rival=prices)
         act = bp.strength(me["kept"] + actual_pieces, res["needs"])
         got = set(fol["bought"])
-        ours_pieces = me["kept"] + [p for p in bp._cands(c) if p["id"] in got]
+        pp = bp.lot_p(c, [bp._median(ps) for ps in prices])
+        ours_pieces = me["kept"] + [p for p in bp._cands(c, pp) if p["id"] in got]
         nx_ours = _next_strength(ours_pieces, si["next"], res["needs"])
         nx_act = _next_strength(me["kept"] + actual_pieces, si["next"], res["needs"])
         out[label] = {
@@ -672,6 +715,9 @@ def main(
     money: str = typer.Option(
         bp.MONEY, "--money", help=f"How an unspent crore is valued: {bp.MONEY_RULES}."
     ),
+    buy: bool = typer.Option(
+        False, "--buy/--no-buy", help="A lot's P(plays) once bought (the buy model)."
+    ),
 ) -> None:
     """Replays from the demand fit's cached season inputs (each lot priced from the other 2018-2024
     auctions for 2019-2024, walk-forward for 2025 / 2026), rivals bidding by the demand model fitted on
@@ -693,12 +739,12 @@ def main(
         results[str(season)] = {}
         same = season not in VALIDATION
         for team in sorted(si["teams"]):
-            f = work / f"{season}_{team}_{trials}_{money}.json"
+            f = work / f"{season}_{team}_{trials}_{money}{'_buy' if buy else ''}.json"
             if f.exists():
                 results[str(season)][team] = json.loads(f.read_text(encoding="utf-8"))
                 continue
             t = time.time()
-            r = _team_result(si, team, trials, None, demand, same=same, money=money)
+            r = _team_result(si, team, trials, None, demand, same=same, money=money, buy=buy)
             f.write_text(json.dumps(r, indent=1), encoding="utf-8")
             results[str(season)][team] = r
             print(f"  {season} {team}: {time.time() - t:.0f}s", flush=True)

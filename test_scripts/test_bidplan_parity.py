@@ -250,13 +250,45 @@ def _cases() -> list[dict]:
     out = []
     for c in SYNTH:
         out.append({"data": data, "pool": LEAGUE["_pool"], "trials": 25, **c})
+    # P(plays) of a lot once bought (the buy model, ROADMAP I18; off in the export, locked here)
+    pt_model = json.loads((ROOT / "config" / "playing_time_model.json").read_text(encoding="utf-8"))
+    if pt_model.get("buy"):
+        b = pt_model["buy"]
+        pool = [dict(r, age=24.0 + (i % 15), ipl_matches=(i * 7) % 60, last_share=None if i % 3 else 0.5,
+                     captain_ipl_last=1 if i == 2 else 0) for i, r in enumerate(LEAGUE["_pool"])]  # fmt: skip
+        out.append({"data": {**data, "buy_model": {"intercept": b["intercept"], "coef": b["coef"],
+                                                   "season": 2027}},
+                    "pool": pool, "trials": 25, "team": "BBB", "open_slots": 5})  # fmt: skip
+    # the rivals' own plans chasing two lots (ROADMAP I2): every rival but ours, two targets each
+    ids = [r["cricsheet_id"] for r in LEAGUE["_pool"]][:3]
+    out.append(
+        {
+            "data": data,
+            "pool": LEAGUE["_pool"],
+            "trials": 25,
+            "team": "AAA",
+            "open_slots": 4,
+            "rival_bids": {t: {ids[0]: [3.0, 0.6], ids[2]: [1.2, 0.9]} for t in data["teams"]},
+        }
+    )
     keep_f = SITE_DATA / "ipl" / "keep.json"
     pool_f = SITE_DATA / "ipl" / "auction_pool.json"
     if keep_f.exists() and pool_f.exists():
         real = json.loads(keep_f.read_text(encoding="utf-8"))
         rows = json.loads(pool_f.read_text(encoding="utf-8"))
+        riv_f = SITE_DATA / "ipl" / "bidplan_rivals.json"
+        riv = json.loads(riv_f.read_text(encoding="utf-8"))["teams"] if riv_f.exists() else None
         for team in real["teams"]:
-            out.append({"data": real, "pool": rows, "team": team, "open_slots": 8, "trials": 30})
+            out.append(
+                {
+                    "data": real,
+                    "pool": rows,
+                    "team": team,
+                    "open_slots": 8,
+                    "trials": 30,
+                    "rival_bids": riv,
+                }
+            )
     return out
 
 
@@ -319,7 +351,7 @@ def _python(cases: list[dict]) -> dict:
         display = {r["cricsheet_id"]: r["display_name"] for r in c["pool"] if r.get("display_name")}
         ctx = build_context(
             c["data"], pool, c["team"], c.get("decisions") or {}, c.get("purse"),
-            c["open_slots"], c.get("rules"), c.get("register"), display,
+            c["open_slots"], c.get("rules"), c.get("register"), display, c.get("rival_bids"),
         )  # fmt: skip
         runs = rival_runs(ctx, c["trials"])
         prices = runs["prices"]

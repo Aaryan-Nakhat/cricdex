@@ -8,6 +8,27 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### I18 worked: buy model and rival plans built, tested and switched off; Cummins and the price gap explained (2026-10-27)
+
+- **Bid plan relabelled from beta to draft** on the site, in the README and in METHODOLOGY: max bids are not
+  reliable until player ratings see age and recent form (ROADMAP I18, Tier D #34).
+
+- **P(plays) of an auction buy** (METHODOLOGY §6c): the squad model's inputs plus price, fitted on the real buys
+  of 2018–24 (`playing_time_fit.py buy`). Chosen on 2024 (B3), test 2025–26 log loss 0.574 against 0.749 for the
+  free-agent P(plays) Bid plan uses. Parity-locked (`buy_p` / `lot_p` ⇄ `buyP` / `lotP`; keep.json `buy_model`;
+  the pool carries `ipl_matches`, `last_share`, `age`, `captain_ipl_last`). **Off** (`BIDPLAN_BUY_MODEL`). It puts
+  Warner, Nabi, du Plessis and never-IPL domestic batters first, and a value calibration on real buys
+  (`playing_time_fit.py value`) chose no shrink. The ratings' missing decline is the root (Tier D #34).
+- **Rival plans (I2)**: `rival_plan_bids` / `_apply_rival_plans` ⇄ `applyRivalPlans`, the export's
+  `bidplan_rivals.json`, page and CLI loaders. **Off** (`BIDPLAN_RIVAL_PLANS`): with purse-bound max bids the plans
+  bid each other to 10–15 cr, unconverged after three passes.
+- **Replay fix**: `follow_plan` now replays the "auction" money rule with its money value (it used λ = 0) and the
+  lots' P(plays). The corrected 2025–26 replays (seen three times): same-spend next season 3 of 10 and 0 of 10.
+  `bidplan_backtest.py --buy` for the buy model (1 of 10 and 0 of 10).
+- **Cummins** (57th): a real signal, documented with his 2024–26 bowling against the league and his 8 of 15
+  matches in 2026. **Kartik Sharma, Prashant Veer**: bought on SMAT 2025–26, UP T20 League and trial form outside
+  the data. The gate's xfail reasons now say so.
+
 ### Replacement curves, a value for unspent purse, and dates of birth (issue I17, 2026-10-26)
 
 - **Replacement level as a curve** (METHODOLOGY §6c). The levels were one number per batting-slot group and per

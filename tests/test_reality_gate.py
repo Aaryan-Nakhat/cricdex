@@ -89,7 +89,7 @@ def plans() -> dict:
     """The ten default 2027 Bid plans, as the page and `cricdex bidplan` build them."""
     from cricdex.web_parity import build_pool, load_auction_pool
     from cricdex.web_parity.bidplan import OPEN_SLOTS, TRIALS, build_context, plan, rival_runs
-    from cricdex.web_parity.loader import load_auction_register, load_keep
+    from cricdex.web_parity.loader import load_auction_register, load_bidplan_rivals, load_keep
 
     data = load_keep("ipl")
     raw = load_auction_pool("ipl")
@@ -98,7 +98,8 @@ def plans() -> dict:
     display = {r["cricsheet_id"]: r["display_name"] for r in raw if r.get("display_name")}
     out = {}
     for team in data["teams"]:
-        ctx = build_context(data, pool, team, {}, None, OPEN_SLOTS, None, reg, display)
+        ctx = build_context(data, pool, team, {}, None, OPEN_SLOTS, None, reg, display,
+                            load_bidplan_rivals("ipl"))  # fmt: skip
         rr = rival_runs(ctx, TRIALS)
         out[team] = {
             "ctx": ctx,
@@ -153,8 +154,10 @@ def _p_bids(lot: dict, kept: list[dict], rules: dict) -> float:
     return 1.0 / (1.0 + math.exp(-z))
 
 
-@pytest.mark.xfail(strict=True, reason="ROADMAP I18: plans don't see each other's bids (I2), and "
-                   "auction buys are valued at free-agent P(plays)")  # fmt: skip
+@pytest.mark.xfail(strict=True, reason="ROADMAP I18: open. The buy model (P(plays) once bought) and the "
+                   "rival plans (I2) were built and tested on 2026-10-27 and are switched off: with them "
+                   "the sheets put veterans out of the IPL first (their contributions don't see decline), "
+                   "and purse-bound max bids made the rival plans bid each other to 10-15 cr")  # fmt: skip
 def test_no_player_tops_more_sheets_than_teams_would_bid_for_him(plans):
     """A player is the first target on at most as many sheets as franchises would bid for him at
     all: ten times the mean fitted chance a franchise bids for him (`_p_bids`, the demand model fitted
@@ -177,8 +180,10 @@ def test_no_player_tops_more_sheets_than_teams_would_bid_for_him(plans):
     assert not bad, "; ".join(bad)
 
 
-@pytest.mark.xfail(strict=True, reason="ROADMAP I18: plans don't see each other's bids (I2), and "
-                   "auction buys are valued at free-agent P(plays)")  # fmt: skip
+@pytest.mark.xfail(strict=True, reason="ROADMAP I18: open. The buy model (P(plays) once bought) and the "
+                   "rival plans (I2) were built and tested on 2026-10-27 and are switched off: with them "
+                   "the sheets put veterans out of the IPL first (their contributions don't see decline), "
+                   "and purse-bound max bids made the rival plans bid each other to 10-15 cr")  # fmt: skip
 def test_minimum_price_player_does_not_top_most_sheets(plans):
     """A player rivals don't bid above his base price for (median price to beat = base price) is
     first on at most half the sheets."""
@@ -197,7 +202,10 @@ def test_minimum_price_player_does_not_top_most_sheets(plans):
 # ---- 4. stars rank high --------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="ROADMAP I18: Cummins ranks 57th by expected season value")
+@pytest.mark.xfail(strict=True, reason="ROADMAP I18, a real signal, not a model error (METHODOLOGY §13): "
+                   "Cummins played 8 of SRH's 15 matches in 2026 and his IPL 2024-26 bowling was about the "
+                   "league average; his 18 cr retention pays for the captaincy, which the season value "
+                   "doesn't price")  # fmt: skip
 def test_known_stars_rank_in_the_pool_top_n():
     """Players their franchises retained at the first capped slab (18 cr+, IPL Player Regulations
     2025-27) rank, by expected season value, inside the top N, N = the number of squad players their
@@ -265,8 +273,9 @@ def test_keep_calls_keep_the_first_slab_stars():
 # ---- 7. star prices ------------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="ROADMAP I18: scouted uncapped 2026 buys (Kartik Sharma, "
-                   "Prashant Veer) priced far below what was paid")  # fmt: skip
+@pytest.mark.xfail(strict=True, reason="ROADMAP I18: open. Kartik Sharma and Prashant Veer were bought "
+                   "on 2025-26 SMAT and UP T20 League form and CSK trials, none of it in the data (Cricsheet's "
+                   "SMAT ends Dec 2024); no sourced, fitted feature explains them")  # fmt: skip
 def test_star_market_price_within_documented_error():
     """For the players sold for 10 cr+ at the last real auction (2026), the median of market price ÷
     real price is not below the documented 0.36 (AUCTION_MATH Part 0)."""

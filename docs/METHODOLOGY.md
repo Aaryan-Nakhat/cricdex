@@ -24,7 +24,7 @@ metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [
 | [9. Limits](#9-limits) | What the models can't see, and what's approximate |
 | [10. Keep or release](#10-keep-or-release) | The retention calculator: the chance a franchise keeps him (backtested on every real deadline), purse, role gaps |
 | [11. Form forecast](#11-form-forecast) | A player's value over the next three seasons: aging, survivorship, ranges, backtest |
-| [12. Bid plan (beta)](#12-bid-plan-beta) | The auction bidding plan: rival prices, squad strength, max bids, fallback chains, the 2025 and 2026 auctions replayed |
+| [12. Bid plan (draft)](#12-bid-plan-draft) | The auction bidding plan: rival prices, squad strength, max bids, fallback chains, the 2025 and 2026 auctions replayed |
 | [13. The reality gate](#13-the-reality-gate) | The standing check every model change must pass: the outputs against the real IPL |
 
 ---
@@ -1103,6 +1103,48 @@ rate and 0.153 for F1, rank corr. 0.39 (refitted 2026-10-26 with the replacement
 birth; before, 0.086 and F1 0.154; the first fit, on the old discounts: 0.085, F1 0.137); the top fifth of predictions averaged 0.18 and played 0.17 of a
 side's matches. A known gap: no mega/mini term was declared, so a 2027 (mini) free agent's chance averages
 both kinds of year, and in a mini year far fewer free agents play (33 in 2026 against 133 in 2025).
+
+**P(plays): an auction buy, in the squad that bought him** (2026-10-27, ROADMAP I18; built, tested,
+switched off). Bid plan values a lot at his free-agent P(plays): the chance players like him play an IPL
+match at all, which is mostly the chance nobody buys him (0.02–0.2 for most lots). Once a team has bought
+him, what matters is whether he makes its XI.
+
+The buy model is fitted on the real buys of 2018–2024 (`scripts/playing_time_fit.py buy`). It uses the
+squad model's inputs (his rank in the buying squad, overseas places, experience, age, last season's share,
+keeper, captain) plus what he cost. Four candidates were declared first. Per-match log loss, chosen on the
+2024 buys (55 with a free-agent row):
+
+| candidate | 2024 (validation) | 2025–26 (test, 185 buys) |
+|---|---|---|
+| B0 the free-agent model (what Bid plan used) | 1.150 | 0.749 (rank corr. 0.48) |
+| B1 the squad model, all squad players | 0.694 | |
+| B2 the squad model's inputs, fitted on buys | 0.680 | |
+| **B3 B2 + his price, ln(price ÷ purse)** | **0.668** | **0.574 (rank corr. 0.64)** |
+
+The test is clear: a buy's chance of playing is the squad model's, not the free agent's. Teams play the
+players they paid for (the price coefficient is +0.34 per unit of ln price share).
+
+**Why it is switched off** (`export_site.BIDPLAN_BUY_MODEL = False`). With it, the 2027 sheets put these
+players first:
+
+- David Warner (40, last IPL match in 2024, unsold twice);
+- Mohammad Nabi (42);
+- Faf du Plessis (42);
+- never-IPL domestic batters at 0.3 cr (Chirag Jani, 36; Rahul Singh).
+
+Their contributions are career ratings, or thin ratings translated from SMAT. The ratings don't see a
+veteran's decline (Tier D #34 in the ROADMAP), and only the free-agent P(plays) was keeping these players
+off the lists.
+
+A calibration of a buy's expected value against what real buys then delivered was also declared and tested
+(`value`: V0 none, V1 one shrink factor, V2 a shrink by age past 32, years away and no IPL at all). Fitted
+on 2019–23 and chosen on 2024, it chose V0: no shrink beat none (squared error 7.12 against 7.17 and 7.69).
+On 2025–26 the uncalibrated value was unbiased (mean error +0.26 and −0.05 runs a match). Real buys can't
+calibrate the players nobody buys. The outcomes of a player the market passes over aren't observed, so
+the data that would correct his number doesn't exist. The fix belongs in the ratings: a player's form
+drifting over time (Tier D #34). The model stays in `config/playing_time_model.json` (`buy`); the code is in
+`web_parity/bidplan.py` (`buy_p`, `lot_p`) ⇄ `site/src/lib/bidplan.ts` (`buyP`, `lotP`), parity-locked, and is
+used when keep.json carries a `buy_model`.
 
 **Fielding** isn't in the contribution: Cricsheet records completed catches, run-outs and stumpings, not
 chances, drops or runs saved, so a fielding value in runs can't be identified from it.
@@ -2413,7 +2455,7 @@ Run: `uv run python scripts/form_forecast.py fits` (the walk-forward fits; cache
 
 ---
 
-## 12. Bid plan (beta)
+## 12. Bid plan (draft)
 
 > **Beta.** In honest replays of the 2025 mega and 2026 mini auctions, at the real franchise's spend, the
 > plan built a stronger squad on next-season output for 7 of 10 teams in the mega auction and 2 of 10 in the
@@ -2595,6 +2637,28 @@ on whatever adds anything, and the strength model sees little between the player
 lot's contribution carries his free-agent P(plays), mostly 0.02–0.2). Both rules stay in the code
 (`plan(money=...)`, `bidplan_backtest.py --money`). Which one ships is a product call, and the replay numbers
 above are the evidence for it.
+
+*Correction, 2026-10-27 (I18).* The replays had scored the "auction" rule wrongly.
+`follow_plan`, which plays a finished plan against the real prices, replayed it with the plan's λ alone.
+Under this rule λ is 0, so it bought every lot with a positive gain at any real price. The fixed replay
+gives the rule the same money value the plan used. These numbers are **seen three times**:
+
+| | 2024 | 2025 | 2026 |
+|---|---|---|---|
+| expected spend error | 0.104 | 0.012 | 0.085 |
+| next season at the same spend: stronger than the real squad | 6 of 10 (+1.4) | 3 of 10 (−3.9) | 0 of 10 (−3.1) |
+
+(2024 is at full purse.) The conclusion doesn't change: the rule spends like the franchises and builds
+weaker squads than they do.
+
+*I2, the plans seeing each other (2026-10-27, built and switched off).* Each franchise's default plan is
+built against the latest plans of the others (`rival_plan_bids`, in team order, repeated). In each rival
+run, a rival chases each of its own targets up to its max bid, in the share of runs its plan lands him
+(`_apply_rival_plans`, Python ⇄ TS, parity-locked; the export's `bidplan_rivals.json`). It does not work
+with this money rule. Most max bids are the purse left (λ = 0), so the plans bid each other's targets up to
+10–15 cr: Fraser-McGurk's price to beat reached 13–15 cr and Manish Pandey's 11. Three passes didn't
+converge. The sheets still share the same names, now at those prices. The rival plans need max bids that
+measure value. It is switched off (`export_site.BIDPLAN_RIVAL_PLANS = False`).
 
 **No buying back your own releases.** A player the team releases goes into the auction, and the plan never
 bids for him (unless the user sets a max bid). If he is worth that much to the squad, keeping him at his
@@ -2837,11 +2901,26 @@ fixed, or the failure is recorded as a known open issue in the ROADMAP. The thre
 
 - **The two "first target" checks** are the price-taker problem (ROADMAP I2). Every plan sees the same cheap
   regular and none sees the others chasing him. Every money rule tried hits it: rule "none" puts
-  Fraser-McGurk first on six sheets.
-- **Cummins** is a judgement the gate can't make alone. He is retained at 18 cr, but rated on IPL 2024–26
-  bowling, where his economy was high. The gate says the season value and the franchise disagree, and a
-  person has to look.
-- **The price check** is the market model's documented blind spot for scouted uncapped players.
+  Fraser-McGurk first on six sheets. Two fixes were built on 2026-10-27, the buy model (6c) and the rival
+  plans (section 12, step 4). Both made the sheets worse and are switched off.
+- **Cummins: a real signal, not a model error** (investigated 2026-10-27).
+  - He played 8 of SRH's 15 matches in 2026, which is why his P(plays) is 0.64.
+  - His IPL bowling was about the league average: economy 9.28, 9.06 and 9.59 in 2024, 2025 and 2026,
+    against the league's 9.42, 9.51 and 9.77; a wicket every 20.3, 18.6 and 24.0 balls, against about 20.
+  - His contribution, 2.74 runs a match (1.42 batting, 1.32 bowling), is right for that record.
+  - Overseas places don't hold him back: he is SRH's 4th overseas player by contribution, inside the four.
+  - The captain feature in P(plays) is small (+0.10), and the season value prices no captaincy.
+  - His 18 cr retention pays for leading SRH, which the model doesn't value. That is a limit of the
+    model's scope, documented here, not a number to fix.
+- **The price check.** Kartik Sharma and Prashant Veer were bought at 14.2 cr each for CSK
+  ([ESPNcricinfo](https://africa.espn.com/cricket/story/_/id/47323390/csk-bids-prashant-veer-kartik-sharma-smash-records-ipl-2026-auction)).
+  - Veer: on UP T20 League form (320 runs at a strike rate of 155 and eight wickets) and an SMAT and U-23
+    run that won him CSK trials. CSK also needed a replacement for Jadeja.
+  - Sharma: on 12 T20s (334 runs, strike rate 164) and the 2025–26 SMAT.
+  - None of this is in the data. Cricsheet's SMAT ends in December 2024, and the UP T20 League and the trial
+    camps aren't covered.
+  - No sourced, fitted feature explains them, so nothing was changed. It is the market model's documented
+    blind spot for scouted uncapped players.
 
 All four are open in the ROADMAP (I18) and marked as known failures (`xfail`, strict). They show as
 expected failures, not passes. When a fix makes one pass, the strict mark fails the suite until the mark is

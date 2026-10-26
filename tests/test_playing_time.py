@@ -151,3 +151,22 @@ def test_fit_curve_isotonic_is_monotone():
     )
     k = pt.fit_curve(x, y, "kernel", pt.BAT_KNOTS, increasing=False, h=1.0)
     assert k["y"][0] > k["y"][-1]
+
+
+def test_bidplan_mirrors_of_the_squad_model_agree():
+    """Bid plan's P(plays) of a buy (web_parity/bidplan.py, mirrored in TS) uses its own copies of
+    projected_xi and play_features; they must match playing_time's."""
+    import random
+
+    rnd = random.Random(7)
+    for _ in range(20):
+        squad = [pt.squad_member(f"p{i}", rnd.uniform(-2, 8), rnd.choice(pt.ROLES), rnd.random() < 0.35)
+                 for i in range(rnd.randint(8, 25))]  # fmt: skip
+        assert bp.projected_xi(squad) == pt.projected_xi(squad)
+        x = pt.projected_xi(squad)["p0"]
+        r = {"contrib": squad[0]["c"], "in_xi": x["in_xi"], "margin": x["margin"], "rank": x["rank"],
+             "os_rank": x["os_rank"], "overseas": bool(squad[0]["os"]),
+             "age": rnd.choice([None, 22.0, 36.0]), "ipl_matches": rnd.choice([0, 3, 120]),
+             "last_share": rnd.choice([None, 0.0, 0.7]), "keeper": False, "captain": True,
+             "season": 2027}  # fmt: skip
+        assert bp.play_features(r) == pt.play_features(r)

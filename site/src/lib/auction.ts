@@ -26,6 +26,10 @@ export interface PoolPlayer {
   captain: string | null; // the IPL sides he captained last season (the "Captain" badge), else null
   capped?: boolean | null; // the set he comes up in (capped before uncapped; absent = capped)
   prior_share?: number | null; // his last IPL price as a share of that season's purse (reference price)
+  age?: number | null; // Bid plan's P(plays) of a buy reads these (bidplan.py BUY_META_KEYS)
+  ipl_matches?: number | null;
+  last_share?: number | null;
+  captain_ipl_last?: number | boolean | null;
   p_play_free?: number | null; // P(plays a match) as a free agent
   base_price: number; // estimated tier (cr)
   vpc: number; // value per credit
@@ -375,6 +379,11 @@ export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
       capped: r.capped ?? null,
       prior_share: r.prior_share ?? null,
       p_play_free: r.p_play_free ?? null,
+      // Bid plan's P(plays) of a buy reads these (bidplan.py BUY_META_KEYS); null in older exports
+      age: r.age ?? null,
+      ipl_matches: r.ipl_matches ?? null,
+      last_share: r.last_share ?? null,
+      captain_ipl_last: r.captain_ipl_last ?? null,
       base_price: base,
       vpc: pv / base,
     };
@@ -391,7 +400,7 @@ export const IPL_TEAMS_DEFAULT: { team: string }[] = [
   "CSK", "MI", "RCB", "KKR", "DC", "PBKS", "SRH", "GT", "RR", "LSG",
 ].map((team) => ({ team }));
 
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
     s = (s * 1664525 + 1013904223) >>> 0;

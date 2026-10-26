@@ -524,17 +524,24 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
   METHODOLOGY §12); re-run the Bid plan replays (`scripts/bidplan_backtest.py`) and refit the price and Keep
   models, which take age, on the corrected dates.
 
-- [ ] I18. The reality gate (METHODOLOGY §13, `tests/test_reality_gate.py`, 2026-10-27) fails four of its seven
-  checks on the 2027 outputs. (1–2) David Miller, a 0.5 cr regular at his base price, is the first target on 6 of
-  10 Bid plans, where the fitted demand model has franchises bidding for him with a mean chance of 0.19 (at most
-  4.4 sheets). Every money rule hits this: it is the price-taker problem (I2). (3) Pat Cummins (retained at 18 cr)
-  ranks 57th by season value, outside the top 47. (4) The 2026 lots sold for 10 cr+ are priced at a median 0.34 of
-  what they fetched (documented 0.36), from the two scouted uncapped buys. Also open: which money rule ships.
-  "auction" spends what real teams spend; "none" built the stronger next-season squads in the 2025–26 replays.
-  Shipped: "auction", the sourced rule (leftover purse buys nothing after the auction), with the Bid plan still beta.
-  The four checks are marked strict `xfail`. Suspected root causes, to fix next: (i) a lot's gain uses the
-  free-agent P(plays), mostly 0.02–0.2, even when this team would put the player straight in its XI, so every lot
-  looks nearly worthless and the cheapest wins; (ii) the ten plans don't see each other's bids (I2).
+- [ ] I18. The reality gate (METHODOLOGY §13) fails four of its seven checks on the 2027 outputs. Each is marked
+  strict `xfail` with its reason. Worked on 2026-10-27:
+  - **Buy model** (6c), P(plays) of a lot once bought. Fitted on 2018–24 buys; test log loss 0.574 against
+    0.749 for the free-agent P(plays). Switched off: with it the sheets put Warner (40), Nabi (42), du Plessis
+    (42) and never-IPL domestic batters first. A value calibration on real buys can't correct them, because
+    nobody buys them, so their outcomes are never seen.
+  - **Rival plans** (I2). Built; under the "auction" money rule most max bids are the purse left, so the plans
+    bid each other to 10–15 cr. Switched off.
+  - **Cummins** is a real signal: 8 of 15 matches in 2026, bowling at about the league average, and a
+    captaincy the season value doesn't price.
+  - **Kartik Sharma and Prashant Veer** were bought on 2025–26 domestic form and trials that aren't in the
+    data.
+  - **Replay scoring** of the "auction" rule had a bug (`follow_plan`), now fixed. The rule still builds
+    weaker next-season squads, 3 of 10 and 0 of 10 at the same spend.
+  - **The root** of the first-target checks is the contribution of players the market passes over. Career
+    ratings don't see decline (Tier D #34), so that is the next fix. The rival plans need value-based max
+    bids, which the "auction" rule doesn't give; re-decide the money rule (the old "none" rule built the
+    stronger squads).
 
 ### Guardrails
 

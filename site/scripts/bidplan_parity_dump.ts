@@ -17,7 +17,7 @@ const out = fx.cases.map((c: any) => {
   const pool = buildPool(c.pool);
   const display: Record<string, string> = {};
   for (const r of c.pool) if (r.display_name) display[r.cricsheet_id] = r.display_name;
-  const ctx = buildContext(c.data, pool, c.team, c.decisions ?? {}, c.purse ?? null, c.open_slots, c.rules ?? null, c.register ?? null, display);
+  const ctx = buildContext(c.data, pool, c.team, c.decisions ?? {}, c.purse ?? null, c.open_slots, c.rules ?? null, c.register ?? null, display, c.rival_bids ?? null);
   const runs = rivalRuns(ctx, c.trials);
   const prices = runs.prices;
   const res = plan(ctx, c.needs ?? {}, c.overrides ?? {}, c.trials, prices, runs.rate);

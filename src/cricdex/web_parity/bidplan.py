@@ -43,6 +43,7 @@ from cricdex.web_parity.auction import (
     ladder_next,
     one_trial,
     open_squad_places,
+    rng,
 )
 from cricdex.web_parity.keep import (
     cr,
@@ -338,6 +339,7 @@ def _avail_row(r: dict, tags: str, from_team: str | None) -> dict:
         "tags": t,
         "from_team": from_team,
         **{k: r.get(k) for k in CONTRIB_KEYS},
+        **{k: r.get(k) for k in BUY_META_KEYS},
     }
     if r.get("anchor_price"):
         out["anchor_price"] = r["anchor_price"]
@@ -362,11 +364,14 @@ def _squad_row_as_lot(p: dict) -> dict:
         "p_bought": p.get("p_bought"),
         "base_price": price_tier(price),
         **{k: p.get(k) for k in CONTRIB_KEYS},
+        **{k: p.get(k) for k in BUY_META_KEYS},
     }
 
 
 # the playing-time fields a lot carries for the strength model (export_site PT_KEYS)
 CONTRIB_KEYS = ("contrib", "contrib_bat", "contrib_bowl", "balls_faced", "balls_bowled", "p_play")
+# what P(plays) for a buy reads of a lot besides his contribution (export_site PT_KEYS + pool fields)
+BUY_META_KEYS = ("age", "ipl_matches", "last_share", "captain_ipl_last")
 
 
 def _lot_order(r: dict) -> tuple:
@@ -404,8 +409,14 @@ def build_context(
     rules: dict | None = None,
     register: list[dict] | None = None,
     display: dict[str, str] | None = None,
+    rival_bids: dict[str, dict[str, list[float]]] | None = None,
 ) -> dict[str, Any]:
     """Everything the plan needs, from Keep or release's data.
+
+    `rival_bids` = the other franchises' own plans ({team: {player id: [max bid, share of runs his
+    plan lands him]}}, `rival_plan_bids`; the export's bidplan_rivals.json): each rival also bids for
+    the targets of its own plan (ROADMAP I2 / I18), so ten sheets can't all count on the same cheap
+    player. Our own team's entry is ignored.
 
     `data` = keep.json; `pool` = auction.build_pool(auction_pool.json); `decisions` = our keep /
     release overrides (Keep or release's URL state); `purse` overrides the competition's purse for
@@ -518,6 +529,10 @@ def build_context(
     return {
         "team": team,
         "rules": comp_rules,
+        # P(plays) of a buy in the squad that bought him (keep.json `buy_model`; None = the lots keep
+        # their free-agent P(plays), as before 2026-10-27)
+        "buy_model": data.get("buy_model"),
+        "rival_bids": {t: b for t, b in (rival_bids or {}).items() if t != team},
         "cycle": data["competition"].get("cycle") or "mini",
         "open_slots": int(open_slots),
         "squad": ours["players"],
@@ -614,6 +629,7 @@ def rival_runs(ctx: dict, trials: int = TRIALS) -> dict[str, Any]:
             _paid[team_i].append(float(price))
 
         one_trial(bases, lots, opts, 1000 + t * 7919, on_sale)
+        _apply_rival_plans(ctx, avail, out, t)
         for k, r in enumerate(ctx["rivals"]):
             if not buys[k]:
                 continue
@@ -622,6 +638,63 @@ def rival_runs(ctx: dict, trials: int = TRIALS) -> dict[str, Any]:
             spend_sum += fsum(paid[k])
     rate = gain_sum / spend_sum if spend_sum > 0 else 0.0
     return {"prices": out, "rate": rate, "rival_gain": gain_sum, "rival_spend": spend_sum}
+
+
+RIVAL_PLAN_SEED = 50021  # the draws of which rival plans chase which targets in each run
+
+
+def _apply_rival_plans(ctx: dict, avail: list[dict], out: list[list[float]], t: int) -> None:
+    """The other franchises' own plans in run t (`ctx["rival_bids"]`): in the share of runs his plan
+    lands him, a rival chases each of its targets up to his max bid, so the price to beat rises to the
+    next ladder step above that bid. Rivals in ctx order, lots in pool order, one draw each (seed
+    RIVAL_PLAN_SEED + 7919 t)."""
+    rb = ctx.get("rival_bids") or {}
+    if not rb:
+        return
+    rand = rng(RIVAL_PLAN_SEED + t * 7919)
+    for r in ctx["rivals"]:
+        bids = rb.get(r["team"]) or {}
+        if not bids:
+            continue
+        for i, p in enumerate(avail):
+            b = bids.get(p["cricsheet_id"])
+            if not b:
+                continue
+            if rand() < float(b[1]):
+                beat = max(float(p["base_price"]), ladder_next(float(b[0])))
+                if beat > out[i][t]:
+                    out[i][t] = beat
+
+
+def rival_plan_bids(
+    data: dict,
+    pool: list[dict],
+    register: list[dict] | None = None,
+    display: dict[str, str] | None = None,
+    trials: int = TRIALS,
+    rounds: int = 3,
+) -> dict[str, Any]:
+    """Every franchise's default plan, each seeing the others' (ROADMAP I2): the plans are built in
+    team order, each against the latest plans of the others, and repeated until the table stops
+    changing (at most `rounds` passes). {"teams": {team: {player id: [max bid, share of runs his plan
+    lands him]}}, "rounds", "converged"}. The export writes it as bidplan_rivals.json."""
+    table: dict[str, dict[str, list[float]]] = {}
+    converged = False
+    n = 0
+    while n < rounds:
+        n += 1
+        before = {t: dict(v) for t, v in table.items()}
+        for team in data["teams"]:
+            ctx = build_context(
+                data, pool, team, {}, None, OPEN_SLOTS, None, register, display, table
+            )
+            res = plan(ctx, None, None, trials)
+            table[team] = {x["id"]: [round(x["max_bid"], 2), round(x["p_land"], 3)]
+                           for x in res["targets"] if x["p_land"] > 0 and x["max_bid"] > 0}  # fmt: skip
+        if table == before:
+            converged = True
+            break
+    return {"teams": table, "rounds": n, "converged": converged}
 
 
 # ---- step 2: the bidding rule over the rival runs ---------------------------------------------------
@@ -866,11 +939,126 @@ def _likely(ctx: dict, cands: list[dict], land: list[int], price_sum: list[float
     return out
 
 
-def _cands(ctx: dict) -> list[dict]:
+# ---- P(plays) of a buy, in the squad that bought him (ROADMAP I18, 2026-10-27) -------------------------
+# A lot's free-agent P(plays) (0.02-0.2 for most) is the chance players like him play an IPL match at all,
+# mostly the chance nobody buys him. Once this team has bought him, what matters is whether he makes
+# its XI: the squad model's inputs (his rank in the squad, overseas places, experience, age, last
+# season's share, keeper, captain) plus what he cost, fitted on the real buys of 2018-2024 and tested on
+# 2025-26 (scripts/playing_time_fit.py `buy`, METHODOLOGY §6c). Mirrors of scout/playing_time.py
+# `projected_xi` and `play_features` (tests/test_playing_time.py checks they agree).
+PT_XI_SIZE = 11
+PT_XI_OVERSEAS = 4
+
+
+def projected_xi(squad: list[dict]) -> dict[str, dict]:
+    """playing_time.projected_xi: cid → {in_xi, margin, rank, os_rank} from {cid, c, os, k, bowl, bat}."""
+    order = sorted(squad, key=lambda p: (-p["c"], p["cid"]))
+    chosen: list[dict] = []
+    out_list: list[dict] = []
+    k = bw = bt = os_n = 0
+    for p in order:
+        if len(chosen) >= PT_XI_SIZE or (p["os"] and os_n >= PT_XI_OVERSEAS):
+            out_list.append(p)
+            continue
+        nk, nbw, nbt = k + p["k"], bw + p["bowl"], bt + p["bat"]
+        room = PT_XI_SIZE - len(chosen) - 1
+        if max(0, 5 - nbw) + max(max(0, 1 - nk), max(0, 6 - nbt)) > room:
+            out_list.append(p)
+            continue
+        chosen.append(p)
+        k, bw, bt = nk, nbw, nbt
+        os_n += p["os"]
+    last_in = min((p["c"] for p in chosen), default=0.0)
+    first_out = max((p["c"] for p in out_list), default=last_in)
+    line = 0.5 * (last_in + first_out)
+    ids = {p["cid"] for p in chosen}
+    res: dict[str, dict] = {}
+    os_rank = 0
+    for i, p in enumerate(order):
+        if p["os"]:
+            os_rank += 1
+        res[p["cid"]] = {"in_xi": p["cid"] in ids, "margin": p["c"] - line, "rank": i + 1,
+                         "os_rank": os_rank if p["os"] else 0}  # fmt: skip
+    return res
+
+
+def play_features(r: dict) -> dict[str, float]:
+    """playing_time.play_features (the squad model's inputs)."""
+    age = r.get("age")
+    a = (age - 28.0) if age is not None else 0.0
+    m = max(-6.0, min(6.0, r["margin"]))
+    ov = 1.0 if r["overseas"] else 0.0
+    ls = r.get("last_share")
+    return {
+        "contrib": max(-6.0, min(12.0, r["contrib"])),
+        "in_xi": 1.0 if r["in_xi"] else 0.0,
+        "margin": m,
+        "rank_log": math.log(max(r["rank"], 1)),
+        "overseas": ov,
+        "os_out": ov * (1.0 if r["os_rank"] > PT_XI_OVERSEAS else 0.0),
+        "os_rank_gt4": ov * max(0.0, r["os_rank"] - PT_XI_OVERSEAS),
+        "ipl_exp": math.log1p(max(r.get("ipl_matches") or 0.0, 0.0)),
+        "never_ipl": 1.0 if not r.get("ipl_matches") else 0.0,
+        "age": a / 5.0,
+        "age_gt32": max(0.0, a - 4.0) / 5.0,
+        "last_share": ls if ls is not None else 0.0,
+        "no_last": 0.0 if ls is not None else 1.0,
+        "keeper": 1.0 if r.get("keeper") else 0.0,
+        "captain": 1.0 if r.get("captain") else 0.0,
+        "impact_era": 1.0 if (r.get("season") or 0) >= 2023 else 0.0,
+    }
+
+
+def _member(pc: dict) -> dict:
+    """A strength piece as projected_xi reads him (his contribution a match he plays)."""
+    return {"cid": pc["id"], "c": pc["c"], "os": 1 if pc["os"] else 0, "k": 1 if pc["k"] else 0,
+            "bowl": 1 if pc["bowl"] else 0, "bat": 1 if pc["bat"] else 0}  # fmt: skip
+
+
+def buy_p(row: dict, squad: list[dict], model: dict, price: float, purse: float) -> float:
+    """P(plays a match) for lot `row` once this team has bought him at `price`: the buy model on his
+    rank in `squad` (its strength pieces) with him added."""
+    me = {"cid": row["cricsheet_id"], "c": float(row["contrib"]), "os": 1 if row["is_overseas"] else 0,
+          "k": 1 if row["role"] == "keeper" else 0,
+          "bowl": 1 if row["role"] in ("bowler", "all_rounder") else 0,
+          "bat": 1 if row["role"] in ("batter", "keeper", "all_rounder") else 0}  # fmt: skip
+    sq = [_member(pc) for pc in squad if pc["id"] != me["cid"]] + [me]
+    x = projected_xi(sq)[me["cid"]]
+    f = play_features({
+        "contrib": me["c"], "in_xi": x["in_xi"], "margin": x["margin"], "rank": x["rank"],
+        "os_rank": x["os_rank"], "overseas": bool(row["is_overseas"]), "age": row.get("age"),
+        "ipl_matches": row.get("ipl_matches"), "last_share": row.get("last_share"),
+        "keeper": row["role"] == "keeper", "captain": bool(row.get("captain_ipl_last")),
+        "season": model.get("season"),
+    })  # fmt: skip
+    f["price_share"] = math.log(max(price, 1e-6) / max(purse, 1e-6))
+    t = float(model["intercept"])
+    for k, c in model["coef"].items():
+        t += float(c) * f[k]
+    return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, t))))
+
+
+def lot_p(ctx: dict, expected: list[float]) -> list[float | None] | None:
+    """Each lot's P(plays) if this team buys him at his expected price (`buy_p`); None without a buy
+    model (the lots keep their free-agent P(plays))."""
+    bm = ctx.get("buy_model")
+    if not bm:
+        return None
+    purse = float(ctx["rules"]["purse"])
+    return [buy_p(r, ctx["kept"], bm, expected[i], purse) if r.get("contrib") is not None else None
+            for i, r in enumerate(ctx["available"])]  # fmt: skip
+
+
+def _cands(ctx: dict, pp: list[float | None] | None = None) -> list[dict]:
+    """The lots as strength pieces; `pp` = each lot's P(plays) if bought (`buy_p`), else his
+    free-agent P(plays) from the row."""
     out = []
-    for r in ctx["available"]:
+    for i, r in enumerate(ctx["available"]):
+        parts = contrib_parts(r)
+        if parts is not None and pp is not None and pp[i] is not None:
+            parts = (*parts[:4], pp[i])
         p = piece(r["cricsheet_id"], r["name"], r.get("contrib"), r["role"], r["is_overseas"],
-                  r["tags"], contrib_parts(r))  # fmt: skip
+                  r["tags"], parts)  # fmt: skip
         # a candidate gives the bench at most his P(plays) appearances a match (`bench_fill`)
         p["cap"] = p["pp"]
         p["ub"] = upper_gain(p)
@@ -928,8 +1116,9 @@ def plan(
         rate = 0.0
     elif money == "market" and rate is None:
         rate = rival_runs(ctx, trials)["rate"]
-    cands = _cands(ctx)
     expected = [_median(ps) for ps in prices]
+    pp = lot_p(ctx, expected)
+    cands = _cands(ctx, pp)
     rules = ctx["rules"]
     sq_max = int(rules["squad_max"])
     sq_min = int(rules["squad_min"])
@@ -1211,18 +1400,34 @@ def keys_of(data: dict, team: str) -> dict[str, str]:
 
 
 def follow_plan(
-    ctx: dict, res: dict, prices: list[float], overrides: dict[str, float] | None = None
+    ctx: dict,
+    res: dict,
+    prices: list[float],
+    overrides: dict[str, float] | None = None,
+    rival: list[list[float]] | None = None,
 ) -> dict[str, Any]:
-    """Play a finished plan's bidding rule (its λ, its likely buys as the lookahead) against one
-    set of prices, e.g. what each player really sold for. {bought: [ids], paid, spend, strength}.
-    Python only: `scripts/bidplan_backtest.py` uses it to replay real auctions (the page and the
-    CLI never need it, so there is no TS twin)."""
-    cands = _cands(ctx)
+    """Play a finished plan's bidding rule (its likely buys as the lookahead; its λ, or with the money
+    rule "auction" the same money value the plan used) against one set of prices, e.g. what each
+    player really sold for. `rival` = the rival runs' prices the plan was built on (the lots' expected
+    prices). {bought: [ids], paid, spend, strength}. Python only: `scripts/bidplan_backtest.py` uses
+    it to replay real auctions (the page and the CLI never need it, so there is no TS twin).
+
+    Until 2026-10-27 it replayed the rule with the plan's λ alone. Under the "auction" money rule
+    that λ is 0, so the replay bought every lot with a positive gain at any real price. The 2025-26
+    replays of the "auction" rule on 2026-10-27 (METHODOLOGY §12, superseded) were scored that way."""
+    expected = [_median(ps) for ps in rival] if rival is not None else None
+    pp = lot_p(ctx, expected) if expected is not None else None
+    cands = _cands(ctx, pp)
     at = {c["id"]: i for i, c in enumerate(cands)}
     future = [at[x["id"]] for x in res["likely"] if x["id"] in at]
     over = {k: float(v) for k, v in (overrides or {}).items() if v is not None and v >= 0}
     gains = _Gains(ctx["kept"], cands, res["needs"])
-    rr = _replay(ctx, cands, prices, res["lam"], over, gains, future)
+    mv = None
+    if res.get("money") == "auction":
+        if expected is None:
+            raise ValueError("follow_plan: the 'auction' money rule needs the rival prices")
+        mv = _MoneyValue(cands, gains, future, expected)
+    rr = _replay(ctx, cands, prices, res["lam"], over, gains, future, mv)
     return {
         "bought": [cands[i]["id"] for i in rr["bought"]],
         "paid": rr["paid"],
