@@ -8,6 +8,38 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Time-aware values: ratings that see age (ROADMAP Tier D #34, I18; 2026-10-27)
+
+- **What the auction tools read is now a player's level next season**, not his career average (METHODOLOGY
+  §4b; `scout/ratings/drift.py`, `scripts/rating_drift_fit.py`, `config/rating_drift.json`). Each role's value
+  is moved by A(his age next season) − the balls-weighted mean of A over the seasons his rating rests on.
+  The aging curve A is fitted per group in a state-space model of every player's season values in every pool
+  league, within players, with a selection model (a season he could have played and didn't is evidence his
+  level fell) as the survivorship correction; without it the curve was the survivors' (flat after 28).
+- **Frozen protocol**: seven candidates declared (aging only; a random walk only; both, with one bowling
+  curve, pace and spin apart, or partially pooled; both without the selection model), chosen walk-forward on
+  2019–24 by next season's contribution per match. **Aging only** won (MAE 4.019 against 4.036 for the career
+  rating); every random-walk candidate was worse than the career rating. Test once on 2025–26: 4.400 against
+  4.408, rank corr. 0.309 against 0.301; the bias for players 34+ falls from +0.49 / +1.32 to +0.13 / +1.04 runs
+  a match. Shipped curve: batting flat 24–32, −4 at 36, −9 at 40; bowling within ±3 at every age.
+- **Every consumer refitted on it**: replacement curves, P(plays) (squad 0.558, free agent 0.0855, buy 0.575
+  in the test, same choices), the as-of contributions, the market price (recipe Z, the legacy blend moved
+  the same way, won the price protocol on 2018–24 lots: 0.790 against 0.793; test 0.659 against 0.661;
+  `value_input: "time_aware"`), the pool, Keep and Bid plan through the export. Keep's retention model was not
+  refitted.
+- **Reality**: Miller 2.8 → 1.8 runs a match (pool 59th → 78th), Warner 6.9 → 4.5, du Plessis 4.7 → 0.8, Dhoni
+  2.7 → 0.4, Rohit 2.1 → 0.6, Kohli 5.9 → 4.1 (9th → 27th); Jaiswal 24th → 14th, Abhishek 19th → 13th, Gill 4th
+  → 2nd; Bumrah and Rashid unchanged.
+- **Reality gate**: the two first-target checks now pass on the shipped sheets (strict xfail marks removed);
+  first targets spread over five players (Miller is third to fifth on six). Still failing: Cummins (59th) and
+  the star price (0.3597). **Buy model rechecked and left off**: Nabi (42) and Chirag Jani (37, never-IPL)
+  would top four sheets each.
+- **Bid plan replays** (2025–26 seen four times): "auction" 2024 5 of 10 (+0.2), 2025 1 of 10 (−4.1), 2026 0 of
+  10 (−2.7); "none" 7 of 10 (+0.9), 8 of 10 (+4.2), 5 of 10 (+0.3). The rules' ranking doesn't change.
+- `export_site.py` writes `time_shift_bat` / `time_shift_bowl` on pool rows; `season_obs` caches every pool
+  league's season values in `data/metrics/.drift/` (recomputed from a league's last year when it gets new
+  matches). Tests: `tests/test_drift.py` (the filter and the selection update against brute force).
+
 ### I18 worked: buy model and rival plans built, tested and switched off; Cummins and the price gap explained (2026-10-27)
 
 - **Bid plan relabelled from beta to draft** on the site, in the README and in METHODOLOGY: max bids are not

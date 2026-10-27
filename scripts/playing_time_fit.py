@@ -342,15 +342,43 @@ def asof_roles(season: int, date: str) -> dict[str, dict[str, tuple[float, float
     own, other = ipm.asof_sources(season, date)
     tm = translation.load_model()
     out: dict[str, dict[str, tuple[float, float]]] = {}
+    shares: dict[tuple[str, str], dict[str, float]] = {}
     for key in set(own) | set(other):
         cid, role = key
         if role not in translation.ROLES:
             continue
         o = own.get(key)
-        val, vsd, _ = translation.blend(role, (o[0], o[1]) if o else None, other.get(key, {}), tm,
-                                        _WHICH["which"])  # fmt: skip
+        val, vsd, sh = translation.blend(role, (o[0], o[1]) if o else None, other.get(key, {}), tm,
+                                         _WHICH["which"])  # fmt: skip
         out.setdefault(cid, {})[role] = (val, vsd)
+        shares[key] = sh
+    return _time_aware(out, shares, season, date)
+
+
+def _time_aware(vals: dict, shares: dict, season: int, date: str) -> dict:
+    """The as-of values moved from his career level to his level in `season` (scout/ratings/drift.py,
+    METHODOLOGY §4b): the protocol runs use the time-aware model fitted on seasons up to 2024
+    (`model_le2024`), `ship` the shipped one. Unchanged when config/rating_drift.json is missing."""
+    from cricdex.scout.ratings import drift
+
+    m = drift.load_model(which="model" if _WHICH["which"] == "roles" else "model_le2024")
+    if m is None:
+        return vals
+    if "obs" not in _DRIFT:
+        pm = master.load()
+        _DRIFT["dob"] = {c: str(r["dob"])[:10] for c, r in pm.items()
+                         if isinstance(r, dict) and r.get("dob")}  # fmt: skip
+        _DRIFT["cat"] = {c: r.get("bowling_category") for c, r in pm.items() if isinstance(r, dict)}
+        _DRIFT["obs"] = drift.season_obs(bayesian.DEFAULT_DB_PATH, POOL_COLS, [date])
+    o = _DRIFT["obs"]
+    if o.filter(pl.col("cut") == date).height == 0 and date[5:] != "01-01":
+        o = _DRIFT["obs"] = drift.season_obs(bayesian.DEFAULT_DB_PATH, POOL_COLS, [date])
+    out, _ = drift.adjust(vals, shares, o, date, season, _DRIFT["dob"], _DRIFT["cat"], m,
+                          _WHICH["which"])  # fmt: skip
     return out
+
+
+_DRIFT: dict = {}
 
 
 # which fitted translation the as-of values use (`ship` switches to the shipped one)
@@ -1330,6 +1358,7 @@ def ship(next_auction: str = typer.Option("2026-12-16", "--before")) -> None:
 
     _WHICH["which"] = "roles"  # the shipped translation (fitted on every season)
     _ASOF.clear()
+    _DRIFT.clear()
     u = _u()
     roles = _roles()
     starts = season_starts(u)

@@ -208,10 +208,47 @@ sd-sum value, don't survive. Full tables, the sensitivity runs and the caveats: 
 ## Caveats
 
 - One skill set per role per league for a whole career: context is adjusted for, but a player's
-  own form isn't allowed to drift.
+  own form isn't allowed to drift. What the auction tools read is moved to his age next season by
+  `drift.py` (below); the rating itself stays a career number.
 - ADVI (the default) is mean-field; re-check with `--sampler nuts` after model changes.
 - Players present only as bowler (or only as batter) get one role row; all-rounders get two rows.
 - Each league is fitted alone; cross-league comparison rests on the registry's tier discounts.
+
+## Time-aware value (`drift.py`, since 2026-10-27)
+
+A career rating is the average of a whole career. The contribution per match (scout/playing_time.py),
+and through it the auction pool, P(plays), Bid plan and Keep, read each role's value moved to the
+coming season:
+
+```
+value now = career value + A(his age next season) − Σ w_s A(his age in season s)
+```
+
+`A` is the aging curve (piecewise linear through knots every four years, 16–44, A(28) = 0), `w_s` the
+weight of season s in his career value (each league's seasons by balls, times that league's share of
+his blend). The curve is fitted by maximum likelihood per group (batting; bowling) from every
+player's season values in every auction-pool league (`season_obs`: `runs_value.observed_value` per
+league and calendar year, on the IPL scale through the league translation), in a state-space model:
+
+```
+level(y) = level(y − 1) + A(age(y)) − A(age(y − 1)) [+ N(0, q): the random-walk candidates]
+a + b × season value in league L ~ N(level(y), b² c 100 / balls + e [other leagues])
+P(plays in year y | level) = Φ(b0[y] + bL × level + bA(age))       the selection model
+```
+
+The selection model (a shared-parameter model) is the survivorship correction: a player who stops
+playing is more likely to have declined, so a season he was at risk of playing (a league he had
+played had matches that year) and didn't is evidence about his level. Without it the curve is the
+survivors' (flat after 28 for batters, rising for bowlers). Probit updates are moment-matched.
+
+Chosen by `scripts/rating_drift_fit.py` on next season's contribution per match, walk-forward
+2019–2024, from seven declared candidates (aging only, random walk only, both with one bowling curve
+or pace / spin apart or partially pooled, both without selection): **aging only** (q = 0) won; every
+random-walk candidate predicted worse than the career rating. Tested once on 2025–26: MAE 4.400
+against 4.408 for the career rating, rank correlation 0.309 against 0.301. Shipped curves (runs per 100
+balls against age 28): batting −13 at 16, 0 at 24–32, −4 at 36, −9 at 40, −27 at 44; bowling within
+±3 at every age. `config/rating_drift.json` (`model`; `model_le2024` for protocol runs). Full numbers:
+[METHODOLOGY §4b](../../../../docs/METHODOLOGY.md#4b-time-aware-ratings-his-level-next-season).
 
 ## Form forecast (built on these ratings)
 
@@ -223,4 +260,5 @@ regress season to season; 80% ranges and P(regular). Method, backtest and limits
 ## Next
 
 - A joint multi-league fit with league effects (replacing the hand-set tier discounts).
-- A chase-aware wicket cost (target and resources left), and per-player form drift.
+- A chase-aware wicket cost (target and resources left). Per-player form drift was tried in 2026-10-27's
+  time-aware candidates (a random walk on the level) and did not predict the next season better.

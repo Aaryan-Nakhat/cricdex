@@ -16,7 +16,7 @@ metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [
 | [1. Data and identity](#1-data-and-identity) | Where the balls come from, one id per player, merged venues, super overs, the one AI step |
 | [2. Net Game Impact (NGI)](#2-net-game-impact-ngi) | Win probability added, ball by ball |
 | [3. The nine context metrics + fielding](#3-the-nine-context-metrics--fielding) | Pressure Runs, Intent Curve, Dot-Ball Recovery and the rest; time windows and eras |
-| [4. Bayesian skill ratings](#4-bayesian-skill-ratings) | Four skills per player, adjusted for the opposition, with honest uncertainty |
+| [4. Bayesian skill ratings](#4-bayesian-skill-ratings) | Four skills per player, adjusted for the opposition, with honest uncertainty; moved to his age next season for the auction tools (4b) |
 | [5. Scout look-alikes](#5-scout-look-alikes) | Who plays like X in another league, and what he'd cost; style twins on every profile (5a) |
 | [6. From skill to crore](#6-from-skill-to-crore) | Turning a rating into an auction price; who plays and how much he adds a match (6c); how a rating from another league carries over to the IPL (6d) |
 | [7. The auction room](#7-the-auction-room) | Retentions, lots as real shortlists, a demand model fitted on real auctions, ladder clearing |
@@ -415,8 +415,151 @@ role priors predict the next season's balls better. (`scripts/backtest_ratings.p
 **Limits.** Each league is fitted separately, so an IPL +20 and a BBL +20 aren't the same thing; the scout
 and the auction correct for that with a league translation fitted per league and role (section 6d). There's one skill set per role
 for a player's whole career in that league (the context is adjusted for, but a player's own form isn't
-allowed to drift); batting slot comes from the data, so a player who moved up the order is grouped by his
-median slot.
+allowed to drift); what the auction tools read is moved to his age next season (section 4b). Batting slot
+comes from the data, so a player who moved up the order is grouped by his median slot.
+
+### 4b. Time-aware ratings: his level next season
+
+**Why.** The rating above is one number for a whole career. Everything that values a player for the coming
+season read it as his level now: the contribution per match (6c), and through it the auction pool's ranking,
+P(plays), Bid plan and Keep or release, and the market price's input (6b). So a 37-year-old's number still
+carried the seasons he played at 29. David Miller (37) was the first Bid plan target on six of ten sheets,
+and with the buy model on (6c) David Warner (40), Mohammad Nabi (42) and Faf du Plessis (42) topped sheets
+(ROADMAP I18, Tier D #34). Since 2026-10-27 each role's value is moved to the coming season before anything
+reads it. Code: `src/cricdex/scout/ratings/drift.py`; fit, choice and test: `scripts/rating_drift_fit.py`;
+model: `config/rating_drift.json`; every number below: `data/metrics/rating_drift_ipl.json`.
+
+**What it does.**
+
+```
+value now = career value + A(his age next season) − Σ w_s × A(his age in season s)
+```
+
+`A` is the aging curve in runs per 100 balls, piecewise linear through knots every four years from 16 to 44
+(flat beyond them), with A(28) = 0. `w_s` is the weight of season s in his career value: each league's seasons
+by balls, times that league's share of his blend (6d). A batter whose evidence was gathered at 29 to 33 and
+who will be 38 next season loses A(29–33) − A(38), about 5 runs per 100 balls; a 24-year-old whose evidence
+starts at 19 gains a little. The value shown (`value`) stays the career rating; the pool rows carry the shift
+as `time_shift_bat` / `time_shift_bowl`.
+
+**The model the curve is fitted in.** A state-space model of every player's season values in every
+auction-pool league (`runs_value.observed_value` per league and calendar year, 58,559 player-league-seasons;
+on the IPL scale through the league translation, a + b × value), fitted by maximum likelihood per group:
+
+```
+level(y)    = level(y − 1) + A(age(y)) − A(age(y − 1)) [+ N(0, q): a random walk, in some candidates]
+season value on the IPL scale ~ N(level(y), b² × c × 100 / balls [+ e in a league other than the IPL])
+P(he plays in year y | level) = Φ(b0[y] + bL × level(y) + bA(age(y)))       the selection model
+```
+
+The curve is learned **within players**: each season is compared only with the same player's other seasons.
+The **selection model** is the survivorship correction. A curve fitted on the seasons that were played is too
+kind to age, because the players who decline are the ones who stop playing (Lichtman 2009; for cricket,
+Thorley). Here a season a player was at risk of playing (a league he had played had matches that year, so
+the end of Cricsheet's SMAT in 2024 doesn't count as him being dropped) and didn't is evidence that his level
+fell: a shared-parameter model (Diggle & Kenward 1994), with a per-year intercept, a slope on the level and
+its own age curve (players retire with age at any level). The probit updates are moment-matched (assumed
+density filtering, Rasmussen & Williams §3.6); the Gaussian part is an exact Kalman filter, checked against
+a brute-force conditioning in `tests/test_drift.py`. Without the selection model the fitted batting curve
+is flat after 28 and the bowling curve rises to +8 at 40, the survivors' picture; with it, batting falls
+after 32.
+
+*Tried while building, before any validation number:* a constant offset per player and league (his
+translated level there against his IPL-scale level, prior variance fitted). Maximum likelihood put its
+variance at 3.6 (sd 1.9 runs per 100 balls) and the curves didn't move, so it was dropped.
+
+**Candidates and the frozen protocol.** Declared on 2026-10-27 before any validation number. For every IPL
+season 2019–2024 (walk-forward), each candidate is fitted on the season values known before that season's
+auction and scored on what every player who then played did: his **contribution per match** (runs above
+replacement a match he played, `bidplan_backtest._next_season_values`), predicted the way the export
+predicts it (his as-of ratings per role blended across leagues, shifted by the candidate, at his expected
+balls and that auction's replacement levels). Chosen on the pooled mean absolute error; then fitted on the
+season values before the 2025 auction and scored **once** on 2025 and 2026.
+
+| candidate | validation 2019–24 (764 player-seasons): MAE / RMSE / bias / rank corr. | aged 34+ (117): MAE / bias |
+|---|---|---|
+| C0 career rating (reference, shipped until now) | 4.036 / 5.112 / +0.38 / 0.297 | 4.34 / +1.18 |
+| **C1 aging only (no random walk) (chosen)** | **4.019** / **5.088** / +0.35 / **0.298** | 4.23 / +0.65 |
+| C2 random walk only (no aging curve) | 4.087 / 5.192 / +0.64 / 0.284 | 4.34 / +1.56 |
+| C3 random walk + aging; one bowling curve | 4.065 / 5.146 / +0.14 / 0.276 | 4.20 / +0.10 |
+| C4 C3 with pace and spin curves apart | 4.066 / 5.152 / +0.11 / 0.275 | 4.20 / +0.07 |
+| C5 C3 with pace and spin partially pooled (empirical Bayes) | 4.067 / 5.147 / +0.10 / 0.277 | 4.22 / +0.06 |
+| C6 C3 without the selection model | 4.066 / 5.160 / +0.78 / 0.304 | 4.37 / +1.62 |
+
+| test, once | 2025 (142): MAE / rank corr. / bias | 2026 (140) | pooled (282): MAE / RMSE / bias / rank corr. | aged 34+, 2025 / 2026: bias |
+|---|---|---|---|---|
+| C0 career rating | 4.147 / 0.304 / +0.68 | 4.674 / 0.299 / +0.48 | 4.408 / 5.796 / +0.58 / 0.301 | +0.49 / +1.32 |
+| **C1 aging only** | **4.136** / **0.315** / +0.77 | **4.667** / **0.302** / +0.59 | **4.400** / 5.803 / +0.68 / **0.309** | **+0.13** / **+1.04** |
+
+(Contribution per match, runs above replacement; bias = mean predicted − real. The 34+ columns are a
+reading, not a selection criterion.)
+
+**Honest reading.** The aging curve helps a little, and the test agrees: mean error 4.400 against 4.408, rank
+correlation 0.309 against 0.301; the root mean square error is a hair worse (5.803 against 5.796) and the
+overall bias rises (the curve lifts the young). Where it matters is the veterans: the career rating
+overrated players aged 34+ by 1.18 runs a match in the validation and by 0.49 and 1.32 in the test; the
+aging curve takes that to 0.65, 0.13 and 1.04. **A drifting skill did not help.** Every random-walk
+candidate predicted next season worse than the career rating itself (pooled MAE 4.065–4.087 against
+4.036), as the form forecast found for bowlers (section 11): one season is too noisy (sd ~14 runs per 100
+balls even at 450 balls) for the walk to separate form from luck at the horizon that matters here. Pace and
+spin apart (C4) didn't beat one bowling curve, and the empirical-Bayes pooling (C5) estimated the spread
+between them at zero, so the curves were fully pooled.
+
+**The shipped curves** (refitted on every season before the 2027 auction; runs per 100 balls against age 28):
+
+| age | 18 | 20 | 22 | 24 | 26 | 28 | 30 | 32 | 34 | 36 | 38 | 40 | 42 | 44 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| batting | −10.0 | −6.7 | −3.5 | −0.2 | −0.1 | 0 | −0.2 | −0.5 | −2.4 | −4.3 | −6.8 | −9.4 | −18.4 | −27.4 |
+| bowling | −1.6 | −0.9 | +0.2 | +1.3 | +0.6 | 0 | −0.1 | −0.3 | −0.7 | −1.2 | −1.9 | −2.7 | −1.0 | +0.7 |
+
+Batters improve into their mid-20s, hold to about 32 and then decline, faster after 40 (few players there,
+so the last knots are wide). Bowling barely changes with age. The fit on seasons up to 2024 (what the
+protocol runs use, `model_le2024`) is similar: batting −2.8 at 36, −6.2 at 40. A player with no date of
+birth is taken as the median age at a first season in the data, 23.9.
+
+*Reality check, 2026-10-27* (pool, IPL 2027; shift in runs per 100 balls; contribution in runs a match
+above replacement, before → after; the market price and Keep inputs moved with it):
+
+| player | age | shift bat / bowl | contribution (bat + bowl) | P(plays) | season value | pool rank |
+|---|---|---|---|---|---|---|
+| David Miller | 37 | −5.3 / – | 2.8 → 1.8 | 0.60 → 0.66 | 23 → 16 | 59 → 78 |
+| David Warner | 40 | −9.8 / −1.7 | 6.9 → 4.5 | 0.03 → 0.02 | 3 → 1 | 173 → 187 |
+| Faf du Plessis | 42 | −17.1 / −0.4 | 4.7 → 0.8 | 0.01 → 0.01 | 1 → 0 | 211 → 533 |
+| Mohammad Nabi | 42 | −15.2 / +0.4 | 6.5 (4.2 + 2.3) → 5.1 (2.7 + 2.4) | 0.01 → 0.01 | 1 → 0 | 223 → 231 |
+| MS Dhoni | 45 | −23.0 / – | 2.7 → 0.4 | 0.36 → 0.28 | 14 → 2 | 95 → 184 |
+| Rohit Sharma | 39 | −7.3 / −3.1 | 2.1 → 0.6 | 0.67 → 0.60 | 20 → 5 | 71 → 145 |
+| Virat Kohli | 38 | −5.3 / −2.0 | 5.9 → 4.1 | 0.92 → 0.87 | 76 → 50 | 9 → 27 |
+| Ravindra Jadeja | 38 | −4.7 / −1.9 | 3.4 (1.8 + 1.6) → 2.4 (1.1 + 1.3) | 0.84 → 0.82 | 40 → 27 | 38 → 46 |
+| Sunil Narine | 38 | −5.7 / −2.0 | 7.4 (0.5 + 6.9) → 6.4 (0.0 + 6.4) | 0.88 → 0.86 | 91 → 78 | 2 → 5 |
+| Andre Russell (retired; not in the pool) | 38 | −6.4 / −2.0 | value bat +22.1 → +15.7, bowl −6.9 → −8.9 | | | |
+| Vaibhav Suryavanshi | 15 | +0.1 / – | 13.1 → 12.9 | 0.91 → 0.88 | 167 → 159 | 1 → 1 |
+| Abhishek Sharma | 26 | +3.0 / +0.5 | 4.6 → 4.9 | 0.92 → 0.92 | 59 → 63 | 19 → 13 |
+| Sai Sudharsan | 25 | +2.5 / – | 5.3 → 5.5 | 0.90 → 0.90 | 66 → 70 | 14 → 11 |
+| Yashasvi Jaiswal | 25 | +3.9 / +1.8 | 4.3 → 4.8 | 0.91 → 0.92 | 54 → 61 | 24 → 14 |
+| Jasprit Bumrah | 33 | −0.5 / −0.8 | 6.6 → 6.4 | 0.91 → 0.91 | 84 → 81 | 5 → 4 |
+| Rashid Khan | 28 | +2.2 / −0.1 | 6.4 → 6.4 | 0.91 → 0.91 | 82 → 82 | 6 → 3 |
+| Shubman Gill | 27 | +2.8 / – | 6.4 → 6.8 | 0.95 → 0.95 | 86 → 90 | 4 → 2 |
+
+Read:
+
+- **The veterans fall by their age, not by a rule**: du Plessis (−17 at 42) and Dhoni (−23 at 45) drop out of
+  any useful range; Miller, Warner, Rohit, Kohli, Jadeja and Narine lose 1–2 runs a match. Rohit's season
+  value goes from 20 to 5.
+- **Kohli** falls to 27th. The curve is a population curve: it doesn't know that his last three seasons were
+  +31, +16 and +30 (a random walk would, and lost on the validation). His form forecast (section 11) says
+  much the same, +5 next season.
+- **Young players gain** a few runs per 100 balls (Abhishek, Sai Sudharsan, Jaiswal, Gill: their evidence
+  was gathered younger than they will be). **Suryavanshi** doesn't: the curve is flat below its first knot
+  (16), and there are almost no seasons younger than that to fit it on.
+- **Bowlers barely move** (Bumrah −0.8, Rashid −0.1): the bowling curve is nearly flat, so Nabi's bowling
+  (2.4 a match) keeps him high once bought (section 12).
+
+**Limits.** One curve per group: not per batting position or bowling style (pace and spin apart didn't help).
+The shift doesn't see a player's own recent form; the random walk that would see it predicted worse. The
+selection model can only correct for being dropped through what the level explains; injuries, international
+calls and franchise plans are noise to it. Ages below 16 and above 44 are read at the ends of the curve. A
+missing date of birth is imputed. The fits take about 1–3 minutes each (JAX gradients); the validation about
+an hour and a half.
 
 ---
 
@@ -801,6 +944,26 @@ against 0.92), though X fits the retention floors and the 2023–24 validation b
 price keeps `value` (the better role's rate) as its input; an all-rounder's premium is its fitted role term.
 X wasn't chosen, so it has no test score; T's below is unchanged.
 
+**Candidate Z, and the recipe since 2026-10-27** (declared with the time-aware rating, section 4b, before any
+of its numbers): T with its value input (the legacy blend) moved to the coming season by the aging curve,
+the time-aware model fitted on seasons up to 2024 for every row. Rerun of the whole selection on the same
+rows (X now on the time-aware contributions):
+
+| candidate (rerun 2026-10-27) | lots: MAE (ln) ≤ 2024 | top 20 | log-lik. per obs. | validation 2023–24: MAE |
+|---|---|---|---|---|
+| T (shipped until then) | 0.793 | 0.97 | −1.456 | 0.917 |
+| X T on the contribution per match | 0.794 | 1.03 | −1.475 | 0.901 |
+| Y T on the fitted translation | 0.793 | 0.99 | −1.461 | 0.917 |
+| **Z T on the time-aware value (chosen)** | **0.790** | 0.97 | −1.453 | 0.911 |
+
+Z has the lowest held-out lot error, so under the declared rule it ships (`value_input: "time_aware"` in
+`config/price_model.json`; the export hands the pool and the Scout rows the legacy blend moved the same way,
+with the shipped time-aware model). **The test, once** (fitted to 2024, 237 lots of 2025–26): Z 0.659 MAE
+(ln), rank corr. 0.739, bias −0.11, top 20 0.83, 2025 0.615, 2026 0.778, 2026 walking forward 0.784; T on
+the same rows 0.661, 0.741, −0.10, 0.87, 0.617, 0.779, 0.773. A tie: Z is a shade better on the lots and a
+shade worse at the top. Old stars move most: Rohit Sharma 6.1 → 4.3 cr, du Plessis 4.3 → 2.8, Warner 4.4 →
+3.4, Kohli 8.5 → 7.6, Dhoni 1.4 → 0.5; Tilak Varma 13.9 → 15.0, Jaiswal 11.8 → 12.5, Gill 23.5 → 24.5.
+
 (All on the international caps with Afghanistan restored, section 1.) T has the lowest held-out lot
 error and the best top end (its 20 dearest predictions per auction fetched 0.98× them, against 0.91×).
 The differences in lot error are small (0.792 against 0.795); what T changes is the top. Its price for the
@@ -913,7 +1076,8 @@ The cautious value is held to the training support (`pv_max`). The purse and cyc
 league's next competition in `config/competitions.toml` (IPL 2027: mini, 125 cr). Its value input
 (`price_value`, with its own sd `price_value_sd`) is the blend the recipe was fitted on: one discount per
 league and the 300-ball switch (`translation.legacy_blend`), for the pool and for Scout rows alike, because a
-recipe on the fitted translation did not price held-out auctions better (6d); the value shown, the
+recipe on the fitted translation did not price held-out auctions better (6d); since 2026-10-27 moved to the
+coming season by the aging curve (recipe Z above, section 4b; a Scout row by his seasons in that league); the value shown, the
 contributions and the on-field worth use the translation. An export from before the
 model (no `price_value` in its rows), or no model file, falls back to the on-field curve. Code:
 `pricing.market_price` / `calibrate` / `link_share` ⇄ `marketPrice` / `calibrate` / `linkShare`
@@ -948,7 +1112,8 @@ contribution per match = (batting value − replacement for his batting slot)   
                        + (bowling value − replacement for his bowling group) × balls bowled a match / 100
 ```
 
-in the runs currency of section 4. It replaces two hand-set patches: the IPL-relevance penalty (6a step 2),
+in the runs currency of section 4; since 2026-10-27 the batting and bowling values are the time-aware ones
+(section 4b: the career value moved to his age next season). It replaces two hand-set patches: the IPL-relevance penalty (6a step 2),
 which ranked the pool, and the all-rounder rule (his better role only, ×1.15), which dropped Narine's batting
 entirely and made Bid plan add per-100-ball rates across an XI as if a No. 7 faced as many balls as an
 opener. Code: `src/cricdex/scout/playing_time.py`, fitted by `scripts/playing_time_fit.py` into
@@ -1024,6 +1189,12 @@ average ball:
 |---|---|---|---|---|---|---|
 | replacement | −15.1 | −12.6 | −8.0 | −6.6 | −5.9 | −5.3 |
 
+*Refitted 2026-10-27 on the time-aware values (section 4b), same protocol and candidates:* the same choices
+(R2 for batting, the kernel at 1.5 / 6 for bowling); validation batting 174.1 (R0 181.0), bowling 32.5 (R0
+39.0); test 2025 batting 191.2 (R0 163.3), bowling 27.5 (29.1); 2026 208.4 (201.1) and 54.5 (67.6). The
+shipped batting curve now runs −5.7 at No. 1, −15.6 at No. 5, −26.3 at No. 7, −56.2 at No. 8 and −70.4 at
+No. 11; the bowling curve moves by 0.2 at most.
+
 The fall between No. 7 and No. 8 is in the data, not a boundary: the freely available players who bat at 8 are
 mostly bowlers. A player whose usual position the data can't place (no match in the window and no role
 position) is read at No. 11. So an opener is measured against a replacement opener, a bowler's batting against
@@ -1088,6 +1259,9 @@ item 2 and the corrected dates of birth (ROADMAP I17), same protocol and candida
 0.580 / 0.099 / 0.58 in validation and 0.558 / 0.086 / 0.241 / 0.64 in the test; the first fit, on the old
 discounts of 6d, tested at 0.562 / 0.087 / 0.246 / 0.63.) Calibration in the test, fifths of the prediction,
 predicted / real share: 0.19 / 0.22, 0.29 / 0.30, 0.48 / 0.48, 0.71 / 0.67, 0.85 / 0.90.
+Refitted again 2026-10-27 on the time-aware values (section 4b): P5 chosen again (0.574 in validation); test
+0.558 / 0.086 / 0.240 / 0.64, so a hair worse than on the career values (0.556). The free-agent model
+(F3 again) tests at 0.0855 (0.0853 before), the buy model (B3 again) at 0.575 (0.574).
 Availability and experience carry the most: a player who sat out last season in a squad is much less likely
 to play than his rank says.
 
@@ -1135,6 +1309,14 @@ players first:
 Their contributions are career ratings, or thin ratings translated from SMAT. The ratings don't see a
 veteran's decline (Tier D #34 in the ROADMAP), and only the free-agent P(plays) was keeping these players
 off the lists.
+
+*Rechecked 2026-10-27 with the time-aware values (section 4b).* du Plessis is gone (0.8 runs a match, from
+4.7), Warner falls to 4.5 a match but is still in four teams' top fives, and the sheets are still led by
+players the market passes over: Mohammad Nabi (42) first on four sheets (his bowling, 2.4 a match, has no
+age decline in the data), Chirag Jani (37, never played the IPL; a −9 SMAT batter measured against a
+lower-order replacement, +4.2 a match) first on four, Jonny Bairstow (37) and Rahul Singh (SMAT) on one
+each. The reality gate's first-target check fails (Jani on four sheets against at most 3.4). So the buy
+model stays off: aging was one root, but the other is the contribution of a thin or never-IPL record.
 
 A calibration of a buy's expected value against what real buys then delivered was also declared and tested
 (`value`: V0 none, V1 one shrink factor, V2 a shrink by age past 32, years away and no IPL at all). Fitted
@@ -1225,8 +1407,8 @@ CHANGELOG):
 - **Stoinis** and **Livingstone** are Borderline on Keep, and P(plays) agrees: 0.71 and 0.45 (Livingstone
   played 2 of SRH's 15 matches in 2026).
 
-**Limits.** The contribution uses the career rating, not an aged forecast: a veteran's age counts only through
-P(plays) (audit items 3 and 9). The free-agent model has no mega/mini term. A newcomer's balls are shrunk
+**Limits.** The contribution uses the career rating moved by the fitted aging curve (section 4b), not his own
+recent form: a random walk on the level was tried and predicted worse. The free-agent model has no mega/mini term. A newcomer's balls are shrunk
 toward his role's regular share (the XI check above). P(plays) is computed against the squad as listed; a
 flipped Keep call doesn't recompute it. Fielding is missing. Balls a match don't depend on venue or
 opposition.
@@ -2463,7 +2645,8 @@ Run: `uv run python scripts/form_forecast.py fits` (the walk-forward fits; cache
 > mini, not clearly ahead of the real franchises overall, so it stays an exploration tool, not a verdict.
 > **Re-run 2026-10-27** with the replacement curves (6c) and the shipped money rule (step 4): the plan now
 > spends what real teams spend, but its squads were weaker next season, 2 of 10 teams in 2025 and 0 of 10 in
-> 2026 (the old rule: 7 and 5; step 4).
+> 2026 (the old rule: 7 and 5; step 4). **Re-run 2026-10-27 with the time-aware values (section 4b)**: 1 of 10
+> and 0 of 10 ("none": 8 and 5); 2025–26 have now been seen four times.
 
 **What it does.** Before the auction (IPL 2027: likely 16 December 2026), a franchise needs a sheet: whom to
 bid for, how high, and what to do when a target goes for more. Bid plan takes the squad and purse a team
@@ -2651,6 +2834,24 @@ gives the rule the same money value the plan used. These numbers are **seen thre
 (2024 is at full purse.) The conclusion doesn't change: the rule spends like the franchises and builds
 weaker squads than they do.
 
+*Re-run with the time-aware values (section 4b), 2026-10-27.* Replay inputs rebuilt (`auction_demand_fit.py
+inputs` / `mk` on the new as-of contributions and the price recipe Z), both rules, 200 runs. 2024 is the
+validation (full purse); **2025–26 have now been seen four times**, so they are no longer a clean test:
+
+| rule | 2024: spend error; stronger than the real squad | 2025: spend error; same spend, stronger | 2026 |
+|---|---|---|---|
+| "auction" (shipped), time-aware values | 0.102; 5 of 10 (+0.2) | 0.011; 1 of 10 (−4.1) | 0.093; 0 of 10 (−2.7) |
+| "auction", career values (the corrected replay above) | 0.104; 6 of 10 (+1.4) | 0.012; 3 of 10 (−3.9) | 0.085; 0 of 10 (−3.1) |
+| "none", time-aware values | 0.308; 7 of 10 (+0.9) | 0.174; 8 of 10 (+4.2) | 0.213; 5 of 10 (+0.3) |
+| "none", career values (before the replacement curves) | 0.456; 5 of 10 (−1.5) | 7 of 10 (+4.3) | 5 of 10 (+0.4) |
+
+(Spend error: mean absolute difference between the plan's expected spend and the real spend, as shares of
+the purse, full-purse plans. Next season: runs a match above replacement, plan against the real squad.)
+**The ranking of the two rules doesn't change**: "auction" spends like the franchises (error 0.01–0.10
+against 0.17–0.31), "none" builds the stronger next-season squads (now ahead in 2024 too). The time-aware
+values moved neither rule much: "auction" a little worse in 2024–25 and a little better in 2026, "none" a
+little better in 2024. Which rule ships stays a product call.
+
 *I2, the plans seeing each other (2026-10-27, built and switched off).* Each franchise's default plan is
 built against the latest plans of the others (`rival_plan_bids`, in team order, repeated). In each rival
 run, a rival chases each of its own targets up to its max bid, in the share of runs its plan lands him
@@ -2688,34 +2889,43 @@ asks "what is he worth to *this* squad?".
   the releases to reconsider.
 
 *The 2027 sheets (defaults: 125 cr assumed, 8 places opened, 200 runs; data to the 2026 final; re-run
-2026-10-27 with the replacement curves of 6c, the corrected dates of birth and the money rule above).* Top
-five targets, each as what rivals usually pay → max bid (cr); "rel." = released by that team's plan:
+2026-10-27 with the time-aware values of section 4b, the replacement curves of 6c, the corrected dates of
+birth and the money rule above).* Top five targets, each with his age, as what rivals usually pay → max bid
+(cr); "rel." = released by that team's plan:
 
 | team (kept, purse left, expected spend = share) | top five targets | still short of |
 |---|---|---|
-| CSK (17, 25.6, 24.9 = 97%) | David Miller (DC rel.) 0.5 → 6.3; Jake Fraser-McGurk 6.5 → 6.3; Kusal Mendis 0.5 → 6.8; Mustafizur Rahman 10.25 → 6.3; Devon Conway 11 → 14.4 | Death bowlers, Spinners |
-| DC (17, 26.3, 25.7 = 98%) | Jake Fraser-McGurk 6.5 → 6.6; Kusal Mendis 0.5 → 6.6; Akeal Hosein (CSK rel.) 5.75 → 6.6; Mustafizur Rahman 10.25 → 6.6; Lhuan-dre Pretorius (RR rel.) 0.5 → 6.6 | Death bowlers, Spinners |
-| GT (16, 14.0, 13.8 = 99%) | David Miller (DC rel.) 0.5 → 6.9; Jake Fraser-McGurk 8.75 → 6.9; Kusal Mendis 0.5 → 6.9; Mustafizur Rahman 11 → 6.9; Rovman Powell (KKR rel.) 0.5 → 6.9 | Death bowlers |
-| KKR (14, 23.2, 22.9 = 98%) | David Miller (DC rel.) 0.5 → 5.5; Kusal Mendis 0.5 → 5.5; Jake Fraser-McGurk 6.5 → 5.5; Rahul Tewatia (GT rel.) 0.8 → 5.5; Atharva Taide 0.7 → 5.5 | Death bowlers |
-| LSG (17, 27.3, 26.0 = 95%) | Kusal Mendis 0.5 → 2.7; Manish Pandey (KKR rel.) 1.2 → 4.0; Rahul Tripathi (KKR rel.) 1.4 → 4.0; Jake Fraser-McGurk 7.25 → 2.7; Rahul Singh 0.3 → 2.7 | Death bowlers |
-| MI (17, 17.2, 15.0 = 87%) | Rahul Tripathi (KKR rel.) 1.3 → 3.0; Manish Pandey (KKR rel.) 0.9 → 2.5; Atharva Taide 0.6 → 2.3; Jonny Bairstow 11.25 → 9.7; Rahul Singh 0.35 → 2.1 | Death bowlers |
-| PBKS (17, 15.1, 14.6 = 97%) | David Miller (DC rel.) 0.5 → 6.2; Kusal Mendis 0.5 → 6.2; Rahul Tewatia (GT rel.) 0.55 → 6.2; Jake Fraser-McGurk 7.5 → 6.2; Rovman Powell (KKR rel.) 0.5 → 6.2 | Openers, Death bowlers |
-| RCB (15, 13.6, 13.4 = 99%) | Rahul Tewatia (GT rel.) 0.7 → 6.3; David Miller (DC rel.) 0.5 → 6.3; Akeal Hosein (CSK rel.) 5 → 6.3; Kusal Mendis 0.5 → 6.3; Jake Fraser-McGurk 8.5 → 6.3 | Spinners |
-| RR (17, 11.0, 10.7 = 98%) | David Miller (DC rel.) 0.5 → 11.0; Kusal Mendis 0.5 → 11.0; Jake Fraser-McGurk 8 → 11.0; Akeal Hosein (CSK rel.) 5 → 11.0; Mustafizur Rahman 11 → 11.0 | Openers |
-| SRH (17, 20.2, 19.9 = 98%) | David Miller (DC rel.) 0.5 → 4.1; Kusal Mendis 0.5 → 4.1; Jake Fraser-McGurk 8 → 4.1; Manish Pandey (KKR rel.) 1.4 → 4.1; Atharva Taide 0.75 → 4.1 | Spinners |
+| CSK (17, 25.6, 24.6 = 96%) | Jake Fraser-McGurk, 24 7.5 → 5.5; Kusal Mendis, 32 0.5 → 6.1; Mustafizur Rahman, 31 9 → 5.5; Atharva Taide, 26 1.1 → 5.5; Lhuan-dre Pretorius (RR rel.) 0.3 → 5.5 | Death bowlers, Spinners |
+| DC (17, 26.3, 24.9 = 95%) | Mitchell Owen (PBKS rel.), 25 0.3 → 0.5; Jake Fraser-McGurk, 24 7.75 → 6.1; Lhuan-dre Pretorius (RR rel.) 0.3 → 0.5; Kusal Mendis, 32 0.5 → 0.7; Atharva Taide, 26 0.85 → 0.5 | Death bowlers |
+| GT (16, 14.0, 13.7 = 98%) | Jake Fraser-McGurk, 24 8.75 → 6.4; Kusal Mendis, 32 0.5 → 6.9; Atharva Taide, 26 0.95 → 6.4; David Miller (DC rel.), 37 0.5 → 6.4; Lhuan-dre Pretorius (RR rel.) 0.3 → 6.4 | Death bowlers |
+| KKR (14, 23.2, 22.7 = 98%) | Kusal Mendis, 32 0.5 → 3.5; Atharva Taide, 26 0.7 → 4.1; David Miller (DC rel.), 37 0.5 → 3.5; Jake Fraser-McGurk, 24 8.5 → 3.5; Lhuan-dre Pretorius (RR rel.) 0.3 → 3.5 | Death bowlers |
+| LSG (17, 36.1, 32.5 = 90%) | Atharva Taide, 26 0.95 → 1.6; Sanvir Singh, 30 0.3 → 0.3; Rahul Singh, 31 0.65 → 1.4; Mustafizur Rahman, 31 8.5 → 0.3; Rahmanullah Gurbaz, 25 11 → 0.0 | Death bowlers |
+| MI (17, 17.2, 14.7 = 85%) | Atharva Taide, 26 0.8 → 2.6; Sanvir Singh, 30 0.3 → 1.7; Rahul Singh, 31 0.6 → 2.3; Vishnu Vinod (PBKS rel.), 33 0.3 → 1.2; Manan Vohra, 33 0.3 → 1.2 | Death bowlers |
+| PBKS (17, 15.1, 14.6 = 97%) | Jake Fraser-McGurk, 24 7.5 → 6.4; Atharva Taide, 26 0.7 → 7.2; Kusal Mendis, 32 0.5 → 6.4; David Miller (DC rel.), 37 0.5 → 6.4; Rahul Tewatia (GT rel.), 33 1.1 → 6.4 | Death bowlers |
+| RCB (15, 13.6, 13.4 = 98%) | Akeal Hosein (CSK rel.), 33 7 → 6.3; Jake Fraser-McGurk, 24 8 → 6.3; David Miller (DC rel.), 37 0.5 → 6.3; Kusal Mendis, 32 0.5 → 6.3; Mustafizur Rahman, 31 11 → 6.3 | Spinners |
+| RR (17, 11.0, 10.6 = 97%) | Kusal Mendis, 32 0.5 → 11.0; Jake Fraser-McGurk, 24 8.5 → 10.5; Atharva Taide, 26 1.1 → 10.5; Mustafizur Rahman, 31 11.5 → 10.5; David Miller (DC rel.), 37 0.5 → 10.5 | Openers |
+| SRH (17, 20.2, 19.5 = 96%) | Atharva Taide, 26 0.7 → 3.1; Kusal Mendis, 32 0.5 → 2.8; David Miller (DC rel.), 37 0.5 → 2.3; Jake Fraser-McGurk, 24 7.5 → 2.3; Sanvir Singh, 30 0.3 → 2.3 | Spinners |
 
 λ is 0 at the first lot for every team. With 4–9 places to fill, the places run out before the money, so a
 crore left at the end is worth nothing. The max bids are therefore set by the purse left after the other
-likely buys (the same number down a team's list). The plans spend 0.87–0.99 of their purse, inside the real
-range. **The reality gate (section 13) fails on these sheets.** David Miller (DC rel., 0.5 cr, what rivals
-pay = his base price) is first on six of ten. The fitted demand model has franchises bidding for him with a
-mean chance of 0.19, so at most 4.4 sheets would be expected. Rule "none" tops six sheets with
-Fraser-McGurk. Both are the price-taker problem (ROADMAP I2): every plan sees the same cheap regular, and
-none sees the others bid. **Mustafizur Rahman** is in the pool, but whether Bangladesh players may be bought
-for 2027 is unreported: the BCCI had KKR release him in January 2026, and no BCCI or IPL statement on 2027
-was found by 2026-10-26. Read his line as conditional.
+likely buys (the same number down a team's list). The plans spend 0.85–0.98 of their purse, inside the real
+range. **The reality gate's two first-target checks pass on these sheets** (section
+13): the first targets are Fraser-McGurk and Atharva Taide (three sheets each), Kusal Mendis (two),
+Mitchell Owen and Akeal Hosein. **David Miller** (37), first on six of ten before, is worth 1.8 runs a match
+(from 2.8) and is now third to fifth on six sheets. The price-taker problem (ROADMAP I2) remains: rule
+"none" now puts Fraser-McGurk first on nine sheets. **Mustafizur Rahman** is in the pool, but whether
+Bangladesh players may be bought for 2027 is unreported: the BCCI had KKR release him in January 2026, and
+no BCCI or IPL statement on 2027 was found by 2026-10-26. Read his line as conditional.
 
-Before 2026-10-26 (`git show 553cfc428:docs/METHODOLOGY.md`), Ramandeep Singh (KKR rel.) was the first
+*With the buy model on* (6c, `BIDPLAN_BUY_MODEL`, checked 2026-10-27 and left off): the first targets are
+Mohammad Nabi (42) on four sheets and Chirag Jani (37, never played the IPL) on four, then Jonny Bairstow
+(37) and Rahul Singh; David Warner (40) is in four top fives. Jani's four sheets exceed the gate's bound
+(3.4), so the check fails. Under rule "none" Nabi is first on eight. The aging curve took du Plessis out
+and Warner down; it can't take out a bowler whose bowling doesn't age in the data (Nabi) or a thin domestic
+record (Jani).
+
+Before 2026-10-27 (`git show d76eb88a0:docs/METHODOLOGY.md`), David Miller (DC rel.) was the first target
+on six of ten sheets. Before 2026-10-26 (`git show 553cfc428:docs/METHODOLOGY.md`), Ramandeep Singh (KKR rel.) was the first
 target on 9 of 10 sheets, rated −37 runs per 100 balls at a usual position of 7.5 and measured against the
 8–11 group's −61.6. On the position curve his contribution is 0.5 runs a match and he is in no top five.
 Before the fixes of 2026-10-23, these sheets put Sarthak Ranjan first for CSK, DC and RCB at 8–17 cr and
@@ -2887,22 +3097,27 @@ includes a new fit, a new rule, a re-export and a data refresh.
 threshold is never set by looking at what the current outputs need. When the gate trips, the output is
 fixed, or the failure is recorded as a known open issue in the ROADMAP. The threshold is not loosened.
 
-| check | threshold and its source | 2026-10-27 |
-|---|---|---|
-| Each plan's expected spend ÷ purse left | within the range real teams spent at mini auctions (2023, 2024, 2026) with a purse left within a factor 2 of its own (`ipl_auction_history.json`, purse = cap − contracts as in step 4 of section 12) | **pass** (0.87–0.99) |
-| No player first on more sheets than franchises would bid for him | 10 × the mean fitted chance a franchise bids for him at all (the demand model, fitted on the 2019–2026 auctions) + 2 binomial sd | **fail**: David Miller first on 6, at most 4.4 |
-| A minimum-price player (rivals don't bid above his base) doesn't top most sheets | at most half of the ten | **fail**: Miller, 6 |
-| Known stars rank high | the players retained at the first capped slab (18 cr+, IPL Player Regulations 2025–27) inside the top N of the pool by season value; N = the number of squad players paid at least the lowest capped slab (11 cr): 47 | **fail**: Pat Cummins 57th (Ruturaj Gaikwad 25th, Jaiswal 24th, the rest top 10) |
-| Every IPL player's age is plausible | no younger at his first IPL match than the youngest IPL player (Vaibhav Suryavanshi, 14 years 23 days, 2025), no older at his last than the oldest (Brad Hogg, 45 years 92 days, 2016, ESPNcricinfo) | **pass** |
-| Keep calls the obvious retentions Keep | every player paid 18 cr+ (the first capped slab) kept by Keep or release's default | **pass** (14 of 14) |
-| The star market price isn't below real prices by more than the documented error | for the lots sold for 10 cr+ at the last auction (2026), median market ÷ real ≥ 0.36 (AUCTION_MATH Part 0) | **fail**: 0.34 on 5 lots (Kartik Sharma and Prashant Veer, the scouted uncapped buys at 14.2 cr, at 0.06 and 0.12) |
+| check | threshold and its source | 2026-10-27, before the time-aware values | after (section 4b) |
+|---|---|---|---|
+| Each plan's expected spend ÷ purse left | within the range real teams spent at mini auctions (2023, 2024, 2026) with a purse left within a factor 2 of its own (`ipl_auction_history.json`, purse = cap − contracts as in step 4 of section 12) | **pass** (0.87–0.99) | **pass** (0.85–0.98) |
+| No player first on more sheets than franchises would bid for him | 10 × the mean fitted chance a franchise bids for him at all (the demand model, fitted on the 2019–2026 auctions) + 2 binomial sd | **fail**: David Miller first on 6, at most 4.4 | **pass**: Fraser-McGurk and Atharva Taide first on 3 each, Kusal Mendis 2, Mitchell Owen and Akeal Hosein 1 |
+| A minimum-price player (rivals don't bid above his base) doesn't top most sheets | at most half of the ten | **fail**: Miller, 6 | **pass** (Mendis, 2) |
+| Known stars rank high | the players retained at the first capped slab (18 cr+, IPL Player Regulations 2025–27) inside the top N of the pool by season value; N = the number of squad players paid at least the lowest capped slab (11 cr): 47 | **fail**: Pat Cummins 57th (Ruturaj Gaikwad 25th, Jaiswal 24th, the rest top 10) | **fail**: Cummins 59th (Kohli 27th, Gaikwad 24th, Jaiswal 14th, the rest top 10) |
+| Every IPL player's age is plausible | no younger at his first IPL match than the youngest IPL player (Vaibhav Suryavanshi, 14 years 23 days, 2025), no older at his last than the oldest (Brad Hogg, 45 years 92 days, 2016, ESPNcricinfo) | **pass** | **pass** |
+| Keep calls the obvious retentions Keep | every player paid 18 cr+ (the first capped slab) kept by Keep or release's default | **pass** (14 of 14) | **pass** (14 of 14) |
+| The star market price isn't below real prices by more than the documented error | for the lots sold for 10 cr+ at the last auction (2026), median market ÷ real ≥ 0.36 (AUCTION_MATH Part 0) | **fail**: 0.34 on 5 lots (Kartik Sharma and Prashant Veer, the scouted uncapped buys at 14.2 cr, at 0.06 and 0.12) | **fail**: 0.3597 (the same two lots) |
 
-**The four failures, read.**
+**The failures, read.** *(2026-10-27, after the time-aware values of section 4b: the two first-target checks
+pass on the shipped sheets, the buy model off; their strict `xfail` marks were removed. With the buy model
+on they fail again: section 6c.)*
 
-- **The two "first target" checks** are the price-taker problem (ROADMAP I2). Every plan sees the same cheap
+- **The two "first target" checks** were the price-taker problem (ROADMAP I2). Every plan sees the same cheap
   regular and none sees the others chasing him. Every money rule tried hits it: rule "none" puts
   Fraser-McGurk first on six sheets. Two fixes were built on 2026-10-27, the buy model (6c) and the rival
-  plans (section 12, step 4). Both made the sheets worse and are switched off.
+  plans (section 12, step 4). Both made the sheets worse and are switched off. With the time-aware values
+  (section 4b) Miller is worth 1.8 runs a match (from 2.8) and the shipped sheets' first targets spread
+  over five players; the price-taker problem itself is still there (rule "none" now puts Fraser-McGurk
+  first on nine sheets).
 - **Cummins: a real signal, not a model error** (investigated 2026-10-27).
   - He played 8 of SRH's 15 matches in 2026, which is why his P(plays) is 0.64.
   - His IPL bowling was about the league average: economy 9.28, 9.06 and 9.59 in 2024, 2025 and 2026,
@@ -2922,7 +3137,8 @@ fixed, or the failure is recorded as a known open issue in the ROADMAP. The thre
   - No sourced, fitted feature explains them, so nothing was changed. It is the market model's documented
     blind spot for scouted uncapped players.
 
-All four are open in the ROADMAP (I18) and marked as known failures (`xfail`, strict). They show as
+The two still failing (Cummins, the star price) are open in the ROADMAP (I18) and marked as known failures
+(`xfail`, strict); the two first-target checks lost their marks on 2026-10-27 when they passed. They show as
 expected failures, not passes. When a fix makes one pass, the strict mark fails the suite until the mark is
 removed, so a fixed check can't quietly stay marked. Any new failure fails the build.
 The checks run in about 30 seconds.

@@ -711,26 +711,34 @@ def _export_auction_pool(
                 other_src.setdefault((cid, role), {})[col] = (float(v), sd)
     # The market price's value input: the blend its recipe was fitted on. The fitted translation as a
     # price input (recipe Y) did not beat the shipped recipe out of time (2026-10-23, METHODOLOGY
-    # §6d), so until one does the market price keeps the blend it was fitted on
-    # (translation.legacy_blend: one discount per league, the 300-ball switch) — for the price input
-    # only; `value`, contributions, ranking and strength use the translation.
+    # §6d), so the market price keeps the blend it was fitted on (translation.legacy_blend: one
+    # discount per league, the 300-ball switch), since 2026-10-27 moved to the coming season by the
+    # time-aware rating (recipe Z, METHODOLOGY §6b / §4b) — for the price input only; `value`,
+    # contributions, ranking and strength use the translation.
     from cricdex.web_parity import pricing as _pricing
 
-    price_on_translated = _pricing.value_input() == "translated"
+    price_input = _pricing.value_input()
+    price_on_translated = price_input == "translated"
     legacy_best: dict[str, tuple[float, float]] = {}
+    legacy_roles: dict[str, dict[str, tuple[float, float]]] = {}
+    legacy_shares: dict[tuple[str, str], dict[str, float]] = {}
     best: dict[str, dict] = {}
+    role_shares: dict[tuple[str, str], dict[str, float]] = {}
     for key in set(ipl_src) | set(other_src):
         cid, role = key
         own = ipl_src.get(key)
-        lv, lsd, _ = translation.legacy_blend(own, other_src.get(key, {}))
+        lv, lsd, lsh = translation.legacy_blend(own, other_src.get(key, {}))
         if cid not in legacy_best or lv > legacy_best[cid][0]:
             legacy_best[cid] = (lv, lsd)
+        legacy_roles.setdefault(cid, {})[role] = (lv, lsd)
+        legacy_shares[key] = lsh
         # the value's sd goes along: the price is set on value − PRICE_CAUTION_SD × sd (pricing.py)
         val, vsd, wbc = translation.blend(
             role, (own[0], own[1]) if own else None, other_src.get(key, {}), tmodel
         )
         tb = own[2] if own else 0  # his IPL balls in this role (the on-field curve's ceiling)
         per_role.setdefault(cid, {})[role] = (val, vsd)
+        role_shares[key] = wbc
         # `value` (shown, and the market price's input when its recipe is on the translated value):
         # his better role's rate. Ranking and strength use the contribution per match, both roles.
         if cid not in best or val > best[cid]["value"]:
@@ -810,6 +818,18 @@ def _export_auction_pool(
     # playing time (scout/playing_time.py, config/playing_time_model.json): every rated player's
     # contribution per match and his P(plays), in his squad or, for a free agent, averaged over the
     # squads he could join
+    # time-aware values (scout/ratings/drift.py, METHODOLOGY §4b; ROADMAP #34): each role's value moved
+    # from his career level to his level in the coming season. The contribution per match reads it, so
+    # the pool's ranking, P(plays), Bid plan and Keep do too; `value` (shown) stays the career rating.
+    per_role, time_shift = _time_aware_roles(
+        per_role, role_shares, comp, asof, dob_by_cid, taxonomy
+    )
+    if price_input == "time_aware":
+        # the price recipe's input: the legacy blend moved the same way, better role
+        ta_roles, _ = _time_aware_roles(
+            legacy_roles, legacy_shares, comp, asof, dob_by_cid, taxonomy
+        )
+        legacy_best = {cid: max(rs.values(), key=lambda x: x[0]) for cid, rs in ta_roles.items()}
     pt_model = playing_time.load_model()
     pt_rows: dict[str, dict] = {}
     if pt_model is not None:
@@ -905,6 +925,10 @@ def _export_auction_pool(
             # bowling at his expected balls), its sd and parts, his expected balls, the chance he
             # plays a match, and the expected runs over a season (P × contribution × 14)
             **{k: ptr.get(k) for k in PT_KEYS},
+            # how far the time-aware model moved each role's value from his career rating (runs per
+            # 100 balls; METHODOLOGY §4b): what the contribution uses is value + this
+            "time_shift_bat": _shift_of(time_shift, cid, "batter"),
+            "time_shift_bowl": _shift_of(time_shift, cid, "bowler"),
             **price_in(cid),
             "role": role_map.get(tax.get("primary_role"), "batter"),
             "primary_role": tax.get("primary_role"),
@@ -949,6 +973,49 @@ def _export_auction_pool(
     _write(out_dir / "auction_pool.json", out)
     _write(out_dir / "activity_index.json", activity)
     return len(out), extra_rows
+
+
+def _time_aware_roles(per_role, shares, comp, asof, dob_by_cid, taxonomy):
+    """(cid → {role: (value now, sd)}, (cid, role) → (shift, its sd)): `per_role` moved to the
+    coming season by the shipped time-aware model (config/rating_drift.json) from every pool league's
+    season values before the auction. Unchanged without the model file."""
+    import datetime as _dt
+
+    from cricdex.scout.ratings import drift
+
+    model = drift.load_model()
+    if model is None:
+        logger.warning(
+            "auction_pool: no config/rating_drift.json — career ratings used as they stand"
+        )
+        return per_role, {}
+    date = comp.auction_date if comp else (asof or _dt.date.today().isoformat())
+    season = comp.season if comp else int(date[:4]) + 1
+    obs = drift.season_obs(DUCKDB_PATH, list(AUCTION_POOL_COLLECTIONS), [date])
+    cat = {cid: (t or {}).get("bowling_category") for cid, t in taxonomy.items()}
+    dob = {cid: str(d)[:10] for cid, d in dob_by_cid.items() if d}
+    out, info = drift.adjust(per_role, shares, obs, date, season, dob, cat, model)
+    logger.info(f"  time-aware values: {len(info)} player-roles moved to {season}")
+    return out, info
+
+
+def _scout_time_shifts(col, bat, bowl, sds, taxonomy) -> dict[tuple[str, str], float]:
+    """(cid, "bat" | "bowl") → the time-aware shift of a Scout row's value in league `col` (his
+    seasons there only), for the next competition of the auction target."""
+    comp = _target_competition(AUCTION_TARGET)
+    vals: dict[str, dict[str, tuple[float, float]]] = {}
+    for side, d in (("bat", bat), ("bowl", bowl)):
+        role = "batter" if side == "bat" else "bowler"
+        for cid, v in d.items():
+            vals.setdefault(cid, {})[role] = (float(v), sds.get((cid, side), 0.0))
+    shares = {(cid, r): {col: 1.0} for cid, rs in vals.items() for r in rs}
+    _out, info = _time_aware_roles(vals, shares, comp, None, _dob_by_cid(taxonomy), taxonomy)
+    return {(cid, "bat" if r == "batter" else "bowl"): sh for (cid, r), (sh, _sd) in info.items()}
+
+
+def _shift_of(info: dict, cid: str, role: str) -> float | None:
+    d = info.get((cid, role))
+    return None if d is None else round(d[0], 3)
 
 
 # the playing-time fields of pool, squad and Keep rows (scout/playing_time.py)
@@ -1585,6 +1652,10 @@ def _export_scout_index(
         # a league whose newest match is over STALE_DAYS older than the newest anywhere (SMAT on
         # Cricsheet stops at 2024-12): every number from it carries the flag
         stale = _is_stale(asof, newest)
+        # the market price's time-aware input (recipe Z): each side's legacy value moved to the coming
+        # season from this league's seasons (scout/ratings/drift.py)
+        ta_shift = (_scout_time_shifts(col, bat, bowl, sds, taxonomy)
+                    if _pricing.value_input() == "time_aware" else {})  # fmt: skip
         rows = []
         scores: list[float] = []
         for cid in sorted(set(bat) | set(bowl)):
@@ -1627,7 +1698,7 @@ def _export_scout_index(
                 raw_side = "bat" if w is None or (b is not None and b >= w) else "bowl"
                 raw_v = b if raw_side == "bat" else w
                 disc, old_tsd = translation.LEGACY_DISCOUNTS.get(col, (0.0, 0.0))
-                pv = raw_v - disc
+                pv = raw_v - disc + ta_shift.get((cid, raw_side), 0.0)
                 pv_sd = (sds.get((cid, raw_side), 0.0) ** 2 + old_tsd**2) ** 0.5
             rows.append(
                 {

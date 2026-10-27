@@ -202,6 +202,8 @@ def asof_values(season: int, date: str, which: str = "roles") -> dict[str, dict]
     best: dict[str, dict] = {}
     legacy: dict[str, tuple[float, float, int]] = {}
     ipl_balls: dict[str, int] = {}
+    legacy_roles: dict[str, dict[str, tuple[float, float]]] = {}
+    legacy_shares: dict[tuple[str, str], dict[str, float]] = {}
     for (cid, _role), o in own.items():
         ipl_balls[cid] = ipl_balls.get(cid, 0) + o[2]
     for key in set(own) | set(other):
@@ -212,18 +214,59 @@ def asof_values(season: int, date: str, which: str = "roles") -> dict[str, dict]
             val, vsd, _ = translation.blend(role, (o[0], o[1]) if o else None, oth, tm, which)
         else:
             val, vsd = (o[0], o[1]) if o else (None, None)
-        lv, lsd, _ = translation.legacy_blend(o, oth)
+        lv, lsd, lsh = translation.legacy_blend(o, oth)
+        if role in translation.ROLES:
+            legacy_roles.setdefault(cid, {})[role] = (lv, lsd)
+            legacy_shares[key] = lsh
         tb = o[2] if o else 0
         if val is not None and (cid not in best or val > best[cid]["value"]):
             best[cid] = {"value": val, "value_sd": vsd, "target_balls": tb}
         if cid not in legacy or lv > legacy[cid][0]:
             legacy[cid] = (lv, lsd, tb)
+    # candidate Z (2026-10-27): the legacy blend moved from his career level to the coming season by
+    # the time-aware model fitted on seasons up to 2024 (scout/ratings/drift.py, METHODOLOGY §4b)
+    ta = _time_aware_best(legacy_roles, legacy_shares, season, date)
     for cid, b in best.items():
         b["ipl_balls"] = ipl_balls.get(cid, 0)
         lv = legacy.get(cid)
         b["value_legacy"], b["value_sd_legacy"] = (lv[0], lv[1]) if lv else (None, None)
         b["target_balls_legacy"] = lv[2] if lv else 0
+        t = ta.get(cid)
+        b["value_legacy_ta"], b["value_sd_legacy_ta"] = t if t else (None, None)
     return best
+
+
+_TA: dict = {}
+
+
+def _time_aware_best(roles: dict, shares: dict, season: int, date: str) -> dict:
+    """cid → (value, sd) of his better role after the time-aware shift (`model_le2024`: the price
+    protocol's selection and test must not see 2025-26); {} without the model."""
+    from cricdex.scout.ratings import drift
+
+    if "model" not in _TA:
+        _TA["model"] = drift.load_model(which="model_le2024")
+        pm = master.load()
+        _TA["dob"] = {
+            c: str(r["dob"])[:10] for c, r in pm.items() if isinstance(r, dict) and r.get("dob")
+        }
+        _TA["cat"] = {c: r.get("bowling_category") for c, r in pm.items() if isinstance(r, dict)}
+        _TA["obs"] = None
+    m = _TA["model"]
+    if m is None:
+        return {}
+    if _TA["obs"] is None or (_TA["obs"].filter(pl.col("cut") == date).height == 0
+                              and date[5:] != "01-01"):  # fmt: skip
+        _TA["obs"] = drift.season_obs(bayesian.DEFAULT_DB_PATH,
+                                      [lg.key for lg in leagues.auction_pool()], [date])  # fmt: skip
+    vals, _ = drift.adjust(roles, shares, _TA["obs"], date, season, _TA["dob"], _TA["cat"], m,
+                           "roles_le2024")  # fmt: skip
+    out: dict[str, tuple[float, float]] = {}
+    for cid, rs in vals.items():
+        for v, sd in rs.values():
+            if cid not in out or v > out[cid][0]:
+                out[cid] = (v, sd)
+    return out
 
 
 ASOF_CONTRIB = DATA_DIR / "metrics" / ".playing_time" / "asof_contrib.parquet"
@@ -336,6 +379,9 @@ def feature_fn(refresh_caps: bool = False):
             "value_sd": v["value_sd_legacy"] if v else None,
             "value_tr": v["value"] if v else None,
             "value_sd_tr": v["value_sd"] if v else None,
+            # `value_ta` / `value_sd_ta`: the legacy blend moved to the coming season (candidate Z)
+            "value_ta": v.get("value_legacy_ta") if v else None,
+            "value_sd_ta": v.get("value_sd_legacy_ta") if v else None,
             # his contribution per match as of the auction (scripts/playing_time_fit.py asof-contrib):
             # the value of candidate X
             "contrib": ct[0] if ct else None,
@@ -480,6 +526,8 @@ def _valued(r: dict) -> dict:
         return {**r, "price_value": r.get("contrib"), "value_sd": r.get("contrib_sd")}
     if _FORM.get("value") == "translated":
         return {**r, "price_value": r.get("value_tr"), "value_sd": r.get("value_sd_tr")}
+    if _FORM.get("value") == "time_aware":
+        return {**r, "price_value": r.get("value_ta"), "value_sd": r.get("value_sd_ta")}
     return r
 
 
@@ -1187,6 +1235,12 @@ CANDIDATES: dict[str, tuple] = {
         _NO_SQ, "tobit", "censored", False,
         {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
          "value": "translated"}),
+    # declared 2026-10-27 (ROADMAP #34 / I18), before any of its numbers: T with the value moved from
+    # his career level to the coming season by the time-aware rating (scout/ratings/drift.py)
+    "Z  T with the time-aware value (the legacy blend moved to the coming season)": (
+        _NO_SQ, "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
+         "value": "time_aware"}),
 }  # fmt: skip
 # P(bought): the previous features, and with the prior market price
 BOUGHT_CANDIDATES = {
@@ -1474,6 +1528,11 @@ def fit(
         },
         "data": "data/curated/ipl_auction_history.json (Wikipedia, CC BY-SA 4.0)",
         "model_version": bayesian.MODEL_VERSION,
+        # which value the recipe was fitted on, so the export hands it the same one
+        # (pricing.value_input): the legacy blend, the fitted translation, or (candidate Z, since
+        # 2026-10-27) the legacy blend moved to the coming season
+        "value_input": {"translated": "translated", "time_aware": "time_aware"}.get(
+            _form_of(cands[chosen])["value"], "legacy"),
         # the default competition a price is for: the league's next one (export_site rewrites it
         # the same way from config/competitions.toml)
         "competition": _next_competition(),

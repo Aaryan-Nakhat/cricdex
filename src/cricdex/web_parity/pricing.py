@@ -314,8 +314,10 @@ def has_market_inputs(row: dict, model: dict | None = None) -> bool:
 def value_input(model: dict | None = None) -> str:
     """Which value the market price was fitted on, so the export hands it the same one: "legacy"
     (the blend every recipe up to T used: one discount per league and the 300-ball switch,
-    cricdex.scout.translation.legacy_blend) or "translated" (the fitted league translation). Read from
-    the model's `value_input`; a model without it is "legacy"."""
+    cricdex.scout.translation.legacy_blend), "translated" (the fitted league translation) or
+    "time_aware" (the legacy blend moved to the coming season by the time-aware rating,
+    scout/ratings/drift.py; recipe Z, since 2026-10-27). Read from the model's `value_input`; a model
+    without it is "legacy"."""
     m = model or load_price_model() or {}
     return str(m.get("value_input") or "legacy")
 

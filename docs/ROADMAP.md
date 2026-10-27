@@ -334,7 +334,16 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   a hand-curated boundary-size table (M).
 - [ ] 34. Research models (M–L): time-varying skill (random walk), correlated priors, within-player aging;
   keep each only if held-out fit improves. *Within-player aging with a survivorship correction ships in the
-  Form forecast (11b, METHODOLOGY §11); not yet inside the rating model.*
+  Form forecast (11b, METHODOLOGY §11).* **2026-10-27: time-aware values (METHODOLOGY §4b, `ratings/drift.py`,
+  `scripts/rating_drift_fit.py`).** A state-space model of every player's season values in every pool league
+  (an aging curve per group, a random walk, and a selection model for the players who stop playing), fitted
+  by maximum likelihood. Seven candidates declared, chosen walk-forward on 2019–24 by next season's
+  contribution per match: **aging only** won (MAE 4.019 against 4.036 for the career rating; the 34+ bias
+  +0.65 against +1.18); every random-walk candidate was worse than the career rating; pace and spin apart
+  didn't help. Test once on 2025–26: 4.400 against 4.408, rank corr. 0.309 against 0.301. Shipped into the
+  contribution per match (so the pool, P(plays), Bid plan, Keep) and, chosen by its own protocol (recipe Z),
+  the market price's input. Open: correlated priors; a drifting skill that beats the career rating; the
+  form forecast (§11) still has its own IPL-only level model and hand-flat bowler curve.
 - [ ] 35. Non-IPL auction and draft rooms (L): WPL, ILT20, MLC, SA20.
 
 ### Product review (owner, 2026-10-17)
@@ -524,7 +533,8 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
   METHODOLOGY §12); re-run the Bid plan replays (`scripts/bidplan_backtest.py`) and refit the price and Keep
   models, which take age, on the corrected dates.
 
-- [ ] I18. The reality gate (METHODOLOGY §13) fails four of its seven checks on the 2027 outputs. Each is marked
+- [ ] I18. The reality gate (METHODOLOGY §13) failed four of its seven checks on the 2027 outputs (two since the
+  time-aware values of 2026-10-27, below). Each failing one is marked
   strict `xfail` with its reason. Worked on 2026-10-27:
   - **Buy model** (6c), P(plays) of a lot once bought. Fitted on 2018–24 buys; test log loss 0.574 against
     0.749 for the free-agent P(plays). Switched off: with it the sheets put Warner (40), Nabi (42), du Plessis
@@ -542,6 +552,17 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
     ratings don't see decline (Tier D #34), so that is the next fix. The rival plans need value-based max
     bids, which the "auction" rule doesn't give; re-decide the money rule (the old "none" rule built the
     stronger squads).
+  - **Time-aware values (Tier D #34, 2026-10-27; METHODOLOGY §4b).** The contribution per match now reads
+    each role's value moved to his age next season (a fitted, selection-corrected aging curve; the random
+    walk lost on validation). Miller 2.8 → 1.8 runs a match, du Plessis 4.7 → 0.8, Warner 6.9 → 4.5, Dhoni
+    2.7 → 0.4, Kohli 5.9 → 4.1. **The two first-target checks now pass** on the shipped sheets (buy model off);
+    their xfail marks are removed. The gate fails two of seven: Cummins (59th) and the star price (0.3597
+    against 0.36). **With the buy model on, veterans still top sheets**: Nabi (42, bowling doesn't age in the
+    data) and Chirag Jani (37, never-IPL SMAT batter) first on four each, Warner in four top fives; it stays
+    off. What's left is the contribution of a thin or never-IPL record, not age. Replays (2025–26 seen four
+    times): "auction" 1 of 10 and 0 of 10, "none" 8 and 5; the rules' ranking doesn't change. Recipe Z (the
+    market price on the time-aware value) won the price protocol and ships. Keep's retention model was not
+    refitted on the new price input.
 
 ### Guardrails
 
@@ -569,7 +590,8 @@ Work that needs no new data source.
 
 - ~~Fielder and non-striker credit in NGI~~ and ~~venue, phase and era effects in the ratings~~: shipped
   2026-10-17 (review items 9 and 12). Next on that line: a player's own form drifting over time
-  (Tier D #34) and a joint multi-league fit (Tier B #17).
+  (Tier D #34: the aging part shipped 2026-10-27; the random walk was tried and lost) and a joint
+  multi-league fit (Tier B #17).
 - **Women's collections**: the ingester already knows the WPL, WBBL and women's T20I archives; nothing
   downstream has been built or checked on them yet.
 - **Replacement Delta**: NGI against a replacement-level player ("cricket WAR"). Needs a sub-IPL baseline

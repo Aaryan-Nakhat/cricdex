@@ -154,10 +154,6 @@ def _p_bids(lot: dict, kept: list[dict], rules: dict) -> float:
     return 1.0 / (1.0 + math.exp(-z))
 
 
-@pytest.mark.xfail(strict=True, reason="ROADMAP I18: open. The buy model (P(plays) once bought) and the "
-                   "rival plans (I2) were built and tested on 2026-10-27 and are switched off: with them "
-                   "the sheets put veterans out of the IPL first (their contributions don't see decline), "
-                   "and purse-bound max bids made the rival plans bid each other to 10-15 cr")  # fmt: skip
 def test_no_player_tops_more_sheets_than_teams_would_bid_for_him(plans):
     """A player is the first target on at most as many sheets as franchises would bid for him at
     all: ten times the mean fitted chance a franchise bids for him (`_p_bids`, the demand model fitted
@@ -180,10 +176,6 @@ def test_no_player_tops_more_sheets_than_teams_would_bid_for_him(plans):
     assert not bad, "; ".join(bad)
 
 
-@pytest.mark.xfail(strict=True, reason="ROADMAP I18: open. The buy model (P(plays) once bought) and the "
-                   "rival plans (I2) were built and tested on 2026-10-27 and are switched off: with them "
-                   "the sheets put veterans out of the IPL first (their contributions don't see decline), "
-                   "and purse-bound max bids made the rival plans bid each other to 10-15 cr")  # fmt: skip
 def test_minimum_price_player_does_not_top_most_sheets(plans):
     """A player rivals don't bid above his base price for (median price to beat = base price) is
     first on at most half the sheets."""
