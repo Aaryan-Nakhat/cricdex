@@ -11,6 +11,17 @@ from cricdex import competitions
 from cricdex.competitions import RULE_FIELDS, CompetitionError, parse
 from cricdex.config import DATA_DIR as DATA
 
+# Hand-curated IPL files kept local (gitignored, data/curated/*): the tests that read them skip
+# where they are absent (CI), as tests/test_reality_gate.py does.
+AUCTION_HISTORY = DATA / "curated" / "ipl_auction_history.json"
+AVAILABILITY = competitions.availability_path("ipl")
+needs_history = pytest.mark.skipif(
+    not AUCTION_HISTORY.exists(), reason="no data/curated/ipl_auction_history.json (local-only)"
+)
+needs_availability = pytest.mark.skipif(
+    not AVAILABILITY.exists(), reason="no data/curated/ipl_availability.json (local-only)"
+)
+
 MINIMAL = """
 schema = 1
 [[competition]]
@@ -200,6 +211,7 @@ def test_salaries_reproduce_the_published_purses(ipl):
     assert all(v > 0 for v in slab.values())
 
 
+@needs_history
 def test_slab_rule_reproduces_2025_and_2026_purses(ipl):
     """The retention-slab mechanism, not a hand-entered charge: the purse counts a team's 2025 mega
     retentions together as max(the first n capped slabs + 4 cr per uncapped one, their salaries).
@@ -212,7 +224,7 @@ def test_slab_rule_reproduces_2025_and_2026_purses(ipl):
     rules = c.rules()
     assert rules["retained_cost"] == "slabs" and rules["retention_slabs"] == [18, 14, 11, 18, 14]
     mr = sq["mega_retentions_2025"]
-    hist = json.loads((DATA / "curated" / "ipl_auction_history.json").read_text(encoding="utf-8"))
+    hist = json.loads(AUCTION_HISTORY.read_text(encoding="utf-8"))
     sal25 = {
         (r["team"], r["name"]): r["salary_cr"] for r in hist["retentions"] if r["season"] == 2025
     }
@@ -251,6 +263,7 @@ def test_slab_rule_reproduces_2025_and_2026_purses(ipl):
         assert abs(charged - salaries - chk.get("slab_charge", {}).get(t, 0.0)) < 0.01, t
 
 
+@needs_availability
 def test_availability_file_is_sourced():
     """data/curated/ipl_availability.json: every record says what (status, scope or seasons) and
     when, with at least one dated source a reviewer can open."""

@@ -404,10 +404,10 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
   from current data (last, after the price fixes). *Done 2026-10-23:* every image and the hero video re-rendered
   from data (`scripts/media_data.py` → `docs/media/src/data.js`), plus new Keep or release and Bid plan (beta)
   images and a hero scene for them.
-- [ ] I2. Bid plan (beta) doesn't beat real franchises in replay (re-run 2026-10-22 on expected contributions:
+- [ ] I2. Bid plan (draft; beta before 2026-10-26) doesn't beat real franchises in replay (re-run 2026-10-22 on expected contributions:
   8/10 in the 2025 mega, 0/10 in the 2026 mini; before, on per-100-ball strength, 4/10 and 2/10); target lists
   overlap across teams because the plan is a price-taker. Make rivals react to the plan's targets
-  (equilibrium across teams) and re-validate; drop "beta" only when the replay beats the real franchises.
+  (equilibrium across teams) and re-validate; drop "draft" only when the replay beats the real franchises.
   *2026-10-23, still open:* rivals now bid by the fitted demand model and strength has no hand-set depth or
   need constants; the replay at equal spend is 6/10 (2025 mega, +2.5 runs a match) and 3/10 (2026 mini, −0.2):
   about level, not ahead in either type, so beta stays. P(≤ max bid) is no longer over-confident (top band

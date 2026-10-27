@@ -86,11 +86,11 @@ Wikipedia's personnel pages (CC BY-SA); the cycle's rules live in
 purse isn't published yet). In the terminal: `cricdex keep --team RCB`.
 → [How it decides](docs/METHODOLOGY.md#10-keep-or-release)
 
-## 📋 Bid plan, for the auction room (beta)
+## 📋 Bid plan, for the auction room (draft)
 
 <p align="center"><img src="docs/media/bidplan.png" alt="Bid plan (draft): a live 2027 sheet for RCB (top five targets, max bids and a fallback chain), how its chance of landing a player under the max bid held up at the 2025 and 2026 auctions, and the replay against the real franchises" width="100%"></p>
 
-**Draft, max bids not reliable yet:** player ratings don't yet see age or recent decline, so older players can look like bargains, and many max bids come out as just the purse left. In replays of the real 2025 and 2026 auctions, at the real franchise's spend, its squad beat the real one on next-season output for 3 of 10 teams in 2025 and 0 of 10 in 2026. The fix in progress is ratings that see age and form (ROADMAP I18). Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
+**Draft, max bids not reliable yet:** player ratings now see age (a fitted aging curve) but not recent form, and many max bids come out as just the purse left. In replays of the real 2025 and 2026 auctions, at the real franchise's spend, its squad beat the real one on next-season output for 1 of 10 teams in 2025 and 0 of 10 in 2026. What's left is open as ROADMAP I18. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
 purse from Keep or release (your own calls carry over), lets the other nine teams bid in the Auction room's
 simulator 200 times to see what each player would cost, and picks the targets that add the most to your
 best XI for the money: each with a **max bid**, the odds of landing him under it, and a **fallback chain**

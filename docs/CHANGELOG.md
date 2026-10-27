@@ -8,6 +8,16 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### CI green again, docs audited (2026-10-27)
+
+- **The scout export used the connection it was given.** The time-aware and calibration steps opened the
+  hard-coded database path, so CI, which has no database, failed. They now read the given connection's file,
+  and leave values unchanged when there is none.
+- **The IPL auction record and the sourced availability file are now committed** (`data/curated/`), so the
+  retention-slab and availability tests run in CI. They skip cleanly when the files are absent.
+- **Docs audit:** Bid plan is marked draft everywhere, with the replay numbers updated. Stale formulas and
+  limits are corrected, and missing scripts and modules are added to the READMEs. There are 0 broken links.
+
 ### How far a value is trusted: a fitted calibration (ROADMAP I18; 2026-10-27)
 
 - **The contribution per match read each value's posterior mean as if it were certain** (its sd went only to

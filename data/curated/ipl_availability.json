@@ -1,0 +1,187 @@
+{
+ "_note": "Who can't be bought at the next IPL auction, with evidence a reviewer can check. Keyed by cricsheet_id. Fields: _name; status = \"retired\" (announced retirement: never in an auction pool again) or \"not_registered\" (did not enter the auction of the listed `seasons` only: kept in later pools, recorded so a reviewer sees why a veteran is still there); scope = \"ipl\" (out of the IPL and Indian cricket, may still play other leagues) or \"all\" (all cricket); date = the announcement (YYYY-MM-DD); role_now = a coaching or staff role, if any; _evidence = [{title, url, date}]. Read by scripts/export_site.py (the auction pool, METHODOLOGY section 7) and by the player master (`retired` / `retired_scope`, src/cricdex/scout/identity/master.py). Retirements found in a Wikipedia 'List of <season> Indian Premier League personnel changes' page belong here; the master build lists any it can't find (player_master_review.json `todo`).",
+ "495d42a5": {
+  "_name": "R Ashwin",
+  "status": "retired",
+  "scope": "ipl",
+  "date": "2025-08-27",
+  "_evidence": [
+   {"title": "Ravichandran Ashwin retires from IPL (Cricbuzz)", "url": "https://m.cricbuzz.com/cricket-news/135418/ravichandran-ashwin-retires-from-ipl", "date": "2025-08-27"},
+   {"title": "Wikipedia, List of 2026 Indian Premier League personnel changes: Retired players", "url": "https://en.wikipedia.org/wiki/List_of_2026_Indian_Premier_League_personnel_changes", "date": "2026-10-23"}
+  ],
+  "note": "Retired from international cricket in December 2024; plays overseas leagues."
+ },
+ "bbd41817": {
+  "_name": "Andre Russell",
+  "status": "retired",
+  "scope": "ipl",
+  "date": "2025-11-30",
+  "_evidence": [
+   {"title": "Andre Russell announces retirement from IPL (News18)", "url": "https://www.news18.com/cricket/andre-russell-announces-retirement-from-ipl-ws-l-9740387.html", "date": "2025-11-30"},
+   {"title": "Wikipedia, List of 2026 Indian Premier League personnel changes: Retired players", "url": "https://en.wikipedia.org/wiki/List_of_2026_Indian_Premier_League_personnel_changes", "date": "2026-10-23"}
+  ],
+  "note": "Still plays other T20 leagues."
+ },
+ "759ac88f": {
+  "_name": "Mohit Sharma",
+  "status": "retired",
+  "scope": "all",
+  "date": "2025-12-03",
+  "_evidence": [
+   {"title": "Mohit Sharma retires from IPL and all forms of cricket (ESPNcricinfo)", "url": "https://www.espncricinfo.com/story/mohit-sharma-retires-from-ipl-and-all-forms-of-cricket-1514249", "date": "2025-12-03"},
+   {"title": "Wikipedia, List of 2026 Indian Premier League personnel changes: Retired players", "url": "https://en.wikipedia.org/wiki/List_of_2026_Indian_Premier_League_personnel_changes", "date": "2026-10-23"}
+  ]
+ },
+ "29e95537": {
+  "_name": "Ajinkya Rahane",
+  "status": "retired",
+  "scope": "all",
+  "date": "2026-07-30",
+  "_evidence": [
+   {"title": "Ajinkya Rahane announces retirement from all forms of the game (Cricbuzz)", "url": "https://www.cricbuzz.com/cricket-news/139698/ajinkya-rahane-announces-retirement-from-all-forms-of-the-game-cricbuzzcom", "date": "2026-07-30"},
+   {"title": "Wikipedia, List of 2027 Indian Premier League personnel changes: Retired players (KKR)", "url": "https://en.wikipedia.org/wiki/List_of_2027_Indian_Premier_League_personnel_changes", "date": "2026-10-23"}
+  ],
+  "note": "Already marked retired in data/curated/ipl_squads_2026.json; the player master (built before) still had him at KKR, so the auction pool kept him as a squad player."
+ },
+ "87e562a9": {
+  "_name": "Dwayne Bravo",
+  "status": "retired",
+  "scope": "all",
+  "date": "2024-09-26",
+  "role_now": "Kolkata Knight Riders mentor",
+  "_evidence": [
+   {"title": "Dwayne Bravo parts ways with CSK, joins KKR as mentor for IPL 2025 (ESPNcricinfo)", "url": "https://africa.espn.com/cricket/story/_/id/41466748/dwayne-bravo-parts-ways-csk-joins-kkr-mentor-ipl-2025", "date": "2024-09-27"},
+   {"title": "Bravo retires from all forms of cricket, joins KKR as mentor (DT Next)", "url": "https://www.dtnext.in/news/sports/bravo-retires-from-all-forms-of-cricket-joins-kkr-as-mentor-805320", "date": "2024-09-27"}
+  ]
+ },
+ "c03f1114": {
+  "_name": "Dinesh Karthik",
+  "status": "retired",
+  "scope": "ipl",
+  "date": "2024-06-01",
+  "role_now": "Royal Challengers Bengaluru batting coach and mentor (from 1 July 2024)",
+  "_evidence": [
+   {"title": "Wikipedia, List of 2025 Indian Premier League personnel changes: Retired players (1 June 2024, RCB)", "url": "https://en.wikipedia.org/wiki/List_of_2025_Indian_Premier_League_personnel_changes", "date": "2026-10-23"},
+   {"title": "RCB appoint Dinesh Karthik as batting coach and mentor (cricket.com)", "url": "https://cricket.com/news/rcb-appoint-dinesh-karthik-as-batting-coach-and-mentor-712024-1719810486373", "date": "2024-07-01"}
+  ],
+  "note": "Left Indian cricket; has since played overseas leagues (SA20), which is why he is still active in the ball data."
+ },
+ "0a476045": {
+  "_name": "Shikhar Dhawan",
+  "status": "retired",
+  "scope": "ipl",
+  "date": "2024-08-24",
+  "_evidence": [
+   {"title": "Shikhar Dhawan announces retirement from international and domestic cricket (Outlook India)", "url": "https://outlookindia.com/sports/cricket/shikhar-dhawan-announces-retirement-from-international-domestic-bcci-ddca", "date": "2024-08-24"},
+   {"title": "Shikhar Dhawan retires from all forms of cricket (Wisden)", "url": "https://wisden.com/cricket-news/shikhar-dhawan-retires-from-all-forms-of-cricket", "date": "2024-08-24"},
+   {"title": "Wikipedia, List of 2025 Indian Premier League personnel changes: Retired players (24 August 2024, PBKS)", "url": "https://en.wikipedia.org/wiki/List_of_2025_Indian_Premier_League_personnel_changes", "date": "2026-10-23"}
+  ],
+  "note": "IPL 2024 was his last competitive outing."
+ },
+ "fe11caa6": {
+  "_name": "Wriddhiman Saha",
+  "status": "retired",
+  "scope": "all",
+  "date": "2024-11-03",
+  "_evidence": [
+   {"title": "Wriddhiman Saha announces retirement from all forms of cricket (CricTracker)", "url": "https://www.crictracker.com/cricket-news/lets-make-this-season-one-to-remember-wriddhiman-saha-announces-retirement-from-all-forms-of-cricket-8947/", "date": "2024-11-03"},
+   {"title": "Wikipedia, List of 2025 Indian Premier League personnel changes: Retired players (4 November 2024, GT)", "url": "https://en.wikipedia.org/wiki/List_of_2025_Indian_Premier_League_personnel_changes", "date": "2026-10-23"}
+  ],
+  "note": "Played the 2024-25 Ranji Trophy, then retired (last match February 2025)."
+ },
+ "6b19d823": {
+  "_name": "Amit Mishra",
+  "status": "retired",
+  "scope": "all",
+  "date": "2025-09-04",
+  "_evidence": [
+   {"title": "Amit Mishra retires from all forms of cricket (Onmanorama)", "url": "https://www.onmanorama.com/sports/cricket/2025/09/04/amit-mishra-retires-all-forms-cricket.html", "date": "2025-09-04"},
+   {"title": "Veteran leg-spinner Amit Mishra announces retirement from all forms of cricket (IANS)", "url": "https://ianslive.in/veteran-leg-spinner-amit-mishra-announces-retirement-from-all-forms-of-cricket--20250904113835", "date": "2025-09-04"}
+  ]
+ },
+ "70d205c9": {
+  "_name": "Ambati Rayudu",
+  "status": "retired",
+  "scope": "ipl",
+  "date": "2023-05-28",
+  "_evidence": [
+   {"title": "Ambati Rayudu to retire from IPL following 2023 final (The Cricketer)", "url": "https://www.thecricketer.com/Topics/ipl/ambati_rayudu_retire_ipl_2023_final.html", "date": "2023-05-28"},
+   {"title": "India's Ambati Rayudu retires from all forms of cricket after winning sixth IPL title (Gulf News)", "url": "https://gulfnews.com/sport/cricket/ipl/indias-ambati-rayudu-retires-from-all-forms-of-cricket-after-winning-sixth-ipl-title-1.96097345", "date": "2023-05-30"}
+  ],
+  "note": "Left Indian cricket after the 2023 final ('no U-turn'); played overseas leagues (MLC, CPL, ILT20) afterwards."
+ },
+ "a757b0d8": {
+  "_name": "Kieron Pollard",
+  "status": "retired",
+  "scope": "ipl",
+  "date": "2022-11-15",
+  "role_now": "Mumbai Indians batting coach",
+  "_evidence": [
+   {"title": "Kieron Pollard announces retirement from playing IPL, appointed batting coach for Mumbai Indians (mumbaiindians.com)", "url": "https://mumbaiindians.com/news/kieron-pollard-announces-retirement-from-playing-ipl-appointed-as-batting-coach-for-mumbai-indians", "date": "2022-11-15"}
+  ],
+  "note": "Still plays other T20 leagues."
+ },
+ "98ae73b1": {
+  "_name": "Piyush Chawla",
+  "status": "retired",
+  "scope": "ipl",
+  "date": "2025-06-06",
+  "_evidence": [
+   {"title": "Piyush Chawla announces retirement from all forms of cricket (CricTracker)", "url": "https://www.crictracker.com/cricket-news/piyush-chawla-announces-retirement-from-all-forms-of-cricket/", "date": "2025-06-06"},
+   {"title": "Piyush Chawla announces retirement, 13 years after last India cap (Wisden)", "url": "https://www.wisden.com/cricket-news/piyush-chawla-announces-retirement-13-years-after-last-india-cap", "date": "2025-06-06"}
+  ],
+  "note": "Announced as all forms; scope kept at the IPL because the ball data has him in a league match after the announcement."
+ },
+ "90de905a": {
+  "_name": "Krishnappa Gowtham",
+  "status": "retired",
+  "scope": "all",
+  "date": "2025-12-22",
+  "_evidence": [
+   {"title": "Krishnappa Gowtham retires from all forms of cricket (IANS)", "url": "https://ianslive.in/krishnappa-gowtham-retires-from-all-forms-of-cricket--20251222175552", "date": "2025-12-22"},
+   {"title": "Krishnappa Gowtham announces retirement from all forms of cricket (CricTracker)", "url": "https://www.crictracker.com/cricket-news/krishnappa-gowtham-announces-retirement-from-all-forms-of-cricket/", "date": "2025-12-22"}
+  ]
+ },
+ "26a85969": {
+  "_name": "Rishi Dhawan",
+  "status": "retired",
+  "scope": "ipl",
+  "date": "2025-01-05",
+  "_evidence": [
+   {"title": "Rishi Dhawan announces retirement from white-ball cricket (SportsCafe)", "url": "https://sportscafe.in/cricket/articles/2025/jan/06/rishi-dhawan-announces-retirement-from-white-ball-cricket", "date": "2025-01-06"},
+   {"title": "Former Indian all-rounder announces retirement from Indian limited-overs cricket (cricket.com)", "url": "https://www.cricket.com/news/former-indian-allrounder-announces-retirement-from-indian-limited-overs-cricket-152025-1736099745022", "date": "2025-01-05"}
+  ],
+  "note": "Retired from white-ball cricket (T20 included); kept playing first-class cricket."
+ },
+ "b8d490fd": {
+  "_name": "Aaron Finch",
+  "status": "retired",
+  "scope": "all",
+  "date": "2024-01-04",
+  "_evidence": [
+   {"title": "Aaron Finch announces his retirement from BBL (AAP)", "url": "https://aapnews.aap.com.au/news/aaron-finch-announces-his-retirement-from-bbl", "date": "2024-01-04"},
+   {"title": "Aaron Finch retirement from the BBL confirmed (Yahoo Sport Australia)", "url": "https://au.sports.yahoo.com/aaron-finch-news-leaves-cricket-world-saddened-retirement-bbl-confirmed-193646544.html", "date": "2024-01-04"}
+  ],
+  "note": "The BBL was his last format (he left international cricket in February 2023); no match since January 2024."
+ },
+ "dcce6f09": {
+  "_name": "David Warner",
+  "status": "not_registered",
+  "seasons": [2026],
+  "_evidence": [
+   {"title": "David Warner registers for PSL 2025 player draft after going unsold in IPL auction (CricTracker)", "url": "https://www.crictracker.com/cricket-news/david-warner-registers-for-psl-2025-player-draft-after-going-unsold-in-ipl-auction/", "date": "2025-01-13"},
+   {"title": "David Warner to play Nepal Premier League for Kathmandu Gorkhas (New Kerala / IANS): not picked at the 2025 mega auction, did not register for 2026", "url": "https://www.newkerala.com/news/a/david-warner-play-nepal-premier-league-kathmandu-gorkhas-199.htm", "date": "2026-09-15"}
+  ],
+  "note": "Retired from international cricket only (January 2024); no IPL retirement found (checked 2026-10-23), so he stays in the 2027 pool, where his P(plays) as a free agent (0.04) carries the rest."
+ },
+ "3355b542": {
+  "_name": "Faf du Plessis",
+  "status": "not_registered",
+  "seasons": [2026],
+  "_evidence": [
+   {"title": "Faf du Plessis opts out of IPL 2026, set to play PSL (IANS)", "url": "https://ianslive.in/faf-du-plessis-opts-out-of-ipl-2026-set-to-play-psl--20251129190018", "date": "2025-11-29"},
+   {"title": "Faf du Plessis opts out of IPL auctions to play in Pakistan (TimesLIVE)", "url": "https://www.timeslive.co.za/sport/cricket/2025-11-30-faf-du-plessis-opts-out-of-ipl-auctions-to-play-in-pakistan", "date": "2025-11-30"}
+  ],
+  "note": "He said it 'isn't goodbye': not a retirement, so he stays in the 2027 pool (P(plays) as a free agent 0.01)."
+ }
+}

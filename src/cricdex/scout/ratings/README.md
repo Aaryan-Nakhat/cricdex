@@ -168,7 +168,8 @@ uv run python scripts/backtest_newcomers.py --seasons 2014-2026 --leagues bbl,sa
 
 How it is scored: Spearman rank agreement with the season, seasons z-scored before pooling, 3 ADVI
 seeds (42, 43, 44; the seed-averaged prediction is scored). The newcomer baseline gets the same league
-adjustment as the model (each league's numbers relative to its average, minus the same tier discount);
+adjustment as the model (each league's numbers relative to its average, put on the IPL scale by the same
+fitted league translation);
 a player's leagues are pooled by precision, not his best league; the gap is bootstrapped 2,000 times
 with a one-sided p and a Holm adjustment over the six role × axis tests; 30- and 120-ball sensitivity
 runs check selection on playing time. Fits are cached under `data/metrics/.backtest_cache/` keyed by
@@ -212,7 +213,8 @@ sd-sum value, don't survive. Full tables, the sensitivity runs and the caveats: 
   `drift.py` (below); the rating itself stays a career number.
 - ADVI (the default) is mean-field; re-check with `--sampler nuts` after model changes.
 - Players present only as bowler (or only as batter) get one role row; all-rounders get two rows.
-- Each league is fitted alone; cross-league comparison rests on the registry's tier discounts.
+- Each league is fitted alone; cross-league comparison rests on the fitted league translation
+  (`scout/translation.py`, METHODOLOGY §6d; the registry's hand-set tier discounts until 2026-10-23).
 
 ## Time-aware value (`drift.py`, since 2026-10-27)
 
@@ -269,6 +271,6 @@ regress season to season; 80% ranges and P(regular). Method, backtest and limits
 
 ## Next
 
-- A joint multi-league fit with league effects (replacing the hand-set tier discounts).
+- A joint multi-league fit with league effects (replacing the fitted per-league translation).
 - A chase-aware wicket cost (target and resources left). Per-player form drift was tried in 2026-10-27's
   time-aware candidates (a random walk on the level) and did not predict the next season better.

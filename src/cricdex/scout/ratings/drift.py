@@ -181,14 +181,17 @@ def load_model(path: Path | str | None = None, which: str = "model") -> DriftMod
 
 
 def _league_dates(db_path, col: str) -> tuple[str, str] | None:
-    """The league's first and last match dates in the database (None when it isn't ingested)."""
+    """The league's first and last match dates in the database (None when it isn't ingested: no
+    database file, or no matches / balls table for it — the league is then skipped)."""
     import duckdb
 
     from cricdex.common.sql import _tables, table_suffix
 
+    if not Path(db_path).exists():
+        return None
     safe = table_suffix(col)
     with duckdb.connect(str(db_path), read_only=True) as con:
-        if f"matches_{safe}" not in _tables(con):
+        if not {f"matches_{safe}", f"balls_{safe}"} <= set(_tables(con)):
             return None
         lo, hi = con.execute(
             f"SELECT MIN(match_date), MAX(match_date) FROM matches_{safe}"

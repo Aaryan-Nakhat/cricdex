@@ -451,7 +451,7 @@ Cameron Green 17.3, Rishabh Pant 17.3, Jofra Archer 16.7, Arshdeep Singh 16.1, S
 
 ## Part 4 — Bid plan: the same simulator, turned into a bidding sheet
 
-The room answers "where does each star go?". **Bid plan** answers "what should *my* team bid?"
+The room answers "where does each star go?". **Bid plan** (a draft: max bids are not reliable yet) answers "what should *my* team bid?"
 (page *Bid plan*, `cricdex bidplan --team RCB`; full method and the replay of the 2025 and 2026
 auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-draft)).
 
@@ -460,7 +460,8 @@ auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-draft)).
    **price to beat** = one ladder step above the winning rival's bid, or his base price if nobody bid.
 2. **Strength.** Your best XI's expected runs a match above replacement (each player's batting at the balls
    he faces a match plus his bowling at the balls he bowls, × his P(plays), a lot's as a free agent,
-   METHODOLOGY §6c; the XI's balls held to a side's 115 an innings; ≤ 4 overseas, a keeper, 5 bowling and 6
+   METHODOLOGY §6c; since 2026-10-27 each value is moved to his age next season and calibrated toward
+   his role's mean, METHODOLOGY §4b and §4c; the XI's balls held to a side's 115 an innings; ≤ 4 overseas, a keeper, 5 bowling and 6
    batting options, a replacement player, 0, for any gap) + the bench filling the matches the XI misses:
    Σ (1 − P(plays)) over the XI, best bench contribution first, at most one appearance a match for a squad
    player and at most his P(plays) for an auction lot (since 2026-10-23: until then a 40-year-old free agent

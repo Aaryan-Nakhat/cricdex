@@ -152,7 +152,7 @@ allrounder / wk_batter).
 ## scout
 
 ```
-cricdex scout look-alikes "V Kohli" [--role batter] [--pos opener|no3|middle|finisher|lower|tailender] [-k 8]
+cricdex scout look-alikes "V Kohli" [--role batter] [--pos same|any|opener|no3|middle|finisher|lower|tailender] [--country same|overseas|all] [-k 8]
 ```
 
 Cross-competition look-alike finder across every Scout pool in the
@@ -171,10 +171,10 @@ cricdex auction room [--mode mega|mini] [--purse 120] [--squad-size 25] [--overs
 ```
 
 Real-rules IPL auction Monte-Carlo: cross-collection pool (IPL +
-BBL/SA20/CPL/Blast free agents + uncapped SMAT), Mega/Mini
+free agents from SMAT and every overseas league in the registry), Mega/Mini
 retentions from the real 2025 lists (editable in the TUI / web), overseas cap + retention slabs,
-second-price clearing, two-phase fill to 20–25-man squads (~300
-trials). Shares one implementation with the web via
+every team bidding by the demand model fitted on real auctions, ladder clearing (one step above the
+second-best bid), 18–25-man squads (~300 trials). Shares one implementation with the web via
 `cricdex.web_parity` (locked by `test_scripts/test_web_parity.py`).
 See [`AUCTION_MATH.md`](AUCTION_MATH.md).
 
@@ -218,7 +218,7 @@ cricdex bidplan --team RCB [--keep NAME]… [--release NAME]… [--purse 125] [-
                 [--register list.json] [--csv out.csv]
 ```
 
-**Bid plan**, the auction bidding sheet: the squad going in (Keep or release's plan with your
+**Bid plan** (draft: max bids are not reliable yet, ROADMAP I18), the auction bidding sheet: the squad going in (Keep or release's plan with your
 `--keep` / `--release` calls; every team opens at least `--open` places, default 8, lowest-valued players
 first), then the targets in priority order with the price rivals would likely pay (the simulator's
 calibrated rivals), the bid that is enough 9 times in 10, a **max bid** (his worth to the squad: the
@@ -234,7 +234,8 @@ the plan never buys back its own releases). About 5–15 seconds (200 rival auct
 - `--csv` writes the targets (same columns as the page's Export CSV).
 
 Reads `site/public/data/ipl/keep.json` + `auction_pool.json`; the same optimiser as the website's Bid plan
-page (`cricdex.web_parity.bidplan`, locked by `test_scripts/test_bidplan_parity.py`). Method and the replay
+page (`cricdex.web_parity.bidplan`, locked by `test_scripts/test_bidplan_parity.py`). The buy model and the rival plans
+(`bidplan_rivals.json`) are read when the export writes them; both are switched off since 2026-10-27. Method and the replay
 of the 2025 and 2026 auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-draft).
 
 ---

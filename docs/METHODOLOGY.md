@@ -2156,7 +2156,8 @@ What the models can't see, and where they approximate. Most of these are on the
   comes from a stale league, and `stale_note` ("SMAT data to Dec 2024"), shown as a badge on the Auction and
   Bid plan pages and in the Keep-or-release reason once it is 10% or more. Form forecast is IPL-only, so SMAT
   doesn't enter it.
-- **Prices are invented from skill**, calibrated to recent auctions but not fitted to actual sale data.
+- **Prices are a market model**, fitted to real IPL auction prices (6b), but it can't see scouting, injury
+  or brand, and a typical player is off by about 1.7×.
 - **A single season is noisy.** The backtest's correlations are low for every method, model or not. Treat
   any one-season ranking with care.
 - **The ratings only modestly beat career averages for established players** (overall 0.19 vs 0.15 for
@@ -2169,9 +2170,12 @@ What the models can't see, and where they approximate. Most of these are on the
   (over, wickets down) only and is applied to the chase too, where it really depends on the target; it
   is a league average, not the cost given the actual batters still to come.
 - **Value is per ball, not per match.** A finisher who faces 10 balls a game and an opener who faces 25
-  are compared per 100 balls; how many balls he gets is a team decision the value leaves out.
+  are compared per 100 balls; how many balls he gets is a team decision the value leaves out (the auction
+  tools' contribution per match, 6c, adds it back).
 - **Context is adjusted, form isn't.** The rating model judges every ball against its season, phase,
-  innings and ground, but each player has one skill set per league for his whole career.
+  innings and ground, but each player has one skill set per league for his whole career. The auction tools
+  move it to his age next season (4b), but not to his recent form: a random walk on the level predicted the
+  next season worse.
 - **Wicket Quality uses the dismissed batter's scoring skill only**, not his full value. (In a refresh the
   ratings are fitted before the metrics, so it always reads the current fit.)
 - **Roles, bowling types and countries are AI-classified** and can be wrong; a player without a tag
@@ -2746,14 +2750,15 @@ Run: `uv run python scripts/form_forecast.py fits` (the walk-forward fits; cache
 
 ## 12. Bid plan (draft)
 
-> **Beta.** In honest replays of the 2025 mega and 2026 mini auctions, at the real franchise's spend, the
+> **Draft.** In honest replays of the 2025 mega and 2026 mini auctions, at the real franchise's spend, the
 > plan built a stronger squad on next-season output for 7 of 10 teams in the mega auction and 2 of 10 in the
 > mini (re-run 2026-10-23, latest with the bench capped at a lot's P(plays)) — ahead in the mega, behind in the
 > mini, not clearly ahead of the real franchises overall, so it stays an exploration tool, not a verdict.
 > **Re-run 2026-10-27** with the replacement curves (6c) and the shipped money rule (step 4): the plan now
 > spends what real teams spend, but its squads were weaker next season, 2 of 10 teams in 2025 and 0 of 10 in
 > 2026 (the old rule: 7 and 5; step 4). **Re-run 2026-10-27 with the time-aware values (section 4b)**: 1 of 10
-> and 0 of 10 ("none": 8 and 5); 2025–26 have now been seen four times.
+> and 0 of 10 ("none": 8 and 5); 2025–26 have now been seen four times. **Re-run with the calibrated values
+> (section 4c)**: 1 of 10 and 0 of 10 ("none": 6 and 5); seen five times.
 
 **What it does.** Before the auction (IPL 2027: likely 16 December 2026), a franchise needs a sheet: whom to
 bid for, how high, and what to do when a target goes for more. Bid plan takes the squad and purse a team
@@ -3170,17 +3175,17 @@ average) and 2 of 10 in 2026 (−2.4; −2.6 on the best XI, where it also spent
 10 (+2.5) and 3 of 10 (−0.2). The 2026-10-22 replay's 8 / 0 split (+8.5 / −4.4) is gone in both
 directions: the fitted rivals pay more for stars in a mega auction and less in a mini, and the bench no longer
 rewards the next four players whether or not they play. It does not beat the real franchises clearly in either
-auction type, so **Bid plan stays in beta**. What remains: the plan is a price-taker (rivals don't react to its
+auction type, so **Bid plan stays a draft**. What remains: the plan is a price-taker (rivals don't react to its
 targets, issue I2); the market price can't see the scouting behind the 2026 uncapped buys; the strength measure
-is runs a match, not wins; values are this season's ratings, not the three-season forecast a multi-year buy
-needs.
+is runs a match, not wins; values are each player's level next season (section 4b), not the three-season
+forecast a multi-year buy needs.
 
 **Limits.** Rivals bid by the room's fitted demand model and don't react to our buys; a bidding war for one name
 isn't predictable. Prices rest on the market model (a typical player off by about 1.7×), which can't see
 scouting, injury or brand. Strength adds expected contributions at each player's usual balls (6c), held to a
 side's innings, with the bench filling the XI's missed matches, but knows nothing of batting order within the
-XI, conditions or the impact-player rule beyond five bowling and six batting options. Values are this season's
-ratings, not a multi-year forecast: for a player bought for three seasons, section 11's forecast
+XI, conditions or the impact-player rule beyond five bowling and six batting options. Values are his level
+next season (4b, calibrated in 4c), not a multi-year forecast: for a player bought for three seasons, section 11's forecast
 (`forecast.json`) is the natural next input (gain over the next three seasons, weighted by P(regular)); not
 wired in yet. Keep or release's salaries, squads and assumed purse carry over unchanged.
 

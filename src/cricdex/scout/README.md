@@ -16,6 +16,11 @@ DuckDB + exported JSON; no graph database.
   replacement levels, since 2026-10-26 curves in usual batting position and balls bowled (`curve_at`,
   `fit_curve`; the slot-group form is still read). Fitted by `scripts/playing_time_fit.py` into
   `config/playing_time_model.json`.
+- `translation.py` — a rating from another league on the IPL rating scale, per league and role, and the
+  blend of a player's leagues (METHODOLOGY §6d). Fitted by `scripts/league_translation_fit.py` into
+  `config/league_translation.json`.
+- `forecast.py` — the Form forecast: a player's value over the next three seasons, with an 80% range and
+  the chance he is still a regular (METHODOLOGY §11; `scripts/form_forecast.py`).
 
 ## Subpackages
 

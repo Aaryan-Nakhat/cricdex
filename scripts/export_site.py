@@ -821,17 +821,18 @@ def _export_auction_pool(
     # time-aware values (scout/ratings/drift.py, METHODOLOGY §4b; ROADMAP #34): each role's value moved
     # from his career level to his level in the coming season. The contribution per match reads it, so
     # the pool's ranking, P(plays), Bid plan and Keep do too; `value` (shown) stays the career rating.
+    db_file = _db_file(con)
     per_role, time_shift = _time_aware_roles(
-        per_role, role_shares, comp, asof, dob_by_cid, taxonomy
+        per_role, role_shares, comp, asof, dob_by_cid, taxonomy, db_file
     )
     # how far each value is trusted (scout/ratings/shrink.py, METHODOLOGY §4c): shrunk toward its
     # role's mean by the calibration fitted on what players then did in the IPL. The market price's
     # input is not shrunk: it prices what the market pays, fitted on its own recipe (6b).
-    per_role = _shrunk_roles(per_role, role_shares, comp, asof)
+    per_role = _shrunk_roles(per_role, role_shares, comp, asof, db_file)
     if price_input == "time_aware":
         # the price recipe's input: the legacy blend moved the same way, better role
         ta_roles, _ = _time_aware_roles(
-            legacy_roles, legacy_shares, comp, asof, dob_by_cid, taxonomy
+            legacy_roles, legacy_shares, comp, asof, dob_by_cid, taxonomy, db_file
         )
         legacy_best = {cid: max(rs.values(), key=lambda x: x[0]) for cid, rs in ta_roles.items()}
     pt_model = playing_time.load_model()
@@ -979,10 +980,24 @@ def _export_auction_pool(
     return len(out), extra_rows
 
 
-def _time_aware_roles(per_role, shares, comp, asof, dob_by_cid, taxonomy):
+def _db_file(con: duckdb.DuckDBPyConnection) -> Path | None:
+    """The database file `con` is connected to (None for an in-memory connection or a file that is
+    gone): the season-value steps below read the same database the export was handed."""
+    try:
+        row = con.execute(
+            "SELECT path FROM duckdb_databases() WHERE database_name = current_database()"
+        ).fetchone()
+    except duckdb.Error:
+        return None
+    p = Path(row[0]) if row and row[0] else None
+    return p if p is not None and p.exists() else None
+
+
+def _time_aware_roles(per_role, shares, comp, asof, dob_by_cid, taxonomy, db_path):
     """(cid → {role: (value now, sd)}, (cid, role) → (shift, its sd)): `per_role` moved to the
     coming season by the shipped time-aware model (config/rating_drift.json) from every pool league's
-    season values before the auction. Unchanged without the model file."""
+    season values (read from `db_path`) before the auction. Unchanged without the model file or a
+    database file (an in-memory connection); a pool league not in the database is skipped."""
     import datetime as _dt
 
     from cricdex.scout.ratings import drift
@@ -993,9 +1008,12 @@ def _time_aware_roles(per_role, shares, comp, asof, dob_by_cid, taxonomy):
             "auction_pool: no config/rating_drift.json — career ratings used as they stand"
         )
         return per_role, {}
+    if db_path is None:
+        logger.warning("time-aware values: no database file — career ratings used as they stand")
+        return per_role, {}
     date = comp.auction_date if comp else (asof or _dt.date.today().isoformat())
     season = comp.season if comp else int(date[:4]) + 1
-    obs = drift.season_obs(DUCKDB_PATH, list(AUCTION_POOL_COLLECTIONS), [date])
+    obs = drift.season_obs(db_path, list(AUCTION_POOL_COLLECTIONS), [date])
     cat = {cid: (t or {}).get("bowling_category") for cid, t in taxonomy.items()}
     dob = {cid: str(d)[:10] for cid, d in dob_by_cid.items() if d}
     out, info = drift.adjust(per_role, shares, obs, date, season, dob, cat, model)
@@ -1003,8 +1021,9 @@ def _time_aware_roles(per_role, shares, comp, asof, dob_by_cid, taxonomy):
     return out, info
 
 
-def _shrunk_roles(per_role, shares, comp, asof):
-    """`per_role` shrunk toward each role's mean by config/value_shrink.json (unchanged without it)."""
+def _shrunk_roles(per_role, shares, comp, asof, db_path):
+    """`per_role` shrunk toward each role's mean by config/value_shrink.json (unchanged without it
+    or without a database file to read the seasons from)."""
     import datetime as _dt
 
     from cricdex.scout.ratings import drift, shrink
@@ -1012,14 +1031,17 @@ def _shrunk_roles(per_role, shares, comp, asof):
     model = shrink.load_model()
     if model is None:
         return per_role
+    if db_path is None:
+        logger.warning("value calibration: no database file — values left unshrunk")
+        return per_role
     date = comp.auction_date if comp else (asof or _dt.date.today().isoformat())
-    obs = drift.season_obs(DUCKDB_PATH, list(AUCTION_POOL_COLLECTIONS), [date])
+    obs = drift.season_obs(db_path, list(AUCTION_POOL_COLLECTIONS), [date])
     out, ks = shrink.adjust(per_role, shares, shrink.years_since(obs, date), model)
     logger.info(f"  value calibration: {len(ks)} player-roles shrunk toward their role's mean")
     return out
 
 
-def _scout_time_shifts(col, bat, bowl, sds, taxonomy) -> dict[tuple[str, str], float]:
+def _scout_time_shifts(col, bat, bowl, sds, taxonomy, db_path) -> dict[tuple[str, str], float]:
     """(cid, "bat" | "bowl") → the time-aware shift of a Scout row's value in league `col` (his
     seasons there only), for the next competition of the auction target."""
     comp = _target_competition(AUCTION_TARGET)
@@ -1029,7 +1051,9 @@ def _scout_time_shifts(col, bat, bowl, sds, taxonomy) -> dict[tuple[str, str], f
         for cid, v in d.items():
             vals.setdefault(cid, {})[role] = (float(v), sds.get((cid, side), 0.0))
     shares = {(cid, r): {col: 1.0} for cid, rs in vals.items() for r in rs}
-    _out, info = _time_aware_roles(vals, shares, comp, None, _dob_by_cid(taxonomy), taxonomy)
+    _out, info = _time_aware_roles(
+        vals, shares, comp, None, _dob_by_cid(taxonomy), taxonomy, db_path
+    )
     return {(cid, "bat" if r == "batter" else "bowl"): sh for (cid, r), (sh, _sd) in info.items()}
 
 
@@ -1609,6 +1633,7 @@ def _export_scout_index(
     ref = comp.auction_date if comp else newest
     price_in = _price_inputs(con, ref, comp.season if comp else None)
     dob_by = _dob_by_cid(taxonomy)
+    db_file = _db_file(con)
 
     def _age_at(cid: str) -> float | None:
         d = dob_by.get(cid)
@@ -1674,7 +1699,7 @@ def _export_scout_index(
         stale = _is_stale(asof, newest)
         # the market price's time-aware input (recipe Z): each side's legacy value moved to the coming
         # season from this league's seasons (scout/ratings/drift.py)
-        ta_shift = (_scout_time_shifts(col, bat, bowl, sds, taxonomy)
+        ta_shift = (_scout_time_shifts(col, bat, bowl, sds, taxonomy, db_file)
                     if _pricing.value_input() == "time_aware" else {})  # fmt: skip
         rows = []
         scores: list[float] = []
