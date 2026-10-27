@@ -563,6 +563,9 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
     times): "auction" 1 of 10 and 0 of 10, "none" 8 and 5; the rules' ranking doesn't change. Recipe Z (the
     market price on the time-aware value) won the price protocol and ships. Keep's retention model was not
     refitted on the new price input.
+  - **Pretorius (2026-10-27, after the player-master fixes).** His sourced age (20, not an assumed 28)
+    raises his value; he is first on 5 sheets against a bound of 4.4, so the first-target check is marked
+    `xfail` again. Same root: each sheet is planned alone. The gate now fails three of seven.
   - **How far a value is trusted (2026-10-27; METHODOLOGY §4c, `ratings/shrink.py`, `scripts/value_shrink_fit.py`).**
     The contribution used the posterior mean as if certain (its sd only displayed). Four candidates declared:
     none; one shrink factor per role; a factor set by the value's own sd; that plus the non-IPL share and

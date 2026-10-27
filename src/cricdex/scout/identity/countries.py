@@ -86,6 +86,9 @@ _ALIASES: dict[str, str] = {
     "CHI": "CHL",
     "BHU": "BTN",
     "MYA": "MMR",
+    "MAW": "MWI",  # Malawi's sporting code
+    "MGL": "MNG",  # Mongolia's sporting code
+    "GB-SCT": "SCO",  # ISO 3166-2 subdivision code for Scotland
     "GBR": "ENG",
     "UK": "ENG",
     "GB": "ENG",
@@ -285,3 +288,27 @@ def team_country(team: str | None) -> str | None:
 def all_codes() -> frozenset[str]:
     """Every canonical code this module can produce (for tests and validation)."""
     return frozenset(_ALIASES.values()) | frozenset(_NAMES.values())
+
+
+# A Wikipedia title's disambiguator names the nation as an adjective ("Imran Khan (Trinidad and
+# Tobago cricketer)", "Usman Tariq (Pakistani cricketer)"); `title_country` reads it.
+_DEMONYMS = {
+    "afghan": "AFG", "australian": "AUS", "bangladeshi": "BGD", "english": "ENG",
+    "indian": "IND", "irish": "IRL", "kenyan": "KEN", "namibian": "NAM", "nepalese": "NPL",
+    "nepali": "NPL", "dutch": "NLD", "new zealand": "NZL", "omani": "OMN", "pakistani": "PAK",
+    "scottish": "SCO", "south african": "ZAF", "sri lankan": "LKA", "zimbabwean": "ZWE",
+    "west indian": "WIN", "jamaican": "WIN", "barbadian": "WIN", "trinidadian": "WIN",
+    "guyanese": "WIN", "antiguan": "WIN", "american": "USA", "canadian": "CAN", "emirati": "ARE",
+    "ugandan": "UGA", "welsh": "ENG",
+}  # fmt: skip
+
+
+def title_country(title: str | None) -> str | None:
+    """The nation a Wikipedia title's "(X cricketer)" disambiguator names, or None."""
+    import re
+
+    m = re.search(r"\(([^(),]+?) cricketer\b", title or "")
+    if not m:
+        return None
+    x = m.group(1).strip()
+    return _DEMONYMS.get(x.lower()) or normalise(x)

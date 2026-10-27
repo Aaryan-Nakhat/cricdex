@@ -495,10 +495,19 @@ def parse_batting_hand(text: str | None) -> str | None:
     return None
 
 
+# "Batsman, Occasionally Wicket Keeper" / "Batter, Occasional wicket-keeper" / "part-time keeper":
+# a batter who has kept now and then is not a keeper (Ruturaj Gaikwad's infobox made CSK look
+# like it had five keepers)
+_PART_KEEPER = re.compile(
+    r"\b(?:occasional(?:ly)?|part[- ]?time|sometimes)\s+(?:wicket[- ]?)?keep\w*(?:[- ]bat\w*)?",
+    re.I,
+)
+
+
 def parse_role(text: str | None) -> str | None:
     if not text:
         return None
-    t = text.lower()
+    t = _PART_KEEPER.sub("", text.lower())
     if "keep" in t:
         return "wk_batter"
     if "all" in t and "round" in t:
@@ -770,6 +779,89 @@ def parse_ipl_personnel(text: str) -> dict[str, Any]:
             rshown, rtitle = _sortname_title(names[1].group(1))
             add(code, rshown, rtitle, "replacement", replaced=shown)
     return {"retired": retired, "squads": squads}
+
+
+CRICINFO_TITLES_CACHE = CURATED_DIR / "wikipedia_by_cricinfo.json"
+
+
+def find_titles_by_cricinfo(
+    players: dict[str, list[str]], fetch: bool = True, force: bool = False
+) -> dict[str, dict]:
+    """{cricsheet_id: {title} | {_status: not_found}} for players Wikidata can't find by their
+    ESPNcricinfo id (an item without P2697, or none yet): Wikipedia's search for a cricketer article
+    whose source carries the id, accepted only when that article links his ESPNcricinfo profile
+    (`/cricketers/<slug>-<id>`) and only one article does. Cached in `CRICINFO_TITLES_CACHE` (a
+    player is asked once; `force` asks again). `fetch=False` reads the cache only."""
+    cache: dict[str, dict] = read_json(CRICINFO_TITLES_CACHE, {})
+    if not fetch:
+        return cache
+    todo = {c: ids for c, ids in players.items() if ids and (force or c not in cache)}
+    logger.info(f"wikipedia by cricinfo id: {len(players)} players, {len(todo)} to search")
+    today = _dt.date.today().isoformat()
+    with _client() as cx:
+        for n, (cid, ids) in enumerate(sorted(todo.items()), 1):
+            found: set[str] = set()
+            for ci in ids:
+                r = _get_with_retry(
+                    cx,
+                    WIKIPEDIA_API,
+                    {
+                        "action": "query",
+                        "list": "search",
+                        "srsearch": f'hastemplate:"Infobox cricketer" insource:"{ci}" '
+                        f"insource:/[^0-9]{ci}[^0-9]/",
+                        "srnamespace": 0,
+                        "srlimit": 10,
+                        "format": "json",
+                        "formatversion": "2",
+                    },
+                    f"cricinfo search {ci}",
+                )
+                for hit in r.json().get("query", {}).get("search", []):
+                    e = _get_with_retry(
+                        cx,
+                        WIKIPEDIA_API,
+                        {
+                            "action": "query",
+                            "prop": "extlinks",
+                            "titles": hit["title"],
+                            "ellimit": "max",
+                            "elquery": "www.espncricinfo.com/cricketers/",
+                            "elprotocol": "https",
+                            "format": "json",
+                            "formatversion": "2",
+                        },
+                        f"extlinks {hit['title']}",
+                    )
+                    urls = [
+                        x["url"] for p in e.json()["query"]["pages"] for x in p.get("extlinks", [])
+                    ]
+                    if any(re.search(rf"[/-]{ci}(?:[/?#.]|$)", u) for u in urls):
+                        found.add(hit["title"])
+                    time.sleep(WIKI_SLEEP_S)
+            cache[cid] = (
+                {"title": found.pop(), "_fetched": today}
+                if len(found) == 1
+                else {"_status": "ambiguous" if found else "not_found", "_fetched": today,
+                      **({"titles": sorted(found)} if found else {})}
+            )  # fmt: skip
+            if n % 50 == 0:
+                write_json(CRICINFO_TITLES_CACHE, cache)
+                logger.info(f"  cricinfo search {n}/{len(todo)}")
+    write_json(CRICINFO_TITLES_CACHE, cache)
+    return cache
+
+
+def squad_titles(squads: dict[str, Any]) -> dict[str, str]:
+    """{cricsheet_id or `wiki:<title>`: Wikipedia title} for every row of the IPL squads file that
+    links an article (a row with no Cricsheet id has no match data yet)."""
+    out: dict[str, str] = {}
+    for rows in (squads.get("squads") or {}).values():
+        for r in rows:
+            t = r.get("wiki_title")
+            if t:
+                out.setdefault(r.get("cricsheet_id") or f"wiki:{t}", t)
+    return out
 
 
 def fetch_ipl_personnel(force: bool = False) -> dict[str, Any]:

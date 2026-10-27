@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Database, CalendarClock, Trophy, Users, CircleDot, Layers, Gavel } from "lucide-react";
+import { ArrowRight, Database, CalendarClock, Trophy, Users, CircleDot, Layers, Gavel, Scale, ClipboardList } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAsync } from "@/lib/useAsync";
 import { getLeaderboard } from "@/lib/data";
@@ -8,9 +8,15 @@ import { METRIC_BY_SLUG, fmtMetric, primaryCol } from "@/lib/metrics";
 import { MetricInfo } from "@/components/MetricInfo";
 import { NAV, NAV_GROUPS } from "@/lib/nav";
 import { Card, StatTile, Badge } from "@/components/ui";
-import { cn, collectionLabel, fmt, prettyDate } from "@/lib/utils";
+import { AUTHOR, AUTHOR_URL, cn, collectionLabel, fmt, prettyDate } from "@/lib/utils";
+
+// The IPL 2027 retention deadline the hero leads with (as reported; config/competitions.toml
+// `retention_deadline`, also in keep.json, which the home page doesn't load).
+const DEADLINE = "2026-11-15";
+const DEADLINE_LABEL = new Date(`${DEADLINE}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
 export function Overview() {
+  const daysLeft = Math.ceil((new Date(`${DEADLINE}T23:59:59`).getTime() - Date.now()) / 86400000);
   const { meta, collection, collections, setCollection } = useStore();
   const ngi = useAsync(() => getLeaderboard(collection, "ngi").catch(() => []), [collection]);
   const { nameOf } = usePlayers(collection);
@@ -30,22 +36,27 @@ export function Overview() {
         <div className="pointer-events-none absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-gold/10 blur-3xl" />
         <div className="relative max-w-2xl">
           <Badge tone="accent" className="mb-4">
-            <CircleDot className="h-3 w-3" /> open cricket intelligence
+            <CalendarClock className="h-3 w-3" /> IPL 2027 retention deadline: {DEADLINE_LABEL}
+            {daysLeft >= 0 ? ` (${daysLeft} day${daysLeft === 1 ? "" : "s"} away)` : ""}
           </Badge>
           <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-fg sm:text-[42px]">
-            Run the IPL mega auction <span className="grad-text">yourself.</span>
+            Who will each IPL team keep? <span className="grad-text">Our calls, before the deadline.</span>
           </h1>
           <p className="mt-4 text-base leading-relaxed text-muted">
-            Ten franchises keep their real 2025 retentions, then bid for every active T20 player, each in its own
-            style, hundreds of times over. See who lands each star, for how much, and how every squad ends up.
-            Player prices come from ball-by-ball skill ratings, and you can change any retention.
+            Every contracted player at all ten franchises gets two answers. What his team will likely do, learned
+            from every real retention deadline since 2018. And whether he is worth what keeping him costs, at the
+            prices players like him fetch at auction. Then the squad that follows: purse left, open places and the
+            role gaps to fill.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link to="/auction?run=1" className="btn btn-accent">
-              <Gavel className="h-4 w-4" /> Run the mega auction <ArrowRight className="h-4 w-4" />
+            <Link to="/keep" className="btn btn-accent">
+              <Scale className="h-4 w-4" /> See the retention calls <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link to="/leaderboards" className="btn">
-              Explore leaderboards
+            <Link to="/bidplan" className="btn">
+              <ClipboardList className="h-4 w-4" /> Plan the auction bids
+            </Link>
+            <Link to="/auction?run=1" className="btn">
+              <Gavel className="h-4 w-4" /> Run the auction room
             </Link>
             <Link to="/scout" className="btn">
               Scout a player
@@ -54,6 +65,13 @@ export function Overview() {
               How it works
             </Link>
           </div>
+          <p className="mt-5 text-xs text-muted">
+            by{" "}
+            <a href={AUTHOR_URL} target="_blank" rel="noreferrer" className="font-semibold text-fg hover:text-accent-glow">
+              {AUTHOR}
+            </a>{" "}
+            · open cricket intelligence from Cricsheet ball-by-ball data
+          </p>
         </div>
       </div>
 

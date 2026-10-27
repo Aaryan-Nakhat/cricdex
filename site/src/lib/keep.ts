@@ -239,6 +239,8 @@ export interface Assessment {
   reason: string;
   /** what keeping him costs the purse (his salary, or for a slab holder what releasing him frees) */
   cost: number;
+  /** is he worth that cost at the auction's prices (shouldOf); null without a price */
+  should: Should | null;
 }
 
 /** The IPL sides he captained last season ("RCB"), from the export's `captain_teams`, or null
@@ -388,6 +390,21 @@ export function callOf(pKeep: number): Rec {
   return "borderline";
 }
 
+// ---- should they keep him? (cost-aware, separate from the fitted call; keep.py `should_of`) ----
+// The call is what franchises do; in a mini year it hardly weighs the cost (the ln ratio and ln cost
+// terms nearly cancel). This reads the market price instead: "yes" when the median price of players
+// like him is at least what keeping him costs, "no" when even the upper quartile is below it, "close"
+// in between (about the price's typical error, a factor of 2); null without a price.
+export type Should = "yes" | "close" | "no";
+export const SHOULD_LABEL: Record<Should, string> = { yes: "Yes", close: "Close", no: "No" };
+
+export function shouldOf(price: number | null, upper: number | null, cost: number): Should | null {
+  if (price === null) return null;
+  if (price >= cost) return "yes";
+  if (upper !== null && upper < cost) return "no";
+  return "close";
+}
+
 function ties(p: KeepPlayer): string[] {
   const team = p.team || "";
   const out: string[] = [];
@@ -407,6 +424,7 @@ export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: numb
     forecast_avg3: p.forecast?.avg3 ?? null,
     captain: captainLabel(p),
     cost: salary,
+    should: null as Should | null,
   };
   const mkt = hasMarketInputs(p);
   let lead = "";
@@ -501,6 +519,7 @@ export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: numb
     no_data: noData,
     rec,
     reason,
+    should: shouldOf(price, central, salary),
   };
 }
 
@@ -778,7 +797,7 @@ export function evaluate(
 export function toCsvRows(res: SquadResult): string[][] {
   const head = [
     "player", "team", "role", "overseas", "age", "acquired", "salary_cr", "value", "value_sd",
-    "cost_cr", "price_cr", "onfield_cr", "p_bought", "surplus_cr", "p_keep", "recommendation", "decision", "auto_release",
+    "cost_cr", "price_cr", "onfield_cr", "p_bought", "surplus_cr", "p_keep", "recommendation", "should_keep", "decision", "auto_release",
     "reason", "outlook", "form", "outlook_3y_avg", "outlook_3y",
   ];
   const rows = [head];
@@ -800,6 +819,7 @@ export function toCsvRows(res: SquadResult): string[][] {
       p.surplus === null ? "" : fmtNum(p.surplus, 2),
       p.p_keep === null ? "" : fmtNum(p.p_keep, 2),
       p.rec,
+      p.should ?? "",
       p.kept ? "keep" : "release",
       p.auto_release ?? "",
       p.reason,

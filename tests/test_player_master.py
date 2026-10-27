@@ -389,6 +389,62 @@ def test_resolve_role_order():
     )
 
 
+def test_parse_role_occasional_keeper_is_not_a_keeper():
+    assert sources.parse_role("Batsman, Occasionally Wicket Keeper") == "batter"
+    assert sources.parse_role("Batter, Occasional wicket-keeper") == "batter"
+    assert sources.parse_role("Occasionally Wicket-keeper-batter / All-rounder") == "allrounder"
+    assert sources.parse_role("Wicket-keeper-batter") == "wk_batter"
+    assert sources.parse_role("Wicket-keeper, batter") == "wk_batter"
+
+
+def test_keeper_needs_recent_stumpings():
+    # stumpings years ago don't make a keeper now; recent ones do
+    old = {**_st(100, 1800, 0, 0, 3.0, stumpings=8), "recent_stumpings": 0}
+    assert master.data_role(old)[0] == "batter"
+    new = {**_st(100, 1800, 0, 0, 3.0, stumpings=8), "recent_stumpings": 3}
+    assert master.data_role(new)[0] == "wk_batter"
+
+
+def test_source_keeper_claim_needs_the_data_not_to_rule_it_out():
+    llm_wk = {"primary_role": "wk_batter"}
+    # long recent record without a stumping: the claim is out of date
+    seen = {"matches": master.KEEPER_UNSEEN_MATCHES + 10, "stumpings": 0}
+    assert master.resolve_role(llm_wk, None, "batter", recent=seen) == ("batter", "ball_data")
+    assert master.resolve_role({}, "wk_batter", "batter", recent=seen) == ("batter", "ball_data")
+    # a short record, or a recent stumping: the claim stands
+    short = {"matches": 10, "stumpings": 0}
+    assert master.resolve_role(llm_wk, None, "batter", recent=short) == ("wk_batter", "llm")
+    one = {"matches": 100, "stumpings": 1}
+    assert master.resolve_role({}, "wk_batter", "batter", recent=one) == (
+        "wk_batter",
+        "wikipedia",
+    )
+
+
+def test_batting_slot_from_recent_innings():
+    opens = {"bat_slots": [1, 2, 1, 3, 2, 1, 1, 2, 4, 1]}
+    assert master.batting_slot(opens, "no3") == ("opener", "ball_data")
+    # stopped opening: the LLM's "opener" gives way to his median slot
+    no3 = {"bat_slots": [3, 3, 4, 3, 3, 2, 3, 3, 3, 5]}
+    assert master.batting_slot(no3, "opener") == ("no3", "ball_data")
+    # a non-opener keeps the LLM's finer slot
+    assert master.batting_slot(no3, "middle") == ("middle", "llm")
+    # too few innings: the LLM decides
+    assert master.batting_slot({"bat_slots": [1, 1, 1]}, "middle") == ("middle", "llm")
+    assert master.batting_slot(None, "unknown") == (None, "none")
+
+
+def test_recent_since():
+    assert master.recent_since("2026-10-25") == "2023-10-25"
+    assert master.recent_since("2024-02-29") == "2021-02-28"
+
+
+def test_squad_titles():
+    sq = {"squads": {"CSK": [{"cricsheet_id": "abc", "wiki_title": "A B"},
+                             {"wiki_title": "C D"}, {"name": "No Link"}]}}  # fmt: skip
+    assert sources.squad_titles(sq) == {"abc": "A B", "wiki:C D": "C D"}
+
+
 def test_identity_block_defaults():
     b = master.identity_block(None, fallback_name="V Kohli")
     assert set(b) == set(master.IDENTITY_FIELDS)

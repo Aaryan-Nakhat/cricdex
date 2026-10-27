@@ -20,8 +20,13 @@ Single Python image, multi-stage (`uv_bin` → `base` → `deps` → `app`):
    then installs the project. No model weights are baked in; the stack is
    file-driven and needs no embedding model at runtime.
 
-Buildkit cache mounts (`--mount=type=cache,target=/root/.cache/uv`) make
+Buildkit cache mounts (`--mount=type=cache,target=/home/app/.cache/uv`) make
 incremental rebuilds fast.
+
+The image runs as the unprivileged user `app` (uid 1000), never as root;
+`/app` and its virtualenv belong to that user. uid 1000 is the first user on
+most Linux hosts, so the bind-mounted `data/` stays writable. If your host
+user has another uid, add `user: "<uid>:<gid>"` to the service.
 
 ## Compose layout
 
@@ -46,8 +51,13 @@ There is no database, cache, vector or graph DB service.
 
 ### Network
 
-Compose creates a default bridge network. The `cricdex` app exposes its
-FastAPI port on the host for ad-hoc inspection.
+Compose creates a default bridge network. Inside the container the servers
+listen on `0.0.0.0` (the port mapping needs that), but Compose publishes
+the API (8080) and the dashboard (8511) on the host's `127.0.0.1` only, so
+they are not reachable from your network by default. To expose them on
+purpose, set `CRICDEX_BIND=0.0.0.0` in `.env` or the shell
+(`CRICDEX_BIND=0.0.0.0 docker compose up -d`). The API has no login, so put
+it behind a proxy with auth first on any network you don't trust.
 
 ## Running pipelines vs running the server
 

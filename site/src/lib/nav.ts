@@ -40,7 +40,7 @@ export const NAV: NavItem[] = [
   { to: "/aging", label: "Aging curves", icon: Activity, group: "Analyse", blurb: "How batting & bowling performance changes with age — with a per-player overlay." },
   { to: "/scout", label: "Scout", icon: Network, group: "Scout", blurb: "Look-alikes across IPL, SMAT & every overseas league — price, savings & draft." },
   { to: "/auction", label: "Auction room", icon: Gavel, group: "Scout", blurb: "Simulate a real IPL auction — retain, then bid for the rest." },
-  { to: "/keep", label: "Keep or release", icon: Scale, group: "Scout", blurb: "Before the retention deadline: which players to keep, at what surplus, and what the squad needs after." },
+  { to: "/keep", label: "Keep or release", icon: Scale, group: "Scout", blurb: "Before the 15 Nov 2026 retention deadline: what each team will likely keep, whether each player is worth his cost, and what the squad needs after." },
   { to: "/bidplan", label: "Bid plan (beta)", icon: ClipboardList, group: "Scout", blurb: "Beta. Before the auction: whom to bid for, each target's max bid and odds, and a fallback per role. Not yet proven against real franchises." },
   { to: "/records", label: "Records", icon: Medal, group: "Explore", blurb: "All-time record books." },
   { to: "/venues", label: "Venues", icon: MapPin, group: "Explore", blurb: "Ground conditions: totals, phases, chasing." },

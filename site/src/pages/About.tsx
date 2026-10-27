@@ -70,9 +70,10 @@ const SECTIONS: Section[] = [
         (value minus half its uncertainty), international caps, age, IPL experience and captaincy,
         priced at the median for his kind of player (overseas in a mega or a mini auction, capped or
         uncapped Indian). At the top the price follows what the market really paid for its dearest lots (a
-        monotone calibration fitted out of fold), so no ceiling is needed. Out of time half the lots land
-        within ±50% of their price and the 20 dearest predictions of each auction fetch about 0.87× them
-        on average. The
+        monotone calibration fitted out of fold), so no ceiling is needed. The recipe is chosen on auctions up
+        to 2024. On the 2025 and 2026 auctions about half the lots land within ±50% of their price and the 20
+        dearest predictions of each auction fetch about 0.83× them on average; those two seasons have since been
+        looked at several times, so treat these figures as optimistic. The
         skill-only curve is kept alongside as each player's <em>on-field worth</em>. Crucially it reports not just a point
         estimate but the <strong>uncertainty</strong> around it — which is what powers the head-to-head
         probabilities.
@@ -134,8 +135,8 @@ const SECTIONS: Section[] = [
         improve its squad, the money across the market and how far the auction has gone, plus how hot the player is
         on the day. No hand-set team personalities: estimated team effects were tried and lost out of time. The
         winner pays one ladder step above the second-highest bid, never more than its purse allows (the purse less
-        the base price of every place it still needs to reach 18). Chosen on 2019–2024 and tested once on the 2025
-        and 2026 auctions, about 7 in 10 real prices fall inside the simulated 10–90% range (the room before: 6 in
+        the base price of every place it still needs to reach 18). Chosen on 2019–2024 and then scored on the 2025
+        and 2026 auctions (seen several times since, so optimistic), about 7 in 10 real prices fall inside the simulated 10–90% range (the room before: 6 in
         10 and 5 in 10). You see who likely lands each remaining star (the typical price of a star comes out
         low: real bidding wars for the top names aren't predictable from the market price). Runs
         entirely in your browser — and identically on the CLI, TUI and Streamlit from the same inputs
@@ -157,8 +158,10 @@ const SECTIONS: Section[] = [
         is <strong>what franchises actually do</strong>: the chance a franchise keeps a player like him, from a
         model fitted to every real retention deadline 2018–2026 (his market price against his cost, his
         three-season Form forecast, his ties to the side: captain, seasons there, home-grown; capped Indian or
-        overseas, age, IPL balls). Chosen on the deadlines up to 2024 and tested once on 2025–26, it made the
-        franchise's own call for 78% of players (82% of stars). His playing time (the chance he plays in this
+        overseas, age, IPL balls). Chosen on the deadlines up to 2024, it made the franchise's own call on the
+        2025–26 deadlines for 78% of players (82% of stars); those seasons have since been looked at up to five
+        times, so treat that as optimistic. Franchises hardly weigh the cost in a mini year, so a second column,{" "}
+        <strong>Should they?</strong>, asks whether he is worth what keeping him costs at the auction's prices. His playing time (the chance he plays in this
         squad × his runs a match) was tried as an input too and didn't improve the calls. Keep at 65%+, release under 35%, borderline in
         between. Then the squad that follows: purse left after what the kept players cost, open slots, and the role gaps
         (keepers, openers, death bowlers, spinners, overseas) filled from the likely auction pool, free agents
@@ -214,8 +217,9 @@ const SECTIONS: Section[] = [
         <strong>fallback chain</strong> per role. The rivals bid by the Auction room's fitted demand model, and a team
         never buys back its own releases: a release worth more to the squad than his salary is flagged "reconsider
         keeping". Replayed on the 2025 and 2026 auctions with only what was known beforehand, at the real team's spend,
-        the plan's squads were ahead of the real ones for 7 of 10 teams in 2025 and 2 of 10 in 2026 on what the players
-        did next season: ahead in the mega auction, behind in the mini, so it stays in beta, a starting sheet, not a forecast. Same optimiser on the CLI
+        the plan spends what real teams spend, but its squads were weaker than the real ones on what the players did
+        next season (ahead for 1 of 10 teams in 2025 and 0 of 10 in 2026, after those seasons had been looked at five
+        times), so it stays in beta, a starting sheet, not a forecast. Same optimiser on the CLI
         (<code>cricdex bidplan</code>), locked by a parity test.
       </>
     ),

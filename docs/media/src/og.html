@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><title>CricDex link preview</title><link rel="stylesheet" href="theme.css">
+<style>
+  /* The link-preview card (Open Graph / Twitter): exactly 1200 x 630, rendered to site/public/og.png by
+     scripts/render_images.py og. Static text only, so it never needs data.js. */
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  #stage { width: 1200px; height: 630px; padding: 64px 72px 56px; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 14px; font: 800 30px/1 Inter; letter-spacing: -.02em; }
+  .mark { width: 46px; height: 46px; border-radius: 12px; background: var(--grad); display: grid; place-items: center;
+    color: #fff; font: 800 24px/1 Inter; }
+  h1 { font: 800 62px/1.06 Inter; letter-spacing: -.035em; margin-top: 44px; max-width: 1000px; }
+  .lede { font: 500 24px/1.45 Inter; color: var(--muted); margin-top: 22px; max-width: 980px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 12px; margin-top: auto; }
+  .chip { font: 700 17px/1 Inter; padding: 11px 16px; border-radius: 999px; background: var(--card); border: 1px solid var(--line);
+    box-shadow: var(--shadow); color: var(--fg); }
+  .chip.hot { background: var(--green-lo); border-color: #b9e6d3; color: var(--green); }
+  .by { position: absolute; right: 72px; top: 72px; font: 600 18px/1 Inter; color: var(--muted); }
+  .by b { color: var(--fg); }
+</style></head><body>
+<div id="stage">
+  <div class="orb" style="width:560px;height:560px;left:-200px;top:-240px;background:#34d399"></div>
+  <div class="orb" style="width:520px;height:520px;right:-180px;bottom:-260px;background:#f5c542"></div>
+  <div class="gridbg"></div>
+  <div class="brand"><span class="mark">C</span>CricDex</div>
+  <div class="by">by <b>Aaryan Nakhat</b></div>
+  <h1>The numbers behind cricket, <span class="grad">honestly modelled.</span></h1>
+  <p class="lede">IPL retention calls, a real-rules auction room, Bayesian ratings and cross-league scouting, all from Cricsheet ball-by-ball data. Free, in your browser.</p>
+  <div class="chips">
+    <span class="chip hot">IPL 2027 retention calls</span>
+    <span class="chip">Auction room</span>
+    <span class="chip">Bid plan</span>
+    <span class="chip">Form forecast</span>
+    <span class="chip">Win-probability impact</span>
+    <span class="chip">Scout</span>
+  </div>
+</div>
+</body></html>

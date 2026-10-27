@@ -166,10 +166,11 @@ max bid  = gain ÷ λ   (at most the purse left after the other likely buys)`}</
           P(≤ max) × (gain − λ × the price you'd expect to pay).
         </p>
         <p className="rounded-lg border border-willow/20 bg-willow/5 px-3 py-2 text-xs">
-          <b className="text-willow">Honest caveat:</b> the rivals bid by a demand model fitted on the 2019–24 auctions and
-          tested once on 2025–26, but prices rest on the market model, which can't see scouting, injury or brand; values are
-          ratings, not certainties. Replayed on the 2025 and 2026 auctions at the real team's spend, the plan's squads were
-          ahead of the real ones for 7 of 10 teams in 2025 and 2 of 10 in 2026 on what the players did next season: see
+          <b className="text-willow">Honest caveat:</b> the rivals bid by a demand model chosen on the 2019–24 auctions, but
+          prices rest on the market model, which can't see scouting, injury or brand; values are ratings, not certainties.
+          Replayed on the 2025 and 2026 auctions at the real team's spend, the plan's squads were ahead of the real ones
+          for only 1 of 10 teams in 2025 and 0 of 10 in 2026 on what the players did next season (those two seasons
+          have been looked at five times while building it): see
           docs/METHODOLOGY.md §12. Treat it as a starting sheet for the war room, not a verdict.
         </p>
       </div>

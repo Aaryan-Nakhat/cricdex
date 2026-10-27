@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { NAV, NAV_GROUPS } from "@/lib/nav";
 import { useStore } from "@/lib/store";
-import { cn, prettyDate } from "@/lib/utils";
+import { AUTHOR, AUTHOR_URL, cn, prettyDate } from "@/lib/utils";
 import { StaleBadge } from "./ui";
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -45,6 +45,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <div className="mt-1">This league's feed has stopped updating; newer matches exist elsewhere.</div>
           </div>
         )}
+      </div>
+      <div className="px-3 pb-1 text-xs text-muted">
+        by{" "}
+        <a href={AUTHOR_URL} target="_blank" rel="noreferrer" className="font-medium text-fg hover:text-accent-glow">
+          {AUTHOR}
+        </a>
       </div>
     </nav>
   );

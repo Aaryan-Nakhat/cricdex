@@ -409,8 +409,9 @@ def test_keep_synthetic_calls():
 
 
 def test_keep_model_is_the_backtested_one():
-    """The shipped retention model is scripts/keep_backtest.py's: chosen on 2018-2024, tested once on
-    2025-26, and its features are keep_features'."""
+    """The shipped retention model is scripts/keep_backtest.py's: chosen on 2018-2024, scored on
+    2025-26 (the protocol's one test; those seasons have been seen several times since across
+    CricDex), and its features are keep_features'."""
     km = _keep_model()
     if km is None:
         pytest.skip("no keep model")
@@ -484,6 +485,28 @@ def test_keep_default_plan_is_legal():
     assert not any(
         p["auto_release"] for p in evaluate(SQUAD, market, RULES, {}, {}, FORM)["players"]
     )
+
+
+def test_keep_should_they():
+    """ "Should they?" reads the market price against the cost, apart from the fitted call: Yes when
+    the median price is at least the cost, No when even the upper quartile is below it, Close in
+    between, nothing without a price."""
+    from cricdex.web_parity.keep import assess, should_of
+
+    assert should_of(5.0, 9.0, 5.0) == "yes"
+    assert should_of(4.0, 9.0, 5.0) == "close"
+    assert should_of(2.0, 4.99, 5.0) == "no"
+    assert should_of(None, None, 5.0) is None
+    for p in SQUAD:
+        a = assess(p, FORM)
+        if a["price"] is None:
+            assert a["should"] is None
+        else:
+            assert a["should"] == should_of(a["price"], a["price_central"], a["cost"])
+    # it never feeds the call: a home-grown spinner paid above his price is still the model's Keep
+    a = assess(SQUAD[11], FORM)
+    if a["p_keep"] is not None and a["p_keep"] >= 0.65:
+        assert a["rec"] == "keep" and a["should"] == "no"
 
 
 def test_keep_slab_costs():

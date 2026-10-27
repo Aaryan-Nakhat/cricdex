@@ -43,7 +43,7 @@ ends up.
   model estimated on who really bought whom, and for how much, at the 2019–2026 auctions (each team's squad
   and purse rebuilt lot by lot): its places short in his role, open overseas places, purse per open place,
   how much he'd improve it, the money across the market, how far the auction has gone. No hand-set team
-  personalities (estimated team effects lost out of time). Chosen on 2019–2024, tested once on 2025–26:
+  personalities (estimated team effects lost out of time). Chosen on 2019–2024, then scored on 2025–26:
   about 7 in 10 real prices land inside the simulated 10–90% range (the room before: 6 in 10 and 5 in 10).
   The winner pays one ladder step above the second-best bid, and no team bids past what its purse allows;
   the retentions cost the purse what the 2025 rule charged (KKR 69 cr, not its 57 of salaries).
@@ -59,9 +59,9 @@ Prices are **fitted to real IPL auction prices** (every sale and mega retention 
 Wikipedia): what the market has paid for players like him, from his value on a cautious estimate, caps,
 age, IPL experience and captaincy, priced at the median for his kind of player (overseas in a mega or a
 mini auction, capped or uncapped Indian), with the top end priced the way the market really paid for
-its dearest lots (no ceiling needed), plus the chance he's bought at all. Out of time (the 2025 and 2026
-auctions) half the lots land within ±50% of their price (the earlier skill-only curve: 43%), and each
-auction's 20 dearest predictions fetched 0.87× them. Bidding wars for a star aren't predictable from
+its dearest lots (no ceiling needed), plus the chance he's bought at all. The recipe is chosen on auctions
+up to 2024. On the 2025 and 2026 auctions about half the lots land within ±50% of their price (the earlier
+skill-only curve: 43%), and each auction's 20 dearest predictions fetched 0.83× them. Bidding wars for a star aren't predictable from
 anything known before the auction, and the market price misses the stars of the mini auctions (their real
 prices 2–8× it): the room's typical price for a star comes out low (2025: Pant's median 10.6 cr, real 27; his
 10–90% range 3.2–32.3 cr; 7 of the real top 10 inside their range), so read its prices as ranges. The room models how an auction
@@ -76,8 +76,10 @@ player costs (his salary, or for a 2025 mega-auction retention the 2025 retentio
 2027) against his market price (what players like him have fetched at real auctions), and a **Keep / Release
 / Borderline** call from **what franchises actually do**: the chance a franchise keeps a player like him, from
 a model of every real retention deadline since 2018 (price against cost, his three-season form forecast, his
-ties to the side, his status). Chosen on 2018–2024 and tested once on 2025–26, it made the franchise's own call
-for 78% of players and 82% of stars (the old price-against-salary rule: 70% / 64%). The reason is in one line,
+ties to the side, his status). Chosen on 2018–2024, it made the franchise's own call on the 2025–26 deadlines
+for 78% of players and 82% of stars (the old price-against-salary rule: 70% / 64%). Franchises hardly weigh
+the cost in a mini year, so a second column, **Should they?**, asks whether he is worth what keeping him costs:
+Yes when players like him fetch at least that at auction, No when even the dearer quarter of them fetch less. The reason is in one line,
 then the squad that follows: purse left, open slots, and the role gaps (keepers, openers, death
 bowlers, spinners, overseas) with the cheapest players in the likely pool who fill them. Flip any call, change
 the purse or a role target, export the table to CSV, or share the link. Squads and salaries come from
@@ -202,6 +204,12 @@ and tested on 2025–26 for its level, not only its rank: a tie with the hand-se
 versions of this page claimed a newcomer-batter edge; the first came from an unfair baseline, the second from
 the old way of adding up `value`, and neither survives. A single T20 season is mostly noise. Re-run it
 yourself with `scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`. The Form forecast has its own backtest (projections from 2021–23 against four baselines, `scripts/form_forecast.py backtest`): batters 21.6 / 21.4 / 20.5 runs-per-100 error one / two / three seasons ahead against 22.8 / 22.8 / 22.7 for the career rating, bowlers a tie with the rating.
+
+**About the 2025–26 numbers on this page.** The auction, price and Keep models were each chosen on data up
+to 2024 and then scored on the 2025 and 2026 seasons. Those two seasons have since been looked at many times
+while building CricDex (several price recipes were scored on them, and the Bid plan replays have seen them
+five times), so they are no longer a clean test: treat every 2025–26 figure as optimistic. The clean test is
+the 2027 retention lists (15 Nov 2026) and auction.
 → [The backtest in detail](docs/METHODOLOGY.md#8-does-it-predict-the-backtest)
 
 ## 🧠 How it works

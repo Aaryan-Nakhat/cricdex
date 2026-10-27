@@ -8,6 +8,86 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Security hardening (2026-10-27)
+
+- **GitHub Actions.** Every third-party action is pinned to a commit SHA with its version in a
+  comment. Workflow tokens are read-only by default: only the refresh job can write, and only the
+  Pages deploy job gets the Pages and OIDC permissions. Checkouts keep no credential; the refresh
+  passes its token to the one `git push`. The refresh's `collections` input reaches the shell
+  through an environment variable and must be league keys from `config/leagues.toml`. Its Python
+  install is locked (`uv sync --locked`, `UV_LOCKED=1`).
+- **LLM answers are checked.** A new module, `cricdex.scout.identity.taxonomy`, holds every field
+  of the LLM taxonomy and the name check to a fixed list (role, bowling category and style, batting
+  slot, hand, confidence, country code) or a bounded plain name. It runs when an answer is saved
+  (`scripts/enrich_taxonomy.py`, the name check) and when the cached files are read (player master,
+  profiles, fielding, export fallback). Bad values are dropped with a warning. The sporting codes
+  MAW and MGL and the code GB-SCT now map to Malawi, Mongolia and Scotland. Tests:
+  `tests/test_taxonomy_schema.py`.
+- **Content-Security-Policy on the site.** A `<meta>` policy in `site/index.html` allows scripts,
+  styles, fonts and data only from the site, images also from Wikimedia, and the inline theme
+  script by a hash that the build computes (`site/vite.config.ts`). Dev mode drops the tag.
+- **Docker.** The image runs as the unprivileged user `app`. Compose publishes the API and the
+  dashboard on `127.0.0.1`; set `CRICDEX_BIND=0.0.0.0` to expose them (docs/DOCKER.md).
+- **SECURITY.md** says how to report a problem and what is hardened.
+
+### Keep or release: "Should they?", honest test wording, link previews (2026-10-27)
+
+- **Should they? (a cost-aware read beside the call).** The Keep call is what franchises will likely
+  do, and in a mini year the fitted model hardly weighs the cost: its ln(price / cost) and ln(cost)
+  terms (+0.141, +0.139) nearly cancel, so Kartik Sharma reads 93% Keep at a 14.2 cr cost against a
+  1.67 cr market price. The model is not refitted (frozen protocol). A new column asks the other
+  question from the market price alone: **Yes** when the median market price is at least what keeping
+  him costs, **No** when even the upper quartile is below it, **Close** in between. It never changes
+  the call, the default plan or the purse. `should_of` ⇄ `shouldOf` (parity-tested), on the Keep page
+  (sortable), in the CLI table and in the CSV (`should_keep`). METHODOLOGY §10 step 5b.
+- **No more "tested once" on 2025–26.** Each model was chosen on data up to 2024, but the 2025 and
+  2026 seasons have since been looked at up to five times (several price recipes, the Bid plan
+  replays). README, the About, Keep and Bid plan pages, AUCTION_MATH and METHODOLOGY now say so and
+  call those figures optimistic. Stale numbers fixed: the price's 20 dearest predictions fetch 0.83×
+  them with the shipped recipe Z (0.87× was T's); the Bid plan replays now give 1 of 10 and 0 of 10
+  teams ahead (the pages still said 7 of 10 and 2 of 10).
+- **Link previews and byline.** Open Graph and Twitter card tags in `site/index.html` with a
+  1200 × 630 preview image (`docs/media/src/og.html` → `site/public/og.png`, `scripts/render_images.py
+  og`). "by Aaryan Nakhat" on the home page and in the sidebar.
+- **Home page leads with the 15 Nov 2026 retention calls** (to the Keep page), instead of the old
+  mega-auction hero; the rest of the home page is unchanged.
+
+### Role tags and ages from current data, not career data (2026-10-27)
+
+- **Keeper, opener, death bowler and spinner tags now use the last 3 years.** Before this, the
+  stumping counts, death-over shares and spin bowling were read over the whole career, and the
+  batting slot came from the LLM taxonomy alone. As a result, Duckett and Glenn Phillips were tagged
+  keepers, and Padikkal and Ishan Kishan were tagged openers. Kohli, Samson, Marsh, Markram and
+  Prabhsimran Singh had no opener tag, and Shivam Mavi and Rahul Tewatia kept their death and spin
+  tags. Now:
+  - A keeper needs 2 stumpings in that window. A claim from Wikipedia or the LLM stands unless his
+    last 3 years hold 40 or more T20 matches without a stumping.
+  - An opener walked out at 1 or 2 in at least half of his last 30 T20 innings, counted over every
+    league together or in any one league where he has 8 or more innings. The tag follows the
+    batting evidence, so Narine counts.
+  - A spinner must still bowl.
+  - Details are in docs/IDENTITY.md and METHODOLOGY §8.
+- **Occasional keepers are not keepers.** A Wikipedia infobox role of "Occasionally Wicket Keeper"
+  no longer counts as a keeper; Ruturaj Gaikwad's had given CSK five keepers.
+- **Ages for IPL debutants.** A squad player whose Wikidata item lacks his ESPNcricinfo id is now
+  linked to a Wikipedia article in one of two ways:
+  - a search for the cricketer article that links his ESPNcricinfo profile, cached in
+    `data/curated/wikipedia_by_cricinfo.json`;
+  - the article the IPL personnel page links.
+
+  Players with no article at all get a sourced `dob` in `player_overrides.json`, or on their row
+  of the squads file when they have no match data. A date whose year contradicts the article title
+  is skipped, and a first match at 38 or older is listed for review.
+- **Country from the article title.** An article titled "(Trinidad and Tobago cricketer)" now sets
+  the country before the LLM taxonomy does.
+- **Build stamp and fact checks.** Each league's `meta.json` now records the player-master build it
+  was exported with (`player_master: {built, hash}`). A new test file,
+  `tests/test_identity_facts.py`, checks:
+  - every league comes from one build, with the same dob, country and retired status for a player;
+  - every rated Keep player has an age;
+  - Narine, Kohli, Samson and Markram are openers;
+  - Gaikwad and Duckett are not keepers.
+
 ### CI green again, docs audited (2026-10-27)
 
 - **The scout export used the connection it was given.** The time-aware and calibration steps opened the

@@ -5,34 +5,34 @@
   "display_name": "Digvesh Rathi",
   "primary_role": "bowler",
   "bowling_style": "leg-spin",
-  "_evidence": "Right-arm leg-spinner (mystery spin) for Lucknow Super Giants; the LLM taxonomy had him as right-arm fast-medium (review backlog item 19)."
+  "_evidence": "Right-arm leg-spinner (mystery spin) for Lucknow Super Giants; the LLM taxonomy had him as right-arm fast-medium (review backlog item 19). Sources: https://en.wikipedia.org/wiki/Digvesh_Rathi (infobox: 'Right-arm legbreak', role 'Bowler'); https://www.espncricinfo.com/cricketers/digvesh-rathi-1460529. Sourced 2026-10-27."
  },
  "dbe50b21": {
   "_name": "HH Pandya (Hardik Pandya)",
   "primary_role": "allrounder",
   "bowling_style": "right-arm-fast-medium",
-  "_evidence": "Seam-bowling all-rounder: Wikipedia infobox 'Right-arm medium-fast', role 'All-rounder' (owner review P3)."
+  "_evidence": "Seam-bowling all-rounder: Wikipedia infobox 'Right-arm medium-fast', role 'All-rounder' (owner review P3). Sources: https://en.wikipedia.org/wiki/Hardik_Pandya (infobox: 'Right-arm medium-fast', role 'All-rounder'); https://www.espncricinfo.com/cricketers/hardik-pandya-625371. Sourced 2026-10-27."
  },
  "c27b5a0e": {
   "_name": "PVSN Raju (Satyanarayana Raju)",
   "display_name": "Satyanarayana Raju",
-  "_evidence": "Full name Penumatsa Venkata Satyanarayana Raju (People Register); played for Mumbai Indians in 2025 as Satyanarayana Raju. The LLM check renamed him after Venkatapathy Raju, a different (1990s) cricketer."
+  "_evidence": "Full name Penumatsa Venkata Satyanarayana Raju (People Register); played for Mumbai Indians in 2025 as Satyanarayana Raju. The LLM check renamed him after Venkatapathy Raju, a different (1990s) cricketer. Sources: https://en.wikipedia.org/wiki/Satyanarayana_Raju_(cricketer) (Wikidata Q133500683); https://www.espncricinfo.com/cricketers/satyanarayana-raju-1392201 (People Register key_cricinfo 1392201). Sourced 2026-10-27."
  },
  "21d4e29b": {
   "_name": "NA Saini (Navdeep Saini)",
   "primary_role": "bowler",
   "bowling_style": "right-arm-fast",
-  "_evidence": "Right-arm fast bowler (Wikipedia infobox 'Right-arm fast'); the LLM taxonomy left him null (review backlog item 19)."
+  "_evidence": "Right-arm fast bowler (Wikipedia infobox 'Right-arm fast'); the LLM taxonomy left him null (review backlog item 19). Sources: https://en.wikipedia.org/wiki/Navdeep_Saini (infobox: 'Right-arm fast', role 'Bowler'); https://www.espncricinfo.com/cricketers/navdeep-saini-700167. Sourced 2026-10-27."
  },
  "e824e6ee": {
   "dob": "1992-04-02",
   "_name": "Tom Latham",
-  "_evidence": "Wikidata id match landed on a namesake (dob 1923); Tom Latham (NZ) was born 2 April 1992 (ESPNcricinfo profile)"
+  "_evidence": "Wikidata id match landed on a namesake (dob 1923); Tom Latham (NZ) was born 2 April 1992 (ESPNcricinfo profile) Sources: https://en.wikipedia.org/wiki/Tom_Latham_(cricketer) (infobox: born 2 April 1992); https://www.espncricinfo.com/cricketers/tom-latham-388802. Sourced 2026-10-27."
  },
  "23eeb873": {
   "_name": "Deepak Chahar",
   "dob": "1992-08-07",
-  "_evidence": "Wikidata gives 1972-08-07 (a typo); Deepak Chahar was born 7 August 1992 (ESPNcricinfo profile)"
+  "_evidence": "Wikidata gives 1972-08-07 (a typo); Deepak Chahar was born 7 August 1992 (ESPNcricinfo profile) Sources: https://en.wikipedia.org/wiki/Deepak_Chahar (infobox: born 7 August 1992); https://www.espncricinfo.com/cricketers/deepak-chahar-447261. Sourced 2026-10-27."
  },
  "1c84109e": {
   "_name": "MD Choudhary (Mukul Choudhary)",
@@ -40,7 +40,7 @@
   "full_name": "Mukul Choudhary",
   "country": "IND",
   "dob": "2004-08-06",
-  "_evidence": "The People Register's ESPNcricinfo key for MD Choudhary (1354217) is the one in Wikipedia's 'Mukul Choudhary' infobox (Wikidata Q137575753, born 6 August 2004); he played 10 IPL 2026 matches for LSG, bought for 2.6 cr (ESPNcricinfo auction report, 2025-12-16). The LLM name check had renamed him 'Mukesh Choudhary', a different player (CSK, register 765a4731, cricinfo 1125688). Issue I6, 2026-10-22."
+  "_evidence": "The People Register's ESPNcricinfo key for MD Choudhary (1354217) is the one in Wikipedia's 'Mukul Choudhary' infobox (Wikidata Q137575753, born 6 August 2004); he played 10 IPL 2026 matches for LSG, bought for 2.6 cr (ESPNcricinfo auction report, 2025-12-16). The LLM name check had renamed him 'Mukesh Choudhary', a different player (CSK, register 765a4731, cricinfo 1125688). Issue I6, 2026-10-22. Sources: https://en.wikipedia.org/wiki/Mukul_Choudhary (infobox: born 6 August 2004); https://www.wikidata.org/wiki/Q137575753; https://www.espncricinfo.com/cricketers/mukul-choudhary-1354217. Sourced 2026-10-27."
  },
  "f12fe2a1": {
   "_name": "T Dahiya (Tejasvi Singh Dahiya)",
@@ -48,7 +48,7 @@
   "full_name": "Tejasvi Singh Dahiya",
   "country": "IND",
   "dob": "2002-04-18",
-  "_evidence": "The People Register's ESPNcricinfo key for T Dahiya (1460372) is the one in Wikipedia's 'Tejasvi Singh Dahiya' infobox (Wikidata Q137432241, born 18 April 2002); listed as 'Tejasvi Singh' in KKR's 2026 squad (Wikipedia 2026 personnel changes). The LLM name check had guessed 'Tanish Dahiya'. Issue I6, 2026-10-22."
+  "_evidence": "The People Register's ESPNcricinfo key for T Dahiya (1460372) is the one in Wikipedia's 'Tejasvi Singh Dahiya' infobox (Wikidata Q137432241, born 18 April 2002); listed as 'Tejasvi Singh' in KKR's 2026 squad (Wikipedia 2026 personnel changes). The LLM name check had guessed 'Tanish Dahiya'. Issue I6, 2026-10-22. Sources: https://en.wikipedia.org/wiki/Tejasvi_Singh_Dahiya (infobox: born 18 April 2002); https://www.wikidata.org/wiki/Q137432241; https://www.espncricinfo.com/cricketers/tejasvi-singh-dahiya-1460372. Sourced 2026-10-27."
  },
  "926c7443": {
   "_name": "SU Parakh (Sahil Parakh)",
@@ -58,6 +58,62 @@
   "aliases": [
    "Sahil Parekh"
   ],
-  "_evidence": "Sahil Parakh, 18, Nashik (Maharashtra), bought by DC for 30 lakh, debuted for DC v RCB on 27 April 2026 (Outlook India, https://www.outlookindia.com/amp/story/sports/cricket/who-is-sahil-parakh-delhi-capitals-vs-royal-challengers-bengaluru-ipl-2026-match-39): the first IPL match of SU Parakh (register 926c7443) in our data, for Delhi Capitals. Wikipedia's squad list spells him 'Sahil Parekh'. Issue I6, 2026-10-22."
+  "_evidence": "Sahil Parakh, 18, Nashik (Maharashtra), bought by DC for 30 lakh, debuted for DC v RCB on 27 April 2026 (Outlook India, https://www.outlookindia.com/amp/story/sports/cricket/who-is-sahil-parakh-delhi-capitals-vs-royal-challengers-bengaluru-ipl-2026-match-39): the first IPL match of SU Parakh (register 926c7443) in our data, for Delhi Capitals. Wikipedia's squad list spells him 'Sahil Parekh'. Issue I6, 2026-10-22. | Born 2007-06-07: the date-of-birth field of https://www.iplt20.com/players/sahil-parakh/23063; KhelNow and StarsUnfolded agree (found by web search 2026-10-27). Sources disagree: the same iplt20 page's biography text says 11 April 2005 and CricTracker says 6 June 2007; the profile field and two others are taken. No Wikidata item with his ESPNcricinfo id, no Wikipedia article. Issue: missing Keep ages.",
+  "dob": "2007-06-07"
+ },
+ "2d140b79": {
+  "_name": "Arshin Kulkarni",
+  "dob": "2005-02-15",
+  "_evidence": "Born 2005-02-15: https://www.iplt20.com/players/arshin-kulkarni/20691 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). Maharashtra. Wisden and Cricket Times agree. Issue: missing Keep ages."
+ },
+ "9e6032fa": {
+  "_name": "Danish Malewar",
+  "dob": "2003-10-08",
+  "_evidence": "Born 2003-10-08: https://espncricinfo.com/cricketers/danish-malewar-1421992 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). Vidarbha, born Nagpur. Wikipedia, iplt20 and CricketArchive agree. Issue: missing Keep ages."
+ },
+ "2b801189": {
+  "_name": "Mayank Rawat",
+  "dob": "1999-12-04",
+  "_evidence": "Born 1999-12-04: https://www.espncricinfo.com/cricketers/mayank-rawat-1079847 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). Delhi all-rounder Mayank Ram Rawat. iplt20 and KhelNow agree. Issue: missing Keep ages."
+ },
+ "e48a4814": {
+  "_name": "Krish Bhagat",
+  "dob": "2004-11-06",
+  "_evidence": "Born 2004-11-06: https://www.espncricinfo.com/cricketers/krish-bhagat-1454586 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). Punjab all-rounder. iplt20 and KhelNow agree. Issue: missing Keep ages."
+ },
+ "82c10dac": {
+  "_name": "Abhinandan Singh",
+  "dob": "1997-03-30",
+  "_evidence": "Born 1997-03-30: https://www.iplt20.com/players/abhinandan-singh/22136 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). UP pacer. StarsUnfolded agrees. Issue: missing Keep ages."
+ },
+ "02dfebbe": {
+  "_name": "Yash Raj Punja",
+  "dob": "2006-06-26",
+  "_evidence": "Born 2006-06-26: https://www.iplt20.com/players/yash-raj-punja/23016 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). Leg-spinner, born Abu Dhabi. Outlook and MyKhel agree. Issue: missing Keep ages."
+ },
+ "548516a6": {
+  "_name": "Ravi Singh",
+  "dob": "2001-05-25",
+  "_evidence": "Born 2001-05-25: https://www.rajasthanroyals.com/rr-players/ravi-singh-ipl-profile-129333 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). Wicketkeeper. iplt20 agrees. CricTracker's 13 Apr 2000 page is a different Ravi Singh. Issue: missing Keep ages."
+ },
+ "133bbd61": {
+  "_name": "Brijesh Sharma",
+  "dob": "1998-12-16",
+  "_evidence": "Born 1998-12-16: https://www.iplt20.com/players/brijesh-sharma/23164 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). J&K pacer. Wisden agrees; CricketCountry says 16 Jan 1988, which looks like an error. Issue: missing Keep ages."
+ },
+ "c1e53c3f": {
+  "_name": "Smaran Ravichandran",
+  "dob": "2003-05-05",
+  "_evidence": "Born 2003-05-05: https://www.iplt20.com/players/smaran-ravichandran/22378 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). Karnataka. Wisden agrees. Issue: missing Keep ages."
+ },
+ "d7423da1": {
+  "_name": "Salil Arora",
+  "dob": "2002-11-07",
+  "_evidence": "Born 2002-11-07: https://www.espncricinfo.com/cricketers/salil-arora-1199281 (found by web search 2026-10-27; no Wikidata item with his ESPNcricinfo id and no Wikipedia infobox date). Punjab wicketkeeper, born Amritsar. iplt20 and KhelNow agree. Issue: missing Keep ages."
+ },
+ "7b44eb3e": {
+  "_name": "Shivang Kumar",
+  "dob": "2002-05-26",
+  "_evidence": "Born 2002-05-26: https://www.iplt20.com/players/shivang-kumar/23006; CricketSky agrees (found by web search 2026-10-27). Sources disagree: CricTracker says 25 May 2002 and the SRH team page 12 March 2004; the IPL's own profile is taken. No Wikidata item with his ESPNcricinfo id, no Wikipedia article. Issue: missing Keep ages."
  }
 }

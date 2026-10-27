@@ -1,6 +1,14 @@
 # CricDex local stack — `docker compose up -d` runs the app; add
 # `--profile dashboard` for the Streamlit UI. CricDex is data-file driven
 # (DuckDB + exported JSON) — no vector DB or graph DB needed.
+#
+# Both services run as the unprivileged `app` user (uid 1000) and publish their ports on
+# 127.0.0.1 only, so nothing is reachable from your network by default. To expose them on
+# purpose (a LAN box, a reverse proxy in another container), set CRICDEX_BIND in .env or the
+# shell, e.g. `CRICDEX_BIND=0.0.0.0 docker compose up -d`. The API has no login, so put it
+# behind a proxy with auth before you do that on an untrusted network.
+# On a Linux host whose user is not uid 1000, add `user: "<uid>:<gid>"` to a service so the
+# bind-mounted data/ stays writable.
 
 services:
   cricdex:
@@ -14,7 +22,7 @@ services:
       - path: .env
         required: false
     ports:
-      - "8080:8080"
+      - "${CRICDEX_BIND:-127.0.0.1}:8080:8080"
     volumes:
       # Mount data dir so Parquet / DuckDB / curated JSON persist across
       # container restarts and stay editable from the host.
@@ -38,7 +46,7 @@ services:
       - path: .env
         required: false
     ports:
-      - "8511:8501"
+      - "${CRICDEX_BIND:-127.0.0.1}:8511:8501"
     volumes:
       - ./data:/app/data
       - ./site/public/data:/app/site/public/data

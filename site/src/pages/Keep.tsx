@@ -24,16 +24,18 @@ import {
   type KeepData,
   type Tag,
   NO_DATA_LABEL,
+  SHOULD_LABEL,
 } from "@/lib/keep";
 import { useUrlParams, useUrlState } from "@/lib/useUrlState";
 import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StatTile } from "@/components/ui";
 import { cn, profilePath } from "@/lib/utils";
 
-type SortKey = "kept" | "surplus" | "price" | "onfield" | "outlook" | "salary" | "value" | "age" | "name";
-const SORTS: SortKey[] = ["kept", "surplus", "price", "onfield", "outlook", "salary", "value", "age", "name"];
+type SortKey = "kept" | "should" | "surplus" | "price" | "onfield" | "outlook" | "salary" | "value" | "age" | "name";
+const SORTS: SortKey[] = ["kept", "should", "surplus", "price", "onfield", "outlook", "salary", "value", "age", "name"];
 
 const REC_TONE = { keep: "willow", release: "ball", borderline: "gold" } as const;
 const REC_LABEL = { keep: "Keep", release: "Release", borderline: "Borderline" } as const;
+const SHOULD_TONE = { yes: "willow", no: "ball", close: "gold" } as const;
 const ROLE_LABEL: Record<string, string> = { batter: "Batter", bowler: "Bowler", all_rounder: "All-rounder", keeper: "Keeper" };
 const FIELD_LABEL: Record<string, string> = {
   retention_deadline: "Retention deadline",
@@ -104,8 +106,9 @@ function HowItWorks({ data }: { data: KeepData }) {
           (value − ½ × uncertainty). At the top it follows what the market really paid for the dearest lots
           (a monotone calibration fitted out of fold), not a straight-line extrapolation, so it needs no
           ceiling. Under it, the chance a franchise buys a player like him if he's released (which also
-          weighs the price he last fetched). Chosen on auctions up to 2024 and tested once on 2025–26, it is
-          off by a factor of about 1.9 on a typical player. <b className="text-fg">On-field worth</b> is the older
+          weighs the price he last fetched). The recipe was chosen on auctions up to 2024. On the 2025–26
+          auctions it is off by a factor of about 1.9 on a typical player, but those two seasons have since
+          been looked at several times while building CricDex, so treat that figure as optimistic. <b className="text-fg">On-field worth</b> is the older
           skill-only curve (4.03 × e^(0.0743 × cautious value) × role weight), shown for comparison only.
         </p>
         <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs leading-relaxed text-fg">{`market price = purse × e^(calibrated ln share of the purse)   (at least 0.3 cr)
@@ -125,10 +128,22 @@ P(kept)      = the chance a franchise keeps a player like him, from market price
           and how much he costs. <Badge tone="willow">Keep</Badge> at {Math.round((KEEP_CALL + BORDER_BAND) * 100)}% or more,{" "}
           <Badge tone="ball">Release</Badge> below {Math.round((KEEP_CALL - BORDER_BAND) * 100)}%,{" "}
           <Badge tone="gold">Borderline</Badge> in between (a close call); the default plan keeps him from{" "}
-          {Math.round(KEEP_CALL * 100)}%. Chosen on the deadlines up to 2024 and tested once on 2025 and 2026, it
-          made the franchise's own call for 78% of the players (82% of the stars), against 70% (64%) for the
-          old rule that set the price against the salary with a fixed margin; keeping everyone the rules
-          allow scores 75% (75%), so the gain is in telling which stars go. A player we can't price at all (too few balls, no market inputs) is Borderline: scout him.
+          {Math.round(KEEP_CALL * 100)}%. The model was chosen on the deadlines up to 2024. On the 2025 and 2026
+          deadlines it made the franchise's own call for 78% of the players (82% of the stars), against 70%
+          (64%) for the old rule that set the price against the salary with a fixed margin; keeping everyone
+          the rules allow scores 75% (75%), so the gain is in telling which stars go. Those two seasons have
+          since been looked at up to five times while building CricDex, so treat these numbers as optimistic.
+          A player we can't price at all (too few balls, no market inputs) is Borderline: scout him.
+        </p>
+        <p>
+          <b className="text-fg">Should they?</b> The call copies what franchises do, and in a mini year they
+          hardly weigh the cost: in the fitted model a dear retention looks about as likely as a cheap one. So
+          this column asks the other question, from the market price alone: is he worth what keeping him
+          costs? <Badge tone="willow">Yes</Badge> when players like him fetch at least that cost at auction
+          (the median market price), <Badge tone="ball">No</Badge> when even the dearer quarter of players
+          like him fetch less (the upper figure), <Badge tone="gold">Close</Badge> in between (about the price's
+          typical error). It sees no scouting, so a surprise uncapped buy can read No when the franchise
+          knows better.
         </p>
         <p>
           <b className="text-fg">Age and outlook</b> are at the auction date, from the player master's date of birth,
@@ -235,7 +250,7 @@ export function Keep() {
       <PageTitle
         title="Keep or release"
         icon={<Scale className="h-6 w-6" />}
-        desc="Which players should a franchise keep before the retention deadline? For each one: what his game would fetch at auction against what he's paid, a Keep / Release / Borderline call with the reason, and what the squad looks like if you follow it — purse left, role gaps and what filling them costs."
+        desc="Which players should a franchise keep before the retention deadline? For each one: what his game would fetch at auction against what he's paid, a Keep / Release / Borderline call (what franchises likely do) with the reason, whether he's worth his cost, and what the squad looks like if you follow it: purse left, role gaps and what filling them costs."
       />
       {keep.error || poolData.error ? (
         <ErrorBox message={(keep.error || poolData.error)!} />
@@ -323,7 +338,7 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
 
   const rows = useMemo(() => {
     const val = (p: AssessedPlayer): number | null =>
-      sort === "kept" ? p.p_keep : sort === "surplus" ? p.surplus : sort === "price" ? p.price : sort === "onfield" ? p.onfield : sort === "outlook" ? p.forecast_avg3 : sort === "salary" ? p.salary : sort === "value" ? p.value : sort === "age" ? p.age : null;
+      sort === "kept" ? p.p_keep : sort === "should" ? (p.price === null || p.cost <= 0 ? null : p.price / p.cost) : sort === "surplus" ? p.surplus : sort === "price" ? p.price : sort === "onfield" ? p.onfield : sort === "outlook" ? p.forecast_avg3 : sort === "salary" ? p.salary : sort === "value" ? p.value : sort === "age" ? p.age : null;
     return [...res.players].sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
       const x = val(a);
@@ -431,7 +446,7 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
       <Card className="overflow-hidden">
         <CardHeader
           title={`${team} squad: ${res.players.length} players`}
-          subtitle="Click a column to sort; Keep / Release flips our call (the purse and gaps update, and the link keeps it)."
+          subtitle="Likely call = what franchises do with players like him. Should they? = is he worth what keeping him costs (Yes if he'd fetch at least that at auction, No if even the dearer quarter of players like him fetch less). Click a column to sort; Keep / Release flips our call (the purse and gaps update, and the link keeps it)."
         />
         <div className="overflow-auto">
           <table className="w-full border-collapse">
@@ -448,7 +463,8 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
                 <SortTh k="surplus" className="text-right">Surplus</SortTh>
                 <SortTh k="outlook" className="text-right">3-season outlook</SortTh>
                 <SortTh k="kept" className="text-right">Kept by franchises</SortTh>
-                <th className="th">Call</th>
+                <th className="th">Likely call</th>
+                <SortTh k="should">Should they?</SortTh>
                 <th className="th">Decision</th>
                 <th className="th">Why</th>
               </tr>
@@ -520,6 +536,9 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
                     {p.p_keep === null ? "—" : `${Math.round(100 * p.p_keep)}%`}
                   </td>
                   <td className="td"><Badge tone={REC_TONE[p.rec]}>{REC_LABEL[p.rec]}</Badge></td>
+                  <td className="td" title={p.price === null ? "No market price" : `Market price ${cr(p.price)} cr (upper quartile ${cr(p.price_central ?? p.price)}) against ${cr(p.cost)} cr to keep`}>
+                    {p.should ? <Badge tone={SHOULD_TONE[p.should]}>{SHOULD_LABEL[p.should]}</Badge> : <span className="text-muted">—</span>}
+                  </td>
                   <td className="td">
                     <div className="seg flex-nowrap" role="radiogroup" aria-label={`Decision for ${p.name}`}>
                       {(["keep", "release"] as const).map((d) => (

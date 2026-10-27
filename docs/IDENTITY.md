@@ -94,14 +94,15 @@ polite batches (rerun = only what's missing; `--force` refetches, `--no-fetch` w
 | `full_name` | overrides → Wikipedia infobox `full_name` → Wikidata birth name (P1477) → longest register variant |
 | `aliases` | every name we know: scorecard names in each league, register variants, Wikidata label and aliases, full name |
 | `capped`, `first_international` | Cricsheet men's T20I (ingested), ODI and Test archives (downloaded, only `info.players` read, never exported); Cricsheet withholds every match featuring Afghanistan (since Nov 2024), so those come from `withheld.py`: Cricsheet's archive as kept by the Wayback Machine (to Feb 2023) and the revision history of Wikipedia's Afghanistan cap lists (METHODOLOGY §1) |
-| `primary_role` | overrides → the ball data when it is decisive (overs per match, batting position, stumpings across every exported league) → Wikipedia infobox role → LLM taxonomy |
+| `primary_role` | overrides → the ball data when it is decisive (overs per match and batting position across every exported league; a keeper needs 2 stumpings in the last 3 years of T20s, `RECENT_YEARS`) → Wikipedia infobox role → LLM taxonomy. An infobox "occasional(ly) wicket-keeper" or "part-time keeper" is not a keeper (Ruturaj Gaikwad's made CSK look like it had five). A keeper claim from Wikipedia or the LLM stands for a player the data can't see keeping, unless his last 3 years hold 40+ T20 matches without a stumping (`KEEPER_UNSEEN_MATCHES`: keepers stump about every 14 matches, so a real keeper goes 40 without one about 6% of the time). Until 2026-10-27 stumpings were counted over the whole career, so Ben Duckett (last stumping 2018) and Glenn Phillips (2022) were keepers |
+| `batting_position` | his last 30 T20 innings in the last 3 years, from 8 innings up: "opener" when he walked out at 1 or 2 in at least half of them, pooled over every T20 league or in any one league where he has 8+ of them (Narine opens for KKR but bats lower elsewhere); otherwise the LLM taxonomy's slot, unless that is "opener" or missing, when his median slot gives no3 / middle / finisher / lower / tailender (`batting_slot`; source in `batting_position_source`). Fewer innings: the LLM taxonomy. Until 2026-10-27 it was the LLM taxonomy alone, which had Kohli, Samson, Marsh, Markram and Prabhsimran Singh away from the top and Padikkal and Ishan Kishan still opening. `recent_stats` keeps the window's numbers (matches, balls bowled, stumpings, opener share) |
 | `bowling_style` / `bowling_arm` / `bowling_category` | overrides → Wikipedia infobox bowling → LLM taxonomy |
 | `batting_hand` | overrides → Wikipedia infobox batting → Wikidata playing hand → LLM taxonomy |
-| `country` | overrides → latest international side (Cricsheet) → Wikidata country for sport → infobox → LLM, normalised to ISO alpha-3 (ENG / SCO / WIN for the non-ISO sides) by `countries.normalise` |
+| `country` | overrides → latest international side (Cricsheet) → Wikidata country for sport → infobox → the linked article's title ("Imran Khan (Trinidad and Tobago cricketer)" → WIN, `countries.title_country`; since 2026-10-27, so the LLM never wins over an article that names the nation) → LLM, normalised to ISO alpha-3 (ENG / SCO / WIN for the non-ISO sides) by `countries.normalise` |
 | `active` | played any exported league or a men's international in the last 18 months (`master.ACTIVE_MONTHS`) of the data |
 | `retired` | `data/curated/ipl_availability.json` (announced retirements, each with dated sources; since 2026-10-23, when the three in the overrides file moved there) or an override's own flag; the Wikipedia IPL personnel page's retirements not in it are listed as review TODOs |
 | `team` | the 2026 IPL squads (retained + bought + replacements) from Wikipedia's "List of 2026 Indian Premier League personnel changes", cached and hand-editable in `data/curated/ipl_squads_2026.json` (which `scripts/ipl_squad_salaries.py` extends with each player's salary, acquisition, nationality and Cricsheet id, and the 2027-cycle trades and retirements, for Keep or release) |
-| `dob` | overrides → Wikipedia infobox → Wikidata (P569, day precision only) → the older `wikidata_enrichment.json`; a source date that makes him younger than 13 at his first match or older than 55 at his last is skipped for the next source. Until 2026-10-26 Wikidata came first and was read without its precision: a year-only date became 1 January, and its unsourced imports gave Mukesh Choudhary 1986 (1996) and Venkatesh Iyer 1990 (1994). Where both exist they agree for 93% of players; where they differed, seven IPL players checked against their iplt20.com and other published profiles had the infobox's date every time. Disagreements are listed in the review (`dob_disagree`); `sources.refresh_wikidata_dob` re-reads cached dates with their precision (ROADMAP I17e) |
+| `dob` | overrides → Wikipedia infobox (the article Wikidata links, or, for an IPL squad player Wikidata can't find by his ESPNcricinfo id, the article the IPL personnel page links: since 2026-10-27, which gave 8 debutants their dates) → Wikidata (P569, day precision only) → the older `wikidata_enrichment.json`; a source date that makes him younger than 13 at his first match or older than 55 at his last is skipped for the next source. Until 2026-10-26 Wikidata came first and was read without its precision: a year-only date became 1 January, and its unsourced imports gave Mukesh Choudhary 1986 (1996) and Venkatesh Iyer 1990 (1994). Where both exist they agree for 93% of players; where they differed, seven IPL players checked against their iplt20.com and other published profiles had the infobox's date every time. Disagreements are listed in the review (`dob_disagree`); `sources.refresh_wikidata_dob` re-reads cached dates with their precision (ROADMAP I17e) |
 
 The LLM name check asks, 25 players a call, whether each candidate is how fans refer to the
 player (`Virat Kohli`, not `V Kohli` or a legal full name); a correction is accepted only when it
@@ -112,7 +113,24 @@ keeps a token the open data already knows (normally the surname). Answers are ca
 rejected or applied name corrections, squad rows that didn't match a player, retirements to
 verify) is written to `data/curated/player_master_review.json`. Settle a row by adding the right
 value to `data/curated/player_overrides.json` (keyed by `cricsheet_id`, with `_name` and
-`_evidence`); overrides always win.
+`_evidence`); overrides always win. A squad player with no match data has no `cricsheet_id`, so his date lives on his row of
+`data/curated/ipl_squads_2026.json` (`dob` with a `dob_source` URL), or comes from his own article
+(`_squad_only` in the master).
+
+**Which article is his.** Wikidata finds the article by ESPNcricinfo id (P2697). Many debutants'
+items lack that id, so since 2026-10-27 two fallbacks link the rest: (1) a Wikipedia search for a
+cricketer article whose source carries his ESPNcricinfo id, accepted only when that article links
+his ESPNcricinfo profile and no other article does (`sources.find_titles_by_cricinfo`, cached in
+`data/curated/wikipedia_by_cricinfo.json`; run for the IPL players, today's squads and the active
+players of the auction-pool leagues and T20Is), and (2) the article the IPL personnel page links
+(`sources.squad_titles`). A date of birth whose year isn't the one the title gives
+("(cricketer, born 1983)") is skipped, and a kept date that puts his first match in the data at 38
+or older is listed in the review (`dob_late_debut`): usually a namesake's article (a 2026 Hundred
+debut linked to a Usman Tariq born 1983).
+
+**Build stamp.** The master records `_built_at`; every league export stamps `meta.json` with
+`player_master: {built, hash}` (`master.build_stamp`), and `tests/test_identity_facts.py` fails when
+the league exports come from different builds or disagree on a player's dob, country or retired flag.
 
 **Availability** (`data/curated/ipl_availability.json`, since 2026-10-23). Who can't be bought at the next
 IPL auction, keyed by `cricsheet_id`: `status` `retired` (an announced retirement; `scope` `ipl` = out of

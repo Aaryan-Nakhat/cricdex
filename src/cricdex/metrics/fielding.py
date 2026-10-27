@@ -21,7 +21,6 @@ matches/taxonomy/activity at export time like every other leaderboard.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import duckdb
@@ -45,7 +44,9 @@ def _keeper_ids() -> set[str]:
 
     ident = master.load()
     if not ident and TAXONOMY_PATH.exists():
-        ident = json.loads(TAXONOMY_PATH.read_text())
+        from cricdex.scout.identity.taxonomy import load_taxonomy
+
+        ident = load_taxonomy(TAXONOMY_PATH)  # LLM output: allow-lists checked
     return {
         cid
         for cid, rec in ident.items()

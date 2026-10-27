@@ -359,6 +359,30 @@ def call_of(p_keep: float) -> str:
     return "borderline"
 
 
+# ---- should they keep him? (cost-aware, separate from the fitted call) ------------------------------
+#
+# The call above is what franchises do (fitted on their real decisions). In a mini year it hardly
+# weighs the cost: +0.141 on ln(price / cost) and +0.139 on ln(cost) nearly cancel, so a dear
+# retention looks as likely as a cheap one (METHODOLOGY §10). This is the other question, read
+# straight from the market price: is he worth what keeping him costs?
+# "yes" when the median price of players like him at the auction is at least the cost (buying a
+# player like him would cost as much); "no" when even the upper quartile (the dearer quarter of
+# players like him) is below the cost; "close" in between (about the market price's typical error,
+# a factor of 2). None when he has no price. Mirror of `shouldOf` in keep.ts.
+SHOULD_LABEL = {"yes": "Yes", "close": "Close", "no": "No"}
+
+
+def should_of(price: float | None, upper: float | None, cost: float) -> str | None:
+    """ "yes" / "close" / "no": is he worth his retention cost at the auction's prices?"""
+    if price is None:
+        return None
+    if price >= cost:
+        return "yes"
+    if upper is not None and upper < cost:
+        return "no"
+    return "close"
+
+
 def _ties(p: dict) -> list[str]:
     team = p.get("team") or ""
     out = []
@@ -391,6 +415,7 @@ def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict
         "forecast_avg3": (p.get("forecast") or {}).get("avg3"),
         "captain": captain_label(p),
         "cost": salary,
+        "should": None,
     }
     out["no_data"] = False
     mkt = has_market_inputs(p)
@@ -473,6 +498,7 @@ def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict
         default_keep=True if p_keep is None else p_keep >= KEEP_CALL,
         rec=rec,
         reason=reason,
+        should=should_of(price, central, salary),
     )
     return out
 
@@ -775,7 +801,7 @@ def to_csv_rows(res: dict) -> list[list[str]]:
     head = [
         "player", "team", "role", "overseas", "age", "acquired", "salary_cr", "value",
         "value_sd", "cost_cr", "price_cr", "onfield_cr", "p_bought", "surplus_cr", "p_keep",
-        "recommendation",
+        "recommendation", "should_keep",
         "decision", "auto_release", "reason", "outlook", "form", "outlook_3y_avg", "outlook_3y",
     ]  # fmt: skip
     rows = [head]
@@ -798,6 +824,7 @@ def to_csv_rows(res: dict) -> list[list[str]]:
                 "" if p.get("surplus") is None else fmt_num(p["surplus"], 2),
                 "" if p.get("p_keep") is None else fmt_num(p["p_keep"], 2),
                 p["rec"],
+                p.get("should") or "",
                 "keep" if p["kept"] else "release",
                 p.get("auto_release") or "",
                 p["reason"],

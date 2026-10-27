@@ -68,6 +68,7 @@ def keep(
     from cricdex.web_parity import build_pool, load_auction_pool
     from cricdex.web_parity.keep import (
         NO_DATA_LABEL,
+        SHOULD_LABEL,
         TAG_ORDER,
         cr,
         cr_exact,
@@ -171,6 +172,8 @@ def keep(
                 # the chance a franchise keeps a player like him (web_parity/keep.py keep_probability)
                 "kept %": None if p.get("p_keep") is None else fmt_num(100 * p["p_keep"], 0),
                 "call": f"[{REC_STYLE[p['rec']]}]{p['rec']}[/]",
+                # is he worth what keeping him costs, from the market price (keep.py `should_of`)
+                "should they?": SHOULD_LABEL[p["should"]] if p.get("should") else None,
                 "decision": ("keep" if p["kept"] else "release")
                 + (" *" if p["overridden"] else ""),
                 "why": p["reason"],

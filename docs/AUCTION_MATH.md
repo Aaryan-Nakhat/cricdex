@@ -87,7 +87,9 @@ last price, captaincy, retentions as floors, mini-year retentions as
 floors, the old ceiling, a saturating budget limit, top-end maps and
 hinges) were compared on auctions up to 2024 only, leaving one auction
 out; the lowest error on the held-out lots won, and the winner was then
-scored once on the 2025 mega and 2026 mini auctions. The last
+scored on the 2025 mega and 2026 mini auctions. Those two auctions have
+since been scored for several recipes (the shipped one, Z, is at least
+the fifth), so read their numbers as optimistic, not as a clean test. The last
 price helps "is he bought" but not the price (the players who reach an
 auction are mostly the ones their franchise let go, and a high last price
 then means overpaid as often as good). Full tables: [METHODOLOGY
@@ -112,9 +114,10 @@ priced) but the stars' features adding up without limit, pushed up by
 the retained stars (a floor says "at least", so it never objects to a
 price far above it). Fitted on the lots alone the same model priced
 Gill at 22. The fix above prices the top as the market did; the
-ceiling is gone, and the pool's dearest is Gill at 25.8 cr. Out of time,
-the 20 dearest predictions of each auction fetched 0.87× their predicted
-price (0.76× before the fix). The lots that *sold* for 10 cr+ come out
+ceiling is gone, and the pool's dearest is Gill at 25.8 cr. On the
+2025–26 auctions the 20 dearest predictions of each auction fetched
+0.87× their predicted price (0.76× before the fix); the recipe shipped
+since 2026-10-27 (Z, the time-aware value) scores 0.83×. The lots that *sold* for 10 cr+ come out
 at 0.36× their price, but lots picked by their real price always sit
 above any model (bidding wars; a model right on average would show
 about 0.30×). Pant 21.5 predicted for 27 paid, Shreyas Iyer 14.5 for
@@ -401,8 +404,8 @@ of the others' within the ladder step below it (below the base price for a sale 
 
 **Frozen protocol, in two rounds.** Round 1: nine candidates (market price only; + role and overseas need;
 + purse per place; + upgrade; + stage; + a mega level; + team effects; + needs in whether a team bids; + his own
-contribution), chosen by leave-one-auction-out over 2019–2024, tested once on the 2025 mega and 2026 mini
-auctions: the team's needs in both whether it bids and how high (D7). Team effects ("personalities" learned
+contribution), chosen by leave-one-auction-out over 2019–2024, then scored on the 2025 mega and 2026 mini
+auctions (seen several times since across CricDex, so optimistic): the team's needs in both whether it bids and how high (D7). Team effects ("personalities" learned
 from the data) lost out of time. D7 priced the 2025 stars at about a third of their real price (Pant 9.0 cr
 against 27; the market price alone 21.5), so round 2 tested the causes, with a reality criterion on the 2019–2024
 auctions declared first (METHODOLOGY §7 has every number): the auction likelihood already uses the order

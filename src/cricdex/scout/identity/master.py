@@ -22,6 +22,7 @@ in the overrides file). Nothing here writes to the DuckDB file.
 from __future__ import annotations
 
 import datetime as _dt
+import json
 from collections import Counter
 from typing import Any
 
@@ -32,6 +33,7 @@ from cricdex import leagues
 from cricdex.common.sql import MAIN_INNINGS, player_ids, table_suffix
 from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.scout.identity import countries, names, sources
+from cricdex.scout.identity import taxonomy as taxonomy_schema
 from cricdex.scout.identity.sources import read_json, write_json
 
 DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
@@ -56,9 +58,21 @@ REGULAR_BOWLER_SHARE = 0.5  # ...bowling in at least this share of matches
 PART_TIME_OVERS = 0.6  # under this a player effectively doesn't bowl
 REAL_BATTER_POS = 7.0  # mean batting position at or above (numerically below) this
 REAL_BATTER_BF = 7.0  # ...and balls faced per match appeared
-KEEPER_STUMPINGS = 2  # stumpings that make a keeper
+KEEPER_STUMPINGS = 2  # stumpings in the recent window (RECENT_YEARS) that make a keeper
+# A source's keeper claim (Wikipedia / LLM) stands for a player the data can't see keeping, unless
+# the recent data has this many T20 matches without one stumping: a keeper stumps someone about
+# every 14 matches (the median of the 163 keepers with 20+ recent T20 matches, 2026-10-27), so 40
+# matches without one would happen to a real keeper about 6% of the time (exp(-40 / 14)).
+KEEPER_UNSEEN_MATCHES = 40
+# Batting slot, keeper and the Keep page's death / spin tags read the recent window, not the whole
+# career: a role changes (Kohli opens since 2023; Duckett last kept in 2018).
+RECENT_YEARS = 3
+OPENER_INNINGS = 30  # the last this-many T20 innings (within RECENT_YEARS) set the batting slot
+OPENER_MIN_INNINGS = 8  # ...when he has at least this many; below it the LLM taxonomy decides
+OPENER_SHARE = 0.5  # an opener walks out at 1 or 2 in at least this share of them
 DOB_MIN_DEBUT_AGE = 13  # a source birth date younger than this at debut is a namesake / typo
 DOB_MAX_PLAYING_AGE = 55  # ...or older than this at his last match
+DOB_LATE_DEBUT_AGE = 38  # a first match in the data at this age or older is logged for review
 
 
 def _age_years(dob: str | None, on: str | None) -> float | None:
@@ -78,6 +92,7 @@ def _pick_dob(
     first_m: str | None,
     last: str | None,
     review: dict,
+    title: str | None = None,
 ) -> tuple[str | None, str | None]:
     """(date of birth, its source). Order: a reviewed override, the English Wikipedia infobox, Wikidata
     (a single day-precision date), the legacy Wikidata enrichment.
@@ -91,7 +106,10 @@ def _pick_dob(
     1 January. A disagreement is logged in the review (`dob_disagree`).
 
     A source date that makes him implausibly young at debut or old at his last match (an id match
-    on a namesake) is skipped for the next source and logged."""
+    on a namesake) is skipped for the next source and logged; so is one whose year isn't the year
+    the linked article's title gives ("(cricketer, born 1983)"). A kept date that makes his first
+    match in the data a debut at DOB_LATE_DEBUT_AGE or older is logged (`dob_late_debut`): often a
+    namesake's article."""
     cands: list[tuple[str, str]] = []
     if ov.get("dob"):
         return str(ov["dob"]), "override"
@@ -106,11 +124,16 @@ def _pick_dob(
             {"cricsheet_id": cid, "scorecard": scorecard, "wikipedia": ib["dob"],
              "wikidata": w.get("dob") or w.get("dob_all"), "kept": "wikipedia"}
         )  # fmt: skip
+    import re
+
+    born = re.search(r"\bborn (\d{4})\)", title or "")
     for dob, src in cands:
         age_first = _age_years(dob, first_m)
         age_last = _age_years(dob, last)
-        if (age_first is not None and age_first < DOB_MIN_DEBUT_AGE) or (
-            age_last is not None and age_last > DOB_MAX_PLAYING_AGE
+        if (
+            (age_first is not None and age_first < DOB_MIN_DEBUT_AGE)
+            or (age_last is not None and age_last > DOB_MAX_PLAYING_AGE)
+            or (born and str(dob)[:4] != born.group(1))
         ):
             review["dob"].append(
                 {
@@ -125,6 +148,12 @@ def _pick_dob(
                 }
             )
             continue
+        if age_first is not None and age_first >= DOB_LATE_DEBUT_AGE:
+            review.setdefault("dob_late_debut", []).append(
+                {"cricsheet_id": cid, "scorecard": scorecard, "dob": dob, "source": src,
+                 "title": title, "first_match": first_m, "age_at_first_match": round(age_first, 1),
+                 "issue": "first match in the data at this age: check the linked article is him"}
+            )  # fmt: skip
         return dob, src
     return None, None
 
@@ -284,6 +313,195 @@ def gather_ball_stats(con: duckdb.DuckDBPyConnection, cols: list[str]) -> dict[s
     return out
 
 
+def recent_since(asof: str | None, years: int = RECENT_YEARS) -> str:
+    """The first day of the recent window: `years` before the data's as-of date."""
+    d = _dt.date.fromisoformat(asof[:10]) if asof else _dt.date.today()
+    try:
+        return d.replace(year=d.year - years).isoformat()
+    except ValueError:  # 29 February
+        return d.replace(year=d.year - years, day=28).isoformat()
+
+
+def gather_recent_stats(
+    con: duckdb.DuckDBPyConnection, cols: list[str], since: str
+) -> dict[str, dict]:
+    """Per player, T20 matches only, from `since` on, pooled over every exported league (a match
+    counted once): XI matches, legal balls bowled, matches bowled in, stumpings, and his batting
+    slot in each innings (1 and 2 open), newest first, at most OPENER_INNINGS of them."""
+    have = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+    parts: list[str] = []
+    for col in cols:
+        safe = table_suffix(col)
+        ids = player_ids(con, col)
+        if not ids:
+            continue
+        b = (
+            f"(SELECT * FROM balls_{safe} WHERE {MAIN_INNINGS} AND match_type = 'T20' "
+            f"AND match_date >= '{since}')"
+        )
+        parts.append(
+            f"""
+            SELECT i.identifier cid, b.match_id, MIN(b.match_date) d, 'bb' k,
+                   COUNT(*) FILTER (WHERE COALESCE(b.extras_type,'') NOT IN ('wides','noballs')) v
+            FROM {b} b JOIN {ids} i ON i.name = b.bowler GROUP BY 1, 2
+            UNION ALL
+            SELECT i.identifier, e.match_id, MIN(e.d), 'pos:{col}', MIN(e.pos)
+            FROM (
+                SELECT match_id, nm, d,
+                       ROW_NUMBER() OVER (PARTITION BY match_id, innings_idx ORDER BY s, nm) pos
+                FROM (
+                    SELECT match_id, innings_idx, nm, MIN(match_date) d, MIN(seq) s FROM (
+                        SELECT match_id, innings_idx, match_date, batter nm,
+                               "over" * 100 + ball_in_over seq
+                        FROM {b}
+                        UNION ALL
+                        SELECT match_id, innings_idx, match_date, non_striker,
+                               "over" * 100 + ball_in_over
+                        FROM {b} WHERE non_striker IS NOT NULL
+                    ) GROUP BY ALL
+                )
+            ) e JOIN {ids} i ON i.name = e.nm GROUP BY 1, 2
+            """
+        )
+        if f"matches_{safe}" in have:
+            m = (
+                f"(SELECT match_id, match_date FROM matches_{safe} "
+                f"WHERE match_type = 'T20' AND match_date >= '{since}')"
+            )
+            if f"wickets_{safe}" in have:
+                parts.append(
+                    f"""
+                    SELECT i.identifier, w.match_id, MIN(m.match_date), 'st', COUNT(*)
+                    FROM wickets_{safe} w JOIN {m} m USING (match_id)
+                    JOIN {ids} i ON i.name = w.fielders[1]
+                    WHERE w.wicket_kind = 'stumped' AND len(w.fielders) > 0 GROUP BY 1, 2
+                    """
+                )
+            if f"match_players_{safe}" in have:
+                parts.append(
+                    f"SELECT p.identifier, p.match_id, MIN(m.match_date), 'xi', 1 "
+                    f"FROM match_players_{safe} p JOIN {m} m USING (match_id) "
+                    "WHERE p.identifier IS NOT NULL GROUP BY 1, 2"
+                )
+    if not parts:
+        return {}
+    con.execute(
+        f"""
+        CREATE OR REPLACE TEMP TABLE _recent_x AS
+        SELECT cid, match_id, MIN(d) d, k, MAX(v) v
+        FROM ({" UNION ALL ".join(parts)}) GROUP BY cid, match_id, k
+        """
+    )
+    rows = con.execute(
+        """
+        SELECT cid,
+               COUNT(DISTINCT match_id) AS m_any,
+               COUNT(*) FILTER (WHERE k = 'xi') AS m_xi,
+               COALESCE(SUM(v) FILTER (WHERE k = 'bb'), 0) AS bb,
+               COUNT(*) FILTER (WHERE k = 'bb' AND v > 0) AS bowl_m,
+               COALESCE(SUM(v) FILTER (WHERE k = 'st'), 0) AS st
+        FROM (SELECT cid, match_id, k, MAX(v) v FROM _recent_x
+              WHERE k IN ('xi', 'bb', 'st') OR k LIKE 'pos:%' GROUP BY ALL)
+        GROUP BY cid
+        """
+    ).fetchall()
+    out = {}
+    for cid, m_any, m_xi, bb, bowl_m, st in rows:
+        out[cid] = {
+            "since": since,
+            "matches": max(int(m_xi or 0), int(m_any or 0)),
+            "balls_bowled": int(bb),
+            "bowl_matches": int(bowl_m),
+            "stumpings": int(st),
+            "bat_slots": [],
+            "league_slots": {},
+        }
+    # batting slots, newest first: pooled (a match two collections carry counted once) and per
+    # league (a league where he has OPENER_MIN_INNINGS of them)
+    pooled: dict[str, dict[str, tuple]] = {}
+    per: dict[tuple[str, str], list[tuple]] = {}
+    for cid, mid, d, k, v in con.execute(
+        "SELECT cid, match_id, d, k, v FROM _recent_x WHERE k LIKE 'pos:%'"
+    ).fetchall():
+        key = (str(d)[:10], str(mid))
+        cur = pooled.setdefault(cid, {}).get(mid)
+        if cur is None or int(v) < cur[1]:
+            pooled[cid][mid] = (key, int(v))
+        per.setdefault((cid, k[4:]), []).append((key, int(v)))
+    for cid, ms in pooled.items():
+        rec = out.setdefault(cid, {"since": since, "matches": 0, "balls_bowled": 0,
+                                   "bowl_matches": 0, "stumpings": 0, "bat_slots": [],
+                                   "league_slots": {}})  # fmt: skip
+        rec["bat_slots"] = [p for _, p in sorted(ms.values(), reverse=True)][:OPENER_INNINGS]
+    for (cid, col), xs in per.items():
+        if len(xs) >= OPENER_MIN_INNINGS:
+            out[cid]["league_slots"][col] = [p for _, p in sorted(xs, reverse=True)][
+                :OPENER_INNINGS
+            ]
+    con.execute("DROP TABLE IF EXISTS _recent_x")
+    return out
+
+
+def _opener_share(recent: dict | None) -> float | None:
+    slots = (recent or {}).get("bat_slots") or []
+    return round(sum(1 for s in slots if s <= 2) / len(slots), 3) if slots else None
+
+
+def batting_slot(recent: dict | None, llm_slot: str | None) -> tuple[str | None, str]:
+    """(batting position, its source). From the last OPENER_INNINGS T20 innings of the recent
+    window when he has OPENER_MIN_INNINGS of them: "opener" when he walked out at 1 or 2 in at least
+    OPENER_SHARE of them; otherwise the LLM taxonomy's slot, unless that says "opener" (or is
+    missing), when his median slot gives no3 / middle (4-5) / finisher (6-7) / lower (8) /
+    tailender (9+). With fewer innings, the LLM taxonomy's slot. He is also an opener when he opened
+    in OPENER_SHARE of his last innings in any one league with OPENER_MIN_INNINGS of them
+    (`league_slots`)."""
+    slots = (recent or {}).get("bat_slots") or []
+    llm = llm_slot if llm_slot not in (None, "unknown") else None
+    if len(slots) < OPENER_MIN_INNINGS:
+        return llm, "llm" if llm else "none"
+
+    def opens(xs: list[int]) -> bool:
+        return (
+            len(xs) >= OPENER_MIN_INNINGS and sum(1 for s in xs if s <= 2) / len(xs) >= OPENER_SHARE
+        )
+
+    # pooled over every T20 league, or in any one league he plays regularly (Narine opens for KKR
+    # but bats lower in the other leagues)
+    if opens(slots) or any(opens(xs) for xs in ((recent or {}).get("league_slots") or {}).values()):
+        return "opener", "ball_data"
+    if llm and llm != "opener":
+        return llm, "llm"
+    med = sorted(slots)[len(slots) // 2]
+    band = (
+        "no3"
+        if med <= 3
+        else "middle"
+        if med <= 5
+        else "finisher"
+        if med <= 7
+        else "lower"
+        if med <= 8
+        else "tailender"
+    )
+    return band, "ball_data"
+
+
+def cricinfo_search_set(
+    apps: dict[str, dict], cids: set[str], squad_keys: set[str], asof: str | None
+) -> set[str]:
+    """The players worth a Wikipedia search by ESPNcricinfo id: every IPL player, every squad row
+    with an id, and the players active (ACTIVE_MONTHS) in an auction-pool league or a T20I."""
+    pool = {lg.key for lg in leagues.auction_pool()} | {"t20s_male"}
+    asof_d = _dt.date.fromisoformat(asof) if asof else _dt.date.today()
+    cut = (asof_d - _dt.timedelta(days=int(ACTIVE_MONTHS * 30.44))).isoformat()
+    out = {c for c in squad_keys if c in cids}
+    for cid in cids:
+        lg = apps[cid]["leagues"]
+        if "ipl" in lg or any(k in pool and (v.get("last") or "") >= cut for k, v in lg.items()):
+            out.add(cid)
+    return out
+
+
 def gather_register(con: duckdb.DuckDBPyConnection, cids: set[str]) -> dict[str, dict]:
     """cid → {name, unique_name, cricinfo_ids, variants} from the People Register."""
     cols = {r[0] for r in con.execute("DESCRIBE people").fetchall()}
@@ -324,7 +542,9 @@ def data_role(
     st: dict | None, min_matches: int = MIN_MATCHES_FOR_DATA_ROLE
 ) -> tuple[str | None, str]:
     """A role from the ball data alone, with a short reason. None when the evidence is ambiguous
-    (a part-time bowler between the thresholds) or too thin."""
+    (a part-time bowler between the thresholds) or too thin. A keeper needs KEEPER_STUMPINGS in the
+    recent window (`recent_stumpings`, set by `build`; the career count when it's absent): a
+    career count kept tagging players who last kept years ago."""
     if not st or st["matches"] < min_matches:
         return None, "too few matches"
     m = st["matches"]
@@ -335,8 +555,9 @@ def data_role(
     regular = overs_pm >= REGULAR_BOWLER_OVERS and share >= REGULAR_BOWLER_SHARE
     real_bat = pos <= REAL_BATTER_POS and bf_pm >= REAL_BATTER_BF
     why = f"{overs_pm:.1f} ov/m, bowls in {share:.0%}, bats #{pos:.1f}, {bf_pm:.1f} bf/m"
-    if st["stumpings"] >= KEEPER_STUMPINGS and not regular:
-        return "wk_batter", f"{st['stumpings']} stumpings; {why}"
+    stumpings = st.get("recent_stumpings", st["stumpings"])
+    if stumpings >= KEEPER_STUMPINGS and not regular:
+        return "wk_batter", f"{stumpings} recent stumpings; {why}"
     if regular and real_bat:
         return "allrounder", why
     if regular:
@@ -355,14 +576,32 @@ def _norm_style(s: Any) -> str | None:
     return s if s in STYLES else None
 
 
+def keeper_unseen(recent: dict | None) -> bool:
+    """True when the recent data can't rule out that he keeps: fewer than KEEPER_UNSEEN_MATCHES
+    recent T20 matches, or a stumping among them (no recent data: True)."""
+    if not recent:
+        return True
+    return recent.get("stumpings", 0) > 0 or recent.get("matches", 0) < KEEPER_UNSEEN_MATCHES
+
+
 def resolve_role(
-    tax: dict, wiki_role: str | None, d_role: str | None, thin_role: str | None = None
+    tax: dict,
+    wiki_role: str | None,
+    d_role: str | None,
+    thin_role: str | None = None,
+    recent: dict | None = None,
 ) -> tuple[str | None, str]:
     """Final primary role and its source. Order: ball data when it is decisive, then the
     Wikipedia infobox, then the LLM taxonomy, then the ball data of a short career (`thin_role`).
     A keeper the data can't see (no stumpings yet) keeps a keeper tag from Wikipedia or the LLM
-    when the data says batter."""
+    when the data says batter, unless his recent data (`recent`, from `gather_recent_stats`) has
+    KEEPER_UNSEEN_MATCHES T20 matches without a stumping (`keeper_unseen`)."""
     llm_role = _norm_role(tax.get("primary_role"))
+    if not keeper_unseen(recent):
+        # the data has seen him play long enough to have stumped someone if he kept: a keeper
+        # claim from a source is out of date (or never was right)
+        wiki_role = None if wiki_role == "wk_batter" else wiki_role
+        llm_role = None if llm_role == "wk_batter" else llm_role
     if d_role:
         if d_role == "batter" and "wk_batter" in (wiki_role, llm_role):
             return "wk_batter", "wikipedia" if wiki_role == "wk_batter" else "llm"
@@ -452,6 +691,7 @@ def build(
         asof = data_as_of(con, cols)
         apps = gather_appearances(con, cols)
         stats = gather_ball_stats(con, cols)
+        recent = gather_recent_stats(con, cols, recent_since(asof))
         cids = set(apps)
         register = gather_register(con, cids)
         if fetch:
@@ -467,16 +707,34 @@ def build(
         )
     else:
         wd = read_json(sources.WIKIDATA_CACHE, {})
+    squads = (
+        sources.fetch_ipl_personnel(force=force) if fetch else read_json(sources.IPL_SQUADS, {})
+    )
     titles = {cid: r["enwiki"] for cid, r in wd.items() if cid in cids and r.get("enwiki")}
+    # a squad player Wikidata can't find by his ESPNcricinfo id (a debutant whose item lacks it, or
+    # who has no item yet) still has the article the IPL personnel page links: read its infobox
+    # (keyed by his Cricsheet id, or `wiki:<title>` for a player with no match data)
+    # a player whose Wikidata item lacks his ESPNcricinfo id: the cricketer article that links his
+    # ESPNcricinfo profile (Wikipedia search, cached), for the players an IPL auction can reach
+    # (IPL players, today's squads, and the active players of the auction-pool leagues and T20Is)
+    squad_titles = sources.squad_titles(squads)
+    by_ci = sources.find_titles_by_cricinfo(
+        {cid: register.get(cid, {}).get("cricinfo_ids", []) for cid in cricinfo_search_set(
+            apps, cids, set(squad_titles), asof) if cid not in titles},
+        fetch=fetch,
+    )  # fmt: skip
+    for cid, r in by_ci.items():
+        if cid in cids and cid not in titles and r.get("title"):
+            titles[cid] = r["title"]
+    for key, t in squad_titles.items():
+        if key.startswith("wiki:") or (key in cids and key not in titles):
+            titles[key] = t
     infobox = (
         sources.fetch_infoboxes(titles, force=force)
         if fetch
         else read_json(sources.INFOBOX_CACHE, {})
     )
-    squads = (
-        sources.fetch_ipl_personnel(force=force) if fetch else read_json(sources.IPL_SQUADS, {})
-    )
-    taxonomy = read_json(TAXONOMY_PATH, {})
+    taxonomy = taxonomy_schema.load_taxonomy(TAXONOMY_PATH)  # LLM output: allow-lists checked
     overrides = {k: v for k, v in read_json(OVERRIDES_PATH, {}).items() if not k.startswith("_")}
     legacy = read_json(LEGACY_WIKIDATA, {})
 
@@ -546,7 +804,7 @@ def build(
         ):
             cand[cid] = (names.clean_label(sq["page_name"]) or sq["page_name"], "wikipedia")
             known[cid] = sorted({*known[cid], sq["page_name"]})
-    llm_cache = read_json(names.LLM_NAMES_CACHE, {})
+    llm_cache = taxonomy_schema.load_names(names.LLM_NAMES_CACHE)
     if llm_names:
         # most-capped / most-played first, so a partial run covers the players people look up
         order = sorted(cids, key=lambda c: -(stats.get(c, {}).get("matches") or 0))
@@ -586,6 +844,7 @@ def build(
         "names": [],
         "dob": [],
         "dob_disagree": [],
+        "dob_late_debut": [],
         "squads_unmatched": squad_unmatched,
         "todo": [],
     }
@@ -631,11 +890,15 @@ def build(
             key=lambda s: (s.lower(), s),
         )
 
-        # role
+        # role (keeper evidence and batting slot from the recent window)
+        rc = recent.get(cid)
+        if st:
+            st = {**st, "recent_stumpings": (rc or {}).get("stumpings", 0)}
         wiki_role = sources.parse_role(ib.get("role"))
         d_role, d_why = data_role(st)
         thin_role = data_role(st, min_matches=THIN_MATCHES)[0] if not d_role else None
-        role, role_src = resolve_role(tax, wiki_role, d_role, thin_role)
+        role, role_src = resolve_role(tax, wiki_role, d_role, thin_role, rc)
+        bat_slot, bat_slot_src = batting_slot(rc, tax.get("batting_position"))
         if ov.get("primary_role"):
             role, role_src = ov["primary_role"], "override"
         llm_role = _norm_role(tax.get("primary_role"))
@@ -701,13 +964,15 @@ def build(
                 }
             )
 
-        # country: override > latest international side > Wikidata > Wikipedia infobox > LLM
+        # country: override > latest international side > Wikidata > Wikipedia infobox > the
+        # linked article's title ("(Trinidad and Tobago cricketer)") > LLM. The LLM never wins over
+        # a linked article that names a nation.
         intl = countries.team_country(cap.get("team")) if cap else None
         wd_c = _wd_country(w)
-        ib_c = countries.normalise(ib.get("country"))
-        llm_c = countries.normalise(tax.get("country"))
-        if llm_c and tax.get("country") and llm_c != str(tax.get("country")).upper():
-            counts["country_normalised"] += 1
+        ib_c = countries.normalise(ib.get("country")) or countries.title_country(
+            ib.get("_page") or ib.get("_title") or w.get("enwiki")
+        )
+        llm_c = tax.get("country")  # already a canonical code (taxonomy.load_taxonomy)
         country = ov.get("country") or intl or wd_c or ib_c or llm_c
         country = countries.normalise(country)
         c_ops = {"international": intl, "wikidata": wd_c, "wikipedia": ib_c, "llm": llm_c}
@@ -744,7 +1009,7 @@ def build(
 
         dob, dob_src = _pick_dob(
             cid, scorecard[cid], ov, w, ib, legacy.get(cid) or {},
-            min(firsts) if firsts else None, last, review,
+            min(firsts) if firsts else None, last, review, titles.get(cid),
         )  # fmt: skip
 
         master[cid] = {
@@ -779,15 +1044,26 @@ def build(
             "bowling_style_source": style_src,
             "primary_role": role,
             "role_source": role_src,
-            "batting_position": tax.get("batting_position")
-            if tax.get("batting_position") not in (None, "unknown")
-            else None,
+            "batting_position": bat_slot,
+            "batting_position_source": bat_slot_src,
             "dob": dob,
             "dob_source": dob_src,
             "wikidata_qid": w.get("qid"),
-            "wikipedia_title": w.get("enwiki"),
+            "wikipedia_title": titles.get(cid),
             "leagues": dict(sorted(rec["leagues"].items())),
             "ball_stats": st or {},
+            # T20 only, the last RECENT_YEARS: keeper evidence, batting slot, Keep's spin tag
+            "recent_stats": {
+                k: v for k, v in (rc or {}).items() if k not in ("bat_slots", "league_slots")
+            }  # fmt: skip
+            | {
+                "slot_innings": len((rc or {}).get("bat_slots") or []),
+                "opener_share": _opener_share(rc),
+                "league_opener_share": {
+                    c: _opener_share({"bat_slots": xs})
+                    for c, xs in sorted(((rc or {}).get("league_slots") or {}).items())
+                },
+            },
         }
         counts["capped"] += bool(cap)
         counts["dob"] += bool(dob)
@@ -800,6 +1076,7 @@ def build(
 
     meta = {
         "_built": _dt.date.today().isoformat(),
+        "_built_at": _dt.datetime.now().isoformat(timespec="seconds"),
         "_data_as_of": asof,
         "_active_months": ACTIVE_MONTHS,
         "_sources": [
@@ -812,6 +1089,14 @@ def build(
             "Reviewed overrides: data/curated/player_overrides.json",
         ],
         "_counts": dict(sorted(counts.items())),
+        "_recent_since": recent_since(asof),
+        # IPL squad players with no match data (no Cricsheet id): what their own Wikipedia article
+        # gives, by the title the personnel page links (`squad_only`)
+        "_squad_only": {
+            t: {"dob": ib["dob"], "dob_source": "wikipedia"}
+            for key, t in sorted(squad_titles.items())
+            if key.startswith("wiki:") and (ib := infobox.get(key) or {}).get("dob")
+        },
     }
     write_json(MASTER_PATH, {**meta, **master})
     write_json(
@@ -836,6 +1121,26 @@ def build(
 def load(path=MASTER_PATH) -> dict[str, dict]:
     """cid → identity record (empty when the master hasn't been built)."""
     return {k: v for k, v in read_json(path, {}).items() if not k.startswith("_")}
+
+
+def build_stamp(path=MASTER_PATH) -> dict[str, str | None]:
+    """{built, hash} of the master file: its build time and the first 16 hex of its SHA-256 (what
+    each league export stamps in meta.json, so mixed builds can be caught)."""
+    import hashlib
+
+    if not path.exists():
+        return {"built": None, "hash": None}
+    raw = path.read_bytes()
+    meta = json.loads(raw)
+    return {
+        "built": meta.get("_built_at") or meta.get("_built"),
+        "hash": hashlib.sha256(raw).hexdigest()[:16],
+    }
+
+
+def squad_only(path=MASTER_PATH) -> dict[str, dict]:
+    """Wikipedia title → {dob, dob_source} for the IPL squad players with no match data."""
+    return read_json(path, {}).get("_squad_only") or {}
 
 
 def identity_block(rec: dict | None, fallback_name: str | None = None) -> dict[str, Any]:

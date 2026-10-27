@@ -8,6 +8,14 @@ October 2026, and file names are given so you can trace any claim.
 
 No maths background is assumed. Where a formula helps, it comes after the plain-words version.
 
+**A note on the 2025–26 tests.** Each model's recipe is chosen on data up to 2024 and then scored on the
+2025 and 2026 seasons, and the protocols below are written as "the test, once". That was true of each
+protocol when it ran, but the same two seasons have since been looked at again and again across CricDex:
+several price recipes were each scored on them (section 6b), and the Bid plan replays have seen them five
+times (section 12; ROADMAP I17, I18). Choices made after a look are no longer blind to it, so read every
+2025–26 figure on this page as **optimistic**, not as a clean out-of-time test. The clean test is the next
+real event: the 2027 retention lists (15 Nov 2026) and auction.
+
 ← back to the [README](../README.md) · the deeper technical tour: [STUDY_GUIDE.md](STUDY_GUIDE.md) ·
 metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [AUCTION_MATH.md](AUCTION_MATH.md)
 
@@ -1052,7 +1060,8 @@ rows (X now on the time-aware contributions):
 
 Z has the lowest held-out lot error, so under the declared rule it ships (`value_input: "time_aware"` in
 `config/price_model.json`; the export hands the pool and the Scout rows the legacy blend moved the same way,
-with the shipped time-aware model). **The test, once** (fitted to 2024, 237 lots of 2025–26): Z 0.659 MAE
+with the shipped time-aware model). **The test** (fitted to 2024, 237 lots of 2025–26; by now at least the
+fifth recipe scored on these lots, after A, K, N and T, so optimistic): Z 0.659 MAE
 (ln), rank corr. 0.739, bias −0.11, top 20 0.83, 2025 0.615, 2026 0.778, 2026 walking forward 0.784; T on
 the same rows 0.661, 0.741, −0.10, 0.87, 0.617, 0.779, 0.773. A tie: Z is a shade better on the lots and a
 shade worse at the top. Old stars move most: Rohit Sharma 6.1 → 4.3 cr, du Plessis 4.3 → 2.8, Warner 4.4 →
@@ -1065,7 +1074,7 @@ retained stars is lower (retention log-likelihood −1.22 against −0.87): it p
 players like them fetched, not from the floors. Keep or release no longer uses the price as the call
 (section 10), so that matters less than it did.
 
-**The test, once** (fitted on auctions up to 2024, scored on the 2025 mega and 2026 mini, 237 matched
+**The test of T** (fitted on auctions up to 2024, scored on the 2025 mega and 2026 mini, 237 matched
 lots; prices clamped as shipped; "10 cr+ ratio" = geometric-mean predicted ÷ real of the lots that *sold*
 for 10 cr+, chosen by the outcome, so well below 1 even for a perfect model; "top 20" = geometric-mean real
 ÷ predicted of each auction's 20 dearest *predictions*, chosen before the auction: 1 = right, below 1 =
@@ -1073,7 +1082,7 @@ over-priced; bias = mean / median predicted − real in ln):
 
 | | MAE (ln) | median abs. error | within ±50% | rank corr. | bias: mean / median | 10 cr+ ratio | top 20 | 2025 MAE | 2026 MAE | 2026 walking forward (fit ≤2025) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **shipped (T)** | **0.661** | **49%** | **51%** | **0.741** | **−0.10 / 0.00** | **0.36** | **0.87** | **0.617** | **0.779** | **0.773** |
+| **T (shipped until 2026-10-27; Z since, above: top 20 0.83)** | **0.661** | **49%** | **51%** | **0.741** | **−0.10 / 0.00** | **0.36** | **0.87** | **0.617** | **0.779** | **0.773** |
 | previous recipe (A), same data and scoring | 0.660 | 52% | 49% | 0.730 | −0.09 / 0.00 | 0.39 | 0.79 | 0.621 | 0.765 | 0.774 |
 | morning recipe (K), same data, with its ceiling | 0.661 | 50% | 50% | 0.734 | −0.11 / 0.00 | 0.41 | 0.76 | 0.624 | 0.762 | 0.765 |
 | old on-field curve (6a), as reported before | 0.785 | 60% | 43% | 0.620 | −0.06 / 0.00 | 0.35 | | 0.734 | 0.919 | |
@@ -1099,7 +1108,7 @@ directly instead of reading it into the price.
 calibrated price of an index ±0.674 out-of-fold residual sd away, clamped like the site; ↑ / ↓ = real
 price above / below the range; for the 2026 lots also the median refitted on 2018–2025):
 
-| lot | real (cr) | shipped (T): median (25–75%) | morning (K): median (25–75%) | T, 2026 walking forward |
+| lot | real (cr) | T (shipped until 2026-10-27): median (25–75%) | morning (K): median (25–75%) | T, 2026 walking forward |
 |---|---|---|---|---|
 | Rishabh Pant 2025 | 27 | 21.5 (10.8–42.7) | 27.0 (27.0–27.0) | |
 | Shreyas Iyer 2025 | 26.75 | 14.5 (7.3–28.8) | 27.0 (18.1–27.0) | |
@@ -2306,6 +2315,18 @@ group stage and all of SMAT 2025-26 as missing) and are priced from the market (
    quarter (Mangesh Yadav, 5.2 cr) the reason says franchises saw something our data can't. A player we
    can't price at all (no market inputs, an old export) is Borderline: scout him. **A rating that rests on
    stale data says so** ("85% of his rating rests on SMAT data to Dec 2024 (stale).").
+5b. **Should they?** (since 2026-10-27). The call is what franchises *will likely do*, and in a mini year
+   the fitted model hardly weighs the cost: ln(price / cost) at +0.141 and ln(cost) at +0.139 nearly
+   cancel (together about +0.14 ln price − 0.002 ln cost), so a dear retention looks as likely as a cheap
+   one (Kartik Sharma: 93% at a 14.2 cr cost against a 1.67 cr market price). The model is not refitted
+   (its protocol is frozen and the 2025–26 seasons are spent). Instead a second, cost-aware column reads
+   the market price (6b) against the cost (step 3): **Yes** when the median market price is at least the
+   cost (a player like him would cost at least as much to buy at the auction); **No** when even the upper
+   figure, the upper quartile of what players like him fetch, is below the cost; **Close** in between,
+   which is about the price's typical error (a factor of about 2); nothing when he has no price. It never
+   changes the call, the default plan or the purse. It inherits the price's blind spots: no scouting
+   (the 2026 uncapped buys at 14.2 cr read No), no brand or captaincy plans, star prices that run low
+   (AUCTION_MATH Part 0). `should_of` ⇄ `shouldOf`, parity-tested; the CSV column `should_keep`.
 6. **Age** is at the auction date from the player master's date of birth, shown with the shape of his Form
    forecast (holds, improves, declines). **Last season** is the raw 2026 strike rate or economy and wickets
    against that season's league figure (30+ balls), not the model.
@@ -2320,6 +2341,15 @@ group stage and all of SMAT 2025-26 as missing) and are priced from the market (
    18 players at 0.3 cr each. (`fit_to_rules` ⇄ `fitToRules`.)
 8. **Role gaps.** Tags: keeper (role), opener (batting position in the player master), death bowler (25%+ of
    his legal balls in overs 16–20, 60+ such balls, every auction-pool league), spinner (bowling type), overseas.
+   All of them read the **last 3 years**, not the career (since 2026-10-27): the keeper needs recent
+   stumpings, the opener opened in at least half his last 30 T20 innings, pooled or in any one league
+   with 8+ of them (so Narine, who opens for KKR, counts; a bowler gets the tag when the ball data says
+   he opens; docs/IDENTITY.md), the death
+   bowler's balls are counted from 3 years before the pool's newest match, and a spinner with 5+ recent T20
+   matches must still bowl 0.6 overs a match. The career window had kept Duckett and Glenn Phillips as
+   keepers, Padikkal and Ishan Kishan as openers, Shivam Mavi (24 balls in 3 years) as a death bowler and
+   Rahul Tewatia (no overs) as a spinner, and missed Kohli, Samson, Marsh, Markram and Prabhsimran Singh as
+   openers.
    Targets: 2 keepers, 3 openers, 3 death bowlers, 3 spinners, and the overseas players the squad has now (at
    most 8). Gaps are filled in that order from the **likely pool**: today's free agents in the auction pool
    plus the players our default plan releases from the other nine squads (at our price), cheapest first,
@@ -2388,7 +2418,9 @@ is already carried by the Form forecast's chance he stays a regular, which overl
 were recomputed that evening on the shipped price recipe (T, 6b); the first run had priced C0 with the
 afternoon's recipe (F1 0.729 in selection, 0.683 in the test); every other row is unchanged.
 
-The test, once (fitted on 2018–2024, scored on 2025 and 2026):
+The test (fitted on 2018–2024, scored on 2025 and 2026). This model was scored on them once, but those
+seasons had already shaped other choices (the price input, section 6b) and have been looked at up to five
+times since, so read it as optimistic:
 
 | rule | precision | recall | F1 | BA | accuracy | stars: precision / recall / F1 / BA (accuracy) | 2025 mega: F1 / BA | 2026 mini: F1 / BA |
 |---|---|---|---|---|---|---|---|---|
@@ -3169,7 +3201,8 @@ simulation, section 7). No recalibration map is applied: a map fitted on the val
 probability, and the validation's event (real price ≤ max bid) can only flatter the plan. (This decision was
 taken after seeing the round-1 test tables.)
 
-**The honest read.** With the fitted rivals and the P(plays) bench capped at a lot's P(plays) the plan's squads
+**The honest read** (of the 2026-10-23 replay; the re-runs since, with the shipped money rule and the
+time-aware values, give 1 of 10 and 0 of 10: the box at the top of this section and step 4). With the fitted rivals and the P(plays) bench capped at a lot's P(plays) the plan's squads
 are **ahead in the mega auction and behind in the mini**: ahead for 7 of 10 teams in 2025 (+6.5 runs a match on
 average) and 2 of 10 in 2026 (−2.4; −2.6 on the best XI, where it also spent far less). Before the cap: 6 of
 10 (+2.5) and 3 of 10 (−0.2). The 2026-10-22 replay's 8 / 0 split (+8.5 / −4.4) is gone in both
@@ -3252,8 +3285,14 @@ on they fail again: section 6c.)*
   - No sourced, fitted feature explains them, so nothing was changed. It is the market model's documented
     blind spot for scouted uncapped players.
 
-The two still failing (Cummins, the star price) are open in the ROADMAP (I18) and marked as known failures
-(`xfail`, strict); the two first-target checks lost their marks on 2026-10-27 when they passed. They show as
+- **First on too many sheets, again (2026-10-27, after the player-master fixes).** Dewald Pretorius's
+  sourced age is 20, not the 28 assumed while his date of birth was missing; the aging curve raises his
+  value and he is first on 5 sheets against a bound of 4.4. The age is right, so the model is not tuned
+  to pass: it is the price-taker problem above (every sheet planned alone), open in ROADMAP I18.
+
+The three still failing (Cummins, the star price, and the first-target bound) are open in the ROADMAP (I18)
+and marked as known failures (`xfail`, strict); the two first-target checks lost their marks on 2026-10-27
+when they passed, and the first of them got its mark back the same day (Pretorius, above). They show as
 expected failures, not passes. When a fix makes one pass, the strict mark fails the suite until the mark is
 removed, so a fixed check can't quietly stay marked. Any new failure fails the build.
 The checks run in about 30 seconds.

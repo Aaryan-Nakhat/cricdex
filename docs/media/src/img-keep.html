@@ -67,7 +67,7 @@
   fill("acc", `<span class="faint" style="font:700 12.5px Inter;letter-spacing:.1em">MATCHED THE REAL CALL</span><span class="faint" style="font:700 12.5px Inter;text-align:right">PLAYERS</span><span class="faint" style="font:700 12.5px Inter;text-align:right">STARS</span>`
     + `<span>Keep model</span><span class="v ok">${T.all}%</span><span class="v ok">${T.star}%</span>`
     + `<span class="muted">Old rule: price vs salary</span><span class="v muted">${T.old_all}%</span><span class="v muted">${T.old_star}%</span>`);
-  fill("acc-t", `Under ${r}%: release · ${r}–${k}%: borderline · ${k}% and up: keep. Chosen on 2018–2024, tested once on the 2025 and 2026 deadlines (${T.n} players).`);
+  fill("acc-t", `Under ${r}%: release · ${r}–${k}%: borderline · ${k}% and up: keep. Chosen on 2018–2024; on the 2025 and 2026 deadlines (${T.n} players, seen several times since, so optimistic).`);
   fill("left", `<div><div class="muted" style="font:600 14px Inter">Purse left</div><div class="big" style="font-size:34px;margin-top:6px">${fx(K.purse_left)} <span class="muted" style="font-size:18px">of ${fx(K.purse, 0)} cr${K.purse_assumed ? "*" : ""}</span></div></div>`
     + `<div><div class="muted" style="font:600 14px Inter">Open places</div><div class="big" style="font-size:34px;margin-top:6px">${K.slots_left} <span class="muted" style="font-size:18px">(${K.overseas_slots_left} overseas)</span></div></div>`);
   fill("gaps", K.gaps.filter((g) => g.gap > 0).map((g) => `<div class="gap"><span>${esc(g.label)}</span><span class="warn">${g.kept} of ${g.target} · ${g.gap} to fill</span></div>`).join(""));

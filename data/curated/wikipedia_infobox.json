@@ -482,6 +482,11 @@
   "name": "Nick Larkin",
   "role": "Batsman"
  },
+ "02dfebbe": {
+  "_page": "Yash Raj Punja",
+  "_status": "no_infobox",
+  "_title": "Yash Raj Punja"
+ },
  "02e83ac5": {
   "_page": "Naeem Islam",
   "_title": "Naeem Islam",
@@ -2701,6 +2706,11 @@
   "name": "Ashish Bagai",
   "role": "Wicketkeeper, batsman"
  },
+ "11378dda": {
+  "_page": "Shiv Mathur",
+  "_status": "no_infobox",
+  "_title": "Shiv Mathur"
+ },
  "1137b65a": {
   "_page": "Blake Dean (cricketer)",
   "_title": "Blake Dean (cricketer)",
@@ -2883,6 +2893,15 @@
   "full_name": "Song Tacho",
   "name": "Song Tacho"
  },
+ "12963b14": {
+  "_page": "Adam Thomas (cricketer)",
+  "_title": "Adam Thomas (cricketer)",
+  "batting": "Right-handed",
+  "bowling": "Right-arm medium",
+  "dob": "2006-07-06",
+  "full_name": "Adam Roger George Thomas",
+  "name": "Adam Thomas"
+ },
  "12ac8ca5": {
   "_page": "Ravi Thakur (cricketer)",
   "_title": "Ravi Thakur (cricketer)",
@@ -2954,6 +2973,11 @@
   "dob": "1996-05-21",
   "full_name": "Arjun Pawan Sharma",
   "name": "Arjun Sharma"
+ },
+ "133bbd61": {
+  "_page": "Brijesh Sharma",
+  "_status": "no_infobox",
+  "_title": "Brijesh Sharma"
  },
  "134bead2": {
   "_page": "Varun Choudhary",
@@ -3094,6 +3118,16 @@
   "dob": "1993-06-28",
   "full_name": "Thomas Craig David Knight",
   "name": "Tom Knight",
+  "role": "Bowler"
+ },
+ "13fc5c6d": {
+  "_page": "Digvesh Rathi",
+  "_title": "Digvesh Rathi",
+  "batting": "Right-handed",
+  "bowling": "Right-arm legbreak",
+  "dob": "1999-12-15",
+  "full_name": "Digvesh Singh Rathi",
+  "name": "Digvesh Singh Rathi",
   "role": "Bowler"
  },
  "141a340d": {
@@ -3579,6 +3613,15 @@
   "name": "Yuvraj Chaudhary",
   "role": "All-rounder"
  },
+ "1732cd55": {
+  "_page": "Zen Malik",
+  "_title": "Zen Malik",
+  "batting": "Right-handed",
+  "bowling": "Right arm leg break",
+  "dob": "1998-04-09",
+  "full_name": "Zen Ul Abideen Malik",
+  "name": "Zen Malik"
+ },
  "1747ea18": {
   "_page": "Dipendra Singh Airee",
   "_title": "Dipendra Singh Airee",
@@ -3766,6 +3809,14 @@
   "full_name": "Samit Patel",
   "name": "Samit Patel",
   "role": "All-rounder"
+ },
+ "1917d713": {
+  "_page": "Hamza Shaikh",
+  "_title": "Hamza Shaikh",
+  "batting": "Right-handed",
+  "bowling": "Right arm off break",
+  "dob": "2006-05-29",
+  "name": "Hamza Shaikh"
  },
  "1920c721": {
   "_page": "William Perkins (West Indian cricketer)",
@@ -4351,6 +4402,15 @@
   "name": "Rumman Raees",
   "role": "Fast bowler"
  },
+ "1c84109e": {
+  "_page": "Mukul Choudhary",
+  "_title": "Mukul Choudhary",
+  "batting": "Right-handed",
+  "dob": "2004-08-06",
+  "full_name": "Mukul Dalip Choudhary",
+  "name": "Mukul Choudhary",
+  "role": "Wicket-keeper-batter"
+ },
  "1c914163": {
   "_page": "Yuvraj Singh",
   "_title": "Yuvraj Singh",
@@ -4487,6 +4547,17 @@
   "full_name": "Fateh Singh",
   "name": "Fateh Singh"
  },
+ "1d6e8f52": {
+  "_page": "Troy Taylor (cricketer)",
+  "_title": "Troy Taylor (cricketer)",
+  "batting": "Right-handed",
+  "bowling": "Right-arm medium-fast",
+  "country": "Cayman Islands",
+  "dob": "1984-02-28",
+  "full_name": "Troy Taylor",
+  "name": "Troy Taylor",
+  "role": "Bowler"
+ },
  "1d7c927b": {
   "_page": "Harry Chamberlain",
   "_title": "Harry Chamberlain",
@@ -4541,6 +4612,16 @@
   "dob": "1993-09-25",
   "name": "Khurram Shahzad",
   "role": "Bowler"
+ },
+ "1db6e336": {
+  "_page": "Ben McKinney",
+  "_title": "Ben McKinney",
+  "batting": "Left-handed",
+  "bowling": "Right-arm off break",
+  "dob": "2004-10-04",
+  "full_name": "Ben Stewart McKinney",
+  "name": "Ben McKinney",
+  "role": "Opening batter"
  },
  "1dc12ab9": {
   "_page": "Suresh Raina",
@@ -4893,6 +4974,17 @@
   "dob": "1990-10-12",
   "full_name": "Krishna Subhash Das",
   "name": "Krishna Das",
+  "role": "Bowler"
+ },
+ "201facae": {
+  "_page": "Nqobani Mokoena",
+  "_title": "Nqobani Mokoena",
+  "batting": "Right-handed",
+  "bowling": "Right arm fast medium",
+  "country": "South Africa",
+  "dob": "2006-05-05",
+  "full_name": "Nqobani Mokoena",
+  "name": "Nqobani Mokoena",
   "role": "Bowler"
  },
  "20481563": {
@@ -6153,6 +6245,15 @@
   "country": "Pakistan",
   "name": "Faisal Iqbal; فیصل اقبال"
  },
+ "267468de": {
+  "_page": "Nathan Edward",
+  "_title": "Nathan Edward",
+  "batting": "Left-handed",
+  "bowling": "Left-arm fast-medium",
+  "dob": "2005-05-29",
+  "name": "Nathan Edward",
+  "role": "All rounder"
+ },
  "267be846": {
   "_page": "Rejaur Rahman Raja",
   "_title": "Rejaur Rahman Raja",
@@ -6203,6 +6304,17 @@
   "dob": "1990-02-19",
   "name": "Rishi Dhawan",
   "role": "All-rounder"
+ },
+ "26a8b2fe": {
+  "_page": "Hasan Nawaz",
+  "_title": "Hasan Nawaz",
+  "batting": "Right-handed",
+  "bowling": "Right-arm medium",
+  "country": "Pakistan",
+  "dob": "2002-08-21",
+  "full_name": "Muhammad Hasan Nawaz Thind",
+  "name": "Hasan Nawaz",
+  "role": "Middle-order batter"
  },
  "26b6a4e9": {
   "_page": "Sumeet Verma",
@@ -7098,6 +7210,17 @@
   "name": "Abu Nechim",
   "role": "Bowler"
  },
+ "2af28253": {
+  "_page": "Vraj Patel",
+  "_title": "Vraj Patel",
+  "batting": "Left-handed",
+  "bowling": "Slow left-arm orthodox",
+  "country": "Kenya",
+  "dob": "2002-03-21",
+  "full_name": "Vraj Patel",
+  "name": "Vraj Patel",
+  "role": "Bowler"
+ },
  "2af838ee": {
   "_page": "Nuwan Pradeep",
   "_title": "Nuwan Pradeep",
@@ -7178,6 +7301,11 @@
   "_page": "List of Uganda Twenty20 International cricketers",
   "_status": "no_infobox",
   "_title": "Henry Ssenyondo"
+ },
+ "2b801189": {
+  "_page": "Mayank Rawat",
+  "_status": "no_infobox",
+  "_title": "Mayank Rawat"
  },
  "2b85c8e6": {
   "_page": "Jon-Russ Jaggesar",
@@ -7298,6 +7426,15 @@
   "_page": "Louis Delport",
   "_status": "no_infobox",
   "_title": "Louis Delport"
+ },
+ "2c1a21f0": {
+  "_page": "Isaac Mohammed",
+  "_title": "Isaac Mohammed",
+  "batting": "Left-handed",
+  "bowling": "Right arm medium",
+  "dob": "2008-04-30",
+  "name": "Isaac Mohammed",
+  "role": "Batter"
  },
  "2c2013a9": {
   "_page": "Amrit Bhattarai",
@@ -7515,6 +7652,11 @@
   "full_name": "Charles Alexander Allenby Cassell",
   "name": "Charlie Cassell",
   "role": "Bowler"
+ },
+ "2d140b79": {
+  "_page": "List of Maharashtra cricketers",
+  "_status": "no_infobox",
+  "_title": "Arshin Kulkarni"
  },
  "2d209101": {
   "_page": "Felix Alemao",
@@ -7905,6 +8047,15 @@
   "name": "Runako Morton",
   "role": "Batsman"
  },
+ "2f979390": {
+  "_page": "Tommy Boorman",
+  "_title": "Tommy Boorman",
+  "batting": "Right-handed",
+  "bowling": "Right-arm off break",
+  "dob": "2005-04-12",
+  "full_name": "Thomas William Boorman",
+  "name": "Tommy Boorman"
+ },
  "2f9a41e7": {
   "_page": "Ahmed Banday",
   "_title": "Ahmed Banday",
@@ -8101,6 +8252,17 @@
   "full_name": "Timroy Patrick Allen",
   "name": "Timroy Allen"
  },
+ "30d8136b": {
+  "_page": "Alpesh Ramjani",
+  "_title": "Alpesh Ramjani",
+  "batting": "Left-handed",
+  "bowling": "Slow left-arm orthodox",
+  "country": "Uganda",
+  "dob": "1994-09-24",
+  "full_name": "Alpesh Ravilal Ramjani",
+  "name": "Alpesh Ramjani",
+  "role": "All-rounder"
+ },
  "30df8c66": {
   "_page": "Simarjeet Singh",
   "_title": "Simarjeet Singh",
@@ -8156,6 +8318,16 @@
   "_title": "Kyle Simmonds",
   "dob": "1994-01-06",
   "name": "Kyle Simmonds"
+ },
+ "31366b7e": {
+  "_page": "Gustav McKeon",
+  "_title": "Gustav McKeon",
+  "batting": "Right-handed",
+  "bowling": "Right-arm medium-fast",
+  "country": "France",
+  "dob": "2003-10-18",
+  "name": "Gustav McKeon",
+  "role": "Batting all-rounder"
  },
  "3141b833": {
   "_page": "Bryce Jackson",
@@ -8234,6 +8406,17 @@
   "dob": "2000-12-24",
   "full_name": "Kasey Luke Aldridge",
   "name": "Kasey Aldridge",
+  "role": "Bowler"
+ },
+ "31c04b7b": {
+  "_page": "Crishan Kalugamage",
+  "_title": "Crishan Kalugamage",
+  "batting": "Right-handed",
+  "bowling": "Right-arm legbreak googly",
+  "country": "Italy",
+  "dob": "1991-06-16",
+  "full_name": "Crishan Jorge Priyantha Fernando Kalugamage",
+  "name": "Crishan Kalugamage",
   "role": "Bowler"
  },
  "31ca7a9c": {
@@ -8421,6 +8604,15 @@
   "full_name": "Jonty William Jenner",
   "name": "Jonty Jenner",
   "role": "Batsman"
+ },
+ "32ccd79b": {
+  "_page": "Luke Robinson (cricketer)",
+  "_title": "Luke Robinson (cricketer)",
+  "batting": "Left-handed",
+  "bowling": "Right-arm medium",
+  "dob": "2003-10-12",
+  "full_name": "Luke Stephen Robinson",
+  "name": "Luke Robinson"
  },
  "3300d23c": {
   "_page": "Solomon Mire",
@@ -9430,6 +9622,17 @@
   "_title": "Puneet Malik",
   "dob": "1991-09-30",
   "name": "Puneet Malik"
+ },
+ "395179e8": {
+  "_page": "Dhruv Parashar",
+  "_title": "Dhruv Parashar",
+  "batting": "Right-handed",
+  "bowling": "Right-arm off spin",
+  "country": "United Arab Emirates",
+  "dob": "2004-12-20",
+  "full_name": "Dhruv Parashar",
+  "name": "Dhruv Parashar",
+  "role": "All-rounder"
  },
  "395695ce": {
   "_page": "List of Uganda Twenty20 International cricketers",
@@ -10546,6 +10749,15 @@
   "dob": "1995-10-07",
   "name": "Shashidhar Reddy"
  },
+ "3f9ec1d2": {
+  "_page": "Callum Stow",
+  "_title": "Callum Stow",
+  "batting": "Right-handed",
+  "bowling": "Left-arm wrist spin",
+  "dob": "2002-08-27",
+  "name": "Callum Stow",
+  "role": "Bowler"
+ },
  "3fa96c98": {
   "_page": "Shubham Desai",
   "_title": "Shubham Desai",
@@ -10692,6 +10904,16 @@
   "name": "Mohit Jangra",
   "role": "All-rounder"
  },
+ "40737b8d": {
+  "_page": "Agni Chopra",
+  "_title": "Agni Chopra",
+  "batting": "Left-handed",
+  "bowling": "Right arm off break",
+  "dob": "1998-11-04",
+  "full_name": "Agni Dev Chopra",
+  "name": "Agni Chopra",
+  "role": "Batsman"
+ },
  "40792cff": {
   "_page": "Amit Mishra (cricketer, born 1991)",
   "_title": "Amit Mishra (cricketer, born 1991)",
@@ -10778,6 +11000,15 @@
   "dob": "1994-01-16",
   "name": "Jagadeesha Suchith",
   "role": "Bowling all-rounder"
+ },
+ "413aa65b": {
+  "_page": "Caleb Falconer",
+  "_title": "Caleb Falconer",
+  "batting": "Right-handed",
+  "bowling": "Right arm medium",
+  "dob": "2006-02-14",
+  "full_name": "Caleb Matthew Falconer",
+  "name": "Caleb Falconer"
  },
  "414d8a10": {
   "_page": "Juma Miyagi",
@@ -10965,6 +11196,15 @@
   "dob": "1997-09-13",
   "full_name": "Rahul Singh",
   "name": "Rahul Singh"
+ },
+ "42ee1d76": {
+  "_page": "Charlie Allison",
+  "_title": "Charlie Allison",
+  "batting": "Right-handed",
+  "bowling": "Right arm medium",
+  "dob": "2005-03-02",
+  "full_name": "Charles William James Allison",
+  "name": "Charles Allison"
  },
  "43057192": {
   "_page": "Junior Sinclair",
@@ -13347,6 +13587,11 @@
   "name": "Kjorn Ottley",
   "role": "Opening batter"
  },
+ "50c09020": {
+  "_page": "List of India Twenty20 International cricketers",
+  "_status": "no_infobox",
+  "_title": "Ashok Sharma (cricketer)"
+ },
  "50c6bc2b": {
   "_page": "Liam Livingstone",
   "_title": "Liam Livingstone",
@@ -13470,6 +13715,11 @@
  "51e68a46": {
   "_status": "missing",
   "_title": "Ankush Bedi"
+ },
+ "51ec3919": {
+  "_page": "List of Andhra Pradesh cricketers",
+  "_status": "no_infobox",
+  "_title": "Tripurana Vijay"
  },
  "5208c0a1": {
   "_page": "Duncan Allan",
@@ -13609,6 +13859,16 @@
   "full_name": "Mahbubul Alam",
   "name": "Mahbubul Alam",
   "role": "Bowler"
+ },
+ "52912da9": {
+  "_page": "Eddie Jack",
+  "_title": "Eddie Jack",
+  "batting": "Left-handed",
+  "bowling": "Right-arm fast-medium",
+  "dob": "2005-09-09",
+  "full_name": "Edward Vaughan Jack",
+  "name": "Eddie Jack",
+  "role": "All-rounder"
  },
  "52980a48": {
   "_page": "Tom de Grooth",
@@ -14036,6 +14296,11 @@
   "dob": "1990-12-11",
   "name": "Jonathan Hill",
   "role": "All-rounder"
+ },
+ "548516a6": {
+  "_page": "Ravi Singh (cricketer, born 2001)",
+  "_status": "no_infobox",
+  "_title": "Ravi Singh (cricketer, born 2001)"
  },
  "548d4188": {
   "_page": "Kamal Singh Airee",
@@ -14714,6 +14979,16 @@
   "full_name": "Cameron Tate Steel",
   "name": "Cameron Steel",
   "role": "All-rounder"
+ },
+ "58be5e46": {
+  "_page": "Jafer Chohan",
+  "_title": "Jafer Chohan",
+  "batting": "Right-handed",
+  "bowling": "Right-arm leg break",
+  "dob": "2002-07-11",
+  "full_name": "Jafer Ali Chohan",
+  "name": "Jafer Chohan",
+  "role": "Bowler"
  },
  "58c2fac4": {
   "_page": "Alick Athanaze",
@@ -15942,6 +16217,16 @@
   "name": "Richmond Mutumbami",
   "role": "Wicket-keeper"
  },
+ "5ffc0565": {
+  "_page": "Vipraj Nigam",
+  "_title": "Vipraj Nigam",
+  "batting": "Right-handed",
+  "bowling": "Right-arm Leg Break",
+  "country": "India",
+  "dob": "2002-07-28",
+  "name": "Vipraj Nigam",
+  "role": "Bowler"
+ },
  "600dce49": {
   "_page": "Yashodha Lanka",
   "_title": "Yashodha Lanka",
@@ -16060,6 +16345,16 @@
   "full_name": "William Alexander Peatfield",
   "name": "Will Peatfield"
  },
+ "60aa2db3": {
+  "_page": "Lhuan-dre Pretorius",
+  "_title": "Lhuan-dre Pretorius",
+  "batting": "Left-handed",
+  "country": "South Africa",
+  "dob": "2006-03-27",
+  "full_name": "Lhuan-dre Gilbert Pretorius",
+  "name": "Lhuan-dre Pretorius",
+  "role": "Wicket-keeper, batter"
+ },
  "60b46ad1": {
   "_page": "Marty Kain",
   "_title": "Marty Kain",
@@ -16112,6 +16407,15 @@
   "dob": "1980-11-24",
   "name": "Kabir Ali",
   "role": "Bowler"
+ },
+ "60de7b0a": {
+  "_page": "Simon Fernandes (cricketer)",
+  "_title": "Simon Fernandes (cricketer)",
+  "batting": "Right-handed",
+  "dob": "2000-03-22",
+  "full_name": "Simon Maurice Louis Fernandes",
+  "name": "Simon Fernandes",
+  "role": "Wicket-keeper"
  },
  "60f4c586": {
   "_page": "Ollie Robinson (cricketer, born 1998)",
@@ -16400,6 +16704,17 @@
   "name": "Marques Ackerman",
   "role": "Batter"
  },
+ "62a99934": {
+  "_page": "Abdul Gaffar Saqlain",
+  "_title": "Abdul Gaffar Saqlain",
+  "batting": "Right-handed",
+  "bowling": "Right-arm Medium",
+  "country": "Bangladesh",
+  "dob": "1998-02-14",
+  "full_name": "Abdul Gaffar Saqlain",
+  "name": "Abdul Gaffar Saqlain",
+  "role": "Bowler"
+ },
  "62af8546": {
   "_page": "Mohammad Nabi",
   "_title": "Mohammad Nabi",
@@ -16492,6 +16807,16 @@
   "dob": "2004-07-28",
   "full_name": "Oliver Forbes Davidson",
   "name": "Oliver Davidson",
+  "role": "Bowler"
+ },
+ "634749ad": {
+  "_page": "Tazeem Ali",
+  "_title": "Tazeem Ali",
+  "batting": "Right-handed",
+  "bowling": "Right arm leg break",
+  "dob": "2006-06-13",
+  "full_name": "Tazeem Chaudry Ali",
+  "name": "Tazeem Ali",
   "role": "Bowler"
  },
  "634a7b21": {
@@ -17729,6 +18054,15 @@
   "full_name": "Andrew James Hall",
   "name": "Andrew Hall",
   "role": "All-rounder"
+ },
+ "6b0db726": {
+  "_page": "Jewel Andrew",
+  "_title": "Jewel Andrew",
+  "batting": "Right-handed",
+  "country": "West Indies",
+  "dob": "2006-12-07",
+  "name": "Jewel Andrew",
+  "role": "Wicket-keeper-batter"
  },
  "6b16f8ba": {
   "_page": "Harry Finch (cricketer)",
@@ -20629,6 +20963,11 @@
   "name": "Zafar Ansari",
   "role": "All-rounder"
  },
+ "7b44eb3e": {
+  "_page": "Shivang Kumar",
+  "_status": "no_infobox",
+  "_title": "Shivang Kumar"
+ },
  "7b5235a6": {
   "_page": "Pappu Roy",
   "_title": "Pappu Roy",
@@ -22059,6 +22398,15 @@
   "dob": "1995-05-08",
   "name": "Hardik Patel"
  },
+ "82585454": {
+  "_page": "Ekansh Singh",
+  "_title": "Ekansh Singh",
+  "batting": "Right-handed",
+  "bowling": "Right-arm Fast medium",
+  "dob": "2006-07-16",
+  "name": "Ekansh Singh",
+  "role": "Batting all-rounder"
+ },
  "826e1017": {
   "_status": "missing",
   "_title": "Imal Liyanage (cricketer, born 1994)"
@@ -22087,6 +22435,11 @@
   "full_name": "Mohammed Rizlan Iqbar",
   "name": "Mohammed Rizlan",
   "role": "Batsman"
+ },
+ "82c10dac": {
+  "_page": "Royal Challengers Bengaluru",
+  "_status": "no_infobox",
+  "_title": "Abhinandan Singh"
  },
  "82c78845": {
   "_page": "Khurram Manzoor",
@@ -22165,6 +22518,16 @@
   "dob": "1978-04-15",
   "full_name": "Daren Brent Lyle Powell",
   "name": "Daren Powell",
+  "role": "Bowler"
+ },
+ "8399a7af": {
+  "_page": "Rijan Dhakal",
+  "_title": "Rijan Dhakal",
+  "batting": "Right-handed",
+  "bowling": "Left arm medium",
+  "country": "Nepal",
+  "dob": "1999-05-06",
+  "name": "Rijan Dhakal",
   "role": "Bowler"
  },
  "839b6d2e": {
@@ -23298,6 +23661,17 @@
   "full_name": "Sagun Krishna Kamat",
   "name": "Sagun Kamat"
  },
+ "8a58f203": {
+  "_page": "Rushil Ugarkar",
+  "_title": "Rushil Ugarkar",
+  "batting": "Right-handed",
+  "bowling": "Right-arm fast medium",
+  "country": "United States",
+  "dob": "2003-06-30",
+  "full_name": "Rushil Jayraj Ugarkar",
+  "name": "Rushil Ugarkar",
+  "role": "Bowler"
+ },
  "8a668774": {
   "_page": "Shoaib Ahmed (Indian cricketer)",
   "_title": "Shoaib Ahmed (Indian cricketer)",
@@ -24054,6 +24428,16 @@
   "_status": "no_infobox",
   "_title": "Amlanjyoti Das"
  },
+ "8eb2e2e6": {
+  "_page": "Liam McCarthy (cricketer)",
+  "_title": "Liam McCarthy (cricketer)",
+  "batting": "Left-handed",
+  "bowling": "Right-arm medium-fast",
+  "country": "Ireland",
+  "dob": "2002-01-02",
+  "name": "Liam McCarthy",
+  "role": "Bowling All-rounder"
+ },
  "8eb611d0": {
   "_page": "Mosharraf Hossain (cricketer)",
   "_title": "Mosharraf Hossain (cricketer)",
@@ -24091,6 +24475,17 @@
   "dob": "1992-12-30",
   "full_name": "Umar Siddiq Khan",
   "name": "Umar Siddiq"
+ },
+ "8f02f6a8": {
+  "_page": "Justin Mosca",
+  "_title": "Justin Mosca",
+  "batting": "Left-handed",
+  "bowling": "Right-arm medium",
+  "country": "Italy",
+  "dob": "1994-11-15",
+  "full_name": "Justin Mosca",
+  "name": "Justin Mosca",
+  "role": "Opening batter"
  },
  "8f08313a": {
   "_page": "Noah Cornwell",
@@ -24791,6 +25186,11 @@
   "name": "Sushant Mishra",
   "role": "Bowler"
  },
+ "926c7443": {
+  "_page": "Sahil Parekh (cricketer)",
+  "_status": "no_infobox",
+  "_title": "Sahil Parekh (cricketer)"
+ },
  "927694f7": {
   "_page": "Farhan Ahmed",
   "_title": "Farhan Ahmed",
@@ -24909,6 +25309,11 @@
   "_title": "Gaurav Singh (Uttarakhand cricketer)",
   "dob": "1996-11-08",
   "name": "Gaurav Singh"
+ },
+ "92f0e10e": {
+  "_page": "Aqeel Wahid",
+  "_status": "no_infobox",
+  "_title": "Aqeel Wahid"
  },
  "9309e81f": {
   "_page": "Kshitij Patel",
@@ -26387,6 +26792,15 @@
   "name": "Glenn Phillips|",
   "role": "Occasionally Wicket-keeper-batter / All-rounder"
  },
+ "9a5f2863": {
+  "_page": "Mohit Rathee",
+  "_title": "Mohit Rathee",
+  "batting": "Right-handed",
+  "bowling": "Right-arm leg-break",
+  "dob": "1999-01-13",
+  "name": "Mohit Rathee",
+  "role": "All-rounder"
+ },
  "9a6b71d1": {
   "_page": "Subash Khakurel",
   "_title": "Subash Khakurel",
@@ -27131,6 +27545,11 @@
   "full_name": "Mohammad Tawhid Hridoy",
   "name": "Tawhid Hridoy",
   "role": "Middle-Order-Batter"
+ },
+ "9e6032fa": {
+  "_page": "Danish Malewar",
+  "_status": "no_infobox",
+  "_title": "Danish Malewar"
  },
  "9e62632a": {
   "_page": "Karn Kaushal",
@@ -28558,6 +28977,15 @@
   "name": "Rahat Ali",
   "role": "Bowler"
  },
+ "a63d0c5a": {
+  "_page": "Shaqkere Parris",
+  "_title": "Shaqkere Parris",
+  "batting": "Right-handed",
+  "dob": "2003-07-15",
+  "full_name": "Shaqkere Delano Parris",
+  "name": "Shaqkere Parris",
+  "role": "Top-order batter"
+ },
  "a63dfe8a": {
   "_page": "James Sales",
   "_title": "James Sales",
@@ -28595,6 +29023,16 @@
   "country": "Vanuatu",
   "dob": "1990-04-02",
   "name": "Kenny Tari"
+ },
+ "a6581d15": {
+  "_page": "Jaydn Denly",
+  "_title": "Jaydn Denly",
+  "batting": "Left-handed",
+  "bowling": "Slow left-arm orthodox",
+  "dob": "2006-01-05",
+  "full_name": "Jaydn Kennick Denly",
+  "name": "Jaydn Denly",
+  "role": "All-rounder"
  },
  "a670d624": {
   "_page": "Ryan Watson (cricketer)",
@@ -28797,6 +29235,15 @@
   "full_name": "Tanmay Manoj Srivastava",
   "name": "Tanmay Srivastava",
   "role": "Top-order batsman"
+ },
+ "a76d4082": {
+  "_page": "Tanish Suri",
+  "_title": "Tanish Suri",
+  "batting": "Right-handed",
+  "country": "United Arab Emirates",
+  "dob": "2005-06-04",
+  "name": "Tanish Suri",
+  "role": "Wicket-keeper"
  },
  "a77472dc": {
   "_page": "Grant Stewart (cricketer)",
@@ -29117,6 +29564,14 @@
   "full_name": "Matthew William Short",
   "name": "Matthew Short",
   "role": "Batting all-rounder"
+ },
+ "a91e7c2f": {
+  "_page": "Scott van Breda",
+  "_title": "Scott van Breda",
+  "batting": "Right-handed",
+  "bowling": "Right-arm medium",
+  "country": "Jersey",
+  "role": "All-rounder"
  },
  "a9231c3f": {
   "_page": "Steven Taylor (American cricketer)",
@@ -29803,6 +30258,16 @@
   "dob": "1985-04-22",
   "name": "K Vanlalruata"
  },
+ "acb94221": {
+  "_page": "Raphy Weatherall",
+  "_title": "Raphy Weatherall",
+  "batting": "Right-handed",
+  "bowling": "Right-arm medium",
+  "dob": "2004-10-24",
+  "full_name": "Raphael Alexander Weatherall",
+  "name": "Raphy Weatherall",
+  "role": "Bowler"
+ },
  "acc1aeda": {
   "_page": "Sheldon Jackson (cricketer)",
   "_title": "Sheldon Jackson (cricketer)",
@@ -30281,6 +30746,16 @@
   "country": "Vanuatu",
   "dob": "1991-09-27",
   "name": "Patrick Matautaava"
+ },
+ "af24d8de": {
+  "_page": "Manny Lumsden",
+  "_title": "Manny Lumsden",
+  "batting": "Right-handed",
+  "bowling": "Right-arm fast-medium",
+  "dob": "2008-11-03",
+  "full_name": "Emmanuel Tait Lumsden",
+  "name": "Manny Lumsden",
+  "role": "Bowler"
  },
  "af28816c": {
   "_page": "Tyrone Kane",
@@ -31343,6 +31818,15 @@
   "dob": "1999-04-18",
   "name": "Liam Trevaskis"
  },
+ "b5797845": {
+  "_page": "Priyansh Arya",
+  "_title": "Priyansh Arya",
+  "batting": "Left-handed",
+  "bowling": "Right-arm offbreak",
+  "dob": "2001-09-18",
+  "name": "Priyansh Arya",
+  "role": "Opening batter"
+ },
  "b57f8a9a": {
   "_page": "Brad Hodge",
   "_title": "Brad Hodge",
@@ -31577,6 +32061,17 @@
   "dob": "1991-06-30",
   "full_name": "Rajiv Malay Darjee",
   "name": "Rajiv Darjee"
+ },
+ "b7096165": {
+  "_page": "Sebastian Morgan",
+  "_title": "Sebastian Morgan",
+  "batting": "Right-handed",
+  "bowling": "Right-arm fast-medium",
+  "country": "England",
+  "dob": "2007-08-30",
+  "full_name": "Sebastian Herbert Bache Morgan",
+  "name": "Sebastian Morgan",
+  "role": "All-rounder"
  },
  "b720a5d6": {
   "_page": "Dwaraka Ravi Teja",
@@ -31922,6 +32417,16 @@
   "bowling": "Left-arm Medium",
   "dob": "1991-07-07",
   "name": "Sams Alam"
+ },
+ "b8e5ed34": {
+  "_page": "Dan Lategan",
+  "_title": "Dan Lategan",
+  "batting": "Left-handed",
+  "bowling": "Right-arm off-spin",
+  "dob": "2006-05-25",
+  "full_name": "Daniel Herbert Lategan",
+  "name": "Dan Lategan",
+  "role": "Batter"
  },
  "b8eddbdb": {
   "_page": "Imran Khalid",
@@ -33044,6 +33549,15 @@
   "name": "Keegan Petersen",
   "role": "Top-order batter"
  },
+ "bf659c0f": {
+  "_page": "Bertie Foreman",
+  "_title": "Bertie Foreman",
+  "batting": "Left-handed",
+  "bowling": "Right-arm off break",
+  "dob": "2004-05-13",
+  "full_name": "Albert Michael Foreman",
+  "name": "Bertie Foreman"
+ },
  "bf6e03ea": {
   "_page": "K. V. Sasikanth",
   "_title": "K. V. Sasikanth",
@@ -33461,6 +33975,11 @@
   "dob": "1998-05-09",
   "full_name": "Abhimanyusingh Vikramsingh Rajput",
   "name": "Abhimanyu Singh Rajput"
+ },
+ "c1e53c3f": {
+  "_page": "List of Karnataka cricketers",
+  "_status": "no_infobox",
+  "_title": "Smaran Ravichandran"
  },
  "c1f62b71": {
   "_page": "Robert Lord (cricketer)",
@@ -35870,6 +36389,17 @@
   "name": "Kane Williamson",
   "role": "Top-order batter"
  },
+ "d02c40ab": {
+  "_page": "Yuvraaj Samra",
+  "_title": "Yuvraaj Samra",
+  "batting": "Left-handed",
+  "bowling": "Right-arm off break",
+  "country": "Canada",
+  "dob": "2006-09-29",
+  "full_name": "Yuvraj Singh Samra",
+  "name": "Yuvraaj Samra",
+  "role": "Top-order batter"
+ },
  "d0332cfb": {
   "_page": "George Van Heerden",
   "_title": "George Van Heerden",
@@ -36443,6 +36973,16 @@
   "full_name": "Dharmendrasinh Aniruddsinh Jadeja",
   "name": "Dharmendrasinh Jadeja",
   "role": "All-rounder"
+ },
+ "d3395043": {
+  "_page": "Shamyl Hussain",
+  "_title": "Shamyl Hussain",
+  "batting": "Left-handed",
+  "country": "Pakistan",
+  "dob": "2004-10-10",
+  "full_name": "Shamyl Hussain",
+  "name": "Shamyl Hussain",
+  "role": "Batter"
  },
  "d346d939": {
   "_page": "Ross Whiteley",
@@ -37018,6 +37558,17 @@
   "dob": "1987-04-21",
   "name": "Nadif Chowdhury"
  },
+ "d6cd318e": {
+  "_page": "Atharva Ankolekar",
+  "_title": "Atharva Ankolekar",
+  "batting": "Left-handed",
+  "bowling": "Slow left-arm orthodox",
+  "country": "India",
+  "dob": "2000-09-26",
+  "full_name": "Atharva Vinod Ankolekar",
+  "name": "Atharva Ankolekar",
+  "role": "All-rounder"
+ },
  "d6d52545": {
   "_page": "Swapan Das",
   "_title": "Swapan Das",
@@ -37079,6 +37630,11 @@
   "dob": "1992-05-03",
   "name": "Veer Pratap Singh",
   "role": "Bowler"
+ },
+ "d7423da1": {
+  "_page": "Salil Arora",
+  "_status": "no_infobox",
+  "_title": "Salil Arora"
  },
  "d74d1090": {
   "_page": "Max Waller",
@@ -38456,6 +39012,16 @@
   "name": "Jayden Seales",
   "role": "Bowler"
  },
+ "dee07622": {
+  "_page": "Ramakrishna Ghosh",
+  "_title": "Ramakrishna Ghosh",
+  "batting": "Right-handed",
+  "bowling": "Right-arm medium-fast",
+  "dob": "1997-08-28",
+  "full_name": "Ramakrishna Shekhar Ghosh",
+  "name": "Ramakrishna Ghosh",
+  "role": "Bowling all-rounder"
+ },
  "defd49f6": {
   "_page": "Anil Mandal",
   "_title": "Anil Mandal",
@@ -38974,6 +39540,15 @@
   "dob": "1977-09-19",
   "role": "Batsman"
  },
+ "e24cf4d5": {
+  "_page": "Joe Moores",
+  "_title": "Joe Moores",
+  "batting": "Left-handed",
+  "dob": "2008-09-15",
+  "full_name": "Joseph Henry Alan Moores",
+  "name": "Joe Moores",
+  "role": "Wicket-keeper"
+ },
  "e258a603": {
   "_page": "Nikhil Dutta",
   "_title": "Nikhil Dutta",
@@ -39188,6 +39763,15 @@
   "name": "Usman Ghani",
   "role": "Opening batter"
  },
+ "e3851766": {
+  "_page": "Kunal Singh Rathore",
+  "_title": "Kunal Singh Rathore",
+  "batting": "Left-handed",
+  "country": "India",
+  "dob": "2002-10-09",
+  "name": "Kunal Singh Rathore",
+  "role": "Wicket-keeper-batter"
+ },
  "e3882f9a": {
   "_page": "Simon Keen",
   "_status": "no_infobox",
@@ -39387,6 +39971,11 @@
   "full_name": "Abdul Shakoor Rahimzei",
   "name": "Abdul Shakoor",
   "role": "All-rounder"
+ },
+ "e48a4814": {
+  "_page": "Krish Bhagat",
+  "_status": "no_infobox",
+  "_title": "Krish Bhagat"
  },
  "e49574d6": {
   "_page": "Sedezhalie Rupero",
@@ -40117,6 +40706,16 @@
   "name": "Ollie Pope",
   "role": "Middle-order batter, Wicket-keeper"
  },
+ "e94d1dcd": {
+  "_page": "Usman Tariq",
+  "_title": "Usman Tariq",
+  "batting": "Right-handed",
+  "bowling": "Right-arm off spin",
+  "country": "Pakistan",
+  "dob": "1995-06-07",
+  "name": "Usman Tariq",
+  "role": "Bowler"
+ },
  "e94d2d50": {
   "_page": "Nathan McSweeney",
   "_title": "Nathan McSweeney",
@@ -40428,6 +41027,16 @@
   "full_name": "Thomas Charlton Wallace Veillard",
   "name": "Thomas Veillard"
  },
+ "eafe8a94": {
+  "_page": "Ben Kellaway",
+  "_title": "Ben Kellaway",
+  "batting": "Right-handed",
+  "bowling": "Right-arm off break; Slow left-arm orthodox",
+  "country": "Wales",
+  "dob": "2004-01-05",
+  "full_name": "Benjamin Ian Kellaway",
+  "name": "Ben Kellaway"
+ },
  "eb1a5b03": {
   "_page": "Tom Wells (cricketer)",
   "_title": "Tom Wells (cricketer)",
@@ -40503,6 +41112,15 @@
   "_title": "Athenkosi Dyili",
   "dob": "1984-07-17",
   "name": "Athenkosi Dyili"
+ },
+ "eb75d76c": {
+  "_page": "Saad Baig",
+  "_title": "Saad Baig",
+  "batting": "Left-handed",
+  "country": "Pakistan",
+  "dob": "2006-11-01",
+  "name": "Saad Baig",
+  "role": "Wicketkeeper-batsman"
  },
  "eb7af112": {
   "_page": "Mohammad Tauqir",
@@ -41463,6 +42081,16 @@
   "name": "Akshdeep Nath",
   "role": "Batsman, Occasional wicket-keeper"
  },
+ "f12fe2a1": {
+  "_page": "Tejasvi Singh Dahiya",
+  "_title": "Tejasvi Singh Dahiya",
+  "batting": "Right-handed",
+  "country": "India",
+  "dob": "2002-04-18",
+  "full_name": "Tejasvi Singh Dahiya",
+  "name": "Tejasvi Singh",
+  "role": "Wicket-keeper-batsman"
+ },
  "f146c339": {
   "_page": "SM Meherob",
   "_title": "SM Meherob",
@@ -41483,6 +42111,16 @@
   "full_name": "Paul Andrew Nixon",
   "name": "Paul Nixon",
   "role": "Wicket-keeper"
+ },
+ "f1541912": {
+  "_page": "Ben Mayes (cricketer)",
+  "_title": "Ben Mayes (cricketer)",
+  "batting": "Right-handed",
+  "bowling": "Right-arm off break",
+  "dob": "2007-11-21",
+  "full_name": "Ben Angus Mayes",
+  "name": "Ben Mayes",
+  "role": "Middle order batter"
  },
  "f1737607": {
   "_page": "Martín Siri",
@@ -43035,6 +43673,15 @@
   "dob": "2003-12-06",
   "name": "Sameer Rizvi"
  },
+ "f8a63b6f": {
+  "_page": "Noah Thain",
+  "_title": "Noah Thain",
+  "batting": "Right-handed",
+  "bowling": "Right-arm medium",
+  "full_name": "Noah Robin Mostyn Thain",
+  "name": "Noah Thain",
+  "role": "All-rounder"
+ },
  "f8c72766": {
   "_page": "Dillon Heyliger",
   "_title": "Dillon Heyliger",
@@ -43545,6 +44192,11 @@
   "dob": "1988-12-27",
   "full_name": "Keddy Lesporis",
   "name": "Keddy Lesporis"
+ },
+ "fb5f69e4": {
+  "_page": "Madhav Tiwari",
+  "_status": "no_infobox",
+  "_title": "Madhav Tiwari"
  },
  "fb66ce1f": {
   "_page": "Chris Morris (cricketer)",
@@ -44510,5 +45162,115 @@
   "full_name": "Christopher James Jordan",
   "name": "Chris Jordan",
   "role": "Bowler"
+ },
+ "fffa744b": {
+  "_page": "Naman Dhir",
+  "_title": "Naman Dhir",
+  "batting": "Right-handed",
+  "bowling": "Right-arm off break",
+  "country": "India",
+  "dob": "1999-12-31",
+  "name": "Naman Dhir",
+  "role": "All-rounder"
+ },
+ "wiki:Aman Rao (cricketer, born 2004)": {
+  "_page": "Aman Rao (cricketer, born 2004)",
+  "_status": "no_infobox",
+  "_title": "Aman Rao (cricketer, born 2004)"
+ },
+ "wiki:Amit Kumar (cricketer, born 2002)": {
+  "_page": "Amit Kumar (cricketer, born 2002)",
+  "_status": "no_infobox",
+  "_title": "Amit Kumar (cricketer, born 2002)"
+ },
+ "wiki:Daksh Kamra": {
+  "_page": "Daksh Kamra",
+  "_status": "no_infobox",
+  "_title": "Daksh Kamra"
+ },
+ "wiki:Emanjot Chahal": {
+  "_page": "Emanjot Chahal",
+  "_status": "no_infobox",
+  "_title": "Emanjot Chahal"
+ },
+ "wiki:Harnoor Pannu": {
+  "_page": "Harnoor Pannu",
+  "_status": "no_infobox",
+  "_title": "Harnoor Pannu"
+ },
+ "wiki:Kanishk Chouhan": {
+  "_page": "Kanishk Chouhan",
+  "_status": "no_infobox",
+  "_title": "Kanishk Chouhan"
+ },
+ "wiki:Krains Fuletra": {
+  "_page": "Krains Fuletra",
+  "_status": "no_infobox",
+  "_title": "Krains Fuletra"
+ },
+ "wiki:Macneil Noronha": {
+  "_page": "Macneil Noronha",
+  "_status": "no_infobox",
+  "_title": "Macneil Noronha"
+ },
+ "wiki:Mangesh Yadav": {
+  "_page": "Mangesh Yadav",
+  "_status": "no_infobox",
+  "_title": "Mangesh Yadav"
+ },
+ "wiki:Mohammad Izhar": {
+  "_page": "Mohammad Izhar",
+  "_status": "no_infobox",
+  "_title": "Mohammad Izhar"
+ },
+ "wiki:Naman Tiwari": {
+  "_page": "Naman Tiwari",
+  "_status": "no_infobox",
+  "_title": "Naman Tiwari"
+ },
+ "wiki:Onkar Tarmale": {
+  "_page": "Onkar Tarmale",
+  "_status": "no_infobox",
+  "_title": "Onkar Tarmale"
+ },
+ "wiki:Pyla Avinash": {
+  "_page": "Pyla Avinash",
+  "_status": "no_infobox",
+  "_title": "Pyla Avinash"
+ },
+ "wiki:RS Ambrish": {
+  "_page": "RS Ambrish",
+  "_status": "no_infobox",
+  "_title": "RS Ambrish"
+ },
+ "wiki:Ruchit Ahir": {
+  "_page": "Ruchit Ahir",
+  "_status": "no_infobox",
+  "_title": "Ruchit Ahir"
+ },
+ "wiki:Satvik Deswal": {
+  "_page": "Satvik Deswal",
+  "_status": "no_infobox",
+  "_title": "Satvik Deswal"
+ },
+ "wiki:Vicky Ostwal": {
+  "_page": "India national under-19 cricket team",
+  "_status": "no_infobox",
+  "_title": "Vicky Ostwal"
+ },
+ "wiki:Vihaan Malhotra": {
+  "_page": "Vihaan Malhotra",
+  "_title": "Vihaan Malhotra",
+  "batting": "Left-handed",
+  "bowling": "Right-arm Offbreak",
+  "dob": "2007-01-01",
+  "full_name": "Vihaan Manoj Malhotra}}",
+  "name": "Vihaan Molhotra",
+  "role": "All-rounder"
+ },
+ "wiki:Vishal Nishad": {
+  "_page": "Vishal Nishad",
+  "_status": "no_infobox",
+  "_title": "Vishal Nishad"
  }
 }

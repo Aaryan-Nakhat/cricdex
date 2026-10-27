@@ -2,6 +2,10 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { leagueLabel } from "./leagues";
 
+/** The site's byline (sidebar, home page). */
+export const AUTHOR = "Aaryan Nakhat";
+export const AUTHOR_URL = "https://github.com/Aaryan-Nakhat";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
