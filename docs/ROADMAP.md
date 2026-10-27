@@ -563,6 +563,16 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
     times): "auction" 1 of 10 and 0 of 10, "none" 8 and 5; the rules' ranking doesn't change. Recipe Z (the
     market price on the time-aware value) won the price protocol and ships. Keep's retention model was not
     refitted on the new price input.
+  - **How far a value is trusted (2026-10-27; METHODOLOGY §4c, `ratings/shrink.py`, `scripts/value_shrink_fit.py`).**
+    The contribution used the posterior mean as if certain (its sd only displayed). Four candidates declared:
+    none; one shrink factor per role; a factor set by the value's own sd; that plus the non-IPL share and
+    years since his last season. **One factor per role** won (validation MAE 3.935 against 4.010; test 4.311
+    against 4.385, rank 0.310 against 0.296): every value about a quarter of the way to its role's mean.
+    The evidence-dependent candidates predicted worse, so thin records are not singled out; bowling aging
+    rechecked (older bowlers who play are under-predicted, not over). Gate unchanged (two fail); **buy model
+    still off**: Jani first on six sheets, Nabi three. Root left open: the players the buy model would buy
+    are the ones the outcome data never see (nobody buys them). Replays (2025–26 seen five times):
+    "auction" 1 and 0 of 10, "none" 6 and 5; ranking unchanged.
 
 ### Guardrails
 

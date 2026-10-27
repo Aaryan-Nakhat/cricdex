@@ -375,6 +375,12 @@ def _time_aware(vals: dict, shares: dict, season: int, date: str) -> dict:
         o = _DRIFT["obs"] = drift.season_obs(bayesian.DEFAULT_DB_PATH, POOL_COLS, [date])
     out, _ = drift.adjust(vals, shares, o, date, season, _DRIFT["dob"], _DRIFT["cat"], m,
                           _WHICH["which"])  # fmt: skip
+    # how far each value is trusted (scout/ratings/shrink.py, METHODOLOGY §4c): shrunk toward its
+    # role's mean by the fitted calibration (`model_le2024` in the protocol runs)
+    from cricdex.scout.ratings import shrink
+
+    sm = shrink.load_model(which="model" if _WHICH["which"] == "roles" else "model_le2024")
+    out, _ = shrink.adjust(out, shares, shrink.years_since(o, date), sm)
     return out
 
 

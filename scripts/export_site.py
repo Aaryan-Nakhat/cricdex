@@ -824,6 +824,10 @@ def _export_auction_pool(
     per_role, time_shift = _time_aware_roles(
         per_role, role_shares, comp, asof, dob_by_cid, taxonomy
     )
+    # how far each value is trusted (scout/ratings/shrink.py, METHODOLOGY §4c): shrunk toward its
+    # role's mean by the calibration fitted on what players then did in the IPL. The market price's
+    # input is not shrunk: it prices what the market pays, fitted on its own recipe (6b).
+    per_role = _shrunk_roles(per_role, role_shares, comp, asof)
     if price_input == "time_aware":
         # the price recipe's input: the legacy blend moved the same way, better role
         ta_roles, _ = _time_aware_roles(
@@ -997,6 +1001,22 @@ def _time_aware_roles(per_role, shares, comp, asof, dob_by_cid, taxonomy):
     out, info = drift.adjust(per_role, shares, obs, date, season, dob, cat, model)
     logger.info(f"  time-aware values: {len(info)} player-roles moved to {season}")
     return out, info
+
+
+def _shrunk_roles(per_role, shares, comp, asof):
+    """`per_role` shrunk toward each role's mean by config/value_shrink.json (unchanged without it)."""
+    import datetime as _dt
+
+    from cricdex.scout.ratings import drift, shrink
+
+    model = shrink.load_model()
+    if model is None:
+        return per_role
+    date = comp.auction_date if comp else (asof or _dt.date.today().isoformat())
+    obs = drift.season_obs(DUCKDB_PATH, list(AUCTION_POOL_COLLECTIONS), [date])
+    out, ks = shrink.adjust(per_role, shares, shrink.years_since(obs, date), model)
+    logger.info(f"  value calibration: {len(ks)} player-roles shrunk toward their role's mean")
+    return out
 
 
 def _scout_time_shifts(col, bat, bowl, sds, taxonomy) -> dict[tuple[str, str], float]:

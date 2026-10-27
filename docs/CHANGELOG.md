@@ -8,6 +8,27 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### How far a value is trusted: a fitted calibration (ROADMAP I18; 2026-10-27)
+
+- **The contribution per match read each value's posterior mean as if it were certain** (its sd went only to
+  a display), and nothing checked that a mean resting on a thin, old or other-league record predicts the IPL.
+  Each role's value is now calibrated before anything reads it: `value used = mu + k (value − mu)`
+  (METHODOLOGY §4c; `scout/ratings/shrink.py`, `scripts/value_shrink_fit.py`, `config/value_shrink.json`).
+- **Frozen protocol**, four candidates (none; one factor per role; a factor set by the value's own sd; that
+  plus the non-IPL share and years since his last season), walk-forward 2019–24 on next season's
+  contribution per match. **One factor per role** won (MAE 3.935 against 4.010); test once on 2025–26: 4.311
+  against 4.385, rank 0.310 against 0.296, bias +0.26 against +0.66. Shipped: batting mu −10.7, k 0.76;
+  bowling −7.9, 0.81. The evidence-dependent candidates were worse: thin records are not singled out.
+- Bowling aging rechecked on the same validation: older bowlers who play are under-predicted, so a flat
+  bowling curve stands.
+- Refitted on it: replacement curves, P(plays) (0.5585 / 0.0855 / 0.5754 in the test), as-of contributions,
+  the export. The market price's input is not calibrated.
+- **Reality**: every contribution falls about a quarter (Gill 6.8 → 5.2, Kohli 4.1 → 3.1, Jani 4.6 → 3.5); ranks
+  barely move (Kohli 27 → 28, Rohit 145 → 145). Gate: the same five pass, Cummins and the star price fail.
+  **Buy model still off**: Chirag Jani first on six sheets, Nabi on three.
+- Replays (2025–26 seen five times): "auction" 2024 5 of 10, 2025 1 of 10, 2026 0 of 10; "none" 7, 6, 5 of 10.
+  Tests: `tests/test_shrink.py`.
+
 ### Time-aware values: ratings that see age (ROADMAP Tier D #34, I18; 2026-10-27)
 
 - **What the auction tools read is now a player's level next season**, not his career average (METHODOLOGY

@@ -250,6 +250,16 @@ balls against age 28): batting −13 at 16, 0 at 24–32, −4 at 36, −9 at 40
 ±3 at every age. `config/rating_drift.json` (`model`; `model_le2024` for protocol runs). Full numbers:
 [METHODOLOGY §4b](../../../../docs/METHODOLOGY.md#4b-time-aware-ratings-his-level-next-season).
 
+## How far a value is trusted (`shrink.py`, since 2026-10-27)
+
+After the time-aware shift, each role's value is calibrated against what players then did in the IPL:
+`value used = mu + k × (value − mu)`, per role, fitted by `scripts/value_shrink_fit.py` (frozen protocol,
+walk-forward 2019–24, test once on 2025–26) into `config/value_shrink.json`. Four candidates: none, one
+factor per role, a factor set by the value's own posterior sd, and that plus the non-IPL share of the
+blend and the years since his last season. **One factor per role** won (batting mu −10.7, k 0.76; bowling
+−7.9, 0.81): test MAE 4.311 against 4.385. Thin evidence is not trusted less: the evidence-dependent
+candidates predicted worse. [METHODOLOGY §4c](../../../../docs/METHODOLOGY.md#4c-how-far-a-value-is-trusted).
+
 ## Form forecast (built on these ratings)
 
 `cricdex.scout.forecast` projects `value` over the next three IPL seasons from the rating as it stood

@@ -1,0 +1,120 @@
+{
+ "schema": 1,
+ "fitted": "2026-10-27",
+ "chosen": "K1 one shrink factor per role toward the role's mean",
+ "method": "value used = mu + k (value - mu), k = tau2 / (tau2 + s sd^2 + w_o (1 - IPL share) + w_r years since his last season); scripts/value_shrink_fit.py, docs/METHODOLOGY.md section 4c",
+ "model": {
+  "batter": {
+   "mu": -10.692849,
+   "tau2": 1.0,
+   "s": 0.0,
+   "w_o": 0.0,
+   "w_r": 0.0,
+   "k_flat": 0.763297
+  },
+  "bowler": {
+   "mu": -7.897367,
+   "tau2": 1.0,
+   "s": 0.0,
+   "w_o": 0.0,
+   "w_r": 0.0,
+   "k_flat": 0.814118
+  }
+ },
+ "model_le2024": {
+  "batter": {
+   "mu": -9.067371,
+   "tau2": 1.0,
+   "s": 0.0,
+   "w_o": 0.0,
+   "w_r": 0.0,
+   "k_flat": 0.738476
+  },
+  "bowler": {
+   "mu": -5.911429,
+   "tau2": 1.0,
+   "s": 0.0,
+   "w_o": 0.0,
+   "w_r": 0.0,
+   "k_flat": 0.790817
+  }
+ },
+ "evaluation": {
+  "validation": {
+   "n": 764,
+   "mae": 3.9345,
+   "rmse": 4.988,
+   "bias": -0.117,
+   "spearman_mean": 0.2963,
+   "mae_thin": 4.3541,
+   "bias_thin": 0.2654,
+   "n_thin": 133
+  },
+  "test": {
+   "K0 no calibration (reference, shipped until now)": {
+    "pooled": {
+     "n": 282,
+     "mae": 4.3849,
+     "rmse": 5.7835,
+     "bias": 0.6605,
+     "spearman_mean": 0.296,
+     "mae_thin": 4.6097,
+     "bias_thin": 0.6187,
+     "n_thin": 40
+    },
+    "2025": {
+     "n": 142,
+     "mae": 4.116857622942342,
+     "rmse": 5.36315785324849,
+     "bias": 0.7420562374737292,
+     "spearman": 0.30831469998386396,
+     "n_thin": 17,
+     "mae_thin": 3.888833601109971,
+     "bias_thin": 0.7903965520281521
+    },
+    "2026": {
+     "n": 140,
+     "mae": 4.6567034822583,
+     "rmse": 6.180641405425185,
+     "bias": 0.5777236056417459,
+     "spearman": 0.2837418818744397,
+     "n_thin": 23,
+     "mae_thin": 5.142468983625647,
+     "bias_thin": 0.4917375339522368
+    }
+   },
+   "K1 one shrink factor per role toward the role's mean": {
+    "pooled": {
+     "n": 282,
+     "mae": 4.311,
+     "rmse": 5.7183,
+     "bias": 0.2626,
+     "spearman_mean": 0.3103,
+     "mae_thin": 4.4581,
+     "bias_thin": 0.3646,
+     "n_thin": 40
+    },
+    "2025": {
+     "n": 142,
+     "mae": 4.021038104145444,
+     "rmse": 5.285703266724088,
+     "bias": 0.3385014009004618,
+     "spearman": 0.32268211261318847,
+     "n_thin": 17,
+     "mae_thin": 3.6161496267265694,
+     "bias_thin": 0.428343795798981
+    },
+    "2026": {
+     "n": 140,
+     "mae": 4.605165569164295,
+     "rmse": 6.125958046528709,
+     "bias": 0.18560668574303274,
+     "spearman": 0.29793356803918575,
+     "n_thin": 23,
+     "mae_thin": 5.080375222337215,
+     "bias_thin": 0.3174613319873336
+    }
+   }
+  }
+ }
+}

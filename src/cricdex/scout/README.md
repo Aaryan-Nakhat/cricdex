@@ -24,5 +24,5 @@ DuckDB + exported JSON; no graph database.
   - `people_register.py` — Cricsheet cross-ID register + name variations — see [`docs/IDENTITY.md`](../../../docs/IDENTITY.md).
   - `wikidata.py` — DOB / photo / socials enrichment via the Wikidata entity API.
 - `identity/` — the player master (`master.py`, `sources.py`; docs/IDENTITY.md): names, roles, country, squads and dates of birth (overrides → Wikipedia infobox → Wikidata at day precision, since 2026-10-26).
-- `ratings/` — dismissal-aware Bayesian hierarchical rating with opponent bridging via NumPyro / JAX (ADVI default, NUTS available); `head_to_head.py` for P(A>B); `drift.py`, since 2026-10-27, moves a career rating to his level in the coming season (the fitted aging curve, METHODOLOGY §4b), which the contribution per match and everything after it read.
+- `ratings/` — dismissal-aware Bayesian hierarchical rating with opponent bridging via NumPyro / JAX (ADVI default, NUTS available); `head_to_head.py` for P(A>B); `drift.py`, since 2026-10-27, moves a career rating to his level in the coming season (the fitted aging curve, METHODOLOGY §4b), which the contribution per match and everything after it read; `shrink.py` then calibrates it toward its role's mean (§4c).
 - `search/` — `style_twin.py`, the cosine style-twin k-NN (on the Player Profile).
