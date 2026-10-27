@@ -25,8 +25,9 @@ from typing import Any
 
 from loguru import logger
 
+from cricdex.common.llm import LLMError
 from cricdex.config import CURATED_DIR
-from cricdex.scout.identity.sources import read_json, write_json
+from cricdex.scout.identity.sources import write_json
 
 LLM_NAMES_CACHE = CURATED_DIR / "player_names_llm.json"
 LLM_BATCH = 25
@@ -174,8 +175,9 @@ def verify_with_llm(
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     from cricdex.common import llm
+    from cricdex.scout.identity import taxonomy
 
-    cache: dict[str, dict] = read_json(LLM_NAMES_CACHE, {})
+    cache: dict[str, dict] = taxonomy.load_names(LLM_NAMES_CACHE)
     if not llm.configured():
         logger.warning("names: no LLM configured (LLM_MODEL in .env) — candidates stay unverified")
         return cache
@@ -202,7 +204,7 @@ def verify_with_llm(
             try:
                 got = _ask(payload)
                 break
-            except Exception as e:  # noqa: BLE001 — any provider error: retry, then skip
+            except LLMError as e:  # any provider error: retry, then skip
                 logger.warning(f"names batch failed ({e}); attempt {attempt + 1}")
                 time.sleep(3 * (attempt + 1))
         by_id = {str(g.get("id")): g for g in got if isinstance(g, dict)}
@@ -210,14 +212,13 @@ def verify_with_llm(
         with lock:
             for r in chunk:
                 g = by_id.get(str(r["id"]))
-                if not g or not g.get("display_name"):
+                if not g:
                     continue
-                cache[r["id"]] = {
-                    "candidate": r["candidate"],
-                    "display_name": str(g["display_name"]).strip(),
-                    "verdict": g.get("verdict"),
-                    "confidence": g.get("confidence"),
-                }
+                # untrusted answer: bounded name, allow-listed verdict / confidence
+                ans = taxonomy.clean_name_answer({**g, "candidate": r["candidate"]}, cid=r["id"])
+                if ans is None:
+                    continue
+                cache[r["id"]] = ans
                 n += 1
             write_json(LLM_NAMES_CACHE, cache)
         return n

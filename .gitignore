@@ -126,3 +126,7 @@ site/dist/
 
 # Git Bash crash dumps
 *.stackdump
+
+# a site export in progress (scripts/export_site.py swaps each league in when it is done)
+site/public/data/.staging/
+site/public/data/*.tmp

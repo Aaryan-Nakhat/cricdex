@@ -911,8 +911,8 @@ def _free_jax() -> None:
         import jax
 
         jax.clear_caches()
-    except Exception:  # noqa: BLE001 — memory housekeeping only
-        pass
+    except (ImportError, AttributeError) as e:  # memory housekeeping only
+        logger.warning(f"JAX caches not cleared ({e})")
 
 
 def _context_summary(means: dict, seasons: list[str], venues: list[str], flags: Flags) -> dict:

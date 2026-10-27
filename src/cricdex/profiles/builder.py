@@ -19,6 +19,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import duckdb
+from loguru import logger
 
 from cricdex.common.metrics import METRICS
 from cricdex.common.sql import (
@@ -92,7 +93,9 @@ def _taxonomy_cache() -> dict[str, dict]:
     type dropped (part-time bowling shouldn't read as a bowling identity)."""
     if not TAXONOMY_CACHE_PATH.exists():
         return {}
-    raw = json.loads(TAXONOMY_CACHE_PATH.read_text())
+    from cricdex.scout.identity.taxonomy import load_taxonomy
+
+    raw = load_taxonomy(TAXONOMY_CACHE_PATH)  # LLM output: allow-lists checked
     out: dict[str, dict] = {}
     for cid, rec in raw.items():
         if not isinstance(rec, dict):
@@ -354,7 +357,8 @@ class Sources:
         for role in ("batter", "bowler"):
             try:
                 self.twins[role] = twin.TwinIndex(role, collection, DUCKDB_PATH)
-            except Exception:  # noqa: BLE001 — twins are optional on a profile
+            except (duckdb.Error, ValueError) as e:  # twins are optional on a profile
+                logger.warning(f"no {role} style twins for {collection}: {e}")
                 self.twins[role] = None
 
 
@@ -367,7 +371,7 @@ def _twins(sources: Sources, role: str, key: str) -> list[dict]:
         return []
     try:
         found = index.query(key, k=TWINS_K)
-    except Exception:  # noqa: BLE001 — not in this role's feature table
+    except KeyError:  # not in this role's feature table (too few balls in the role)
         return []
     return found.to_dicts() if not found.is_empty() else []
 
@@ -416,7 +420,8 @@ def build(
                 "batter": df.batter_modes(key, collection, con=con),
                 "bowler": df.bowler_modes(key, collection, con=con),
             }
-        except Exception:  # noqa: BLE001
+        except duckdb.Error as e:  # a slim DB without the wicket columns
+            logger.warning(f"no dismissal fingerprint for {key} in {collection}: {e}")
             profile["dismissal_fingerprint"] = {}
     finally:
         if own:

@@ -237,7 +237,7 @@ def _compute_age(dob: str | None) -> int | None:
         d = _dt.date.fromisoformat(dob[:10])
         today = _dt.date.today()
         return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
-    except Exception:
+    except (ValueError, TypeError):  # not an ISO date
         return None
 
 
@@ -287,8 +287,5 @@ def load_wikidata(cricsheet_id: str | None) -> dict:
     path = CURATED_DIR / "wikidata_enrichment.json"
     if not path.exists():
         return {}
-    try:
-        data = _json.loads(path.read_text())
-    except Exception:
-        return {}
+    data = _json.loads(path.read_text(encoding="utf-8"))
     return data.get(cricsheet_id) or {}

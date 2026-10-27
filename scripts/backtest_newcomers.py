@@ -52,6 +52,7 @@ import json
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+import duckdb
 import numpy as np
 import polars as pl
 import typer
@@ -221,7 +222,7 @@ def run(
         for col in cols:
             try:
                 e = bayesian._load_edges(db, col, before=f"{s}-01-01")
-            except Exception as exc:  # a registry league that isn't ingested yet
+            except duckdb.CatalogException as exc:  # a registry league not ingested yet
                 logger.warning(f"  {s}: skipping {col} ({exc})")
                 continue
             if e.is_empty():

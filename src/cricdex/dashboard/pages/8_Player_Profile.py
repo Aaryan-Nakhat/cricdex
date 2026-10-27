@@ -111,7 +111,8 @@ def list_collections() -> list[str]:
     if cols_file.exists():
         try:
             names = [c["collection"] for c in json.loads(cols_file.read_text())]
-        except Exception:
+        except (ValueError, KeyError, TypeError) as e:
+            st.warning(f"collections.json is unreadable ({e}); listing the league folders instead")
             names = []
     if not names:
         names = sorted(p.name for p in SITE_DATA.iterdir() if p.is_dir())

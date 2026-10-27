@@ -26,7 +26,7 @@ from loguru import logger
 
 from cricdex.common import llm
 from cricdex.config import CURATED_DIR, SITE_DATA  # importing config loads .env
-from cricdex.scout.identity import countries
+from cricdex.scout.identity import taxonomy
 
 CACHE = CURATED_DIR / "player_taxonomy.json"
 
@@ -73,9 +73,8 @@ def _collect_players(min_balls: int = MIN_BALLS) -> dict[str, dict]:
 
 
 def _load_cache() -> dict[str, dict]:
-    if CACHE.exists():
-        return json.loads(CACHE.read_text())
-    return {}
+    # checked on read too, so a hand-edited or old cache is held to the same allow-lists
+    return taxonomy.load_taxonomy(CACHE)
 
 
 def _save_cache(cache: dict[str, dict]) -> None:
@@ -118,31 +117,29 @@ def run(
         chunk = todo[i : i + batch]
         try:
             got = _ask(chunk)
-        except Exception as e:  # noqa: BLE001
+        except llm.LLMError as e:
             logger.warning(f"batch {i // batch} failed: {e}; retrying once")
             time.sleep(2)
             try:
                 got = _ask(chunk)
-            except Exception as e2:  # noqa: BLE001
-                logger.error(f"batch {i // batch} failed again: {e2}; skipping")
+            except llm.LLMError as e2:
+                logger.warning(
+                    f"batch {i // batch} failed again: {e2}; skipped (re-run picks it up)"
+                )
                 continue
-        by_id = {g.get("id"): g for g in got if isinstance(g, dict)}
+        by_id = {str(g.get("id")): g for g in got if isinstance(g, dict)}
         for p in chunk:
             g = by_id.get(p["id"])
             if not g:
                 continue
-            cache[p["id"]] = {
-                "name": p["name"],
-                "full_name": p["full_name"],
-                "primary_role": g.get("primary_role"),
-                "bowling_category": g.get("bowling_category"),
-                "bowling_style": g.get("bowling_style"),
-                "batting_position": g.get("batting_position"),
-                "batting_hand": g.get("batting_hand"),
-                "country": countries.normalise(g.get("country")),
-                "confidence": g.get("confidence"),
-                "source": "llm",
-            }
+            # the LLM answer is untrusted: every field is checked against its allow-list and a
+            # bad value is dropped with a warning (cricdex.scout.identity.taxonomy)
+            rec = taxonomy.clean_record(
+                {**g, "name": p["name"], "full_name": p["full_name"]}, cid=p["id"]
+            )
+            if rec is None:
+                continue
+            cache[p["id"]] = rec
             done += 1
         _save_cache(cache)  # durable after every batch
         logger.info(f"  +{len(by_id)} ({done}/{len(todo)})")

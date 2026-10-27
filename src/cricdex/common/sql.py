@@ -412,13 +412,10 @@ def relabel(df, con, collection: str, cols: tuple[str, ...] | list[str], labels=
 def _display_names() -> dict[str, str]:
     """cid → fan display name from the player master (empty when it isn't built). Re-read only when
     the master file changes."""
-    try:
-        from cricdex.scout.identity import master
+    from cricdex.scout.identity import master
 
-        path = master.MASTER_PATH
-        stamp = path.stat().st_mtime if path.exists() else None
-    except Exception:  # noqa: BLE001 — display only
-        return {}
+    path = master.MASTER_PATH
+    stamp = path.stat().st_mtime if path.exists() else None
     return _display_cache(str(path), stamp)
 
 

@@ -254,7 +254,7 @@ runs the auction in your terminal and `cricdex keep --team RCB` the retention ca
 |---|---|
 | [Methodology](docs/METHODOLOGY.md) | every model in plain English, with worked examples, the backtest and the limits |
 | [Metrics](docs/METRICS.md) · [Auction math](docs/AUCTION_MATH.md) · [Scout](docs/SCOUT.md) · [Identity](docs/IDENTITY.md) | the exact rules behind each feature |
-| [First run](docs/FIRST_RUN.md) · [Running](docs/RUNNING.md) · [CLI](docs/CLI.md) · [API](docs/API.md) · [Docker](docs/DOCKER.md) | using it |
+| [First run](docs/FIRST_RUN.md) · [Running](docs/RUNNING.md) · [Pipeline](docs/PIPELINE.md) · [CLI](docs/CLI.md) · [API](docs/API.md) · [Docker](docs/DOCKER.md) | using it |
 | [Architecture](docs/ARCHITECTURE.md) · [Study guide](docs/STUDY_GUIDE.md) | how the code fits together, in depth |
 | [Roadmap](docs/ROADMAP.md) · [Changelog](docs/CHANGELOG.md) · [Decisions](docs/DECISIONS.md) | where it's going and why it is the way it is |
 

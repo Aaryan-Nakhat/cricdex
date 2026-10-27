@@ -2,15 +2,17 @@ name: refresh-data
 
 # The "refresh to today" backend. GitHub Pages can't recompute in the
 # browser (no JAX / XGBoost in WASM), so this Action is the compute layer:
-# it re-downloads Cricsheet, recomputes the metrics + dismissal-aware
-# Bayesian ratings, re-cooks the static JSON snapshot, commits it, and then
-# runs the Pages deploy so the live site moves to the latest match date.
+# it runs the default steps of the rebuild pipeline (src/cricdex/pipeline.py,
+# docs/PIPELINE.md: re-download Cricsheet, People Register, player master,
+# dismissal-aware Bayesian ratings, metrics, form forecast, the static JSON
+# snapshot), commits the snapshot, runs CI on that commit and, once CI
+# passes, the Pages deploy, so the live site moves to the latest match date.
 #
 # MANUAL ONLY — runs when you click "Run workflow" in the Actions tab (no
 # nightly cron, so the snapshot isn't re-committed automatically and git
-# history stays lean). Best-effort per collection: a collection that fails
-# to ingest is skipped, the rest still refresh. If nothing changed, no
-# commit and no deploy.
+# history stays lean). The first failing step stops the run, so a half-
+# refreshed snapshot is never committed. The model fits (refit steps) never
+# run here. If nothing changed, no commit and no deploy.
 
 on:
   workflow_dispatch:
@@ -24,64 +26,73 @@ concurrency:
   group: refresh-data
   cancel-in-progress: false
 
+# Read-only by default; the refresh job alone may write (it commits the re-cooked snapshot).
 permissions:
-  contents: write # commit the re-cooked snapshot back to main
+  contents: read
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # every league's ingest + ratings, and the forecast's walk-forward fits from an empty cache
+    timeout-minutes: 300
+    permissions:
+      contents: write # commit the re-cooked snapshot back to main
+    env:
+      # every `uv run` installs exactly what uv.lock pins (fails if the lock is stale)
+      UV_LOCKED: "1"
     outputs:
       changed: ${{ steps.commit.outputs.changed }}
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: astral-sh/setup-uv@v4
+      # No token left in .git/config: the ingest, model and LLM steps never see a push credential.
+      # The commit step passes it to `git push` itself.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
         with:
           enable-cache: true
 
       - run: uv python install 3.12
-      - run: uv sync
+      - run: uv sync --locked
 
+      # The input is passed through env (never pasted into the script) and every word must be a
+      # league key from config/leagues.toml, so it can't inject shell or a stray path.
       - name: Pick collections
         id: cols
+        env:
+          INPUT: ${{ inputs.collections }}
         run: |
-          INPUT="${{ github.event.inputs.collections }}"
-          if [ -z "$INPUT" ]; then
+          set -euo pipefail
+          set -f # no glob expansion of the input words
+          KNOWN=" $(uv run python -m cricdex.leagues list --sep ' ') "
+          if [ -z "${INPUT//[[:space:]]/}" ]; then
             # every league marked `export = true` in config/leagues.toml
             INPUT="$(uv run python -m cricdex.leagues list --exported --sep ' ')"
           fi
-          echo "list=$INPUT" >> "$GITHUB_OUTPUT"
-          echo "Refreshing: $INPUT"
-
-      - name: Ingest people register
-        run: uv run python scripts/ingest_people.py || echo "people ingest failed (non-fatal)"
-
-      - name: Ingest + compute per collection
-        run: |
-          set +e
-          for C in ${{ steps.cols.outputs.list }}; do
-            echo "::group::$C"
-            # --force: always re-download, so a cached zip can't pin the data to an old date.
-            uv run python scripts/ingest_cricsheet.py ingest --collection "$C" --force
-            # Ratings first: the Wicket Quality metric reads the fitted scout ratings.
-            uv run python scripts/scout_rate.py --collection "$C" --advi-steps 12000
-            uv run python scripts/compute_metrics.py all --collection "$C"
-            echo "::endgroup::"
+          LIST=""
+          for C in $INPUT; do
+            if ! [[ "$C" =~ ^[a-z0-9_]{1,40}$ ]] || [[ "$KNOWN" != *" $C "* ]]; then
+              echo "::error::Unknown collection: not a league key in config/leagues.toml"
+              exit 1
+            fi
+            LIST="$LIST $C"
           done
+          LIST="${LIST# }"
+          echo "list=$LIST" >> "$GITHUB_OUTPUT"
+          echo "Refreshing: $LIST"
 
-      # Display names, capped, roles / bowling style, ISO country, active / retired, IPL squads, DOB
-      # (Wikidata, Wikipedia, Cricsheet internationals; cached in data/curated). The LLM name check
-      # runs only when an LLM is configured. Non-fatal: the export falls back to the committed master.
-      - name: Build the player master
+      # Ingest, People Register, player master (Wikidata, Wikipedia, Cricsheet internationals; the
+      # LLM name check runs only when an LLM is configured), ratings, metrics, form forecast, export.
+      # Output streams to the job log (CRICDEX_REBUILD_LOG=-).
+      - name: Rebuild (python -m cricdex.pipeline)
         env:
+          LEAGUES: ${{ steps.cols.outputs.list }}
+          CRICDEX_REBUILD_LOG: "-"
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_API_BASE: ${{ secrets.LLM_API_BASE }}
-        run: uv run python scripts/build_player_master.py || echo "player master failed (non-fatal)"
-
-      - name: Cook the static snapshot
-        run: uv run python scripts/export_site.py
+        run: uv run python -m cricdex.pipeline --fresh
 
       # The taxonomy reads the players from the snapshot, so it runs after a first cook and the snapshot is
       # cooked again — new players get their role / country in this same refresh.
@@ -102,10 +113,14 @@ jobs:
 
       - name: Re-cook the snapshot with the new players' taxonomy
         if: steps.tax.outputs.ran == '1'
-        run: uv run python scripts/export_site.py
+        env:
+          CRICDEX_REBUILD_LOG: "-"
+        run: uv run python -m cricdex.pipeline --only export
 
       - name: Commit refreshed snapshot
         id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name  "cricdex-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -116,13 +131,25 @@ jobs:
           else
             STAMP=$(date -u +%Y-%m-%d)
             git commit -m "data: refresh ($STAMP)"
-            git push
+            # the token is used for this one push only (checkout kept no credential)
+            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"               push origin "HEAD:$GITHUB_REF_NAME"
             echo "changed=1" >> "$GITHUB_OUTPUT"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
-  # A push made with the workflow's own token doesn't start other workflows, so the deploy is called directly.
-  deploy:
+  # A push made with the workflow's own token doesn't start other workflows, so CI and the deploy
+  # are called directly, both on the refreshed commit; the deploy runs only once CI passes.
+  ci:
     needs: refresh
+    if: needs.refresh.outputs.changed == '1'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.refresh.outputs.sha }}
+
+  deploy:
+    needs: [refresh, ci]
     if: needs.refresh.outputs.changed == '1'
     permissions:
       contents: read
@@ -130,4 +157,4 @@ jobs:
       id-token: write
     uses: ./.github/workflows/deploy.yml
     with:
-      ref: main
+      ref: ${{ needs.refresh.outputs.sha }}

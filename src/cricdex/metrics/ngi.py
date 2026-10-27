@@ -885,7 +885,8 @@ def _cache_load(base: str, fp: dict) -> pl.DataFrame | None:
     try:
         if meta.exists() and data.exists() and json.loads(meta.read_text())["fingerprint"] == fp:
             return pl.read_parquet(data)
-    except Exception:  # noqa: BLE001 — a bad cache is just recomputed
+    except (OSError, ValueError, KeyError, pl.exceptions.PolarsError) as e:
+        logger.warning(f"NGI cache {base} unreadable, recomputing ({e})")
         return None
     return None
 

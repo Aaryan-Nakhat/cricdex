@@ -184,6 +184,9 @@ disagreements left for a human are in `data/curated/player_master_review.json`.
 - [ ] 38. The CI job named `lint-test` doesn't run ruff or mypy. Add both.
 - [ ] 39. The refresh workflow fails silently (`set +e`, best-effort per league, no validation gate, ~70 MB
   committed per run, never run on GitHub). Fail on errors, add assertions, move snapshots out of git.
+  *In part 2026-10-27: the refresh runs `python -m cricdex.pipeline` and stops on the first failing step; CI
+  runs on its data commit before the deploy; the export is atomic per league. Still open: moving the
+  snapshot out of git, and a run on GitHub.*
 
 **To verify (reviewers were unsure or disagreed)**
 - [ ] Aging curves: survivorship bias, and date-of-birth coverage (METHODOLOGY says ~a third of players; the
@@ -319,8 +322,9 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
 - [ ] 28. Women's leagues (M): WPL, WBBL, The Hundred women, women's T20Is.
 - [ ] 29. Engineering (M): ruff and mypy in CI; eslint plus vitest on `auction.ts`, `filters.ts`,
   `headtohead.ts`; a Playwright check that every route and link works; route code-splitting (787 KB
-  bundle); split `cli/tui.py` (2,693 lines) and `scripts/export_site.py` (1,442 lines); consider dropping
-  one of the five interfaces.
+  bundle); split `cli/tui.py` (2,693 lines) and `scripts/export_site.py` (now ~3,000 lines; most of the
+  export logic still lives in `scripts/`, moving it into `src/` is open); consider dropping one of the five
+  interfaces. *In part 2026-10-27: ruff runs in CI through pre-commit (hook pinned to the locked ruff).*
 - [ ] 30. Small features that sell (S each): fielder credit in NGI and NGI per leverage; a "Table of
   Justice" (deserved standings); value per crore for the last auction's buys; a batter archetype map (true
   dot% × true boundary%).

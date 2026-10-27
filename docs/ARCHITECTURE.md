@@ -137,17 +137,19 @@ offers "Impact Player era"). Adding a league or an era: [LEAGUES.md](LEAGUES.md)
 - Cricsheet ingest + metrics + Bayes ratings + scout/auction snapshot +
   static-site re-cook → on demand via GitHub Actions (`refresh-data.yml`,
   manual "Run workflow"): re-downloads every exported league in the registry
-  (`python -m cricdex.leagues list --exported`) with `--force`,
-  recomputes, re-cooks, runs the LLM taxonomy for new players only if the
-  `LLM_MODEL` secret is set, commits the snapshot, then calls `deploy.yml`
+  (`python -m cricdex.leagues list --exported`) with `--force` and runs the
+  default steps of `python -m cricdex.pipeline` ([PIPELINE.md](PIPELINE.md)),
+  runs the LLM taxonomy for new players only if the `LLM_MODEL` secret is
+  set, commits the snapshot, runs CI on that commit, then calls `deploy.yml`
   (`workflow_call`) to redeploy Pages. This is the only "refresh to the
   latest match date" path for the live site (browsers can't run JAX /
   XGBoost); locally, `make refresh COLLECTION=<c>` does the same for one
   collection and `make refresh-all` for every exported league (one export at
   the end, after every league is refit). `bash scripts/rebuild_all.sh` does
-  the same resumably; `--from ratings` keeps the ingested data and People
-  Register and only refits ratings, recomputes metrics and exports
-  (`--from metrics`, `--from export` start later still). Manual (not cron) so the ~70 MB snapshot isn't re-committed
+  the same resumably; `--from ratings` keeps the ingested data, People
+  Register and player master and refits ratings, recomputes metrics and the
+  forecast and exports (`--from metrics`, `--from export` start later still).
+  The order of the steps lives in one place, `src/cricdex/pipeline.py`. Manual (not cron) so the ~70 MB snapshot isn't re-committed
   on a schedule.
 - People Register / Wikidata / taxonomy → one-time, refreshed on demand.
 

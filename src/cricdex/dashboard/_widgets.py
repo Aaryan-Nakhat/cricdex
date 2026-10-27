@@ -45,7 +45,8 @@ def discover_collections() -> list[str]:
             return collections_in({r[0] for r in rows}) or fallback
         finally:
             con.close()
-    except Exception:
+    except duckdb.Error as e:
+        st.warning(f"Could not list the ingested leagues ({e}); showing the default.")
         return fallback
 
 

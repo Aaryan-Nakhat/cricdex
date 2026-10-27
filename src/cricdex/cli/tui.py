@@ -21,6 +21,7 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.css.query import NoMatches
 from textual.widgets import (
     Button,
     DataTable,
@@ -284,7 +285,7 @@ def _auction_pool_candidates(collection: str = "ipl") -> list[DropdownItem]:
         from cricdex.web_parity import load_auction_pool
 
         pool = load_auction_pool(collection)
-    except Exception:  # noqa: BLE001
+    except FileNotFoundError:  # not exported yet: no candidates
         return []
     full = {p.get("cricsheet_id"): p.get("full_name") for p in load_players(collection) or []}
     items = []
@@ -580,7 +581,7 @@ class CricDexApp(App):
         for tid, msg in hints.items():
             try:
                 _fill_datatable(self.query_one(tid, DataTable), [{"": msg}])
-            except Exception:  # noqa: BLE001 — table not mounted (shouldn't happen)
+            except NoMatches:  # table not mounted (shouldn't happen)
                 pass
 
     def action_cycle_theme(self) -> None:
@@ -595,7 +596,7 @@ class CricDexApp(App):
     def _refresh_status(self) -> None:
         try:
             self.query_one("#status-bar", Static).update(self._status_text())
-        except Exception:  # noqa: BLE001 — status bar not mounted yet
+        except NoMatches:  # status bar not mounted yet
             pass
 
     def _sel_value(self, selector: str, default: str = "ipl") -> str:
@@ -603,7 +604,7 @@ class CricDexApp(App):
         the tab's collection); `default` when blank/unmounted."""
         try:
             v = self.query_one(selector, Select).value
-        except Exception:  # noqa: BLE001
+        except NoMatches:
             return default
         return default if _unselected(v) or not v else str(v)
 
@@ -1718,12 +1719,9 @@ class CricDexApp(App):
         # Lazy-load + cache the cross-league activity index (cid -> last-IPL /
         # age / p_play), shared by the marquee + player-search tables.
         if not hasattr(self, "_activity_cache"):
-            try:
-                from cricdex.web_parity import load_activity_index
+            from cricdex.web_parity import load_activity_index
 
-                self._activity_cache = load_activity_index("ipl")
-            except Exception:  # noqa: BLE001
-                self._activity_cache = {}
+            self._activity_cache = load_activity_index("ipl")  # {} when not exported
         return self._activity_cache
 
     def _ipl_fit(self, cid: str) -> str:
@@ -2570,7 +2568,7 @@ class CricDexApp(App):
             # the period picker follows the league: its eras come from its export
             try:
                 win = self.query_one("#metric-window", Select)
-            except Exception:  # noqa: BLE001
+            except NoMatches:
                 return
             keep = win.value
             opts = _window_options(event.value)
@@ -2606,7 +2604,7 @@ class CricDexApp(App):
             return
         try:
             w = self.query_one(target)
-        except Exception:  # noqa: BLE001
+        except NoMatches:
             return
         if isinstance(w, DataTable):
             _fill_datatable(w, [{"error": msg}])

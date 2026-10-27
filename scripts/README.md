@@ -4,13 +4,15 @@ Command-line entry points for the offline pipeline. Run them from the repo root 
 scripts/<name>.py …`; add `--help` to any of them for the options. Most day-to-day use goes through
 `cricdex data ingest …`, `make refresh COLLECTION=<c>` (download → ratings → metrics → site data) or
 `make refresh-all` (every exported league, one export at the end), which call these for you. The
+order of the full rebuild is written down once, in [`docs/PIPELINE.md`](../docs/PIPELINE.md)
+(`uv run python -m cricdex.pipeline --list`). The
 league list itself is [`config/leagues.toml`](../config/leagues.toml) — see
 [`docs/LEAGUES.md`](../docs/LEAGUES.md).
 
 | Script | What it does | Example |
 |---|---|---|
 | `ingest_cricsheet.py` | Downloads a Cricsheet collection (which zip(s) is set in the league registry, [`config/leagues.toml`](../config/leagues.toml)), writes Parquet and loads the DuckDB tables (`matches_`, `innings_`, `balls_`, `wickets_`, `replacements_`, `match_players_`, `players_<col>`, plus `ingest_meta`), then merges venue names. `all` ingests every exported league; `list` prints the registry. SMAT (`indian_domestic_male`) is one more collection, from Cricsheet's `sma_json.zip`. | `ingest --collection ipl --force` · `all --force` · `list` |
-| `rebuild_all.sh` | Rebuilds everything for every exported league in the registry: ingest → People Register → ratings for all → metrics for all → one export (only after every league is refit). Resumable (markers in `data/.rebuild_state`, log in `data/rebuild.log`); `--fresh` starts over; `--from ratings` keeps the ingested data and People Register and refits ratings → metrics → export (`--from metrics` / `--from export` start later); `LEAGUES="ipl psl"` limits the refit. Multi-hour — on Windows run it as a scheduled task. | `bash scripts/rebuild_all.sh` |
+| `rebuild_all.sh` | A thin wrapper over `python -m cricdex.pipeline` ([`docs/PIPELINE.md`](../docs/PIPELINE.md)): ingest → People Register → player master → ratings → metrics → form forecast → one export, for every exported league. Resumable (markers in `data/.rebuild_state`, log in `data/rebuild.log`); `--fresh` starts over; `--from ratings` keeps the ingested data and refits from the ratings on (`--from metrics` / `--from export` start later); `--refit` adds the model fits, which never run by default; `LEAGUES="ipl psl"` limits the per-league steps. Multi-hour: on Windows run it as a scheduled task. | `bash scripts/rebuild_all.sh` |
 | `auction_check.py` | Sanity-checks the IPL mega auction on the exported data (same simulator as the website): purse used per team, squad sizes, price spread and the top of the pool. Run it after a rebuild or a pricing change. | `--trials 300` |
 | `ingest_people.py` | Downloads the Cricsheet People Register (`people`, `people_names`). | `--force` to refresh |
 | `ingest_wikidata.py` | The older bulk Wikidata path (SPARQL, rate-limited from datacenter IPs). The entity-API path is `cricdex data ingest wikidata`. | — |

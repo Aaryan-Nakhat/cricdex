@@ -8,6 +8,37 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Engineering: one pipeline, a safe export, loud failures (2026-10-27)
+
+- **One written-down pipeline.** `src/cricdex/pipeline.py` lists every rebuild step in order
+  (ingest, People Register, player master, ratings, metrics, the model fits, form forecast, export)
+  with its commands, inputs and outputs; `python -m cricdex.pipeline --list / --from / --only /
+  --refit / --fresh`, resumable through marker files ([PIPELINE.md](PIPELINE.md)).
+  `scripts/rebuild_all.sh`, `make refresh-all` and the refresh workflow now run it, so the player
+  master and the form forecast are part of every rebuild. The model fits (translation, drift,
+  shrink, playing time, price, Keep) follow the frozen validation protocol and run only on request.
+- **The export is atomic and lighter.** Each league is cooked into `site/public/data/.staging/` and
+  swapped in only when it fully succeeded (the rename is retried a few times when Windows holds a
+  file, then fails with the path); `collections.json` and `leagues.json` are written last, through a
+  temporary file. One DuckDB connection for the whole export (the profiles used to open a second
+  one with a second copy of the league's ball-by-ball), temp tables dropped after each league and
+  after the auction pool, the style-twin cache cleared, and Python's memory freed between leagues.
+  Same output for the same input.
+- **No more silent failures.** The export no longer skips a records board, a venue, the phase
+  boards, a profile or a cohort with a warning: it stops with the player or league named. A failed
+  time-window metrics run stops the export instead of leaving stale boards. Across `src/` and
+  `scripts/`, the remaining `except Exception` blocks were narrowed to the error they expect
+  (a provider error, a malformed match file, a missing export, an unmounted widget) and log what
+  was skipped; the ones left catch everything only to show the error on screen (TUI, dashboard).
+- **Deploy waits for CI.** The Pages deploy runs after a green CI run of a push to main, on that
+  commit (`workflow_run`), or by hand. The refresh workflow runs CI on its data commit before
+  calling the deploy.
+- **Tools and dependencies.** The pre-commit ruff hook matches the locked ruff (0.15.12).
+  Patched versions of starlette, python-multipart, urllib3, pillow, cryptography, idna, certifi,
+  anyio, h2 and others (`uv audit`; pillow 13 came with streamlit 1.66), and react-router 6.30.6
+  for the site. Left: filelock (the fix is 4.x, held back by its dependents) and two react-router
+  advisories fixed only in 7.x.
+
 ### Security hardening (2026-10-27)
 
 - **GitHub Actions.** Every third-party action is pinned to a commit SHA with its version in a

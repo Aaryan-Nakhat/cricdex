@@ -344,7 +344,7 @@ def venues(
 
             with duckdb.connect(str(v.DEFAULT_DB_PATH), read_only=True) as con:
                 names_of = aliases_for(con)
-        except Exception:  # noqa: BLE001
+        except duckdb.Error:  # no DB: match on the ground's main name only
             names_of = {}
         q = venue.lower()
         hits = [

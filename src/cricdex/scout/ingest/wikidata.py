@@ -410,8 +410,8 @@ def enrich_via_entity_api(
                     continue
                 cache[p["cricsheet_id"]] = {"_status": "ok", **p, **ent}
                 fetched += 1
-            except Exception as e:
-                logger.warning(f"wikidata fail for {p['unique_name']!r}: {e}")
+            except (httpx.HTTPError, ValueError, KeyError) as e:
+                logger.warning(f"wikidata fail for {p['unique_name']!r}, cached as an error: {e}")
                 cache[p["cricsheet_id"]] = {"_status": "error", "error": str(e), **p}
             if i % 25 == 0:
                 _save_cache(cache)

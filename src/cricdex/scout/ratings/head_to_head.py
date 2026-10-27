@@ -48,10 +48,7 @@ def _load_ratings(collection: str) -> list[dict]:
     path = METRIC_DIR / f"scout_ratings_{collection}.json"
     if not path.exists():
         return []
-    try:
-        return json.loads(Path(path).read_text())
-    except Exception:
-        return []
+    return json.loads(Path(path).read_text())
 
 
 def _index(rows: list[dict]) -> dict[tuple[str, str], dict]:

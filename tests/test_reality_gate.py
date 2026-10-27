@@ -283,6 +283,6 @@ def test_star_market_price_within_documented_error():
            if r["season"] == last and r.get("sold") and float(r.get("price_cr") or 0) >= STAR_LOT_CR
            and r.get("cricsheet_id") in pool]  # fmt: skip
     assert rat
-    assert (
-        statistics.median(rat) >= STAR_PRICE_RATIO
-    ), f"median market ÷ real {statistics.median(rat):.2f} for {len(rat)} lots of {last}"
+    assert statistics.median(rat) >= STAR_PRICE_RATIO, (
+        f"median market ÷ real {statistics.median(rat):.2f} for {len(rat)} lots of {last}"
+    )

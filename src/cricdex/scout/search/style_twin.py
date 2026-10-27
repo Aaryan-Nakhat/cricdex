@@ -143,12 +143,9 @@ PACE_LEVEL = {
 def _styles() -> pl.DataFrame:
     """(pid, family, pace, left_arm, left_hand) from the player master; empty when it isn't built.
     family: 'seam', 'wrist', 'finger' or None (unknown)."""
-    try:
-        from cricdex.scout.identity import master
+    from cricdex.scout.identity import master
 
-        recs = master.load()
-    except Exception:  # noqa: BLE001 — the master is optional
-        recs = {}
+    recs = master.load()  # {} when it isn't built
     rows = []
     for cid, r in recs.items():
         style = r.get("bowling_style")

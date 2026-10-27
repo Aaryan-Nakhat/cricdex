@@ -49,6 +49,6 @@ def test_filters_parity():
     for name, ts_filter in dump["cases"].items():
         f = Filters(**{_KEYMAP[k]: v for k, v in ts_filter.items()})
         py_ids = [str(r["id"]) for r in apply_filters(fixture, f)]
-        assert (
-            py_ids == dump["survivors"][name]
-        ), f"case {name}: {py_ids} != {dump['survivors'][name]}"
+        assert py_ids == dump["survivors"][name], (
+            f"case {name}: {py_ids} != {dump['survivors'][name]}"
+        )

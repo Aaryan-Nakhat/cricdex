@@ -32,9 +32,12 @@ real "data up to" date the UI shows, not the build time.
 
 from __future__ import annotations
 
+import gc
 import json
+import os
 import re
 import shutil
+import time
 from pathlib import Path
 
 import duckdb
@@ -105,7 +108,9 @@ def _load_taxonomy() -> dict[str, dict]:
     logger.warning("player master not built — falling back to the raw LLM taxonomy")
     if not TAXONOMY_PATH.exists():
         return {}
-    raw = json.loads(TAXONOMY_PATH.read_text())
+    from cricdex.scout.identity.taxonomy import load_taxonomy
+
+    raw = load_taxonomy(TAXONOMY_PATH)  # LLM output: allow-lists checked
     out = {}
     for cid, rec in raw.items():
         if isinstance(rec, dict):
@@ -219,29 +224,66 @@ def _numify(obj, key: str = ""):
     return obj
 
 
-def _write(path: Path, obj) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _dumps(obj) -> str:
     # Trailing newline so the repo's end-of-file-fixer pre-commit hook
     # leaves the snapshot untouched (and CI-committed data matches).
     plain = json.loads(json.dumps(obj, default=_json_default))
-    path.write_text(json.dumps(_numify(plain), separators=(",", ":")) + "\n", encoding="utf-8")
+    return json.dumps(_numify(plain), separators=(",", ":")) + "\n"
 
 
-def _prune_player_files(out_dir: Path, keep: set[str]) -> int:
-    """Delete profiles/, cohorts/ and matchups/ files for players not in this export of the
-    league (a player who dropped out of the league, or an old id), so stale files never ship."""
-    removed = 0
-    for sub in ("profiles", "cohorts", "matchups"):
-        d = out_dir / sub
-        if not d.is_dir():
-            continue
-        for f in d.glob("*.json"):
-            if f.stem not in keep:
-                f.unlink()
-                removed += 1
-    if removed:
-        logger.info(f"{out_dir.name}: removed {removed} stale per-player files")
-    return removed
+def _write(path: Path, obj) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_dumps(obj), encoding="utf-8")
+
+
+# Each league is cooked into SITE_DATA/.staging/<league> and moved over SITE_DATA/<league> only once
+# it fully succeeded, so a crash never leaves a half-written league behind.
+STAGING = ".staging"
+RENAME_TRIES = 6
+RENAME_WAIT_S = 0.5
+
+
+def _rename(src: Path, dst: Path) -> None:
+    """Move `src` to `dst` (which must not exist). On Windows a file in the folder can be briefly
+    held open (an indexer, an antivirus scan, the dev server), so retry a few times, then fail."""
+    last: OSError | None = None
+    for i in range(RENAME_TRIES):
+        try:
+            os.replace(src, dst)
+            return
+        except OSError as e:
+            last = e
+            time.sleep(RENAME_WAIT_S * (i + 1))
+    raise RuntimeError(
+        f"could not move {src} to {dst} after {RENAME_TRIES} tries (is a file in it open?): {last}"
+    ) from last
+
+
+def _write_atomic(path: Path, obj) -> None:
+    """Write a top-level file through a temp file, so a reader never sees half of it."""
+    tmp = path.with_name(path.name + ".tmp")
+    _write(tmp, obj)
+    _rename(tmp, path)
+
+
+def _swap_in(staged: Path, dst: Path) -> None:
+    """Replace the published `dst` league folder with the finished `staged` one."""
+    old = staged.with_name(staged.name + ".old")
+    if old.exists():
+        shutil.rmtree(old)
+    if dst.exists():
+        _rename(dst, old)
+    try:
+        _rename(staged, dst)
+    except RuntimeError:
+        if old.exists() and not dst.exists():
+            _rename(old, dst)  # put the previous export back
+        raise
+    if old.exists():
+        try:
+            shutil.rmtree(old)
+        except OSError as e:
+            logger.warning(f"left the previous {dst.name} export in {old} (cleared next run): {e}")
 
 
 class DataQualityError(ValueError):
@@ -1214,24 +1256,35 @@ CAPTAIN_KEYS = ("captain_ipl_last", "captain_ipl_seasons", "captain_intl_2y", "c
 
 # A death bowler bowls at least this share of his legal balls in the death overs (16-20), with at
 # least KEEP_DEATH_MIN_BALLS of them, across every auction-pool league (the IPL's average share is
-# about 18%; a specialist bowls one or two of his four overs at the death).
+# about 18%; a specialist bowls one or two of his four overs at the death), over the recent window
+# (player_master.RECENT_YEARS before the pool's newest match): a career count kept tagging bowlers
+# who no longer bowl at the death, or barely bowl at all after an injury.
 KEEP_DEATH_SHARE = 0.25
 KEEP_DEATH_MIN_BALLS = 60
+# A spinner tag needs him to still bowl: at least this many overs a match over his recent T20
+# matches (the player master's part-time line), once he has this many of them.
+KEEP_SPIN_MIN_OVERS = player_master.PART_TIME_OVERS
+KEEP_SPIN_MIN_MATCHES = 5
 
 
 def _keep_death_bowlers(con: duckdb.DuckDBPyConnection) -> set[str]:
     have = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+    cols = [c for c in AUCTION_POOL_COLLECTIONS if f"balls_{_safe(c)}" in have]
+    newest = max(
+        (str(d)[:10] for c in cols
+         for (d,) in con.execute(f"SELECT MAX(match_date) FROM balls_{_safe(c)}").fetchall() if d),
+        default=None,
+    )  # fmt: skip
+    since = player_master.recent_since(newest)
     death: dict[str, list[int]] = {}
-    for col in AUCTION_POOL_COLLECTIONS:
-        if f"balls_{_safe(col)}" not in have:
-            continue
+    for col in cols:
         materialize_keyed(con, col)
         kb = keyed_balls(con, col)
         for cid, d, n in con.execute(
             f"""
             SELECT bowler, COUNT(*) FILTER (WHERE phase = 'death'), COUNT(*) FROM {kb}
             WHERE COALESCE(extras_type, '') NOT IN ('wides', 'noballs') AND {MAIN_INNINGS}
-              AND bowler IS NOT NULL
+              AND bowler IS NOT NULL AND match_date >= '{since}'
             GROUP BY 1
             """
         ).fetchall():
@@ -1248,15 +1301,28 @@ def _keep_death_bowlers(con: duckdb.DuckDBPyConnection) -> set[str]:
 def _keep_tags(
     rec: dict, role: str | None, overseas: bool, death: set[str], cid: str | None
 ) -> str:
-    """k keeper · o opener · d death bowler · s spinner · x overseas (web_parity/keep.py)."""
+    """k keeper · o opener · d death bowler · s spinner · x overseas (web_parity/keep.py).
+
+    Keeper and opener come from the player master, which reads them from the recent window
+    (stumpings, batting slot; METHODOLOGY §6b); a spinner must still bowl: with KEEP_SPIN_MIN_MATCHES
+    recent T20 matches he bowls at least KEEP_SPIN_MIN_OVERS overs a match (a spinning all-rounder
+    who no longer bowls isn't a spin option)."""
     t = ""
     if role == "keeper" or rec.get("primary_role") == "wk_batter":
         t += "k"
-    if rec.get("batting_position") == "opener" and role != "bowler":
+    # the batting evidence decides, not the primary role: a bowler the ball data has opening
+    # (Narine) is an opener; an LLM-only "opener" still needs a role that bats
+    if rec.get("batting_position") == "opener" and (
+        rec.get("batting_position_source") == "ball_data" or role != "bowler"
+    ):
         t += "o"
     if cid and cid in death and role in ("bowler", "all_rounder"):
         t += "d"
-    if rec.get("bowling_category") == "spin" and role in ("bowler", "all_rounder"):
+    rs = rec.get("recent_stats") or {}
+    still_bowls = (rs.get("matches") or 0) < KEEP_SPIN_MIN_MATCHES or (
+        rs.get("balls_bowled") or 0
+    ) / 6 / rs["matches"] >= KEEP_SPIN_MIN_OVERS
+    if rec.get("bowling_category") == "spin" and role in ("bowler", "all_rounder") and still_bowls:
         t += "s"
     if overseas:
         t += "x"
@@ -1367,6 +1433,8 @@ def _export_keep(
     fc_path = METRIC_DIR / f"forecast_{col}.json"
     fc = json.loads(fc_path.read_text(encoding="utf-8")) if fc_path.exists() else None
     dob = _dob_by_cid(taxonomy)
+    # squad players with no match data: their own Wikipedia article (player master), by title
+    dob_by_title = {t: r.get("dob") for t, r in player_master.squad_only().items()}
     at = _dt.date.fromisoformat(comp.auction_date)
     role_map = {"wk_batter": "keeper", "allrounder": "all_rounder", "bowler": "bowler"}
     # franchise ties for the retention model (keep.py `keep_features`): IPL seasons with this side
@@ -1452,7 +1520,9 @@ def _export_keep(
                             else {}
                         )
                     ),
-                    "age": _age(cid) if cid else _age_from(r.get("dob")),
+                    "age": _age(cid)
+                    if cid
+                    else _age_from(r.get("dob") or dob_by_title.get(r.get("wiki_title") or "")),
                     "tags": _keep_tags(rec, role, overseas, death, cid),
                     "form": form.get(cid or "") or None,
                     "withdrawn": r.get("withdrawn") or None,
@@ -2214,11 +2284,18 @@ def _compute_window_metrics(collection: str, win: str) -> None:
     win_r = METRIC_DIR / f"scout_ratings_{wcol}.json"
     if base_r.exists():
         shutil.copy(base_r, win_r)  # weight window wickets by all-time batter skill
-    subprocess.run(
+    done = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "compute_metrics.py"), "all", "-c", wcol],
         check=False,
         capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
+    if done.returncode != 0:
+        # a failed run leaves some of this window's boards stale or missing: stop, don't publish them
+        tail = "\n".join((done.stderr or "").strip().splitlines()[-20:])
+        raise RuntimeError(f"window metrics failed for {wcol} (exit {done.returncode}):\n{tail}")
 
 
 def _export_ratings(collection: str, out_dir: Path, taxonomy: dict[str, dict] | None = None) -> int:
@@ -2249,57 +2326,41 @@ def _with_display(row: dict, name_ident: dict[str, dict]) -> dict:
 
 
 def _export_records_venues(
-    collection: str, out_dir: Path, name_ident: dict[str, dict] | None = None
+    con: duckdb.DuckDBPyConnection,
+    collection: str,
+    out_dir: Path,
+    name_ident: dict[str, dict] | None = None,
 ) -> None:
     """Record leaderboards + venue conditions, pre-computed to JSON."""
-    try:
-        from cricdex.records import queries as rq
+    from cricdex.common.venue_names import aliases_for
+    from cricdex.records import queries as rq
+    from cricdex.venues import profile as vp
 
-        recs: dict = {}
-        keys = getattr(rq, "RECORDS", {})
-        for key in keys:
-            try:
-                df = rq.RECORDS[key](collection, top_n=25)
-                rows = df.to_dicts() if hasattr(df, "to_dicts") else df
-                recs[key] = [
-                    _with_display(r, name_ident or {}) if isinstance(r, dict) else r for r in rows
-                ]
-            except Exception:  # noqa: BLE001
-                recs[key] = []
-        _write(out_dir / "records.json", recs)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"records export skipped for {collection}: {e}")
+    recs: dict = {}
+    for key, fn in rq.RECORDS.items():
+        df = fn(collection, top_n=25)
+        rows = df.to_dicts() if hasattr(df, "to_dicts") else df
+        recs[key] = [_with_display(r, name_ident or {}) if isinstance(r, dict) else r for r in rows]
+    _write(out_dir / "records.json", recs)
 
-    try:
-        from cricdex.common.venue_names import aliases_for
-        from cricdex.venues import profile as vp
-
-        venue_names = vp.list_venues(collection, min_matches=10)
-        names = venue_names["venue"].to_list() if not venue_names.is_empty() else []
-        with duckdb.connect(str(vp.DEFAULT_DB_PATH), read_only=True) as con:
-            aliases = aliases_for(con)
-        venues_out = {}
-        # pars move with the era: the last three seasons are the default view, by-season the trend
-        recent = vp.recent_seasons(collection, n=3)
-        for v in names[:60]:
-            try:
-                venues_out[v] = {
-                    "innings_totals": vp.innings_totals(v, collection).to_dicts(),
-                    "innings_totals_recent": vp.innings_totals(
-                        v, collection, seasons=recent
-                    ).to_dicts(),
-                    "recent_seasons": recent,
-                    "innings_by_season": vp.innings_by_season(v, collection).to_dicts(),
-                    "phase_run_rates": vp.phase_run_rates(v, collection).to_dicts(),
-                    "chase_vs_set": vp.chase_vs_set_winrate(v, collection).to_dicts(),
-                    # other names the ground has had (spellings, former names) — the venue search matches these
-                    "aliases": aliases.get(v, []),
-                }
-            except Exception:  # noqa: BLE001
-                continue
-        _write(out_dir / "venues.json", venues_out)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"venues export skipped for {collection}: {e}")
+    venue_names = vp.list_venues(collection, min_matches=10)
+    names = venue_names["venue"].to_list() if not venue_names.is_empty() else []
+    aliases = aliases_for(con)
+    venues_out = {}
+    # pars move with the era: the last three seasons are the default view, by-season the trend
+    recent = vp.recent_seasons(collection, n=3)
+    for v in names[:60]:
+        venues_out[v] = {
+            "innings_totals": vp.innings_totals(v, collection).to_dicts(),
+            "innings_totals_recent": vp.innings_totals(v, collection, seasons=recent).to_dicts(),
+            "recent_seasons": recent,
+            "innings_by_season": vp.innings_by_season(v, collection).to_dicts(),
+            "phase_run_rates": vp.phase_run_rates(v, collection).to_dicts(),
+            "chase_vs_set": vp.chase_vs_set_winrate(v, collection).to_dicts(),
+            # other names the ground has had (spellings, former names) — the venue search matches these
+            "aliases": aliases.get(v, []),
+        }
+    _write(out_dir / "venues.json", venues_out)
 
 
 def _tag(rows: list[dict], taxonomy: dict[str, dict]) -> list[dict]:
@@ -2318,6 +2379,7 @@ def _tag(rows: list[dict], taxonomy: dict[str, dict]) -> list[dict]:
 
 
 def _export_profiles_and_cohorts(
+    con: duckdb.DuckDBPyConnection,
     collection: str,
     out_dir: Path,
     players: list[dict],
@@ -2325,25 +2387,17 @@ def _export_profiles_and_cohorts(
     activity: dict[str, dict],
     name_ident: dict[str, dict] | None = None,
 ) -> tuple[int, int]:
-    import duckdb
-
     from cricdex.profiles import builder
     from cricdex.scout import cohort
 
-    # One read-only connection + one ball-volume pass, reused across players
+    # The export's connection + one ball-volume pass, reused across players
     # so the graph cohort (co_faced) costs ~one query per player. The profile
     # builder shares that connection and reads the metric / ratings JSON and
     # fits the style-twin indexes once per collection (`builder.Sources`).
     sources = builder.Sources(collection)
-    try:
-        con = duckdb.connect(str(cohort.DEFAULT_DB_PATH), read_only=True)
-        # the id-keyed balls once per league, so every per-player query reads a temp table
-        materialize_keyed(con, collection)
-        vol = cohort.ball_volumes(con, collection)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"cohort connection failed for {collection}: {e}")
-        con = None
-        vol = {}
+    # the id-keyed balls once per league, so every per-player query reads a temp table
+    materialize_keyed(con, collection)
+    vol = cohort.ball_volumes(con, collection)
 
     n_prof = n_cohort = 0
     for p in players:
@@ -2395,24 +2449,19 @@ def _export_profiles_and_cohorts(
                 prof["activity"] = act
             _write(out_dir / "profiles" / f"{cid}.json", prof)
             n_prof += 1
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"profile failed {name}: {e}")
 
-        # Graph cohort — "faced the same bowlers / bowled to the same batters",
-        # computed straight from the ball-by-ball (no Neo4j). co_faced is the
-        # only signal any surface renders (the web Player Profile card).
-        if con is not None:
-            try:
-                rows = cohort.co_faced(cid, collection, con=con, vol=vol, top_k=12)
-                # Drop any member we can't resolve to a cricsheet_id — the UI
-                # links cohort rows by id, so a null-id row is dead weight.
-                rows = _tag([r for r in rows if r.get("cricsheet_id")], taxonomy)
-                _write(out_dir / "cohorts" / f"{cid}.json", {"co_faced": rows})
-                n_cohort += 1
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"cohort failed {name}: {e}")
-    if con is not None:
-        con.close()
+            # Graph cohort — "faced the same bowlers / bowled to the same batters",
+            # computed straight from the ball-by-ball (no Neo4j). co_faced is the
+            # only signal any surface renders (the web Player Profile card).
+            rows = cohort.co_faced(cid, collection, con=con, vol=vol, top_k=12)
+            # Drop any member we can't resolve to a cricsheet_id — the UI
+            # links cohort rows by id, so a null-id row is dead weight.
+            rows = _tag([r for r in rows if r.get("cricsheet_id")], taxonomy)
+            _write(out_dir / "cohorts" / f"{cid}.json", {"co_faced": rows})
+            n_cohort += 1
+        except Exception as e:
+            e.add_note(f"{collection}: building the profile / cohort of {name} ({cid})")
+            raise
     return n_prof, n_cohort
 
 
@@ -2471,26 +2520,19 @@ def _export_phase(
     UI filter bar works per-row."""
     from cricdex.metrics import phase as ph
 
-    try:
-        # Fuller pool (top 150) so the UI filter bar has material to narrow.
-        boards = ph.phase_leaders(collection, top=150)
-        for board in boards.values():
-            for r in (*board.get("batters", []), *board.get("bowlers", [])):
-                key = r.pop("key", None) or _row_key(r)
-                r["matches"] = matches.get(key, 0)
-                for k, v in (name_tax.get(key) or {}).items():
-                    if r.get(k) is None:
-                        r[k] = v
-                for k, v in (activity.get(key) or {}).items():
-                    r.setdefault(k, v)
-            _assert_rows(
-                [*board.get("batters", []), *board.get("bowlers", [])], f"{collection} phase"
-            )
-        _write(out_dir / "phase.json", boards)
-    except DataQualityError:
-        raise
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"phase export skipped for {collection}: {e}")
+    # Fuller pool (top 150) so the UI filter bar has material to narrow.
+    boards = ph.phase_leaders(collection, top=150)
+    for board in boards.values():
+        for r in (*board.get("batters", []), *board.get("bowlers", [])):
+            key = r.pop("key", None) or _row_key(r)
+            r["matches"] = matches.get(key, 0)
+            for k, v in (name_tax.get(key) or {}).items():
+                if r.get(k) is None:
+                    r[k] = v
+            for k, v in (activity.get(key) or {}).items():
+                r.setdefault(k, v)
+        _assert_rows([*board.get("batters", []), *board.get("bowlers", [])], f"{collection} phase")
+    _write(out_dir / "phase.json", boards)
 
 
 def _export_partnerships(
@@ -2741,6 +2783,134 @@ def _linked_players(
     return rows
 
 
+def _drop_temp_tables(con: duckdb.DuckDBPyConnection, keep: str | None = None) -> None:
+    """Drop the temp tables this connection built (the keyed balls / wickets / labels of every
+    league it touched), except those of league `keep`: they hold a league's whole ball-by-ball."""
+    suffix = f"_{_safe(keep)}" if keep else None
+    for (name,) in con.execute("SELECT table_name FROM duckdb_tables() WHERE temporary").fetchall():
+        if suffix is None or not name.endswith(suffix):
+            con.execute(f'DROP TABLE IF EXISTS temp."{name}"')
+
+
+def _free_league_memory(con: duckdb.DuckDBPyConnection) -> None:
+    """Between leagues: temp tables, the style-twin feature cache, then Python's garbage."""
+    from cricdex.scout.search import style_twin
+
+    _drop_temp_tables(con)
+    style_twin._features_cached.cache_clear()
+    gc.collect()
+
+
+def _export_league(
+    con: duckdb.DuckDBPyConnection,
+    col: str,
+    out_dir: Path,
+    *,
+    min_balls: int,
+    taxonomy: dict[str, dict],
+    windows: list[str],
+    newest: str | None,
+) -> dict | None:
+    """Every file of one league into `out_dir`; its meta.json row, or None (league not ingested)."""
+    meta = _collection_meta(con, col)
+    if meta is None:
+        logger.warning(f"no balls table for {col} — skipping")
+        return None
+    # keyed (registry-id) balls/wickets as temp tables once per league: every query below
+    # reads them, and inlining the keyed relation several times in one statement trips a
+    # DuckDB internal error
+    materialize_keyed(con, col)
+    name_tax = _name_identity(con, col, taxonomy)
+    activity = _activity_map(con, col, meta.get("data_as_of"))
+    players = _players(con, col, min_balls, taxonomy, activity)
+    meta["windows"] = windows
+    # labels for the period selector: the time windows plus the league's eras
+    meta["window_labels"] = {
+        w: lbl for w, lbl in leagues.window_labels(col).items() if w in windows
+    }
+    # the league's data stops long before the newest data anywhere (SMAT): flag it
+    meta["stale"] = _is_stale(meta.get("data_as_of"), newest)
+    meta["newest_data_anywhere"] = newest
+    # which player-master build these identities came from: exports of different builds
+    # disagree on dob / country / retired (tests/test_site_identity.py checks they match)
+    meta["player_master"] = player_master.build_stamp()
+    if col == AUCTION_TARGET:
+        n_pool, rated = _export_auction_pool(
+            con, out_dir, taxonomy, _current_teams(con, col), _keep_squad_cids(col)
+        )
+        # after the pool: a retention outside it is charged but not auctioned
+        _export_retentions(players, out_dir)
+        n_scout = _export_scout_index(con, out_dir, taxonomy)
+        n_keep = _export_keep(con, col, out_dir, taxonomy, rated, _keep_death_bowlers(con))
+        fc_src = METRIC_DIR / f"forecast_{col}.json"
+        if fc_src.exists():
+            forecast.export_site(fc_src, out_dir / "forecast.json")
+        else:
+            logger.warning("no forecast_ipl.json: run scripts/form_forecast.py build")
+        if not _export_price_model(out_dir, col):
+            logger.warning("no price model for the IPL: prices use the on-field curve")
+        n_reg = _export_auction_register(out_dir, col)
+        if n_reg is not None:
+            logger.info(f"  auction_register: {n_reg} players (Bid plan's pool)")
+        if BIDPLAN_RIVAL_PLANS:
+            _export_bidplan_rivals(out_dir, col)
+        logger.info(f"  auction_pool: {n_pool}, scout_index: {n_scout}, keep: {n_keep}")
+        # the pool read every pool league's ball-by-ball: keep only this league's in memory
+        _drop_temp_tables(con, keep=col)
+    match_counts = _match_counts(con, col)
+    n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
+    for win in windows:
+        # matches counted inside the window, so a min-matches gate means what it says
+        win_counts = _match_counts(con, f"{col}_{win}")
+        _export_leaderboards(col, out_dir, win_counts, name_tax, activity, window=win)
+    n_rat = _export_ratings(col, out_dir, taxonomy)
+    _export_records_venues(con, col, out_dir, name_tax)
+    _export_phase(col, out_dir, match_counts, name_tax, activity)
+    players += _linked_players(out_dir, col, players, name_tax)
+    _assert_players(players, f"{col} players.json", meta.get("data_as_of"))
+    meta["n_players"] = len(players)
+    meta["n_active"] = sum(1 for p in players if p.get("active"))
+    _write(out_dir / "meta.json", meta)
+    _write(out_dir / "players.json", players)
+    n_match = _export_matchups(col, out_dir, players, taxonomy)
+    _export_partnerships(con, col, out_dir, players)
+    _export_aging(con, col, out_dir, taxonomy)
+    n_prof, n_cohort = _export_profiles_and_cohorts(
+        con, col, out_dir, players, taxonomy, activity, name_tax
+    )
+    logger.info(
+        f"{col}: as_of={meta['data_as_of']} players={len(players)} "
+        f"leaderboards={n_lb} ratings={n_rat} profiles={n_prof} "
+        f"cohorts={n_cohort} matchups={n_match}"
+    )
+    return meta
+
+
+def _write_index(index: list[dict]) -> int:
+    """collections.json (merged with the leagues already published) and leagues.json, written last
+    and atomically. Returns how many leagues the index lists."""
+    # Merge into any existing index so a single-collection run (-c ipl)
+    # doesn't drop the other collections from the dropdown. Preserve the
+    # canonical order; refreshed entries win.
+    existing: dict[str, dict] = {}
+    idx_path = SITE_DATA / "collections.json"
+    if idx_path.exists():
+        for e in json.loads(idx_path.read_text(encoding="utf-8")):
+            existing[e["collection"]] = e
+    for e in index:
+        existing[e["collection"]] = e
+    # registry order; a league no longer in the registry drops out of the dropdown
+    known = leagues.keys()
+    ordered = [existing[c] for c in known if c in existing]
+    dropped = sorted(c for c in existing if c not in known)
+    if dropped:
+        logger.warning(f"collections.json: dropping {dropped} (not in config/leagues.toml)")
+    _write_atomic(idx_path, ordered)
+    # the registry itself: labels, tiers, fitted translations and pools for the web app
+    _write_atomic(SITE_DATA / "leagues.json", leagues.site_payload())
+    return len(ordered)
+
+
 @app.command()
 def export(
     collection: str | None = typer.Option(
@@ -2762,7 +2932,8 @@ def export(
         "ones already built.",
     ),
 ) -> None:
-    """Cook every artifact into site/data/ for the static frontend."""
+    """Cook every artifact into site/data/ for the static frontend. Each league is built in
+    <out>/.staging/ and swapped in only when it fully succeeded; the index files are written last."""
     global SITE_DATA
     if out is not None:
         SITE_DATA = out
@@ -2783,133 +2954,46 @@ def export(
             for col in cols:
                 windows_by_col[col] = _existing_windows(ro, col)
     else:
-        prep = duckdb.connect(str(DUCKDB_PATH))  # read-write
-        try:
+        with duckdb.connect(str(DUCKDB_PATH)) as prep:  # read-write
             for col in cols:
                 m = _collection_meta(prep, col)
                 if m is None:
                     continue
                 windows_by_col[col] = _build_window_tables(prep, col, m.get("data_as_of"))
-        finally:
-            prep.close()
         for col, wins in windows_by_col.items():
             for win in wins:
                 logger.info(f"cooking window metrics: {col} / {win}")
                 _compute_window_metrics(col, win)
 
-    con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+    staging = SITE_DATA / STAGING
+    if staging.exists():
+        shutil.rmtree(staging)  # what a crashed run left behind
+    staging.mkdir(parents=True)
     taxonomy = _load_taxonomy()
     logger.info(f"identity: {len(taxonomy)} players (player master or LLM taxonomy)")
     index: list[dict] = []
     try:
-        newest = _newest_match(con)
-        for col in cols:
-            meta = _collection_meta(con, col)
-            if meta is None:
-                logger.warning(f"no balls table for {col} — skipping")
-                continue
-            out_dir = SITE_DATA / col
-            # keyed (registry-id) balls/wickets as temp tables once per league: every query below
-            # reads them, and inlining the keyed relation several times in one statement trips a
-            # DuckDB internal error
-            materialize_keyed(con, col)
-            name_tax = _name_identity(con, col, taxonomy)
-            activity = _activity_map(con, col, meta.get("data_as_of"))
-            players = _players(con, col, min_balls, taxonomy, activity)
-            meta["windows"] = windows_by_col.get(col, [])
-            # labels for the period selector: the time windows plus the league's eras
-            meta["window_labels"] = {
-                w: lbl for w, lbl in leagues.window_labels(col).items() if w in meta["windows"]
-            }
-            # the league's data stops long before the newest data anywhere (SMAT): flag it
-            meta["stale"] = _is_stale(meta.get("data_as_of"), newest)
-            meta["newest_data_anywhere"] = newest
-            if col == AUCTION_TARGET:
-                n_pool, rated = _export_auction_pool(
-                    con, out_dir, taxonomy, _current_teams(con, col), _keep_squad_cids(col)
+        with duckdb.connect(str(DUCKDB_PATH), read_only=True) as con:
+            newest = _newest_match(con)
+            for col in cols:
+                meta = _export_league(
+                    con,
+                    col,
+                    staging / col,
+                    min_balls=min_balls,
+                    taxonomy=taxonomy,
+                    windows=windows_by_col.get(col, []),
+                    newest=newest,
                 )
-                # after the pool: a retention outside it is charged but not auctioned
-                _export_retentions(players, out_dir)
-                n_scout = _export_scout_index(con, out_dir, taxonomy)
-                n_keep = _export_keep(con, col, out_dir, taxonomy, rated, _keep_death_bowlers(con))
-                fc_src = METRIC_DIR / f"forecast_{col}.json"
-                if fc_src.exists():
-                    forecast.export_site(fc_src, out_dir / "forecast.json")
-                else:
-                    logger.warning("no forecast_ipl.json: run scripts/form_forecast.py build")
-                if not _export_price_model(out_dir, col):
-                    logger.warning("no price model for the IPL: prices use the on-field curve")
-                n_reg = _export_auction_register(out_dir, col)
-                if n_reg is not None:
-                    logger.info(f"  auction_register: {n_reg} players (Bid plan's pool)")
-                if BIDPLAN_RIVAL_PLANS:
-                    _export_bidplan_rivals(out_dir, col)
-                else:
-                    (out_dir / "bidplan_rivals.json").unlink(missing_ok=True)
-                logger.info(f"  auction_pool: {n_pool}, scout_index: {n_scout}, keep: {n_keep}")
-            match_counts = _match_counts(con, col)
-            n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
-            for win in windows_by_col.get(col, []):
-                # matches counted inside the window, so a min-matches gate means what it says
-                win_counts = _match_counts(con, f"{col}_{win}")
-                _export_leaderboards(col, out_dir, win_counts, name_tax, activity, window=win)
-            n_rat = _export_ratings(col, out_dir, taxonomy)
-            _export_records_venues(col, out_dir, name_tax)
-            _export_phase(col, out_dir, match_counts, name_tax, activity)
-            players += _linked_players(out_dir, col, players, name_tax)
-            _assert_players(players, f"{col} players.json", meta.get("data_as_of"))
-            meta["n_players"] = len(players)
-            meta["n_active"] = sum(1 for p in players if p.get("active"))
-            _write(out_dir / "meta.json", meta)
-            _write(out_dir / "players.json", players)
-            n_match = _export_matchups(col, out_dir, players, taxonomy)
-            _export_partnerships(con, col, out_dir, players)
-            _export_aging(con, col, out_dir, taxonomy)
-            n_prof, n_cohort = _export_profiles_and_cohorts(
-                col, out_dir, players, taxonomy, activity, name_tax
-            )
-            if n_prof < len(players):
-                raise DataQualityError(
-                    f"{col}: {len(players) - n_prof} of {len(players)} profiles failed to build"
-                )
-            # per-player files of players no longer in this league would linger forever otherwise
-            _prune_player_files(
-                out_dir, {p["cricsheet_id"] for p in players if p.get("cricsheet_id")}
-            )
-            logger.info(
-                f"{col}: as_of={meta['data_as_of']} players={len(players)} "
-                f"leaderboards={n_lb} ratings={n_rat} profiles={n_prof} "
-                f"cohorts={n_cohort} matchups={n_match}"
-            )
-            index.append(meta)
+                if meta is not None:
+                    _swap_in(staging / col, SITE_DATA / col)
+                    index.append(meta)
+                _free_league_memory(con)
     finally:
-        con.close()
-
-    # Merge into any existing index so a single-collection run (-c ipl)
-    # doesn't drop the other collections from the dropdown. Preserve the
-    # canonical order; refreshed entries win.
-    existing: dict[str, dict] = {}
-    idx_path = SITE_DATA / "collections.json"
-    if idx_path.exists():
-        try:
-            for e in json.loads(idx_path.read_text()):
-                existing[e["collection"]] = e
-        except Exception:  # noqa: BLE001
-            pass
-    for e in index:
-        existing[e["collection"]] = e
-    # registry order; a league no longer in the registry drops out of the dropdown
-    known = leagues.keys()
-    ordered = [existing[c] for c in known if c in existing]
-    dropped = sorted(c for c in existing if c not in known)
-    if dropped:
-        logger.warning(f"collections.json: dropping {dropped} (not in config/leagues.toml)")
-    _write(idx_path, ordered)
-    # the registry itself: labels, tiers, fitted translations and pools for the web app
-    _write(SITE_DATA / "leagues.json", leagues.site_payload())
-    logger.info(
-        f"wrote site/data/ for {len(index)} collections; index has {len(ordered)} → {SITE_DATA}"
-    )
+        # the index lists every league swapped in so far, even when a later league failed
+        n_index = _write_index(index)
+    shutil.rmtree(staging)
+    logger.info(f"wrote site/data/ for {len(index)} collections; index has {n_index} → {SITE_DATA}")
 
 
 if __name__ == "__main__":

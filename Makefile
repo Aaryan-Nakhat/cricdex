@@ -118,24 +118,12 @@ refresh:
 	uv run python scripts/compute_metrics.py all --collection "$${COLLECTION:-ipl}"
 	uv run python scripts/export_site.py -c "$${COLLECTION:-ipl}"
 
-# Every exported league in config/leagues.toml, end to end, in this order: ingest every league →
-# the people register → ratings for every league → metrics for every league → ONE export. The
-# export runs only after every league is refit: the auction pool and Scout read every league's
-# ratings at once. `LEAGUES` overrides the list (space-separated keys).
-LEAGUES ?= $$(uv run python -m cricdex.leagues list --exported --sep " ")
+# Every exported league in config/leagues.toml, end to end, from scratch: the default steps of
+# src/cricdex/pipeline.py (ingest, People Register, player master, ratings, metrics, forecast, ONE
+# export; `uv run python -m cricdex.pipeline --list`). Set LEAGUES="ipl psl" to limit the per-league
+# steps. The model fits run only on request: `uv run python -m cricdex.pipeline --refit`.
 refresh-all:
-	set -e; for C in $(LEAGUES); do \
-		uv run python scripts/ingest_cricsheet.py ingest --collection "$$C" --force; \
-	done
-	uv run python scripts/ingest_people.py --force
-	set -e; for C in $(LEAGUES); do \
-		uv run python scripts/scout_rate.py --collection "$$C" --advi-steps 12000; \
-	done
-	set -e; for C in $(LEAGUES); do \
-		uv run python scripts/compute_metrics.py all --collection "$$C"; \
-	done
-	uv run python scripts/build_player_master.py
-	uv run python scripts/export_site.py
+	LEAGUES="$(LEAGUES)" uv run python -m cricdex.pipeline --fresh
 
 # The player master alone (display names, capped, roles, country, squads, DOB): open data in cached
 # batches plus the LLM name check if one is configured. Read by export_site.py.

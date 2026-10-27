@@ -672,7 +672,7 @@ def parse_collection(extracted: Path | list[Path]) -> ParsedCollection:
     for fp in tqdm(files, desc="parsing matches"):
         try:
             parsed = parse_match_full(fp)
-        except Exception as e:
+        except (OSError, ValueError, KeyError, TypeError, IndexError) as e:  # a malformed file
             logger.warning(f"skip {fp.name}: {e}")
             skipped.append(fp.name)
             continue
@@ -711,7 +711,7 @@ def parse_identity(extracted: Path | list[Path]) -> tuple[pl.DataFrame, pl.DataF
         try:
             with open(fp, encoding="utf-8") as f:
                 data = json.load(f)
-        except Exception as e:
+        except (OSError, ValueError) as e:  # unreadable or not JSON
             logger.warning(f"skip {fp.name}: {e}")
             continue
         player_rows.extend(_registry_rows(fp.stem, data.get("info") or {}))

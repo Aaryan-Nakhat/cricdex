@@ -86,7 +86,8 @@ def _auction_pool_cids() -> set[str]:
         from cricdex.web_parity import load_auction_pool
 
         return {p["cricsheet_id"] for p in load_auction_pool("ipl")}
-    except Exception:  # noqa: BLE001
+    except FileNotFoundError:
+        st.warning("No auction pool exported yet, so nobody can be drafted.")
         return set()
 
 
