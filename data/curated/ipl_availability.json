@@ -1,5 +1,5 @@
 {
- "_note": "Who can't be bought at the next IPL auction, with evidence a reviewer can check. Keyed by cricsheet_id. Fields: _name; status = \"retired\" (announced retirement: never in an auction pool again) or \"not_registered\" (did not enter the auction of the listed `seasons` only: kept in later pools, recorded so a reviewer sees why a veteran is still there); scope = \"ipl\" (out of the IPL and Indian cricket, may still play other leagues) or \"all\" (all cricket); date = the announcement (YYYY-MM-DD); role_now = a coaching or staff role, if any; _evidence = [{title, url, date}]. Read by scripts/export_site.py (the auction pool, METHODOLOGY section 7) and by the player master (`retired` / `retired_scope`, src/cricdex/scout/identity/master.py). Retirements found in a Wikipedia 'List of <season> Indian Premier League personnel changes' page belong here; the master build lists any it can't find (player_master_review.json `todo`).",
+ "_note": "Who can't be bought at the next IPL auction, with evidence a reviewer can check. Keyed by cricsheet_id. Fields: _name; status = \"retired\" (announced retirement: never in an auction pool again) or \"not_registered\" (did not enter the auction of the listed `seasons` only: kept in later pools, recorded so a reviewer sees why a veteran is still there) or \"banned\" (barred from the tournament and the player auction of the listed `seasons`: IPL Player Regulations 2025-27 item 6, a player who is bought and then makes himself unavailable before the season is banned for 2 seasons; out of the pool and off his squad for those seasons); scope = \"ipl\" (out of the IPL and Indian cricket, may still play other leagues) or \"all\" (all cricket); date = the announcement (YYYY-MM-DD); role_now = a coaching or staff role, if any; _evidence = [{title, url, date}]. Read by scripts/export_site.py (the auction pool, METHODOLOGY section 7) and by the player master (`retired` / `retired_scope`, src/cricdex/scout/identity/master.py). Retirements found in a Wikipedia 'List of <season> Indian Premier League personnel changes' page belong here; the master build lists any it can't find (player_master_review.json `todo`).",
  "495d42a5": {
   "_name": "R Ashwin",
   "status": "retired",
@@ -183,5 +183,29 @@
    {"title": "Faf du Plessis opts out of IPL auctions to play in Pakistan (TimesLIVE)", "url": "https://www.timeslive.co.za/sport/cricket/2025-11-30-faf-du-plessis-opts-out-of-ipl-auctions-to-play-in-pakistan", "date": "2025-11-30"}
   ],
   "note": "He said it 'isn't goodbye': not a retirement, so he stays in the 2027 pool (P(plays) as a free agent 0.01)."
+ },
+ "4ae1755b": {
+  "_name": "Harry Brook",
+  "status": "banned",
+  "seasons": [2026, 2027],
+  "date": "2025-03-13",
+  "_evidence": [
+   {"title": "England's Harry Brook banned from IPL for two years (EWN / AFP)", "url": "https://www.ewn.co.za/2025/03/14/englands-harry-brook-banned-from-ipl-for-two-years", "date": "2025-03-14"},
+   {"title": "Harry Brook banned from IPL for two years, know why (India TV)", "url": "https://www.indiatvnews.com/sports/cricket/harry-brook-banned-from-ipl-for-two-years-know-why-2025-03-13-980524", "date": "2025-03-13"},
+   {"title": "IPL Governing Council announces TATA IPL Player Regulations 2025-27, item 6 (iplt20.com)", "url": "https://www.iplt20.com/news/4109/ipl-governing-council-announces-tata-ipl-player-regulations-2025-27", "date": "2024-09-28"}
+  ],
+  "note": "Bought by Delhi Capitals at the 2025 mega auction, pulled out before the 2025 season; the BCCI informed him and the ECB of a two-season ban (2026 and 2027)."
+ },
+ "5f26f677": {
+  "_name": "Ben Duckett",
+  "status": "banned",
+  "seasons": [2027, 2028],
+  "date": "2026-03-24",
+  "_evidence": [
+   {"title": "Ben Duckett walks away from Delhi Capitals days before IPL begins (Gulf News)", "url": "https://gulfnews.com/sport/ben-duckett-walks-away-from-delhi-capitals-days-before-ipl-begins-1.500486790", "date": "2026-03-24"},
+   {"title": "IPL 2026: Ben Duckett withdraws from Delhi Capitals, ban risk looms (Outlook India)", "url": "https://www.outlookindia.com/sports/cricket/ipl-2026-ben-duckett-withdrawal-bcci-ban-delhi-capitals", "date": "2026-03-24"},
+   {"title": "IPL Governing Council announces TATA IPL Player Regulations 2025-27, item 6 (iplt20.com)", "url": "https://www.iplt20.com/news/4109/ipl-governing-council-announces-tata-ipl-player-regulations-2025-27", "date": "2024-09-28"}
+  ],
+  "note": "Bought by Delhi Capitals for 2 cr at the 2026 auction, withdrew before the season to focus on England (not injured). The regulation's 2-season ban is applied to the confirmed withdrawal; no formal BCCI announcement was found by 2026-10-27. Remove this record if the BCCI grants an exception."
  }
 }

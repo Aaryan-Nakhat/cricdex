@@ -309,13 +309,15 @@ def load_squads(comp: Competition) -> dict[str, Any]:
 def squad_rows(comp: Competition, squads: dict[str, Any] | None = None) -> dict[str, list[dict]]:
     """team → the players a team can choose to keep this cycle: every squad row except a player
     who retired or was released by his franchise (a "released" / board-request withdrawal), and,
-    when `replacements_retainable` is off, a replacement signing."""
+    when `replacements_retainable` is off, a replacement signing; nor a player banned from the
+    season (the availability file's "banned": pulled out after being bought, 2 seasons out)."""
     squads = squads if squads is not None else load_squads(comp)
+    banned = {c for c, why in unavailable(comp.season).items() if why == "banned"}
     out: dict[str, list[dict]] = {}
     for team, rows in (squads.get("squads") or {}).items():
         keep: list[dict] = []
         for r in rows:
-            if r.get("retired"):
+            if r.get("retired") or r.get("cricsheet_id") in banned:
                 continue
             wd = r.get("withdrawn")
             if isinstance(wd, str) and ("release" in wd.lower() or "bcci" in wd.lower()):
@@ -346,16 +348,44 @@ def unavailable(
     season: int, league: str = "ipl", records: dict[str, dict] | None = None
 ) -> dict[str, str]:
     """cricsheet id → why he can't be bought at the auction for `season`: "retired" (announced, any
-    scope, dated before that season) or "not_registered" (he skipped that season's auction)."""
+    scope, dated before that season), "not_registered" (he skipped that season's auction) or
+    "banned" (barred from that season's auction, e.g. an overseas player who pulled out after being
+    bought: banned from the tournament and the player auction for 2 seasons, IPL Player
+    Regulations 2025-27)."""
     recs = load_availability(league) if records is None else records
     out: dict[str, str] = {}
     for cid, r in recs.items():
         st = r.get("status")
         if st == "retired" and int(str(r.get("date") or "0000")[:4]) < season:
             out[cid] = "retired"
-        elif st == "not_registered" and season in (r.get("seasons") or []):
-            out[cid] = "not_registered"
+        elif st in ("not_registered", "banned") and season in (r.get("seasons") or []):
+            out[cid] = st
     return out
+
+
+# IPL Player Regulations 2025-27, item 7 (IPL Governing Council, 28 Sep 2024, iplt20.com): "A capped
+# Indian player will become uncapped, if the player has in the last five calendar years preceding the
+# year in which the relevant Season is held, not played in the starting XI in International Cricket
+# (Test match, ODI, Twenty20 International) or does not have a Central Contract with BCCI. This will
+# be applicable for Indian Players only." The data have no central-contract list, so a player with no
+# international in those five years is taken to have none (a central contract goes to current
+# internationals). METHODOLOGY §10.
+UNCAPPED_LAPSE_YEARS = 5
+
+
+def ipl_capped(rec: dict, season: int) -> bool:
+    """Whether a player counts as capped for the IPL `season` (the set he comes up in, the
+    retention slabs): any international appearance (the player master's `capped`), except that an
+    Indian whose last one (`last_international`, YYYY-MM-DD) falls before the five calendar years
+    preceding the season counts as uncapped again."""
+    if not rec.get("capped"):
+        return False
+    if rec.get("country") != "IND":
+        return True
+    last = str(rec.get("last_international") or "")
+    if not last[:4].isdigit():
+        return True  # capped, but no date to apply the lapse to
+    return int(last[:4]) >= season - UNCAPPED_LAPSE_YEARS
 
 
 def slab_holder(squads: dict[str, Any], team: str, row: dict) -> str | None:

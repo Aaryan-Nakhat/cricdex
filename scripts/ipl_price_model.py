@@ -40,7 +40,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from cricdex import leagues
 from cricdex.config import DATA_DIR
 from cricdex.scout import translation
-from cricdex.scout.identity import captains, master, sources
+from cricdex.scout.identity import captains, master, pageviews, sources
 from cricdex.scout.identity.countries import normalise
 from cricdex.scout.ratings import bayesian
 from cricdex.web_parity import pricing
@@ -349,6 +349,12 @@ def feature_fn(refresh_caps: bool = False):
             floors[r["season"]] = min(floors.get(r["season"], math.inf), float(r["price_cr"]))
 
     contrib = _asof_contrib()
+    # his Wikipedia article (the brand feature): the player master's title, else the auction record's
+    wiki = {cid: r["wikipedia_title"] for cid, r in pm.items()
+            if isinstance(r, dict) and r.get("wikipedia_title")}  # fmt: skip
+    for r in hist["lots"] + hist["retentions"]:
+        if r.get("cricsheet_id") and r.get("wiki_title"):
+            wiki.setdefault(r["cricsheet_id"], r["wiki_title"])
 
     def features_in(cid: str, season: int, date: str, vals: dict, country: str | None) -> dict:
         rec = pm.get(cid) if isinstance(pm.get(cid), dict) else {}
@@ -402,6 +408,8 @@ def feature_fn(refresh_caps: bool = False):
             "floor_cr": floors.get(season, 0.3),
             # the market's last verdict on him before this auction (pricing.market_features)
             **pricing.prior_verdict(verdicts.get(cid, []), season),
+            # the brand: his article's mean monthly views in the 12 months before the auction
+            "wiki_views": pageviews.views_asof(wiki.get(cid), date),
         }
 
     return features_in, hist, apps
@@ -1172,6 +1180,7 @@ def _loao(kind: str, rows: list[dict], lots: list[dict], names, mode, groups, fl
 VALID_TRAIN_LAST = 2022
 SELECT_LAST = 2024
 PRIOR_FEATURES = ["prior", "no_prior", "prior_years", "prior_x_years", "prior_retained"]
+BRAND_FEATURES = ["brand", "no_brand"]
 _NO_CAP = [f for f in PRICE_FEATURES if f not in CAPTAIN_FEATURES]
 _NO_SQ = [f for f in PRICE_FEATURES if f != "pv_pos_sq"]
 # name: (features, regression kind, mega-year retentions "exact" | "censored", mini-year retentions
@@ -1241,12 +1250,39 @@ CANDIDATES: dict[str, tuple] = {
         _NO_SQ, "tobit", "censored", False,
         {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
          "value": "time_aware"}),
+    # declared 2026-10-27 (an analyst's review: Kohli 7.5 cr, Rohit 4.3, Narine 4.9, Chahal 2.4 against
+    # far higher real prices and retentions), before any of their numbers: Z with the brand, a dated
+    # public measure of a player's following (the mean monthly views of his English Wikipedia article in
+    # the 12 months before the auction, ln(1 + views / 1000), and a flag for no article;
+    # scout/identity/pageviews.py). AB lets the Indian market pay for it at its own rate.
+    "AA Z + the brand (Wikipedia pageviews before the auction)": (
+        _NO_SQ + BRAND_FEATURES, "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
+         "value": "time_aware"}),
+    "AB AA + the brand for an Indian player": (
+        _NO_SQ + BRAND_FEATURES + ["brand_x_indian"], "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
+         "value": "time_aware"}),
 }  # fmt: skip
+# Candidates that won the selection but failed the reality gate (docs/METHODOLOGY.md §13: every model
+# change must pass it, and a check may not get worse): kept here with the reason, still evaluated and
+# reported by `fit`, never shipped. The brand (AA / AB, and its P(bought) twin) won leave one auction out
+# on 2018-2024 (2026-10-27), but on the IPL 2027 pool it priced Suryavanshi at 31.6 cr, past the 27 cr
+# record (Pant, 2025), and moved the gate's star-price check the wrong way (median market / real of the
+# 2026 lots sold for 10 cr+: 0.3597 -> 0.333); its one test look on 2025-26 was worse too (lot MAE 0.690
+# against Z's 0.660, top 20 0.74 against 0.88). METHODOLOGY §6b.
+VETOED = {
+    "AA Z + the brand (Wikipedia pageviews before the auction)": "reality gate (METHODOLOGY §6b, §13)",
+    "AB AA + the brand for an Indian player": "reality gate (METHODOLOGY §6b, §13)",
+}
 # P(bought): the previous features, and with the prior market price
 BOUGHT_CANDIDATES = {
     "previous": BOUGHT_FEATURES,
     "+ prior market price": BOUGHT_FEATURES + PRIOR_FEATURES,
+    # declared 2026-10-27 with AA / AB, before any of its numbers
+    "+ prior market price + the brand": BOUGHT_FEATURES + PRIOR_FEATURES + BRAND_FEATURES,
 }
+BOUGHT_VETOED = {"+ prior market price + the brand": "goes with the brand (VETOED)"}
 
 
 def shipped_spec(model: dict | None = None) -> tuple:
@@ -1440,8 +1476,13 @@ def fit(
     # log-likelihood instead, which counts each mega retention as P(price >= what he was kept at): a
     # floor can't penalise a price far above it, so that score rewarded recipes that priced the
     # stars franchises kept at several times their retention (Gill ~90 cr). It is still reported.
-    chosen = min(cands, key=lambda k: ev["selection"][k]["loao_le_2024"]["mae_ln"])
+    best = min(cands, key=lambda k: ev["selection"][k]["loao_le_2024"]["mae_ln"])
+    chosen = min((k for k in cands if k not in VETOED),
+                 key=lambda k: ev["selection"][k]["loao_le_2024"]["mae_ln"])  # fmt: skip
     ev["chosen"] = chosen
+    ev["vetoed"] = {k: v for k, v in VETOED.items() if k in cands}
+    if best != chosen:
+        logger.info(f"best on the selection: {best} (vetoed: {VETOED[best]})")
     logger.info(f"chosen: {chosen}")
     names, kind = cands[chosen][0], cands[chosen][1]
     rows = _rows_for(price_rows, ret_rows, first, cands[chosen])
@@ -1472,7 +1513,7 @@ def fit(
     for bl, bn in BOUGHT_CANDIDATES.items():
         for c in (0.03, 0.1, 0.3, 1.0, 3.0):
             ll = _logit_loao(rtr, bn, c)
-            if ll < best_b[0]:
+            if ll < best_b[0] and bl not in BOUGHT_VETOED:
                 best_b = (ll, bl, c)
             ev["bought_selection"][f"{bl}, C={c}"] = round(ll, 4)
     _, b_label, best_c = best_b
@@ -1553,6 +1594,7 @@ def fit(
         "evaluation": {
             "protocol": ev["protocol"],
             "chosen": chosen,
+            "vetoed": ev["vetoed"],
             "selection": ev["selection"],
             "test": ev["test"],
             "bought": ev["bought"],

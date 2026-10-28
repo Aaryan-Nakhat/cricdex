@@ -73,6 +73,7 @@ _P_OS = ("overseas", "os_out", "os_rank_gt4")
 _P_EXP = ("ipl_exp", "never_ipl", "age", "age_gt32")
 _P_AVAIL = ("last_share", "no_last")
 _P_OTHER = ("keeper", "captain", "impact_era")
+_P_ALL = _P_RANK + _P_OS + _P_EXP + _P_AVAIL + _P_OTHER
 PLAY_CANDIDATES = {
     "P0 base rate (reference)": (),
     "P1 rank in the squad": _P_RANK,
@@ -80,7 +81,13 @@ PLAY_CANDIDATES = {
     "P3 P2 + experience and age": _P_RANK + _P_OS + _P_EXP,
     "P4 P3 + availability (last season's share)": _P_RANK + _P_OS + _P_EXP + _P_AVAIL,
     "P5 P4 + keeper, captain, impact era": _P_RANK + _P_OS + _P_EXP + _P_AVAIL + _P_OTHER,
+    # declared 2026-10-27 (an analyst's review: the impact player), before any of its numbers: P5 with
+    # each squad's projected side 12 players from 2023 (pt.xi_size), as Cricsheet's match lists show
+    # (11.95-11.97 players a side a match 2023-26, 11.0 before)
+    "P6 P5 with a side of 12 in the impact-player era": _P_ALL,
 }
+# the candidates whose projected side is 12 from 2023 (the rest: 11 in every season)
+PLAY_XI_BY_ERA = {"P6 P5 with a side of 12 in the impact-player era"}
 PLAY_ALPHAS = (0.1, 1.0, 10.0, 100.0)
 DISC = {"sf": "bat", "sb": "bowl"}
 
@@ -450,6 +457,15 @@ REPL_CANDIDATES = {
     "R2 isotonic (monotone)": {"method": "isotonic"},
     "R3 kernel": {"method": "kernel"},
 }
+# The impact player (2023-): declared 2026-10-27 (an analyst's review), before any of their numbers.
+# The replacement level is fitted on minimum-price buys pooled over 2012 onward; with 12 players a side
+# a match since 2023, the next man up may differ. Each declared candidate (R0-R3) is also fitted with
+# the buys of the auctions before 2023 weighted by `era_w` (1 = pooled; 0 = impact era only). Because
+# the question is the impact era, these are scored on the impact-era validation auctions (2023, 2024)
+# only, against the same smoothers pooled (the `era_w` = 1 rows of that table).
+REPL_ERA_FIRST = 2023
+REPL_ERA_W = (1.0, 0.5, 0.25, 0.0)
+REPL_ERA_VALID = (2023, 2024)
 REPL_BANDWIDTH = {"bat": (0.5, 1.0, 1.5, 2.0, 3.0), "bowl": (2.0, 4.0, 6.0, 9.0, 12.0)}
 REPL_VALID = tuple(range(2018, VALID + 1))  # each predicted from the auctions before it
 # batting: a lower position has the weaker replacement; bowling: a heavier load the better one
@@ -488,10 +504,20 @@ def _group_curve(pairs: list[dict], disc: str) -> dict:
     return {g: round(s / n, 3) for g, (n, s) in acc.items()}
 
 
+def _pair_weights(pairs: list[dict], disc: str, era_w: float) -> list[float]:
+    """Each usable pair's weight: 1 for an impact-era auction (REPL_ERA_FIRST on), `era_w` before."""
+    return [1.0 if p["season"] >= REPL_ERA_FIRST else era_w for p in pairs
+            if p[disc] is not None and math.isfinite(p[disc])]  # fmt: skip
+
+
 def fit_replacement(pairs: list[dict], spec: dict) -> dict:
     """{"bat": curve or groups, "bowl": ..., "n": {"bat", "bowl"}, "method": ...} from minimum-price
-    buys' pairs with a candidate spec ({"method", "h": {"bat", "bowl"}} for the kernel)."""
+    buys' pairs with a candidate spec ({"method", "h": {"bat", "bowl"}} for the kernel, `era_w`: the
+    weight of a pre-2023 buy, 1 when absent)."""
     out: dict = {"method": spec["method"], "n": {}}
+    era_w = spec.get("era_w")
+    if era_w is not None:
+        out["era_w"] = era_w
     for disc in ("bat", "bowl"):
         xs, ys = _pairs_xy(pairs, disc)
         out["n"][disc] = len(xs)
@@ -500,7 +526,8 @@ def fit_replacement(pairs: list[dict], spec: dict) -> dict:
         else:
             knots = pt.BAT_KNOTS if disc == "bat" else pt.BOWL_KNOTS
             h = (spec.get("h") or {}).get(disc)
-            out[disc] = pt.fit_curve(xs, ys, spec["method"], knots, REPL_INCREASING[disc], h)
+            ws = None if era_w is None else _pair_weights(pairs, disc, era_w)
+            out[disc] = pt.fit_curve(xs, ys, spec["method"], knots, REPL_INCREASING[disc], h, ws)
             if h:
                 out[disc]["h"] = h
     return out
@@ -611,6 +638,25 @@ def repl() -> None:
     for disc in ("bat", "bowl"):
         chosen[disc] = min(sel, key=lambda k, d=disc: (sel[k][d]["mse"], k))
     typer.echo(f"chosen: bat {chosen['bat']}; bowl {chosen['bowl']}")
+    # the impact era (declared 2026-10-27): the chosen smoother per discipline with the pre-2023 buys
+    # down-weighted, scored on the impact-era validation auctions only; era_w = 1 is the pooled fit
+    era_sel: dict[str, dict] = {}
+    for disc in ("bat", "bowl"):
+        for w in REPL_ERA_W:
+            sp = {**specs[chosen[disc]], "era_w": w}
+            e: list[float] = []
+            for s in REPL_ERA_VALID:
+                train = [p for y, ps in pairs.items() if y < s for p in ps]
+                e += _repl_err(fit_replacement(train, sp), pairs.get(s, []), disc)
+            era_sel.setdefault(disc, {})[str(w)] = {"mse": round(float(np.mean(e)), 2), "n": len(e)}
+            typer.echo(f"ERA {disc} {chosen[disc][:40]:40} pre-2023 weight {w:4}: MSE "
+                       f"{era_sel[disc][str(w)]['mse']:8.1f} (n {len(e)})")  # fmt: skip
+    era_w = {d: float(min(era_sel[d], key=lambda w, d=d: (era_sel[d][w]["mse"], -float(w))))
+             for d in ("bat", "bowl")}  # fmt: skip
+    typer.echo(f"era weights chosen: {era_w}")
+    for d in ("bat", "bowl"):
+        if era_w[d] != 1.0:
+            specs[chosen[d]] = {**specs[chosen[d]], "era_w": era_w[d]}
     # the chosen spec per discipline (a kernel's own bandwidth for that discipline)
     spec_bat, spec_bowl = specs[chosen["bat"]], specs[chosen["bowl"]]
     chosen_spec = {"method": "mixed", "bat": spec_bat, "bowl": spec_bowl}
@@ -632,6 +678,11 @@ def repl() -> None:
                     "level against each buy's value at his position / bowling load); the best per "
                     "discipline refitted on 2012-2024 and scored once on the 2025 and 2026 buys",
         "selection": sel, "chosen": chosen, "chosen_spec": chosen_spec, "test": test,
+        "era": {"protocol": "the chosen smoother per discipline, pre-2023 buys weighted by each of "
+                            f"{list(REPL_ERA_W)}, fitted on the auctions before each of "
+                            f"{list(REPL_ERA_VALID)} and scored on that auction's buys; the lowest "
+                            "squared error wins (ties: the larger weight)",
+                "selection": era_sel, "chosen": era_w},
         "curve_le2024": fit_mixed(train, chosen_spec),
         "pairs_by_season": {str(s): len(v) for s, v in sorted(pairs.items())},
     }  # fmt: skip
@@ -845,11 +896,26 @@ def _fit_predict(train, test, feats, alpha):
     return np.array([m.prob(r["_f"]) for r in test]), m
 
 
-def _all_play_rows() -> list[dict]:
+def _all_play_rows(by_era: bool = False) -> list[dict]:
+    """Every cached squad row with its features; with `by_era` the projected side (in_xi, margin) is
+    recomputed at pt.xi_size(season) (12 from 2023) from the same contributions and roles."""
     import pickle
 
     data = pickle.loads((CACHE_PLAY).read_bytes())
-    rows = [r for s in PLAY_SEASONS for r in data[s]["rows"]]
+    rows = [dict(r) for s in PLAY_SEASONS for r in data[s]["rows"]]
+    if by_era:
+        roles = _roles()
+        teams: dict[tuple[int, str], list[dict]] = {}
+        for r in rows:
+            teams.setdefault((r["season"], r["team"]), []).append(r)
+        for (s, _t), rs in teams.items():
+            squad = [pt.squad_member(r["cid"], r["contrib"], roles.get(r["cid"], "batter"),
+                                     r["overseas"]) for r in rs]  # fmt: skip
+            xi = pt.projected_xi(squad, pt.xi_size(s))
+            for r in rs:
+                x = xi[r["cid"]]
+                r["in_xi"], r["margin"], r["rank"], r["os_rank"] = (
+                    x["in_xi"], x["margin"], x["rank"], x["os_rank"])  # fmt: skip
     for r in rows:
         r["_f"] = pt.play_features(r)
     return rows
@@ -871,12 +937,13 @@ def play() -> None:
         raise typer.BadParameter("run `balls` first")
     CACHE_PLAY.parent.mkdir(parents=True, exist_ok=True)
     data = play_rows(u, roles, starts, hist, chosen_balls, CACHE_PLAY)
-    rows = _all_play_rows()
-    tr = [r for r in rows if r["season"] < VALID]
-    va = [r for r in rows if r["season"] == VALID]
+    by_rows = {False: _all_play_rows(False), True: _all_play_rows(True)}
     sel = {}
     best = None
     for name, feats in PLAY_CANDIDATES.items():
+        rows = by_rows[name in PLAY_XI_BY_ERA]
+        tr = [r for r in rows if r["season"] < VALID]
+        va = [r for r in rows if r["season"] == VALID]
         for alpha in PLAY_ALPHAS if feats else (None,):
             p, _ = _fit_predict(tr, va, feats, alpha)
             m = _play_metrics(p, va)
@@ -888,6 +955,8 @@ def play() -> None:
                 best = (m["log_loss"], name, alpha)
     _, chosen, alpha = best
     typer.echo(f"chosen: {chosen} (alpha={alpha})")
+    by_era = chosen in PLAY_XI_BY_ERA
+    rows = by_rows[by_era]
     tr2 = [r for r in rows if r["season"] <= VALID]
     te = [r for r in rows if r["season"] in TEST]
     test = {}
@@ -901,12 +970,14 @@ def play() -> None:
         brief = {k: v for k, v in test[name]["pooled"].items() if k != "calibration_fifths"}
         typer.echo(f"TEST {name[:60]:60} {json.dumps(brief)}")
     _, m_te = _fit_predict(tr2, te, PLAY_CANDIDATES[chosen], alpha)
+    if m_te:
+        m_te.xi_by_era = by_era
     p_te, _ = _fit_predict(tr2, te, PLAY_CANDIDATES[chosen], alpha)
     rep["play"] = {
         "protocol": "candidates fitted on the squads of 2018-2023, chosen on 2024 by the binomial "
                     "log loss per match; the chosen one refitted on 2018-2024 and scored once on "
                     "the 2025 and 2026 squads",
-        "selection": sel, "chosen": chosen, "alpha": alpha, "test": test,
+        "selection": sel, "chosen": chosen, "alpha": alpha, "xi_by_era": by_era, "test": test,
         "test_model": m_te.to_json() if m_te else None,
         "test_rows": [{"season": r["season"], "team": r["team"], "name": r["name"],
                        "p": round(float(q), 3), "share": round(r["share"], 3),
@@ -982,12 +1053,14 @@ def fa_rows(u, roles, hist, play_data: dict, cache: Path) -> dict[int, list[dict
         need = sorted(set(pop) | {c for m in prev_sq.values() for c in m})
         us = pt.expected_usage(u, date, need, bm, T, roles)
         con = squad_contribs(need, vals, us, repl)
-        lines = []
+        lines, lines_era = [], []
         for _t, members in prev_sq.items():
             sq = [pt.squad_member(c, con[c]["c"], roles.get(c, "batter"),
                                   bool(country(c)) and country(c) != "IND") for c in members]  # fmt: skip
             lines.append(pt.xi_line(sq))
+            lines_era.append(pt.xi_line(sq, pt.xi_size(s)))
         line = float(np.median(lines)) if lines else 0.0
+        line_era = float(np.median(lines_era)) if lines_era else 0.0
         before = i.filter(pl.col("date") < date)
         ipl_m = dict(before.group_by("cid").agg(pl.len()).iter_rows())
         last_d = dict(before.group_by("cid").agg(pl.col("date").max()).iter_rows())
@@ -1009,6 +1082,7 @@ def fa_rows(u, roles, hist, play_data: dict, cache: Path) -> dict[int, list[dict
             out.append({
                 "season": s, "cid": cid, "name": rec.get("display_name") or cid,
                 "contrib": con[cid]["c"], "margin": con[cid]["c"] - line,
+                "margin_era": con[cid]["c"] - line_era,
                 "ipl_matches": ipl_m.get(cid, 0),
                 "gap": ipm._years(date, last_d[cid]) if cid in last_d else None,
                 "age": age, "last_share": share.get((s - 1, cid)),
@@ -1034,8 +1108,12 @@ def free() -> None:
     hist = json.loads(ipm.HISTORY.read_text(encoding="utf-8"))
     play_data = pickle.loads(CACHE_PLAY.read_bytes())
     data = fa_rows(u, roles, hist, play_data, CACHE_FA)
-    rows = [r for s in PLAY_SEASONS for r in data[s]]
+    # the side size of the chosen squad model (`play`): the XI line a free agent is measured against
+    by_era = bool((_read().get("play") or {}).get("xi_by_era"))
+    rows = [dict(r) for s in PLAY_SEASONS for r in data[s]]
     for r in rows:
+        if by_era:
+            r["margin"] = r["margin_era"]
         r["_f"] = pt.fa_features(r)
     tr = [r for r in rows if r["season"] < VALID]
     va = [r for r in rows if r["season"] == VALID]
@@ -1066,6 +1144,8 @@ def free() -> None:
         brief = {k: v for k, v in test[name]["pooled"].items() if k != "calibration_fifths"}
         typer.echo(f"TEST {name[:60]:60} {json.dumps(brief)}")
     p_te, m_te = _fit_predict(tr2, te, FA_CANDIDATES[chosen], alpha)
+    if m_te:
+        m_te.xi_by_era = by_era
     rep = _read()
     rep["free_agent"] = {
         "protocol": "candidates fitted on the free agents of the 2018-2023 auction pools, chosen on "
@@ -1099,18 +1179,31 @@ BUY_CANDIDATES = {
 BUY_FEATURES = PLAY_CANDIDATES["P5 P4 + keeper, captain, impact era"]
 
 
+def _xi_by_era() -> bool:
+    """Whether the chosen squad model (`play`) projects a side of 12 in the impact-player era."""
+    return bool((_read().get("play") or {}).get("xi_by_era"))
+
+
+def _fa_era(rows: list[dict], by_era: bool) -> list[dict]:
+    """Free-agent rows with their margin against the XI line of the chosen side size."""
+    out = [dict(r) for r in rows]
+    for r in out:
+        if by_era:
+            r["margin"] = r["margin_era"]
+        r["_f"] = pt.fa_features(r)
+    return out
+
+
 def _buy_rows() -> list[dict]:
     """The squad rows (`play`) of players bought at that season's auction, with ln(price ÷ purse)."""
-    import pickle
-
     hist = json.loads(ipm.HISTORY.read_text(encoding="utf-8"))
     price = {(r["season"], r["team"], r["cricsheet_id"]): float(r["price_cr"]) for r in hist["lots"]
              if r.get("sold") and r.get("cricsheet_id") and r.get("price_cr")}  # fmt: skip
-    data = pickle.loads(CACHE_PLAY.read_bytes())
+    rows_all = _all_play_rows(_xi_by_era())
     out = []
     for s in PLAY_SEASONS:
         purse = float(hist["auctions"][str(s)]["purse_cr"])
-        for r in data[s]["rows"]:
+        for r in (q for q in rows_all if q["season"] == s):
             p = price.get((s, r["team"], r["cid"]))
             if p is None:
                 continue
@@ -1127,9 +1220,11 @@ def buy() -> None:
     import pickle
 
     rep = _read()
+    by_era = _xi_by_era()
     rows = _buy_rows()
-    allsq = _all_play_rows()
+    allsq = _all_play_rows(by_era)
     fa = pickle.loads(CACHE_FA.read_bytes())
+    fa = {s: _fa_era(fa[s], by_era) for s in PLAY_SEASONS}
     fa_by = {(r["season"], r["cid"]): r for s in PLAY_SEASONS for r in fa[s]}
     fa_feats = FA_CANDIDATES[rep["free_agent"]["chosen"]]
     fa_alpha = rep["free_agent"]["alpha"]
@@ -1384,23 +1479,25 @@ def ship(next_auction: str = typer.Option("2026-12-16", "--before")) -> None:
     T = pt.team_balls(u, next_auction)
     last = max(int(k) for k in hist["auctions"])
     repl = replacement_from_minbuys(hist, u, last + 1)
-    prow = _all_play_rows()
+    by_era = _xi_by_era()
+    prow = _all_play_rows(by_era)
     pm_ = pt.fit_play_model(prow, PLAY_CANDIDATES[chosen_play], alpha)
+    pm_.xi_by_era = by_era
     import pickle
 
     fa = pickle.loads(CACHE_FA.read_bytes())
-    frows = [r for s in PLAY_SEASONS for r in fa[s]]
-    for r in frows:
-        r["_f"] = pt.fa_features(r)
+    frows = _fa_era([r for s in PLAY_SEASONS for r in fa[s]], by_era)
     chosen_fa, alpha_fa = rep["free_agent"]["chosen"], rep["free_agent"]["alpha"]
     fm_ = pt.fit_play_model(frows, FA_CANDIDATES[chosen_fa], alpha_fa)
+    fm_.xi_by_era = by_era
     # P(plays) of an auction buy in the squad that bought him (`buy`), refitted on every season's buys
     buy_model = None
     if rep.get("buy"):
         kind = BUY_CANDIDATES[rep["buy"]["chosen"]]
         feats = BUY_FEATURES + (("price_share",) if kind == "buys_price" else ())
-        src = _all_play_rows() if kind == "squad" else _buy_rows()
+        src = _all_play_rows(by_era) if kind == "squad" else _buy_rows()
         bm_ = pt.fit_play_model(src, feats, rep["buy"]["alpha"])
+        bm_.xi_by_era = by_era
         buy_model = {**bm_.to_json(), "alpha": rep["buy"]["alpha"], "chosen": rep["buy"]["chosen"]}
     model = {
         "schema": 1,

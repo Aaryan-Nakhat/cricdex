@@ -1130,7 +1130,7 @@ def export_site(src: Path, dest: Path) -> Path:
     }
     dest = Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")
+    dest.write_text(json.dumps(out, separators=(",", ":")) + "\n", encoding="utf-8")
     return dest
 
 

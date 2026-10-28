@@ -8,6 +8,35 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Model fixes from an IPL analyst's review (2026-10-27)
+
+Each chosen on data up to 2024 and looked at once on 2025–26 (one more look at seasons already seen
+several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
+
+- **The Impact Player era is explicit.** Cricsheet's lists show 11.0 players a side a match before 2023
+  and 11.95–11.97 since. The batting replacement level now counts pre-2023 minimum-price buys at half
+  weight (chosen on the 2023–24 auctions: squared error 147.5 against 168.4 pooled; 2025–26: 101.9
+  against 105.9); P(plays), the free-agent and buy models refitted on it. Bid plan's best side is 12
+  players (`bidplan.XI_SIZE`, Python and TS). A side of 12 inside P(plays) was declared and lost on
+  2024, so it is off (`xi_by_era`). The value's runs currency stays pooled (left open).
+- **IPL rules added, with sources.** The 5-year uncapped rule (IPL Player Regulations 2025–27, item 7:
+  an Indian with no international in the five calendar years before the season is uncapped;
+  `competitions.ipl_capped`) sets the set a pool player comes up in; for 2027 it makes Dhoni, Krunal
+  Pandya, Manish Pandey, Prithvi Shaw and nine more uncapped. The withdrawal ban (item 6: bought, then
+  unavailable before the season, banned for 2 seasons) is a new availability status: Harry Brook (2026–27)
+  and Ben Duckett (2027–28, applied to his confirmed withdrawal; no BCCI statement found) are out of the
+  pool and off their squads.
+- **A brand feature, tried and vetoed.** `scripts/wiki_pageviews.py` fetches each player's monthly
+  Wikipedia pageviews (Wikimedia API, CC0) into `data/curated/wiki_pageviews.json`; the market price
+  and P(bought) gained `brand` / `no_brand` / `brand_x_indian` features (`wiki_views` on pool, squad
+  and Scout rows; Python and TS). The recipe with them won the selection but priced Suryavanshi at
+  31.6 cr and moved the reality gate's star-price check from 0.3597 to 0.333, and it did worse on
+  2025–26, so it is not shipped (`VETOED` in `scripts/ipl_price_model.py`). The price model is unchanged.
+- **Thin records.** Two more shrink candidates (the flat factor times a fitted evidence term) lost to
+  the flat factor; the fitted extra shrink for a thin record is near zero. No change.
+- **Docs.** METHODOLOGY §10's prices refreshed (Kohli 7.5 cr, Gill 24.3, Suryavanshi 18.0); the gate's
+  first-target failure is now Rahul Tewatia (4 sheets against 3.7).
+
 ### Engineering: one pipeline, a safe export, loud failures (2026-10-27)
 
 - **One written-down pipeline.** `src/cricdex/pipeline.py` lists every rebuild step in order

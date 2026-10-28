@@ -32,7 +32,9 @@ import {
 import { cr, evaluate, fmtNum, playerKey, purseCharged, type AssessedPlayer, type Decision, type KeepData, type KeepRules } from "./keep.ts";
 
 // ---- the squad-strength model ----
-export const XI_SIZE = 11;
+/** The best side: the XI and the impact player (IPL since 2023; 11.95-11.97 players a side a match
+ * in 2023-26, 11.0 before). Every Bid plan is an impact-era season. 11 until 2026-10-27 (bidplan.py). */
+export const XI_SIZE = 12;
 export const XI_OVERSEAS = 4;
 export const XI_MIN_KEEPERS = 1;
 export const XI_MIN_BOWLING = 5;
@@ -326,6 +328,8 @@ export interface BuyModel {
   intercept: number;
   coef: Record<string, number>;
   season: number | null;
+  /** its squads are 12 in the impact-player era (playing_time.PlayModel.xi_by_era) */
+  xi_by_era?: boolean;
 }
 
 export interface Rival {
@@ -635,7 +639,14 @@ export function rivalRuns(ctx: BidContext, trials: number = TRIALS): RivalRuns {
 
 // ---- P(plays) of a buy, in the squad that bought him (bidplan.py, ROADMAP I18) ----
 const PT_XI_SIZE = 11;
+const PT_XI_SIZE_IMPACT = 12;
+const PT_IMPACT_FIRST_SEASON = 2023;
 const PT_XI_OVERSEAS = 4;
+
+/** playing_time.xi_size (bidplan.py `pt_xi_size`): 12 from 2023 when the model says so, else 11. */
+export function ptXiSize(season: number | null | undefined, byEra: boolean): number {
+  return byEra && (season || 0) >= PT_IMPACT_FIRST_SEASON ? PT_XI_SIZE_IMPACT : PT_XI_SIZE;
+}
 interface Member {
   cid: string;
   c: number;
@@ -646,7 +657,7 @@ interface Member {
 }
 
 /** playing_time.projected_xi (bidplan.py `projected_xi`). */
-export function projectedXi(squad: Member[]): Map<string, { in_xi: boolean; margin: number; rank: number; os_rank: number }> {
+export function projectedXi(squad: Member[], size: number = PT_XI_SIZE): Map<string, { in_xi: boolean; margin: number; rank: number; os_rank: number }> {
   const order = [...squad].sort((a, b) => (a.c !== b.c ? (a.c > b.c ? -1 : 1) : cmpStr(a.cid, b.cid)));
   const chosen: Member[] = [];
   const outList: Member[] = [];
@@ -655,14 +666,14 @@ export function projectedXi(squad: Member[]): Map<string, { in_xi: boolean; marg
   let bt = 0;
   let osN = 0;
   for (const p of order) {
-    if (chosen.length >= PT_XI_SIZE || (p.os && osN >= PT_XI_OVERSEAS)) {
+    if (chosen.length >= size || (p.os && osN >= PT_XI_OVERSEAS)) {
       outList.push(p);
       continue;
     }
     const nk = k + p.k;
     const nbw = bw + p.bowl;
     const nbt = bt + p.bat;
-    const room = PT_XI_SIZE - chosen.length - 1;
+    const room = size - chosen.length - 1;
     if (Math.max(0, 5 - nbw) + Math.max(Math.max(0, 1 - nk), Math.max(0, 6 - nbt)) > room) {
       outList.push(p);
       continue;
@@ -736,7 +747,7 @@ export function buyP(row: Lot, squad: Piece[], model: BuyModel, price: number, p
     bat: row.role === "batter" || row.role === "keeper" || row.role === "all_rounder" ? 1 : 0,
   };
   const sq = [...squad.filter((pc) => pc.id !== me.cid).map(memberOf), me];
-  const x = projectedXi(sq).get(me.cid) as { in_xi: boolean; margin: number; rank: number; os_rank: number };
+  const x = projectedXi(sq, ptXiSize(model.season, !!model.xi_by_era)).get(me.cid) as { in_xi: boolean; margin: number; rank: number; os_rank: number };
   const f = playFeatures({
     contrib: me.c, in_xi: x.in_xi, margin: x.margin, rank: x.rank, os_rank: x.os_rank, overseas: !!row.is_overseas,
     age: row.age ?? null, ipl_matches: row.ipl_matches ?? null, last_share: row.last_share ?? null,

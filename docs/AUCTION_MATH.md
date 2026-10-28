@@ -114,7 +114,8 @@ priced) but the stars' features adding up without limit, pushed up by
 the retained stars (a floor says "at least", so it never objects to a
 price far above it). Fitted on the lots alone the same model priced
 Gill at 22. The fix above prices the top as the market did; the
-ceiling is gone, and the pool's dearest is Gill at 25.8 cr. On the
+ceiling is gone, and the pool's dearest was Gill at 25.8 cr (24.3 on
+the data of 2026-10-27). On the
 2025–26 auctions the 20 dearest predictions of each auction fetched
 0.87× their predicted price (0.76× before the fix); the recipe shipped
 since 2026-10-27 (Z, the time-aware value) scores 0.83×. The lots that *sold* for 10 cr+ come out
@@ -124,6 +125,18 @@ about 0.30×). Pant 21.5 predicted for 27 paid, Shreyas Iyer 14.5 for
 26.75, KL Rahul 19.8 for 14, Sam Curran 10.2 for 2.4, Green 7.4 for a
 25.2 bid; Venkatesh Iyer (3.4 for 23.75), Bhuvneshwar and the 2026
 uncapped buys at 14.2 cr are beyond any pre-auction fact.
+
+**A brand feature, tried and vetoed (2026-10-27).** To lift the
+released-icon prices (Kohli 7.5, Rohit Sharma 4.3, Narine 4.9, Chahal
+2.4), a player's following was added: the mean monthly views of his
+Wikipedia article in the 12 months before the auction (Wikimedia
+Pageviews API, CC0). It won the selection on auctions up to 2024 (lot
+error 0.788 against 0.796), but it priced Suryavanshi at 31.6 cr, past
+the 27 cr record, moved the reality gate's star-price check the wrong way
+(0.36 to 0.33) and did worse on the 2025–26 lots (0.690 against 0.660),
+so it is not shipped (METHODOLOGY §6b). The data have no released star
+of Kohli's kind, so "what a released player like him fetches" stays low;
+what keeping him is worth is Keep or release's model.
 
 The room prices the pool for the league's next cycle (IPL 2027: a mini
 auction, 125 cr purse, from `config/competitions.toml`); `projected
@@ -277,6 +290,17 @@ With guardrails so it stays realistic:
   Karthik, Shikhar Dhawan, Amit Mishra, Rayudu, Pollard, Rahane, …). A
   player who only skipped an earlier auction (Warner, du Plessis in 2026)
   stays, priced by his P(plays).
+- **Not banned** (since 2026-10-27) — under the 2025–27 regulations a player
+  who is bought and then pulls out before the season is banned from the
+  tournament and the auction for 2 seasons: Harry Brook (2026 and 2027) and
+  Ben Duckett (2027 and 2028; the rule applied to his confirmed withdrawal,
+  no BCCI statement found) are out of the pool and off their squads
+  (`status: "banned"` in the availability file).
+- **Capped or uncapped, by the IPL's rule** (since 2026-10-27) — an Indian
+  with no international match in the five calendar years before the season
+  counts as uncapped (IPL Player Regulations 2025–27, item 7), which sets the
+  set he comes up in: for 2027, Dhoni, Krunal Pandya, Manish Pandey, Prithvi
+  Shaw, Rahul Chahar and eight more.
 - **Active only** — a T20 match in a pool league within 3 years. From the
   data: after 3 years without a match 1.9% of players (4.4% of former IPL
   players) played an IPL match again, after 2 years 3.6% (9.5%)
@@ -461,11 +485,12 @@ auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-draft)).
 1. **Rivals only.** Your team steps out; the other nine (their Keep-or-release squads, each opening
    at least 8 places) run through this simulator 200 times. In each run, for each player, the
    **price to beat** = one ladder step above the winning rival's bid, or his base price if nobody bid.
-2. **Strength.** Your best XI's expected runs a match above replacement (each player's batting at the balls
+2. **Strength.** Your best side's expected runs a match above replacement (each player's batting at the balls
    he faces a match plus his bowling at the balls he bowls, × his P(plays), a lot's as a free agent,
    METHODOLOGY §6c; since 2026-10-27 each value is moved to his age next season and calibrated toward
-   his role's mean, METHODOLOGY §4b and §4c; the XI's balls held to a side's 115 an innings; ≤ 4 overseas, a keeper, 5 bowling and 6
-   batting options, a replacement player, 0, for any gap) + the bench filling the matches the XI misses:
+   his role's mean, METHODOLOGY §4b and §4c; 12 players since 2026-10-27, the XI and the impact player, who has
+   taken part in every IPL match since 2023 (11 until then); the side's balls held to a side's 115 an
+   innings; ≤ 4 overseas, a keeper, 5 bowling and 6 batting options, a replacement player, 0, for any gap) + the bench filling the matches the XI misses:
    Σ (1 − P(plays)) over the XI, best bench contribution first, at most one appearance a match for a squad
    player and at most his P(plays) for an auction lot (since 2026-10-23: until then a 40-year-old free agent
    who plays 4% of the time filled a whole appearance a match at his career contribution and topped the
@@ -474,7 +499,8 @@ auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-draft)).
    "Above replacement" means above the freely available player (a minimum-price buy) **at his own batting
    position and bowling load**: since 2026-10-26 a smooth curve in each, fitted on past minimum-price buys,
    not four position groups (a No. 7.5 lower-order hitter used to be measured against bowlers batting at
-   9–11 and topped nine sheets; METHODOLOGY §6c).
+   9–11 and topped nine sheets; METHODOLOGY §6c). Since 2026-10-27 the batting curve counts the buys of
+   auctions before the impact player (2023) at half weight, the weight chosen on the 2023–24 auctions.
 3. **The rule.** Stars first, bid up to *(gain in strength − a squad place's worth) ÷ λ*, where λ is what
    a crore can still buy later in this auction: the lots still to come, ranked by gain ÷ expected price, filled
    within the money and places left; λ = the ratio of the first lot the money no longer covers. Money left

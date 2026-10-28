@@ -58,9 +58,13 @@ from cricdex.web_parity.pricing import price_tier
 
 # ---- the squad-strength model ---------------------------------------------------------------------
 
-# The best XI: 11 players, at most XI_OVERSEAS overseas, at least one keeper, five bowling options
-# (bowlers + all-rounders) and six batting options (batters + keepers + all-rounders).
-XI_SIZE = 11
+# The best side: 12 players (the XI and the impact player: the IPL since 2023, kept for the 2025-27
+# cycle; Cricsheet's match lists show 11.95-11.97 players a side a match in 2023-26, 11.0 before), at
+# most XI_OVERSEAS overseas (the impact player must be Indian when the XI has four), at least one
+# keeper, five bowling options (bowlers + all-rounders) and six batting options (batters + keepers +
+# all-rounders). Every Bid plan (the 2025 and 2026 replays, the 2027 sheets) is an impact-era season.
+# Until 2026-10-27: 11 (METHODOLOGY §6c, §12).
+XI_SIZE = 12
 XI_OVERSEAS = 4
 XI_MIN_KEEPERS = 1
 XI_MIN_BOWLING = 5
@@ -947,21 +951,29 @@ def _likely(ctx: dict, cands: list[dict], land: list[int], price_sum: list[float
 # 2025-26 (scripts/playing_time_fit.py `buy`, METHODOLOGY §6c). Mirrors of scout/playing_time.py
 # `projected_xi` and `play_features` (tests/test_playing_time.py checks they agree).
 PT_XI_SIZE = 11
+PT_XI_SIZE_IMPACT = 12
+PT_IMPACT_FIRST_SEASON = 2023
 PT_XI_OVERSEAS = 4
 
 
-def projected_xi(squad: list[dict]) -> dict[str, dict]:
-    """playing_time.projected_xi: cid → {in_xi, margin, rank, os_rank} from {cid, c, os, k, bowl, bat}."""
+def pt_xi_size(season: int | None, by_era: bool) -> int:
+    """playing_time.xi_size: 12 from the impact-player era (2023) when the model says so, else 11."""
+    return PT_XI_SIZE_IMPACT if by_era and (season or 0) >= PT_IMPACT_FIRST_SEASON else PT_XI_SIZE
+
+
+def projected_xi(squad: list[dict], size: int = PT_XI_SIZE) -> dict[str, dict]:
+    """playing_time.projected_xi: cid → {in_xi, margin, rank, os_rank} from {cid, c, os, k, bowl, bat},
+    a side of `size`."""
     order = sorted(squad, key=lambda p: (-p["c"], p["cid"]))
     chosen: list[dict] = []
     out_list: list[dict] = []
     k = bw = bt = os_n = 0
     for p in order:
-        if len(chosen) >= PT_XI_SIZE or (p["os"] and os_n >= PT_XI_OVERSEAS):
+        if len(chosen) >= size or (p["os"] and os_n >= PT_XI_OVERSEAS):
             out_list.append(p)
             continue
         nk, nbw, nbt = k + p["k"], bw + p["bowl"], bt + p["bat"]
-        room = PT_XI_SIZE - len(chosen) - 1
+        room = size - len(chosen) - 1
         if max(0, 5 - nbw) + max(max(0, 1 - nk), max(0, 6 - nbt)) > room:
             out_list.append(p)
             continue
@@ -1023,7 +1035,7 @@ def buy_p(row: dict, squad: list[dict], model: dict, price: float, purse: float)
           "bowl": 1 if row["role"] in ("bowler", "all_rounder") else 0,
           "bat": 1 if row["role"] in ("batter", "keeper", "all_rounder") else 0}  # fmt: skip
     sq = [_member(pc) for pc in squad if pc["id"] != me["cid"]] + [me]
-    x = projected_xi(sq)[me["cid"]]
+    x = projected_xi(sq, pt_xi_size(model.get("season"), bool(model.get("xi_by_era"))))[me["cid"]]
     f = play_features({
         "contrib": me["c"], "in_xi": x["in_xi"], "margin": x["margin"], "rank": x["rank"],
         "os_rank": x["os_rank"], "overseas": bool(row["is_overseas"]), "age": row.get("age"),

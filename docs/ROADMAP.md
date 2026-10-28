@@ -581,6 +581,30 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
     are the ones the outcome data never see (nobody buys them). Replays (2025–26 seen five times):
     "auction" 1 and 0 of 10, "none" 6 and 5; ranking unchanged.
 
+- [ ] I19. Model fixes from an IPL analyst's review (2026-10-27; METHODOLOGY §4c, §6b, §6c, §10, §12, §13).
+  Each chosen on data up to 2024; 2025–26 counted as one more look.
+  - **Impact Player era** (§6c). Data: 11.0 players a side a match before 2023, 11.95–11.97 since; scoring
+    10–26% higher a ball, wicket cost about the same. Shipped: the batting replacement level counts
+    pre-2023 minimum-price buys at half weight (chosen on the 2023–24 auctions, squared error 147.5 against
+    168.4 pooled; test 101.9 against 105.9), and Bid plan's side is 12 (the rules every plan is for). Not
+    chosen: a side of 12 in P(plays) (P6, 0.5697 against 0.5691). **Open:** the value's runs currency is
+    still pooled over every season; moving it to the impact era means refitting every as-of IPL value
+    (price fits, translation, aging, calibration, replacement levels).
+  - **Indian stars' market price** (§6b). A brand feature (Wikipedia pageviews before the auction, CC0)
+    won the selection (AB, 0.788 against 0.796) but was **vetoed by the reality gate**: Suryavanshi 31.6 cr
+    (past the 27 cr record), the star-price check 0.3597 → 0.333; the test agreed (0.690 against 0.660).
+    The price model is unchanged. **Open:** no released star like Kohli exists in the data; a refit of
+    recipe Z on today's data would move the check to 0.317 (not shipped). Score the brand candidates on
+    the December 2026 auction.
+  - **Thin records** (§4c). K4 / K5 (the flat factor times a fitted evidence term) lost to K1 (3.918 /
+    3.919 against 3.905); the fitted extra shrink is near zero (s = 0.0003). No change. **Open:**
+    the validation has one batter like Suryavanshi (value +20 or more on an sd of 8 or more).
+  - **Rules** (§10). Modelled: the 5-year uncapped rule (`competitions.ipl_capped`: 13 players uncapped
+    for 2027) and the 2-season withdrawal ban (Brook 2026–27, Duckett 2027–28: out of the pool and off
+    their squads). The registration half doesn't bind in 2027.
+  - Gate after: 4 pass, 3 expected failures (Tewatia first on 4 sheets against 3.7, Cummins 60th, star
+    price 0.3597).
+
 ### Guardrails
 
 - Don't overclaim: no "clearly better" at 75%, no "Crores cheaper", don't call the newcomer result

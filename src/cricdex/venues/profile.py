@@ -35,7 +35,7 @@ def list_venues(
     WHERE venue IS NOT NULL
     GROUP BY venue
     HAVING matches >= {min_matches}
-    ORDER BY matches DESC
+    ORDER BY matches DESC, venue
     """
     with duckdb.connect(str(db_path), read_only=True) as con:
         return con.execute(sql).pl()
@@ -144,6 +144,7 @@ def chase_vs_set_winrate(
     FROM matches_{safe} matches
     WHERE venue = ?
     GROUP BY match_type
+    ORDER BY match_type
     """
     with duckdb.connect(str(db_path), read_only=True) as con:
         return con.execute(sql, [venue]).pl()
@@ -202,7 +203,7 @@ def dismissal_mix(
     FROM balls_{safe}
     WHERE venue = ? AND {DISMISSAL} AND {MAIN_INNINGS}
     GROUP BY wicket_kind
-    ORDER BY dismissals DESC
+    ORDER BY dismissals DESC, wicket_kind
     """
     with duckdb.connect(str(db_path), read_only=True) as con:
         return con.execute(sql, [venue]).pl()

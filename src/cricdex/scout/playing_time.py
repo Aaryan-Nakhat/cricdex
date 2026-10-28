@@ -68,6 +68,21 @@ LEAGUE_MATCHES = 14  # each side's league-stage matches (IPL 2022-2026): the sea
 RECENT_SEASONS = 3  # the IPL's balls per innings: the mean of the last seasons before the forecast
 XI_SIZE = 11
 XI_OVERSEAS = 4
+# The Impact Player (IPL since 2023; kept for the 2025-27 cycle, IPL Player Regulations 2025-27 item 8):
+# each side names a substitute who may replace any player during the match, so 12 players take part.
+# Cricsheet's match lists agree: 11.0 players per side per match in every IPL season 2008-2022, 11.95-11.97
+# in 2023-2026 (`match_players_ipl`). The impact player must be Indian when the XI has four overseas, so
+# the overseas limit stays four (METHODOLOGY §6c).
+IMPACT_FIRST_SEASON = 2023
+XI_SIZE_IMPACT = 12
+
+
+def xi_size(season: int | None, by_era: bool = True) -> int:
+    """The players a side uses in a match: 12 from IMPACT_FIRST_SEASON (the impact player) when
+    `by_era`, else 11."""
+    if by_era and (season or 0) >= IMPACT_FIRST_SEASON:
+        return XI_SIZE_IMPACT
+    return XI_SIZE
 
 
 def slot_group(pos: float | None) -> str:
@@ -413,15 +428,19 @@ def curve_at(curve: dict, x: float) -> float:
     return float(ys[lo] + t * (ys[hi] - ys[lo]))
 
 
-def _isotonic(x: np.ndarray, y: np.ndarray, increasing: bool) -> tuple[np.ndarray, np.ndarray]:
-    """Weighted isotonic regression (pool-adjacent-violators) of y on x, ties in x pooled first.
-    Returns (block centres = the mean x of each block, block levels), x ascending."""
+def _isotonic(
+    x: np.ndarray, y: np.ndarray, increasing: bool, wt: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Weighted isotonic regression (pool-adjacent-violators) of y on x, ties in x pooled first, each
+    pair weighing `wt` (1 when None). Returns (block centres = the weighted mean x of each block, block
+    levels), x ascending."""
     order = np.argsort(x, kind="stable")
     x, y = x[order], y[order]
+    wt = np.ones(len(x)) if wt is None else np.asarray(wt, dtype=float)[order]
     ux, inv = np.unique(x, return_inverse=True)
-    w = np.bincount(inv).astype(float)
-    sy = np.bincount(inv, weights=y)
-    sx = np.bincount(inv, weights=x)
+    w = np.bincount(inv, weights=wt).astype(float)
+    sy = np.bincount(inv, weights=y * wt)
+    sx = np.bincount(inv, weights=x * wt)
     sign = 1.0 if increasing else -1.0
     blocks: list[list[float]] = []  # [weight, Σ y, Σ x]
     for k in range(len(ux)):
@@ -437,7 +456,13 @@ def _isotonic(x: np.ndarray, y: np.ndarray, increasing: bool) -> tuple[np.ndarra
 
 
 def fit_curve(
-    xs, ys, method: str, knots: tuple[float, ...], increasing: bool, h: float | None = None
+    xs,
+    ys,
+    method: str,
+    knots: tuple[float, ...],
+    increasing: bool,
+    h: float | None = None,
+    ws=None,
 ) -> dict:
     """A replacement curve on `knots` from the (x, level) pairs of minimum-price buys:
 
@@ -445,25 +470,28 @@ def fit_curve(
     - "isotonic": monotone in x (`increasing`, else decreasing), linear between the blocks' centres;
     - "kernel": a Gaussian-weighted mean (Nadaraya-Watson) with bandwidth `h`.
 
-    Every pair weighs the same (one player)."""
+    Each pair weighs `ws` (one player each when None; an older auction can weigh less: the
+    impact-era candidates of `scripts/playing_time_fit.py repl`)."""
     x = np.asarray(xs, dtype=float)
     y = np.asarray(ys, dtype=float)
     k = np.asarray(knots, dtype=float)
-    if len(x) == 0:
+    wt = np.ones(len(x)) if ws is None else np.asarray(ws, dtype=float)
+    if len(x) == 0 or wt.sum() <= 0:
         return {"x": list(knots), "y": [0.0] * len(knots)}
     if method == "linear":
         if np.ptp(x) == 0:
-            v = np.full(len(k), y.mean())
+            v = np.full(len(k), float(np.average(y, weights=wt)))
         else:
-            b, a = np.polyfit(x, y, 1)
+            b, a = np.polyfit(x, y, 1, w=np.sqrt(wt))
             v = a + b * k
     elif method == "isotonic":
-        cx, cy = _isotonic(x, y, increasing)
+        keep = wt > 0
+        cx, cy = _isotonic(x[keep], y[keep], increasing, wt[keep])
         v = np.interp(k, cx, cy)
     elif method == "kernel":
         if not h:
             raise ValueError("kernel needs a bandwidth")
-        wk = np.exp(-0.5 * ((k[:, None] - x[None, :]) / h) ** 2)
+        wk = np.exp(-0.5 * ((k[:, None] - x[None, :]) / h) ** 2) * wt[None, :]
         v = (wk * y[None, :]).sum(axis=1) / np.maximum(wk.sum(axis=1), 1e-300)
     else:
         raise ValueError(f"unknown replacement smoother {method!r}")
@@ -523,21 +551,22 @@ PLAY_FEATURES_ALL = (
 )  # fmt: skip
 
 
-def projected_xi(squad: list[dict]) -> dict[str, dict]:
+def projected_xi(squad: list[dict], size: int = XI_SIZE) -> dict[str, dict]:
     """A squad's projected XI from its players' contributions (`c`), greedy as Bid plan picks it: best
     first, at most XI_OVERSEAS overseas, at least one keeper, five bowling and six batting options
-    (`bowl` / `bat` flags). Returns cid → {in_xi, margin, rank, os_rank}: the margin is his
-    contribution minus the selection line (the mean of the last player in and the first one out)."""
+    (`bowl` / `bat` flags), `size` players (11, or 12 in the impact-player era: `xi_size`). Returns
+    cid → {in_xi, margin, rank, os_rank}: the margin is his contribution minus the selection line (the
+    mean of the last player in and the first one out)."""
     order = sorted(squad, key=lambda p: (-p["c"], p["cid"]))
     chosen: list[dict] = []
     out_list: list[dict] = []
     k = bw = bt = os_n = 0
     for p in order:
-        if len(chosen) >= XI_SIZE or (p["os"] and os_n >= XI_OVERSEAS):
+        if len(chosen) >= size or (p["os"] and os_n >= XI_OVERSEAS):
             out_list.append(p)
             continue
         nk, nbw, nbt = k + p["k"], bw + p["bowl"], bt + p["bat"]
-        room = XI_SIZE - len(chosen) - 1
+        room = size - len(chosen) - 1
         if max(0, 5 - nbw) + max(max(0, 1 - nk), max(0, 6 - nbt)) > room:
             out_list.append(p)
             continue
@@ -625,9 +654,9 @@ def fa_features(r: dict) -> dict[str, float]:
     }
 
 
-def xi_line(squad: list[dict]) -> float:
+def xi_line(squad: list[dict], size: int = XI_SIZE) -> float:
     """A squad's selection line (`projected_xi`): the mean of the last player in and the first out."""
-    x = projected_xi(squad)
+    x = projected_xi(squad, size)
     if not x:
         return 0.0
     # margin = c − line for any member, so line = c − margin
@@ -665,20 +694,26 @@ class PlayModel:
     intercept: float
     coef: dict[str, float]
     trained_on: tuple[int, int] = (0, 0)
+    # whether its squads (the projected XI, the XI line) are 12 in the impact-player era (`xi_size`);
+    # False = 11 in every season, as every model before 2026-10-27
+    xi_by_era: bool = False
 
     def prob(self, f: dict[str, float]) -> float:
         t = self.intercept + sum(c * f[k] for k, c in self.coef.items())
         return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, t))))
 
+    def xi(self, season: int | None) -> int:
+        return xi_size(season, self.xi_by_era)
+
     def to_json(self) -> dict:
         return {"features": list(self.features), "intercept": self.intercept, "coef": self.coef,
-                "trained_on": list(self.trained_on)}  # fmt: skip
+                "trained_on": list(self.trained_on), "xi_by_era": self.xi_by_era}  # fmt: skip
 
     @staticmethod
     def from_json(d: dict) -> PlayModel:
         return PlayModel(tuple(d["features"]), float(d["intercept"]),
                          {k: float(v) for k, v in d["coef"].items()},
-                         tuple(d.get("trained_on") or (0, 0)))  # fmt: skip
+                         tuple(d.get("trained_on") or (0, 0)), bool(d.get("xi_by_era")))  # fmt: skip
 
 
 def fit_play_model(rows: list[dict], feats: tuple[str, ...], alpha: float) -> PlayModel:
@@ -748,7 +783,7 @@ def p_play(player: dict, squad: list[dict], meta: dict, model: PlayModel, season
     """P(plays a match) for `player` (a `squad_member`) in `squad` (the others, `squad_member`s; he is
     added if missing), with his `meta` = {age, ipl_matches, last_share, keeper, captain, overseas}."""
     sq = [p for p in squad if p["cid"] != player["cid"]] + [player]
-    x = projected_xi(sq)[player["cid"]]
+    x = projected_xi(sq, model.xi(season))[player["cid"]]
     r = {"contrib": player["c"], "in_xi": x["in_xi"], "margin": x["margin"], "rank": x["rank"],
          "os_rank": x["os_rank"], "season": season, **meta}  # fmt: skip
     return model.prob(play_features(r))

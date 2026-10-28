@@ -24,6 +24,7 @@ from cricdex.web_parity import build_pool
 from cricdex.web_parity.auction import auction_lots, one_trial, open_squad_places
 from cricdex.web_parity.bidplan import (
     REPLACEMENT,
+    XI_SIZE,
     best_xi,
     build_context,
     chain_text,
@@ -210,7 +211,7 @@ XI_CASES = [
     # bench: a veteran free agent (P(plays) 0.04, the best contribution a match) gives at most 0.04 of
     # an appearance a match, the rest goes to the next names
     [{"id": f"x{i}", "name": f"X{i}", "value": 3.0, "role": ROLES[i % 4], "overseas": False,
-      "tags": "k" if i % 4 == 3 else "", "parts": [1.5, 1.5, 12.0, 12.0, 0.7]} for i in range(11)]
+      "tags": "k" if i % 4 == 3 else "", "parts": [1.5, 1.5, 12.0, 12.0, 0.7]} for i in range(XI_SIZE)]
     + [{"id": "vet", "name": "Veteran", "value": 7.0, "role": "batter", "overseas": False, "tags": "o",
         "parts": [7.0, 0.0, 22.0, 0.0, 0.04], "cap": 0.04},
        {"id": "kid", "name": "Kid", "value": 2.0, "role": "batter", "overseas": False, "tags": "",
@@ -422,7 +423,7 @@ def test_best_xi_rules():
     b = best_xi(pieces)
     assert "low" not in b["ids"] and "nv" not in b["ids"] and b["fillers"] >= 1
     empty = best_xi([])
-    assert empty["xi"] == pytest.approx(11 * REPLACEMENT)
+    assert empty["xi"] == pytest.approx(XI_SIZE * REPLACEMENT)
 
 
 def test_best_xi_balls_budget():
@@ -445,14 +446,14 @@ def test_best_xi_balls_budget():
 
 
 def test_bench_cap_by_p_play():
-    """The XI's missed appearances (11 × 0.3 = 3.3 a match) go to the bench, best contribution a
+    """The side's missed appearances (12 × 0.3 = 3.6 a match) go to the bench, best contribution a
     match first, each candidate at most his P(plays): the veteran (7 a match, P 0.04) fills 0.04,
     the kid (2 a match, P 0.3) 0.3, the squad's bench bowler (1 a match) a whole appearance."""
     from cricdex.web_parity.bidplan import bench_fill
 
     pieces = _pieces(XI_CASES[4])
     b = best_xi(pieces)
-    assert set(b["ids"]) == {f"x{i}" for i in range(11)}
+    assert set(b["ids"]) == {f"x{i}" for i in range(XI_SIZE)}
     depth = bench_fill(b["ids"], pieces, b["bench"])
     assert depth == pytest.approx(0.04 * 7.0 + 0.3 * 2.0 + 1.0 * 1.0)
     # without the cap the veteran alone would have filled a whole appearance a match

@@ -170,3 +170,28 @@ def test_bidplan_mirrors_of_the_squad_model_agree():
              "last_share": rnd.choice([None, 0.0, 0.7]), "keeper": False, "captain": True,
              "season": 2027}  # fmt: skip
         assert bp.play_features(r) == pt.play_features(r)
+
+
+def test_side_of_twelve_in_the_impact_era():
+    """The impact player (IPL since 2023): 12 players a side a match, so a model fitted with
+    `xi_by_era` projects a side of 12 from 2023 (11 before, or 11 throughout without it); Bid plan's
+    mirror agrees, and the overseas limit stays four."""
+    import random
+
+    assert pt.xi_size(2022) == 11 and pt.xi_size(2023) == 12 and pt.xi_size(2027) == 12
+    assert pt.xi_size(2027, by_era=False) == 11
+    assert bp.pt_xi_size(2027, True) == 12 and bp.pt_xi_size(2027, False) == 11
+    assert bp.pt_xi_size(2020, True) == 11
+    rnd = random.Random(11)
+    for _ in range(20):
+        squad = [pt.squad_member(f"p{i}", rnd.uniform(-2, 8), rnd.choice(pt.ROLES), rnd.random() < 0.35)
+                 for i in range(rnd.randint(13, 25))]  # fmt: skip
+        x12 = pt.projected_xi(squad, 12)
+        assert x12 == bp.projected_xi(squad, 12)
+        n_in = sum(v["in_xi"] for v in x12.values())
+        assert n_in <= 12 and n_in >= sum(v["in_xi"] for v in pt.projected_xi(squad).values())
+        os_in = sum(1 for p in squad if p["os"] and x12[p["cid"]]["in_xi"])
+        assert os_in <= pt.XI_OVERSEAS
+    m = pt.PlayModel(("in_xi",), 0.0, {"in_xi": 1.0}, (2018, 2026), True)
+    assert pt.PlayModel.from_json(m.to_json()).xi(2027) == 12
+    assert pt.PlayModel.from_json({"features": [], "intercept": 0, "coef": {}}).xi(2027) == 11

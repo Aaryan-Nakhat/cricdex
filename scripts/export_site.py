@@ -63,7 +63,7 @@ from cricdex.common.sql import (
 from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.config import SITE_DATA as _DEFAULT_SITE_DATA
 from cricdex.scout import forecast, playing_time, translation
-from cricdex.scout.identity import captains, countries
+from cricdex.scout.identity import captains, countries, pageviews
 from cricdex.scout.identity import master as player_master
 
 app = typer.Typer(add_completion=False)
@@ -605,6 +605,10 @@ def _price_inputs(con: duckdb.DuckDBPyConnection, ref_date: str | None, season: 
     ref = _dt.date.fromisoformat(ref_date) if ref_date else None
     ref_s = ref.isoformat() if ref else "9999-12-31"
     lo_s = (ref - _dt.timedelta(days=730)).isoformat() if ref else "0000-01-01"
+    # his Wikipedia article, for the brand (pageviews.views_asof; the price fit reads the same)
+    wiki = {c: r["wikipedia_title"] for c, r in (player_master.load() or {}).items()
+            if isinstance(r, dict) and r.get("wikipedia_title")}  # fmt: skip
+    views_date = ref_s if ref else _dt.date.today().isoformat()
 
     def get(cid: str | None) -> dict:
         h = hist.get(cid or "")
@@ -623,9 +627,14 @@ def _price_inputs(con: duckdb.DuckDBPyConnection, ref_date: str | None, season: 
             "ipl_balls": balls.get(cid or "", 0),
             "ipl_seasons": h[0] if h else 0,
             "ipl_gap": gap,
+            "wiki_views": _round_views(pageviews.views_asof(wiki.get(cid or ""), views_date)),
         }
 
     return get
+
+
+def _round_views(v: float | None) -> float | None:
+    return None if v is None else round(v, 1)
 
 
 _VERDICTS: dict[str, dict] = {}
@@ -983,7 +992,12 @@ def _export_auction_pool(
             "bowling_style": tax.get("bowling_style"),
             "country": country,
             "is_overseas": bool(country) and country != "IND",
-            "capped": bool(tax.get("capped")),
+            # the set he comes up in: capped for the coming season under the IPL's rule (an Indian
+            # with no international in the five calendar years before it is uncapped again,
+            # competitions.ipl_capped; any international cap when there is no competition)
+            "capped": (
+                _comps.ipl_capped(tax, comp.season) if comp is not None else bool(tax.get("capped"))
+            ),
             "team": team,
             # where this player's profile lives: the target league if he has played it,
             # else his most recent league
@@ -1018,7 +1032,7 @@ def _export_auction_pool(
     keep_fa = max(AUCTION_POOL_CAP - n_squad, 0)
     out = [p for p in out if p.get("team") or (keep_fa := keep_fa - 1) >= 0]
     _write(out_dir / "auction_pool.json", out)
-    _write(out_dir / "activity_index.json", activity)
+    _write(out_dir / "activity_index.json", dict(sorted(activity.items())))
     return len(out), extra_rows
 
 
@@ -1175,14 +1189,16 @@ def _playing_time_rows(
         return playing_time.squad_member(cid, c, roles.get(cid, "batter"), overseas(cid))
 
     members = {t: [member(c) for c in cs] for t, cs in squads.items()}
-    lines = [playing_time.xi_line(m) for m in members.values()]
+    pm = playing_time.PlayModel.from_json(model["play"])
+    fm = playing_time.PlayModel.from_json(model["free_agent"])
+    # the median squad's selection line, at the side size the free-agent model was fitted with (12 in
+    # the impact-player era when `xi_by_era`)
+    lines = [playing_time.xi_line(m, fm.xi(season)) for m in members.values()]
     line = (
         sorted(lines)[len(lines) // 2]
         if len(lines) % 2
         else (0.5 * sum(sorted(lines)[len(lines) // 2 - 1 : len(lines) // 2 + 1]) if lines else 0.0)
     )
-    pm = playing_time.PlayModel.from_json(model["play"])
-    fm = playing_time.PlayModel.from_json(model["free_agent"])
     at = _dt.date.fromisoformat(before)
     out: dict[str, dict] = {}
     for cid in cids:
@@ -1246,7 +1262,7 @@ def _stale_evidence(
 # the per-player market-price inputs `_price_inputs` adds to pool, squad and Scout rows
 PRICE_INPUT_KEYS = (
     "intl_caps", "intl_caps_2y", "ipl_balls", "ipl_seasons", "ipl_gap",
-    "prior_share", "prior_years", "prior_retained",
+    "prior_share", "prior_years", "prior_retained", "wiki_views",
 )  # fmt: skip
 # captaincy known before the next auction (scout/identity/captains.as_of): market-price inputs, and
 # `captain_teams` (the IPL sides he led last season) for the "Captain" badge
@@ -1515,6 +1531,10 @@ def _export_keep(
                                 **_keep_no_data_inputs(),
                                 # his auction price, found by Wikipedia title (no Cricsheet id)
                                 **_prior_inputs(f"wiki:{r.get('wiki_title')}", comp.season),
+                                # and his following (the brand), by the same title
+                                "wiki_views": _round_views(
+                                    pageviews.views_asof(r.get("wiki_title"), comp.auction_date)
+                                ),
                             }
                             if not cid
                             else {}
@@ -1619,7 +1639,8 @@ def _buy_model_payload(comp) -> dict | None:
     b = m.get("buy")
     if not b:
         return None
-    return {"intercept": b["intercept"], "coef": b["coef"], "season": comp.season if comp else None}
+    return {"intercept": b["intercept"], "coef": b["coef"], "season": comp.season if comp else None,
+            "xi_by_era": bool(b.get("xi_by_era"))}  # fmt: skip
 
 
 def _keep_model_payload() -> dict | None:
@@ -2494,8 +2515,9 @@ def _export_matchups(
     n = 0
     for p in players:
         cid = p.get("cricsheet_id")
-        ab = sorted(by_batter.get(cid, []), key=lambda x: x["balls"], reverse=True)[:40]
-        aw = sorted(by_bowler.get(cid, []), key=lambda x: x["balls"], reverse=True)[:40]
+        # ties broken by the opponent's id, so the export is the same run to run
+        ab = sorted(by_batter.get(cid, []), key=lambda x: (-x["balls"], x["bowler_id"] or ""))[:40]
+        aw = sorted(by_bowler.get(cid, []), key=lambda x: (-x["balls"], x["batter_id"] or ""))[:40]
         sp = splits.get(cid)
         if not (ab or aw or sp):
             continue
@@ -2643,6 +2665,7 @@ def _export_aging(
         WHERE batter IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY 1, 2
         HAVING balls >= 60
+        ORDER BY 1, 2
         """
     ).fetchall()
     kinds = "', '".join(_BOWLER_WKT)
@@ -2658,6 +2681,7 @@ def _export_aging(
         WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
         GROUP BY 1, 2
         HAVING balls >= 60
+        ORDER BY 1, 2
         """
     ).fetchall()
 

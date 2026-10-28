@@ -140,13 +140,12 @@ def _p_play(season: int) -> tuple[dict, dict]:
         from cricdex.scout import playing_time as pt
 
         rep_ = ptf._read()
-        prows = ptf._all_play_rows()
+        by_era = ptf._xi_by_era()
+        prows = ptf._all_play_rows(by_era)
         sq_m = pt.fit_play_model([r for r in prows if r["season"] < season],
                                  ptf.PLAY_CANDIDATES[rep_["play"]["chosen"]], rep_["play"]["alpha"])  # fmt: skip
         fa = pickle.loads(ptf.CACHE_FA.read_bytes())
-        frows = [r for y in ptf.PLAY_SEASONS for r in fa[y]]
-        for r in frows:
-            r["_f"] = pt.fa_features(r)
+        frows = ptf._fa_era([r for y in ptf.PLAY_SEASONS for r in fa[y]], by_era)
         fa_m = pt.fit_play_model([r for r in frows if r["season"] < season],
                                  ptf.FA_CANDIDATES[rep_["free_agent"]["chosen"]],
                                  rep_["free_agent"]["alpha"])  # fmt: skip
@@ -176,7 +175,7 @@ def _buy(season: int) -> tuple[dict | None, dict]:
         if rep_.get("buy"):
             kind = ptf.BUY_CANDIDATES[rep_["buy"]["chosen"]]
             feats = ptf.BUY_FEATURES + (("price_share",) if kind == "buys_price" else ())
-            src = ptf._all_play_rows() if kind == "squad" else ptf._buy_rows()
+            src = ptf._all_play_rows(ptf._xi_by_era()) if kind == "squad" else ptf._buy_rows()
             m = pt.fit_play_model(
                 [r for r in src if r["season"] < season], feats, rep_["buy"]["alpha"]
             )

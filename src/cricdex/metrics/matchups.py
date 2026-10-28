@@ -109,6 +109,7 @@ def pace_spin_splits(
                 OR (b.bowler LIKE '{UNRESOLVED}%' AND bc.bowler = b.bowler_name)
             WHERE b.batter IS NOT NULL AND {MAIN_INNINGS}
             GROUP BY b.batter, bc.cat
+            ORDER BY b.batter, bc.cat
             """,
             )
         ).fetchall()

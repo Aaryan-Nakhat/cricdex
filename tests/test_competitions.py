@@ -271,7 +271,7 @@ def test_availability_file_is_sourced():
     assert recs, "no availability records"
     for cid, r in recs.items():
         assert r.get("_name"), cid
-        assert r["status"] in ("retired", "not_registered"), cid
+        assert r["status"] in ("retired", "not_registered", "banned"), cid
         if r["status"] == "retired":
             assert r["scope"] in ("ipl", "all") and len(r["date"]) == 10, cid
         else:
@@ -289,3 +289,27 @@ def test_unavailable_by_season():
     assert competitions.unavailable(2027, records=recs) == {"a": "retired"}
     assert competitions.unavailable(2026, records=recs) == {"b": "not_registered"}
     assert competitions.unavailable(2028, records=recs) == {"a": "retired", "c": "retired"}
+
+
+def test_banned_for_listed_seasons_only():
+    """Pulled out after being bought: out of the auction and the tournament for the 2 seasons listed
+    (IPL Player Regulations 2025-27, item 6)."""
+    recs = {"d": {"status": "banned", "seasons": [2026, 2027]}}
+    assert competitions.unavailable(2026, records=recs) == {"d": "banned"}
+    assert competitions.unavailable(2027, records=recs) == {"d": "banned"}
+    assert competitions.unavailable(2028, records=recs) == {}
+
+
+def test_ipl_capped_five_year_lapse():
+    """IPL Player Regulations 2025-27, item 7: an Indian with no international in the five calendar
+    years before the season is uncapped again; overseas players keep their status."""
+    ind = {"capped": True, "country": "IND"}
+    assert competitions.ipl_capped({**ind, "last_international": "2022-01-05"}, 2027)
+    assert not competitions.ipl_capped({**ind, "last_international": "2021-11-25"}, 2027)
+    assert competitions.ipl_capped({**ind, "last_international": "2021-11-25"}, 2026)
+    assert not competitions.ipl_capped({**ind, "last_international": "2019-07-09"}, 2025)  # Dhoni
+    assert competitions.ipl_capped(
+        {"capped": True, "country": "AUS", "last_international": "2015-01-01"}, 2027
+    )
+    assert not competitions.ipl_capped({"capped": False, "country": "IND"}, 2027)
+    assert competitions.ipl_capped(ind, 2027)  # no date: stays capped

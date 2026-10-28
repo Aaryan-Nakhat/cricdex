@@ -307,7 +307,7 @@ def _playing_time(data: dict) -> None:
     rep_ = ptf._read()
     feats = ptf.PLAY_CANDIDATES[rep_["play"]["chosen"]]
     alpha = rep_["play"]["alpha"]
-    prows = ptf._all_play_rows()
+    prows = ptf._all_play_rows(bool(rep_["play"].get("xi_by_era")))
     contrib = {(s_, c): v for (s_, c), v in ipm._asof_contrib().items()}
     u = ptf._u()
     _team_m, _played, share = ptf.ipl_shares(u)
@@ -330,7 +330,7 @@ def _playing_time(data: dict) -> None:
                 r["contrib"] = c[0] if c else None
                 squad.append(pt.squad_member(r["cricsheet_id"], c[0] if c else 0.0,
                                              r["role"], bool(r.get("is_overseas"))))  # fmt: skip
-            xi = pt.projected_xi(squad)
+            xi = pt.projected_xi(squad, pt.xi_size(s, bool(rep_["play"].get("xi_by_era"))))
             for r in team_rows:
                 cid = r["cricsheet_id"]
                 x = xi[cid]

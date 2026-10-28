@@ -117,6 +117,10 @@ PRIOR_REF_SHARE = 0.02
 PRIOR_MIN = -4.0
 PRIOR_MAX = 3.0
 PRIOR_YEARS_MAX = 6.0
+# The brand (since 2026-10-27, recipe AA/AB, METHODOLOGY §6b): `wiki_views` = the mean monthly human
+# views of his English Wikipedia article over the 12 complete months before the auction
+# (scout/identity/pageviews.py; Wikimedia Pageviews API, CC0). brand = ln(1 + views / BRAND_SCALE).
+BRAND_SCALE = 1000.0
 
 _MODEL_PATHS = (
     Path(__file__).resolve().parents[3] / "config" / "price_model.json",
@@ -152,6 +156,8 @@ def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[
     captaincy known before the auction (scout/identity/captains.py): `captain_ipl_last` (captained
     an IPL side the season before), `captain_ipl_seasons`, `captain_intl_2y` (captained his country
     in the two calendar years before).
+    `wiki_views` (his article's mean monthly views in the 12 months before the auction; missing = no
+    article or no reading: the brand features, METHODOLOGY §6b).
     `cycle` = "mega" | "mini". `pv_max` (the model's `price.pv_max`: the largest priced value in its
     training rows) holds the priced value to the range the market has priced, so a value beyond the
     best player ever sold is priced as that player (no extrapolation); missing → MARKET_PV_MAX.
@@ -185,6 +191,8 @@ def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[
     if has_prior:
         prior = min(PRIOR_MAX, max(PRIOR_MIN, math.log(ps / PRIOR_REF_SHARE)))
         p_years = min(max(_num(row.get("prior_years")) or 0.0, 0.0), PRIOR_YEARS_MAX)
+    views = _num(row.get("wiki_views"))
+    brand = math.log1p(max(views, 0.0) / BRAND_SCALE) if views is not None else 0.0
     return {
         "pv": pv,
         "pv_pos_sq": (max(pv, 0.0) ** 2) / 100.0,
@@ -215,6 +223,9 @@ def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[
         "prior_years": p_years,
         "prior_x_years": prior * p_years,
         "prior_retained": 1.0 if has_prior and row.get("prior_retained") else 0.0,
+        "brand": brand,
+        "no_brand": 0.0 if views is not None else 1.0,
+        "brand_x_indian": brand * (1.0 - ov),
     }
 
 

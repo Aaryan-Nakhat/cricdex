@@ -69,6 +69,7 @@ export interface KeepPlayer {
   prior_share?: number | null;
   prior_years?: number | null;
   prior_retained?: boolean | null;
+  wiki_views?: number | null; // the brand: his Wikipedia article's mean monthly views (auction.ts)
   /** a 2025 mega-auction retention still with his franchise, charged by the retention slabs */
   slab_holder?: "capped" | "uncapped" | null;
   // playing time (METHODOLOGY §6c; export_site PT_KEYS): runs above replacement per match he plays

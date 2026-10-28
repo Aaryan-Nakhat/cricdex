@@ -54,7 +54,15 @@ CANDIDATES = {
     "K1 one shrink factor per role toward the role's mean": "flat",
     "K2 shrink by the value's own posterior sd (its uncertainty carried through)": "sd",
     "K3 K2 + the non-IPL share of the evidence + years since his last season": "full",
+    # declared 2026-10-27 (an analyst's review: Suryavanshi, 449 IPL balls, valued far above Gill),
+    # before any of their numbers: K1's flat factor AND the evidence term together, so a long record
+    # still regresses a season ahead (K1) and a thin one regresses more (K2 / K3). Both nest K1 (s = 0)
+    "K4 K1 x the evidence term of K2 (flat factor and the value's own sd)": "flat_sd",
+    "K5 K1 x the evidence term of K3 (+ the non-IPL share + years since)": "flat_full",
 }
+# A reading, declared with K4 / K5 (not a selection criterion): the players whose value rests on thin
+# evidence, a posterior sd of at least WIDE_SD runs per 100 balls in the role the outcome is scored on
+WIDE_SD = 8.0
 
 
 def _say(msg: str) -> None:
@@ -130,6 +138,12 @@ def fit(rows_: list[dict], kind: str) -> dict[str, shrink.RoleShrink] | None:
             mu, c, psi = z[0], math.exp(z[1]), math.exp(z[2])
             if kind == "flat":
                 return shrink.RoleShrink(mu, 1.0, k_flat=float(z[3])), c, psi
+            if kind in ("flat_sd", "flat_full"):
+                # tau² = 1: only the ratios s / tau² (etc.) are identified, the level is k0
+                s_, wo, wr = math.exp(z[4]), 0.0, 0.0
+                if kind == "flat_full":
+                    wo, wr = math.exp(z[5]), math.exp(z[6])
+                return shrink.RoleShrink(mu, 1.0, s_, wo, wr, k0=float(z[3])), c, psi
             tau2, s = math.exp(z[3]), math.exp(z[4])
             wo = math.exp(z[5]) if kind == "full" else 0.0
             wr = math.exp(z[6]) if kind == "full" else 0.0
@@ -140,19 +154,25 @@ def fit(rows_: list[dict], kind: str) -> dict[str, shrink.RoleShrink] | None:
             if m.k_flat is not None:
                 k = np.full(len(v), m.k_flat)
             else:
-                k = m.tau2 / (m.tau2 + m.s * sd * sd + m.w_o * (1 - sh) + m.w_r * yr)
+                k = m.k0 * m.tau2 / (m.tau2 + m.s * sd * sd + m.w_o * (1 - sh) + m.w_r * yr)
             mean = m.mu + k * (v - m.mu)
             var = c * 100.0 / n + psi
             return float(np.sum(np.log(var) + (y - mean) ** 2 / var))
 
         z0 = [float(np.mean(v)), math.log(900.0), math.log(30.0)]
-        z0 += (
-            [0.8]
-            if kind == "flat"
-            else [math.log(60.0), 0.0] + ([0.0, 0.0] if kind == "full" else [])
-        )
+        if kind == "flat":
+            z0 += [0.8]
+        elif kind in ("flat_sd", "flat_full"):
+            z0 += [0.8, math.log(1e-3)] + (
+                [math.log(1e-2), math.log(1e-2)] if kind == "flat_full" else []
+            )
+        else:
+            z0 += [math.log(60.0), 0.0] + ([0.0, 0.0] if kind == "full" else [])
         best = None
-        for start in (z0, [z0[0], z0[1], z0[2], *[x - 1.0 for x in z0[3:]]]):
+        starts = [z0, [z0[0], z0[1], z0[2], *[x - 1.0 for x in z0[3:]]]]
+        if kind in ("flat_sd", "flat_full"):  # k0 is a level, not a log: start it near K1's
+            starts[1] = [z0[0], z0[1], z0[2], 0.7, *[x - 3.0 for x in z0[4:]]]
+        for start in starts:
             res = minimize(nll, np.array(start), method="Nelder-Mead",
                            options={"maxiter": 20000, "maxfev": 20000, "xatol": 1e-6, "fatol": 1e-8})  # fmt: skip
             if best is None or res.fun < best.fun:
@@ -178,6 +198,8 @@ def _score(seasons, fit_until_each: bool, kinds: dict) -> dict:
         thin = np.array([(d["shares"].get((c, "batter")) or d["shares"].get((c, "bowler")) or {})
                          .get("ipl", 0.0) < 0.5 for c in d["cids"]])  # fmt: skip
         y = np.array([d["nv"][c][0] for c in d["cids"]])
+        wide = np.array([max(sd for _v, sd in (vt.get(c) or {}).values()) >= WIDE_SD
+                         if vt.get(c) else False for c in d["cids"]])  # fmt: skip
         for name, kind in kinds.items():
             train = [r for r in allr if r["season"] < s] if fit_until_each else [
                 r for r in allr if r["season"] <= VALID[-1]]  # fmt: skip
@@ -188,10 +210,14 @@ def _score(seasons, fit_until_each: bool, kinds: dict) -> dict:
             sc["n_thin"] = int(thin.sum())
             sc["mae_thin"] = float(np.mean(np.abs(p[thin] - y[thin]))) if thin.any() else None
             sc["bias_thin"] = float(np.mean(p[thin] - y[thin])) if thin.any() else None
+            sc["n_wide"] = int(wide.sum())
+            sc["mae_wide"] = float(np.mean(np.abs(p[wide] - y[wide]))) if wide.any() else None
+            sc["bias_wide"] = float(np.mean(p[wide] - y[wide])) if wide.any() else None
             res.setdefault(name, {})[s] = sc
             _say(f"{s} {name[:60]:60} MAE {sc['mae']:.3f} rho {sc['spearman']:.3f} bias "
                  f"{sc['bias']:+.3f} | IPL share < 0.5: MAE {sc['mae_thin'] or 0:.3f} bias "
-                 f"{sc['bias_thin'] or 0:+.3f} (n {sc['n_thin']})")  # fmt: skip
+                 f"{sc['bias_thin'] or 0:+.3f} (n {sc['n_thin']}) | sd >= {WIDE_SD:g}: MAE "
+                 f"{sc['mae_wide'] or 0:.3f} bias {sc['bias_wide'] or 0:+.3f} (n {sc['n_wide']})")  # fmt: skip
     return res
 
 
@@ -206,6 +232,11 @@ def _pool(per: dict) -> dict:
             sum((v["bias_thin"] or 0) * v["n_thin"] for v in per.values()) / nt, 4
         )
         out["n_thin"] = nt
+    nw = sum(v.get("n_wide") or 0 for v in per.values())
+    if nw:
+        for k in ("mae_wide", "bias_wide"):
+            out[k] = round(sum((v[k] or 0) * v["n_wide"] for v in per.values()) / nw, 4)
+        out["n_wide"] = nw
     return out
 
 

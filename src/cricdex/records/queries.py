@@ -44,7 +44,7 @@ def highest_individual_innings(
     FROM __BALLS__
     WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY batter, match_id, innings_idx, match_date, venue
-    ORDER BY runs DESC, balls ASC
+    ORDER BY runs DESC, balls ASC, match_date, match_id, batter
     LIMIT {top_n}
     """
     with _ctx(db_path) as con:
@@ -82,7 +82,7 @@ def fastest_fifty(
     )
     SELECT *
     FROM fifty
-    ORDER BY balls_to_fifty ASC
+    ORDER BY balls_to_fifty ASC, match_date, match_id, batter
     LIMIT {top_n}
     """
     with _ctx(db_path) as con:
@@ -115,7 +115,7 @@ def fastest_hundred(
     FROM counted
     WHERE running_runs >= 100
     GROUP BY 1, 2, 3, 4
-    ORDER BY balls_to_hundred ASC
+    ORDER BY balls_to_hundred ASC, match_date, match_id, batter
     LIMIT {top_n}
     """
     with _ctx(db_path) as con:
@@ -134,7 +134,7 @@ def most_sixes_innings(
     FROM __BALLS__
     WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY batter, match_id, innings_idx, match_date, venue
-    ORDER BY sixes DESC, runs DESC
+    ORDER BY sixes DESC, runs DESC, match_date, match_id, batter
     LIMIT {top_n}
     """
     with _ctx(db_path) as con:
@@ -155,7 +155,7 @@ def career_run_leaders(
     FROM __BALLS__
     WHERE batter IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY batter
-    ORDER BY career_runs DESC
+    ORDER BY career_runs DESC, batter
     LIMIT {top_n}
     """
     with _ctx(db_path) as con:
@@ -179,7 +179,7 @@ def best_bowling_innings(
     WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY bowler, match_id, innings_idx, match_date, venue
     HAVING legal_balls >= 12
-    ORDER BY wickets DESC, runs_conceded ASC
+    ORDER BY wickets DESC, runs_conceded ASC, match_date, match_id, bowler
     LIMIT {top_n}
     """
     with _ctx(db_path) as con:
@@ -200,7 +200,7 @@ def career_wicket_leaders(
     FROM __BALLS__
     WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY bowler
-    ORDER BY wickets DESC
+    ORDER BY wickets DESC, bowler
     LIMIT {top_n}
     """
     with _ctx(db_path) as con:
@@ -223,7 +223,7 @@ def highest_team_totals(
     FROM balls_{safe}
     WHERE {MAIN_INNINGS}
     GROUP BY match_id, innings_idx, match_date, venue, batting_team
-    ORDER BY total_runs DESC
+    ORDER BY total_runs DESC, match_date, match_id, batting_team
     LIMIT {top_n}
     """
     with _ctx(db_path) as con:
@@ -246,7 +246,7 @@ def highest_runs_in_over(
     FROM __BALLS__
     WHERE bowler IS NOT NULL AND {MAIN_INNINGS}
     GROUP BY bowler, match_id, innings_idx, match_date, venue, over
-    ORDER BY runs_in_over DESC
+    ORDER BY runs_in_over DESC, match_date, match_id, over, bowler
     LIMIT {top_n}
     """
     with _ctx(db_path) as con:

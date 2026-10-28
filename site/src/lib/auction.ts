@@ -120,6 +120,9 @@ export const PRIOR_REF_SHARE = 0.02;
 export const PRIOR_MIN = -4;
 export const PRIOR_MAX = 3;
 export const PRIOR_YEARS_MAX = 6;
+// The brand: brand = ln(1 + wiki_views / BRAND_SCALE), wiki_views = his Wikipedia article's mean monthly
+// views over the 12 months before the auction (missing = no article). Mirror of pricing.py.
+export const BRAND_SCALE = 1000;
 
 /** Calibration knots (ln share); beyond the last knot the map continues at `hi_slope` (1 when absent). */
 export interface CalibrationMap {
@@ -182,6 +185,7 @@ export interface MarketInputs {
   prior_share?: number | null; // the price a franchise last paid, as a share of that season's purse
   prior_years?: number | null; // seasons since
   prior_retained?: boolean | null; // a mega-auction retention rather than a sale
+  wiki_views?: number | null; // his Wikipedia article's mean monthly views, 12 months before (the brand)
 }
 
 let priceModel: PriceModel | null = null;
@@ -225,6 +229,8 @@ export function marketFeatures(row: MarketInputs, cycle: string, pvMax?: number 
     prior = Math.min(PRIOR_MAX, Math.max(PRIOR_MIN, Math.log(ps / PRIOR_REF_SHARE)));
     pYears = Math.min(Math.max(fin(row.prior_years) || 0, 0), PRIOR_YEARS_MAX);
   }
+  const views = fin(row.wiki_views);
+  const brand = views !== null ? Math.log1p(Math.max(views, 0) / BRAND_SCALE) : 0;
   return {
     pv,
     pv_pos_sq: (pvPos * pvPos) / 100,
@@ -255,6 +261,9 @@ export function marketFeatures(row: MarketInputs, cycle: string, pvMax?: number 
     prior_years: pYears,
     prior_x_years: prior * pYears,
     prior_retained: hasPrior && row.prior_retained ? 1 : 0,
+    brand,
+    no_brand: views !== null ? 0 : 1,
+    brand_x_indian: brand * (1 - ov),
   };
 }
 

@@ -12,14 +12,16 @@ predictor of what he does in an IPL match than the same number earned in the IPL
 This module calibrates that, fitted on what players then did in the IPL (`scripts/value_shrink_fit.py`,
 frozen protocol), in the measurement-error form of empirical Bayes:
 
-    value used = mu + k × (value − mu),      k = tau² / (tau² + s × sd² + w_o × (1 − IPL share) + w_r × years)
+    value used = mu + k × (value − mu),  k = k0 × tau² / (tau² + s × sd² + w_o × (1 − IPL share) + w_r × years)
 
 `mu` is the role's population mean on the IPL scale, `tau²` the spread of true levels, `sd` the value's
 own posterior sd (the blend's, translation included), `IPL share` the IPL's weight in the blend and
 `years` the years since his last season in any league. `s`, `w_o`, `w_r` are fitted: how much the
 reported uncertainty, the non-IPL share and the staleness of the evidence really cost. A long, recent IPL
 record keeps its value; a thin, old or league-only record is pulled toward the mean by as much as the
-data say. The candidates switch the terms on and off (s alone, all three, or none).
+data say. `k0` is the part of the shrink every value takes, however long its record (a season-ahead
+rating regresses even when its evidence is thick: true levels move between seasons). The candidates
+switch the terms on and off (one flat factor; s alone; all three; k0 with s; k0 with all three).
 """
 
 from __future__ import annotations
@@ -41,6 +43,9 @@ class RoleShrink:
     w_o: float = 0.0
     w_r: float = 0.0
     k_flat: float | None = None  # the one-factor candidate: k fixed, not by evidence
+    # the season-ahead factor every value takes on top of its evidence term (candidates K4 / K5, since
+    # 2026-10-27): k = k0 × tau² / (tau² + …). 1 = the evidence term alone (K2 / K3)
+    k0: float = 1.0
 
     def k(self, sd: float, ipl_share: float, years: float) -> float:
         if self.k_flat is not None:
@@ -48,7 +53,7 @@ class RoleShrink:
         den = (
             self.tau2 + self.s * sd * sd + self.w_o * (1.0 - ipl_share) + self.w_r * max(years, 0.0)
         )
-        return self.tau2 / den if den > 0 else 1.0
+        return self.k0 * self.tau2 / den if den > 0 else self.k0
 
     def apply(self, v: float, sd: float, ipl_share: float, years: float) -> float:
         return self.mu + self.k(sd, ipl_share, years) * (v - self.mu)
@@ -60,7 +65,8 @@ class RoleShrink:
     def from_json(d: dict) -> RoleShrink:
         return RoleShrink(float(d["mu"]), float(d["tau2"]), float(d.get("s") or 0.0),
                           float(d.get("w_o") or 0.0), float(d.get("w_r") or 0.0),
-                          None if d.get("k_flat") is None else float(d["k_flat"]))  # fmt: skip
+                          None if d.get("k_flat") is None else float(d["k_flat"]),
+                          float(d.get("k0") if d.get("k0") is not None else 1.0))  # fmt: skip
 
 
 def load_model(
