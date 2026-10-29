@@ -195,6 +195,9 @@ MARKET_SQUAD = [
     _mk(SQUAD[1], 0, 6, 0.55), _mk(SQUAD[2], 0, 1, 0.55),
     _mk(SQUAD[3], 25, 4, 0.55), _mk(SQUAD[4], 120, 14, 0.55), _mk(SQUAD[6], 180, 9, 0.55),
     _mk(SQUAD[7], 60, 3, 1.6), _mk(SQUAD[9], 5, 0, None), _mk(SQUAD[12], 90, 2, 0.55),
+    # an uncapped Indian bought at the last auction far above players like him (form_unseen)
+    {**_mk(SQUAD[3], 0, 1, 0.55), "id": "mu1", "name": "Player 40", "salary": 14.2,
+     "prior_share": 0.11, "prior_years": 1, "prior_retained": False},
     # no ball-by-ball record anywhere (issue I6): priced from the market as an uncapped Indian
     {**_p(31, salary=5.2, value=None, cid=False, age=None), "team": "MMM", "price_value": None,
      "intl_caps": 0, "intl_caps_2y": 0, "ipl_balls": 0, "ipl_seasons": 0, "ipl_gap": None,
@@ -502,7 +505,7 @@ def test_keep_should_they():
     assert should_of(None, None, 5.0) is None
     for p in SQUAD:
         a = assess(p, FORM)
-        if a["price"] is None:
+        if a["price"] is None or a["form_unseen"]:
             assert a["should"] is None
         else:
             assert a["should"] == should_of(a["price"], a["price_central"], a["cost"])
@@ -510,6 +513,24 @@ def test_keep_should_they():
     a = assess(SQUAD[11], FORM)
     if a["p_keep"] is not None and a["p_keep"] >= 0.65:
         assert a["rec"] == "keep" and a["should"] == "no"
+
+
+def test_keep_form_unseen():
+    """An uncapped Indian bought at the last auction for more than the upper quartile of players like
+    him was bought on domestic form we can't see: the reason says so and "should they?" stays open.
+    Not for a capped player, an overseas one, a retention, or a buy from an earlier auction."""
+    from cricdex.web_parity.keep import assess, form_unseen
+
+    row = next(p for p in MARKET_SQUAD if p["id"] == "mu1")
+    a = assess(row, FORM)
+    assert a["form_unseen"] and a["should"] is None
+    assert "domestic form our data doesn't have" in a["reason"]
+    up = a["price_central"]
+    assert up < row["salary"]
+    for change in ({"intl_caps": 3}, {"overseas": True}, {"prior_retained": True}, {"prior_years": 2},
+                   {"acquired": "trade"}, {"salary": up * 0.9}):  # fmt: skip
+        assert not form_unseen({**row, **change}, up), change
+    assert not any(assess(p, FORM)["form_unseen"] for p in SQUAD)
 
 
 def test_keep_slab_costs():

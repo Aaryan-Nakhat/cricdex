@@ -163,6 +163,7 @@ export interface PriceModel {
       c_last: number;
       d_years?: number;
       e_retained?: number;
+      f_last_years?: number;
     };
   };
   bought: PriceModelPart;
@@ -362,7 +363,8 @@ export function marketPrice(
       rs.b_model * base +
       rs.c_last * Math.log(ps) +
       (rs.d_years ?? 0) * py +
-      (rs.e_retained ?? 0) * (row.prior_retained ? 1 : 0);
+      (rs.e_retained ?? 0) * (row.prior_retained ? 1 : 0) +
+      (rs.f_last_years ?? 0) * Math.log(ps) * py;
     price = Math.max(m.floor_cr, c.purse * Math.exp(adj));
     hi += adj - base;
   }

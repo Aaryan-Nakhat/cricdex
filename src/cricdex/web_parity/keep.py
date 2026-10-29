@@ -179,6 +179,32 @@ def stale_sentence(p: dict) -> str:
     return f" {math.floor(100 * share + 0.5)}% of his rating rests on {note} (stale)."
 
 
+# An uncapped Indian bought at the last auction for more than the upper quartile of players like him:
+# franchises bid on domestic form our data doesn't cover (the auction follows the season's SMAT, which
+# Cricsheet stops at Dec 2024, and state T20 leagues it never had), so his market price is no judgement
+# of what he is worth and "should they?" is left open (the owner's reality check, 2026-10-29: Prashant
+# Veer and Kartik Sharma, 14.2 cr each, priced about 2). Mirror of keep.ts `formUnseen`.
+FORM_UNSEEN_SENTENCE = (
+    " Bought for {paid} cr at the last auction, above anything players like him fetch: franchises bid "
+    "on domestic form our data doesn't have (SMAT on Cricsheet ends Dec 2024), so the price is not a "
+    "judgement of him."
+)
+
+
+def form_unseen(p: dict, upper: float | None) -> bool:
+    """Bought at the last auction (a sale, not a retention) as an uncapped Indian, for more than the
+    upper quartile of what players like him fetch."""
+    return (
+        upper is not None
+        and not p.get("overseas")
+        and not (p.get("intl_caps") or 0)
+        and p.get("acquired") == "auction"
+        and p.get("prior_years") == 1
+        and not p.get("prior_retained")
+        and float(p["salary"]) > upper
+    )
+
+
 # A squad player with no ball-by-ball record anywhere (no Cricsheet match): shown in place of his
 # value, and his price is the market model's prior for a player like him (issue I6).
 NO_DATA_LABEL = "no match data — priced from the market"
@@ -419,6 +445,7 @@ def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict
         "captain": captain_label(p),
         "cost": salary,
         "should": None,
+        "form_unseen": False,
     }
     out["no_data"] = False
     mkt = has_market_inputs(p)
@@ -489,9 +516,13 @@ def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict
             f"Worth about {cr(price)} cr at auction against {cr_exact(salary)} to keep{tie_text}: "
             f"franchises kept {pct}% of players like him at their retention deadlines (2018-2026)."
         )
+    unseen = not out["no_data"] and form_unseen(p, central)
+    if unseen:
+        reason += FORM_UNSEEN_SENTENCE.format(paid=cr_exact(float(p["salary"])))
     reason += stale_sentence(p)
     reason += cost_sentence(p, salary)
     out.update(
+        form_unseen=unseen,
         price=price,
         price_central=central,
         onfield=onfield,
@@ -501,7 +532,7 @@ def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict
         default_keep=True if p_keep is None else p_keep >= KEEP_CALL,
         rec=rec,
         reason=reason,
-        should=should_of(price, central, salary),
+        should=None if unseen else should_of(price, central, salary),
     )
     return out
 

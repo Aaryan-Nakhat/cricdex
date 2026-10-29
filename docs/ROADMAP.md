@@ -598,7 +598,10 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
     the December 2026 auction. Since 2026-10-29: the **resale** step (a season-old last price, R2) ships;
     the IPL-evidence candidates (AC / AD / AE) lost to Z. **Open:** veteran Indians out of the India side
     (Chahal 2.4 against 18 in 2025, Bhuvneshwar 3.8 against 10.75): the data's released 35+ Indians went
-    cheap and nothing tried tells him apart from them.
+    cheap and nothing tried tells him apart from them; an older last price (R4, 2–3 season windows,
+    star-weighted score) lost too. **Open:** proven stars in a mega-auction bidding war (Chahal 7.3
+    against 18, Starc 2.4 against 24.75). Uncapped buys on 2025–26 domestic form are marked *Can't tell*
+    (no data source; §10 5b).
   - **Keep or release** (§10, 2026-10-29). L7 (retained at the cycle's mega auction) ships: Rohit 71%,
     Dhoni 73%. Toss-ups are near coin flips in the 2026 test (49% / 56% kept), so the report names what
     pushes each way instead of forcing a call.

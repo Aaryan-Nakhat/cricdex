@@ -315,7 +315,8 @@ def market_price(
     hi = calibrate(cal, raw + MARKET_HIGH_Z * float(model["price"]["resid_sd"]))
     # resale: a player the market priced at the last auction (`resale.max_years` seasons ago or
     # less) is priced from both, ln share = a + b × ln(the model's share) + c × ln(his last share)
-    # + d × the seasons since + e × (it was a retention), fitted on the resold lots
+    # + d × the seasons since + e × (it was a retention) + f × ln(his last share) × the seasons since,
+    # fitted on the resold lots
     # (scripts/ipl_price_model.py resale); the upper quartile moves with it
     rs = model["price"].get("resale")
     ps = _num(row.get("prior_share"))
@@ -326,6 +327,7 @@ def market_price(
             float(rs["intercept"]) + float(rs["b_model"]) * base + float(rs["c_last"]) * math.log(ps)
             + float(rs.get("d_years", 0.0)) * py
             + float(rs.get("e_retained", 0.0)) * (1.0 if row.get("prior_retained") else 0.0)
+            + float(rs.get("f_last_years", 0.0)) * math.log(ps) * py
         )  # fmt: skip
         price = max(floor, float(comp["purse"]) * math.exp(adj))
         hi += adj - base

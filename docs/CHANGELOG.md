@@ -23,6 +23,12 @@ METHODOLOGY §6b (Resale; IPL evidence), §10 (the mega retention; what a toss-u
   Veer 0.8 → 1.7 cr, Kartik Sharma 1.7 → 2.6, Finn Allen 9.9 → 4.8, Rachin Ravindra 5.1 → 3.2.
 - **Tried, not chosen:** value backed by IPL evidence, and value for a capped Indian out of the India
   side (AC / AD / AE); none beat Z, and none moved Chahal (2.4).
+- **Tried, not chosen:** an older last price (R4, a fading weight; windows of 2 and 3 seasons), scored
+  with the 8 cr+ lots counting as much as all lots. R2 within one season still wins; older big prices
+  resell both ways (Curran 23.4 → 2.4, Chahal 8.7 → 18).
+- **Domestic form not in our data.** An uncapped Indian bought at the last auction above the upper
+  quartile of players like him (Veer, Kartik Sharma and four others) is marked so; Should they? reads
+  *Can't tell* on the Keep page instead of No.
 
 ### Model fixes from an IPL analyst's review (2026-10-27)
 

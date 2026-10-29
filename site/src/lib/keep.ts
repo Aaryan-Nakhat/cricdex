@@ -231,6 +231,8 @@ export interface Assessment {
   default_keep: boolean;
   /** no ball-by-ball record: `price` is the market model's prior (NO_DATA_LABEL), not a rating */
   no_data: boolean;
+  /** bought at the last auction above the upper quartile on domestic form we can't see (formUnseen) */
+  form_unseen: boolean;
   outlook: string;
   form_note: string;
   /** the 3-season outlook line ("" without a forecast) and its three-season average */
@@ -260,6 +262,24 @@ export function staleSentence(p: { stale_share?: number | null; stale_note?: str
   const share = p.stale_share ?? 0;
   if (!p.stale_note || share < STALE_REASON_MIN) return "";
   return ` ${Math.round(100 * share)}% of his rating rests on ${p.stale_note} (stale).`;
+}
+
+// An uncapped Indian bought at the last auction for more than the upper quartile of players like him:
+// franchises bid on domestic form our data doesn't cover, so his price is no judgement and "should
+// they?" is left open. Mirror of keep.py `form_unseen` / FORM_UNSEEN_SENTENCE.
+export const formUnseenSentence = (paid: string) =>
+  ` Bought for ${paid} cr at the last auction, above anything players like him fetch: franchises bid on domestic form our data doesn't have (SMAT on Cricsheet ends Dec 2024), so the price is not a judgement of him.`;
+
+export function formUnseen(p: KeepPlayer, upper: number | null): boolean {
+  return (
+    upper !== null &&
+    !p.overseas &&
+    !(p.intl_caps ?? 0) &&
+    p.acquired === "auction" &&
+    p.prior_years === 1 &&
+    !p.prior_retained &&
+    Number(p.salary) > upper
+  );
 }
 
 // A squad player with no ball-by-ball record anywhere (no Cricsheet match): shown in place of his
@@ -448,6 +468,7 @@ export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: numb
         p_keep: null,
         default_keep: true,
         no_data: false,
+        form_unseen: false,
         rec: "borderline",
         reason: `Not enough balls in our data to rate him: decide on scouting (he costs ${crExact(salary)} cr).${costSentence(p, salary)}`,
       };
@@ -509,10 +530,13 @@ export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: numb
     const pct = Math.floor(100 * pKeep + 0.5);
     reason = `${lead ? lead + " " : ""}Worth about ${cr(price)} cr at auction against ${crExact(salary)} to keep${tieText}: franchises kept ${pct}% of players like him at their retention deadlines (2018-2026).`;
   }
+  const unseen = !noData && formUnseen(p, central);
+  if (unseen) reason += formUnseenSentence(crExact(Number(p.salary)));
   reason += staleSentence(p);
   reason += costSentence(p, salary);
   return {
     ...base,
+    form_unseen: unseen,
     price,
     price_central: central,
     onfield,
@@ -523,7 +547,7 @@ export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: numb
     no_data: noData,
     rec,
     reason,
-    should: shouldOf(price, central, salary),
+    should: unseen ? null : shouldOf(price, central, salary),
   };
 }
 

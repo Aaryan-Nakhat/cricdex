@@ -142,8 +142,9 @@ P(kept)      = the chance a franchise keeps a player like him, from market price
           costs? <Badge tone="willow">Yes</Badge> when players like him fetch at least that cost at auction
           (the median market price), <Badge tone="ball">No</Badge> when even the dearer quarter of players
           like him fetch less (the upper figure), <Badge tone="gold">Close</Badge> in between (about the price's
-          typical error). It sees no scouting, so a surprise uncapped buy can read No when the franchise
-          knows better.
+          typical error). It sees no scouting: an uncapped Indian bought at the last auction for more than the
+          dearer quarter of players like him was bought on domestic form our data doesn't have (SMAT on
+          Cricsheet ends Dec 2024), so for him it reads <i>Can't tell</i>.
         </p>
         <p>
           <b className="text-fg">Age and outlook</b> are at the auction date, from the player master's date of birth,
@@ -537,7 +538,7 @@ function KeepCalculator({ data, pool }: { data: KeepData; pool: Parameters<typeo
                   </td>
                   <td className="td"><Badge tone={REC_TONE[p.rec]}>{REC_LABEL[p.rec]}</Badge></td>
                   <td className="td" title={p.price === null ? "No market price" : `Market price ${cr(p.price)} cr (upper quartile ${cr(p.price_central ?? p.price)}) against ${cr(p.cost)} cr to keep`}>
-                    {p.should ? <Badge tone={SHOULD_TONE[p.should]}>{SHOULD_LABEL[p.should]}</Badge> : <span className="text-muted">—</span>}
+                    {p.should ? <Badge tone={SHOULD_TONE[p.should]}>{SHOULD_LABEL[p.should]}</Badge> : p.form_unseen ? <span className="text-muted" title="Bought at the last auction above anything players like him fetch, on domestic form our data doesn't have">Can't tell</span> : <span className="text-muted">—</span>}
                   </td>
                   <td className="td">
                     <div className="seg flex-nowrap" role="radiogroup" aria-label={`Decision for ${p.name}`}>

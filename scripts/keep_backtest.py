@@ -239,10 +239,8 @@ def _market(work: Path, data: dict, letter: str | None) -> dict:
         before = [r for r in lots if r["season"] < s and r["prior_share"]
                   and r["prior_years"] is not None and r["prior_years"] <= rs["max_years"]]  # fmt: skip
         if len(before) >= RESALE_MIN_LOTS:
-            co = [float(x) for x in ipm._resale_fit(before, rs.get("rule", "R1"))] + [0.0, 0.0]
-            model["price"]["resale"] = {"max_years": rs["max_years"], "intercept": co[0],
-                                        "b_model": co[1], "c_last": co[2], "d_years": co[3],
-                                        "e_retained": co[4]}  # fmt: skip
+            model["price"]["resale"] = {"max_years": rs["max_years"],
+                                        **ipm.resale_coefs(ipm._resale_fit(before, rs.get("rule", "R1")))}  # fmt: skip
         for r in rows:
             # the row as the recipe prices it (its value input: ipl_price_model._valued)
             rv = ipm._valued(r)

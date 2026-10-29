@@ -1190,6 +1190,19 @@ Z 0.796, AD 0.798, AC 0.803, AE 0.804, so Z stays. Refitted on everything, AD an
 Sharma), and the data can't tell Chahal from them. His last price (18 cr, two auctions back) is outside
 the resale window (above), which 2 seasons didn't earn.
 
+**An older last price, tried and not chosen** (2026-10-29, second round). The owner again: Chahal at 2.4
+is too low. Declared before any number: R4 = R2 + ln(last share) × seasons since (the last price's weight
+fades each season), and a score that counts the stars: the mean of the |ln error| over every resold lot
+and over those whose last price was 8 cr+ (`STAR_LAST_CR`), so the few stars weigh as much as the many
+cheap resales. Leave one auction out on 2019–2024 (score; all / 8 cr+): **R2 within 1 season still wins
+(0.888; 0.855 / 0.920)**; within 2 seasons R1 0.913, R2 0.920, R4 0.928, the 8 cr+ lots worse at 0.963
+or more; within 3, R1 0.905, R4 0.927. An older last price reads both ways: Sam Curran 23.4 → 2.4, Kyle
+Jamieson 16.8 → 1.0, Jhye Richardson 15.7 → 1.5, Hasaranga 11.9 → 1.5, against Harshal Patel 11.9 →
+11.75 and Chahal 8.7 → 18. The resale rule is unchanged (`f_last_years` 0 in `price.resale`; `pricing`
+⇄ `marketPrice` carry the term, parity-tested). What the list does show: proven stars in a bidding war
+fetch far above the model at mega auctions (Chahal 7.3 against 18, Starc 2.4 against 24.75 in 2024),
+the gap the star-price check measures; it is open.
+
 **What is left, the honest reading.** The market price is "what a released player like him fetches", and
 the data's released icons of 35+ went cheap; no stars like Kohli or Rohit have been released, so the
 data can't say what they would fetch. Their real 21 and 16.3 cr are retentions, a franchise paying to keep
@@ -2553,9 +2566,18 @@ group stage and all of SMAT 2025-26 as missing) and are priced from the market (
    cost (a player like him would cost at least as much to buy at the auction); **No** when even the upper
    figure, the upper quartile of what players like him fetch, is below the cost; **Close** in between,
    which is about the price's typical error (a factor of about 2); nothing when he has no price. It never
-   changes the call, the default plan or the purse. It inherits the price's blind spots: no scouting
-   (the 2026 uncapped buys at 14.2 cr read No), no brand or captaincy plans, star prices that run low
-   (AUCTION_MATH Part 0). `should_of` ⇄ `shouldOf`, parity-tested; the CSV column `should_keep`.
+   changes the call, the default plan or the purse. It inherits the price's blind spots: no brand or
+   captaincy plans, star prices that run low (AUCTION_MATH Part 0). `should_of` ⇄ `shouldOf`,
+   parity-tested; the CSV column `should_keep`.
+   **Domestic form not in our data** (since 2026-10-29). The auction comes straight after a domestic
+   season our data doesn't have (SMAT on Cricsheet ends Dec 2024; the state T20 leagues were never
+   there; no source publishes the 2025–26 season as data, and scraping scorecard sites is not done
+   here). An uncapped Indian bought at the last auction (a sale, not a retention) for more than the upper
+   quartile of players like him was bought on that form: the reason says so, and **Should they?** reads
+   *Can't tell* instead of No (`form_unseen` ⇄ `formUnseen`, parity-tested). On the 2027 squads: Prashant
+   Veer and Kartik Sharma (CSK, 14.2 cr), Tejasvi Singh (KKR, 3), Mukul Choudhary (LSG, 2.6), Akshat
+   Raghuwanshi (LSG, 2.2), Ravi Singh (RR, 0.95). A player capped since (Auqib Nabi, 8.4 cr, one India
+   cap) is outside it. The call is unchanged: it is what franchises do.
 6. **Age** is at the auction date from the player master's date of birth, shown with the shape of his Form
    forecast (holds, improves, declines). **Last season** is the raw 2026 strike rate or economy and wickets
    against that season's league figure (30+ balls), not the model.

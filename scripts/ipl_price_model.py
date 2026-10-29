@@ -1637,8 +1637,14 @@ def fit(
 #   R0 the model alone; R1 a + b ln(model) + c ln(last); R2 R1 + d years + e retained;
 #   R3 ln(last) + a (the last price times the median resale ratio).
 # Window 1, 2 or 3 seasons; the lowest leave-one-auction-out mean |ln error| over 2019-2024 wins.
-RESALE_KINDS = ("R0", "R1", "R2", "R3")
+# Added 2026-10-29 (second round, declared before any of its numbers; the owner's reality check:
+# Chahal, sold for 18 cr in 2025, priced 2.4 because window 1 drops a sale two seasons back):
+#   R4 R2 + f × ln(last) × years (the last price's weight fades with each season since);
+#   the score is the mean of the |ln error| over every resold lot and over those whose last price
+#   was 8 cr+ (STAR_LAST_CR), so the stars count as much as the many cheap resales.
+RESALE_KINDS = ("R0", "R1", "R2", "R3", "R4")
 RESALE_WINDOWS = (1, 2, 3)
+STAR_LAST_CR = 8.0
 
 
 def resale_lots(price_rows: list[dict], ret_rows: list[dict], spec: tuple) -> list[dict]:
@@ -1667,8 +1673,10 @@ def _resale_x(r: dict, kind: str) -> list[float]:
     lm, ll = math.log(r["pred"] / r["purse"]), math.log(r["prior_share"])
     if kind == "R1":
         return [1.0, lm, ll]
-    if kind == "R2":
-        return [1.0, lm, ll, float(r["prior_years"]), 1.0 if r["prior_retained"] else 0.0]
+    if kind in ("R2", "R4"):
+        py = float(r["prior_years"])
+        x = [1.0, lm, ll, py, 1.0 if r["prior_retained"] else 0.0]
+        return x + [ll * py] if kind == "R4" else x
     return [1.0]
 
 
@@ -1694,6 +1702,13 @@ def _resale_err(rows: list[dict], kind: str, coef) -> list[float]:
     return out
 
 
+def resale_coefs(coef) -> dict:
+    """A fitted R1/R2/R4 vector as the model's named terms (missing terms 0)."""
+    co = [round(float(x), 6) for x in coef] + [0.0, 0.0, 0.0]
+    return {"intercept": co[0], "b_model": co[1], "c_last": co[2], "d_years": co[3],
+            "e_retained": co[4], "f_last_years": co[5]}  # fmt: skip
+
+
 def resale_choice(lots: list[dict]) -> dict:
     """The resale rule, chosen by leave one auction out on 2019-2024, tested once on 2025-26."""
     sel_all: dict = {}
@@ -1703,12 +1718,19 @@ def resale_choice(lots: list[dict]) -> dict:
         sel = [r for r in has if r["season"] <= SELECT_LAST]
         for kind in RESALE_KINDS:
             errs: list[float] = []
+            star: list[float] = []
             for s in sorted({r["season"] for r in sel}):
                 c = _resale_fit([r for r in sel if r["season"] != s], kind)
-                errs += _resale_err([r for r in sel if r["season"] == s], kind, c)
-            sel_all[f"{kind} w{w}"] = round(float(np.mean(np.abs(errs))), 4)
-    # a correction only (R0 is the reference): the best of R1-R3 over the windows
-    best = min((k for k in sel_all if not k.startswith("R0")), key=lambda k: sel_all[k])
+                held = [r for r in sel if r["season"] == s]
+                errs += _resale_err(held, kind, c)
+                star += _resale_err(
+                    [r for r in held if r["prior_share"] * r["purse"] >= STAR_LAST_CR], kind, c
+                )
+            a, b = float(np.mean(np.abs(errs))), float(np.mean(np.abs(star)))
+            sel_all[f"{kind} w{w}"] = {"score": round((a + b) / 2, 4), "all": round(a, 4),
+                                       "last_8cr_plus": round(b, 4), "n": len(errs), "n_star": len(star)}  # fmt: skip
+    # a correction only (R0 is the reference): the best of R1-R4 over the windows
+    best = min((k for k in sel_all if not k.startswith("R0")), key=lambda k: sel_all[k]["score"])
     kind, w = best.split()[0], int(best.split()[1][1:])
     has = [r for r in lots if r["prior_share"] and r["prior_years"] is not None
            and r["prior_years"] <= w]  # fmt: skip
@@ -1724,7 +1746,7 @@ def resale_choice(lots: list[dict]) -> dict:
                 "last_8cr_plus": {"n": len(eb), "mae_ln": round(float(np.mean(np.abs(eb))), 4),
                                   "median_err": round(float(np.median(eb)), 4)}}  # fmt: skip
     return {"selection": sel_all, "chosen": best, "kind": kind, "max_years": w, "test": t,
-            "beats_model": sel_all[best] < sel_all[f"R0 w{w}"]}  # fmt: skip
+            "beats_model": sel_all[best]["score"] < sel_all[f"R0 w{w}"]["score"]}  # fmt: skip
 
 
 @app.command()
@@ -1740,14 +1762,12 @@ def resale(model_path: Path = typer.Option(MODEL_PATH, "--model")) -> None:
     ch = resale_choice(lots)
     logger.info(json.dumps(ch, indent=1))
     model["price"].pop("resale", None)
-    if ch["beats_model"] and ch["kind"] in ("R1", "R2"):
+    if ch["beats_model"] and ch["kind"] in ("R1", "R2", "R4"):
         w = ch["max_years"]
         every = [r for r in lots if r["prior_share"] and r["prior_years"] is not None
                  and r["prior_years"] <= w]  # fmt: skip
-        co = [round(float(x), 6) for x in _resale_fit(every, ch["kind"])] + [0.0, 0.0]
-        model["price"]["resale"] = {"rule": ch["kind"], "max_years": w, "intercept": co[0],
-                                    "b_model": co[1], "c_last": co[2], "d_years": co[3],
-                                    "e_retained": co[4], "rows": len(every)}  # fmt: skip
+        model["price"]["resale"] = {"rule": ch["kind"], "max_years": w,
+                                    **resale_coefs(_resale_fit(every, ch["kind"])), "rows": len(every)}  # fmt: skip
     else:
         logger.info(f"not shipped: {ch['chosen']} (R3 is not implemented in pricing.market_price)")
     model.setdefault("evaluation", {})["resale"] = ch
