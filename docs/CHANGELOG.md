@@ -8,6 +8,22 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Keep or release and the price, after the owner's reality check (2026-10-29)
+
+Each candidate declared before its numbers, chosen on data up to 2024 and looked at once on 2025–26.
+METHODOLOGY §6b (Resale; IPL evidence), §10 (the mega retention; what a toss-up means).
+
+- **Retained at the cycle's mega auction** is a Keep model input (L7). Franchises kept 94% of these
+  players at the mini deadlines up to 2024; the old model put them at 0.90. L7 tied L4 on F1 and won on
+  held-out log loss (the tie-break is now in `keep_backtest.py`); 2025–26 accuracy 78.3%. Rohit Sharma
+  59% → 71% (Keep), Dhoni 59% → 73%.
+- **Resale.** A player the market priced a season ago is priced from the model and his last price
+  together (`price.resale`, `ipl_price_model.py resale`; leave one auction out 0.855 against 0.873; on
+  2025–26 level overall, and the 8 cr+ last prices no longer priced low: median error −0.30 against −0.77).
+  Veer 0.8 → 1.7 cr, Kartik Sharma 1.7 → 2.6, Finn Allen 9.9 → 4.8, Rachin Ravindra 5.1 → 3.2.
+- **Tried, not chosen:** value backed by IPL evidence, and value for a capped Indian out of the India
+  side (AC / AD / AE); none beat Z, and none moved Chahal (2.4).
+
 ### Model fixes from an IPL analyst's review (2026-10-27)
 
 Each chosen on data up to 2024 and looked at once on 2025–26 (one more look at seasons already seen

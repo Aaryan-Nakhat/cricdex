@@ -595,7 +595,13 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
     (past the 27 cr record), the star-price check 0.3597 → 0.333; the test agreed (0.690 against 0.660).
     The price model is unchanged. **Open:** no released star like Kohli exists in the data; a refit of
     recipe Z on today's data would move the check to 0.317 (not shipped). Score the brand candidates on
-    the December 2026 auction.
+    the December 2026 auction. Since 2026-10-29: the **resale** step (a season-old last price, R2) ships;
+    the IPL-evidence candidates (AC / AD / AE) lost to Z. **Open:** veteran Indians out of the India side
+    (Chahal 2.4 against 18 in 2025, Bhuvneshwar 3.8 against 10.75): the data's released 35+ Indians went
+    cheap and nothing tried tells him apart from them.
+  - **Keep or release** (§10, 2026-10-29). L7 (retained at the cycle's mega auction) ships: Rohit 71%,
+    Dhoni 73%. Toss-ups are near coin flips in the 2026 test (49% / 56% kept), so the report names what
+    pushes each way instead of forcing a call.
   - **Thin records** (§4c). K4 / K5 (the flat factor times a fitted evidence term) lost to K1 (3.918 /
     3.919 against 3.905); the fitted extra shrink is near zero (s = 0.0003). No change. **Open:**
     the validation has one batter like Suryavanshi (value +20 or more on an sd of 8 or more).

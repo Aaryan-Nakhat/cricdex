@@ -226,6 +226,10 @@ def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[
         "brand": brand,
         "no_brand": 0.0 if views is not None else 1.0,
         "brand_x_indian": brand * (1.0 - ov),
+        # his value as far as the IPL has seen it (value x ln IPL balls / 8), and his value when he
+        # is a capped Indian out of the India side (no international in the two years before)
+        "pv_x_ipl_evidence": pv * math.log1p(max(_num(row.get("ipl_balls")) or 0.0, 0.0)) / 8.0,
+        "pv_x_indian_no_recent": pv * capped_ind * (1.0 if recent == 0.0 else 0.0),
     }
 
 
@@ -309,6 +313,22 @@ def market_price(
     # the upper quartile: a player 0.674 residual sd above him on the model's index, through the same
     # calibration (where the market's response flattens at the top, so does the spread above him)
     hi = calibrate(cal, raw + MARKET_HIGH_Z * float(model["price"]["resid_sd"]))
+    # resale: a player the market priced at the last auction (`resale.max_years` seasons ago or
+    # less) is priced from both, ln share = a + b × ln(the model's share) + c × ln(his last share)
+    # + d × the seasons since + e × (it was a retention), fitted on the resold lots
+    # (scripts/ipl_price_model.py resale); the upper quartile moves with it
+    rs = model["price"].get("resale")
+    ps = _num(row.get("prior_share"))
+    py = _num(row.get("prior_years"))
+    if rs and ps is not None and ps > 0 and py is not None and py <= float(rs["max_years"]):
+        base = math.log(price / float(comp["purse"]))
+        adj = (
+            float(rs["intercept"]) + float(rs["b_model"]) * base + float(rs["c_last"]) * math.log(ps)
+            + float(rs.get("d_years", 0.0)) * py
+            + float(rs.get("e_retained", 0.0)) * (1.0 if row.get("prior_retained") else 0.0)
+        )  # fmt: skip
+        price = max(floor, float(comp["purse"]) * math.exp(adj))
+        hi += adj - base
     high = max(floor, float(comp["purse"]) * math.exp(hi))
     p = None
     if f["never_ipl"] == 0.0:

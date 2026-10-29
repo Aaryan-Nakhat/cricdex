@@ -306,15 +306,17 @@ def keep_features(
     bought_prev: bool,
     p_play: float | None = None,
     contrib: float | None = None,
+    mega_retained: bool = False,
 ) -> dict[str, float]:
     """The retention model's inputs (scripts/keep_backtest.py fits it on the same function):
     ln(market price / what keeping him costs), ln(cost), the mega-auction flag, the 3-season Form
     forecast (average / 10, the chance he is a regular in its third season, a no-forecast flag),
     captain of this franchise last season, ln(1 + IPL seasons played for it), home-grown (his first
     IPL side), capped Indian, overseas, age ((age − 28) / 5 and (age − 33)+ / 3), ln(1 + IPL balls)
-    / 5, bought at the last auction, mega × the price ratio, and his playing time (METHODOLOGY §6c):
+    / 5, bought at the last auction, mega × the price ratio, his playing time (METHODOLOGY §6c):
     P(plays a match) in this squad, P × his contribution per match (runs above replacement) and a flag
-    when either is missing. Mirror of `keepFeatures` in keep.ts."""
+    when either is missing, and in a mini year whether this franchise retained him at the cycle's
+    mega auction. Mirror of `keepFeatures` in keep.ts."""
     c = cost if cost and cost > 0 else 1e-3
     lr = math.log(max(market, 1e-3) / c)
     mg = 1.0 if mega else 0.0
@@ -338,6 +340,7 @@ def keep_features(
         "p_play": p_play if p_play is not None and contrib is not None else 0.0,
         "play_value": p_play * contrib if p_play is not None and contrib is not None else 0.0,
         "no_play": 0.0 if p_play is not None and contrib is not None else 1.0,
+        "mega_retained": 1.0 if mega_retained and not mega else 0.0,
     }
 
 
@@ -477,7 +480,7 @@ def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict
             (p.get("team") or "") in (p.get("captain_teams") or []), int(p.get("seasons_here") or 0),
             bool(p.get("home_grown")), (p.get("intl_caps") or 0) > 0 and not p.get("overseas"),
             bool(p.get("overseas")), p.get("age"), p.get("ipl_balls"), p.get("acquired") == "auction",
-            p.get("p_play"), p.get("contrib"),
+            p.get("p_play"), p.get("contrib"), bool(p.get("slab_holder")),
         )  # fmt: skip
         p_keep = keep_probability(f, model)
         rec = call_of(p_keep)

@@ -344,6 +344,7 @@ export function keepFeatures(
   boughtPrev: boolean,
   pPlay: number | null | undefined = null,
   contrib: number | null | undefined = null,
+  megaRetained = false,
 ): Record<string, number> {
   const c = cost && cost > 0 ? cost : 1e-3;
   const lr = Math.log(Math.max(market, 1e-3) / c);
@@ -370,6 +371,7 @@ export function keepFeatures(
     p_play: hasPlay ? (pPlay as number) : 0,
     play_value: hasPlay ? (pPlay as number) * (contrib as number) : 0,
     no_play: hasPlay ? 0 : 1,
+    mega_retained: megaRetained && !mega ? 1 : 0,
   };
 }
 
@@ -500,6 +502,7 @@ export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: numb
       p.acquired === "auction",
       p.p_play,
       p.contrib,
+      !!p.slab_holder,
     );
     pKeep = keepProbability(f, model);
     rec = callOf(pKeep);

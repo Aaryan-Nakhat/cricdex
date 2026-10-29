@@ -370,7 +370,17 @@
    }
   ],
   "resid_sd": 0.9852,
-  "calibration_mode": "isotonic-tail+group-median-offset"
+  "calibration_mode": "isotonic-tail+group-median-offset",
+  "resale": {
+   "rule": "R2",
+   "max_years": 1,
+   "intercept": -0.427295,
+   "b_model": 0.585284,
+   "c_last": 0.224293,
+   "d_years": -0.427295,
+   "e_retained": -0.08098,
+   "rows": 133
+  }
  },
  "bought": {
   "intercept": -1.829911,
@@ -3204,6 +3214,48 @@
      }
     ]
    }
+  },
+  "resale": {
+   "selection": {
+    "R0 w1": 0.8732,
+    "R1 w1": 0.857,
+    "R2 w1": 0.8549,
+    "R3 w1": 0.958,
+    "R0 w2": 0.8663,
+    "R1 w2": 0.8637,
+    "R2 w2": 0.8665,
+    "R3 w2": 0.9707,
+    "R0 w3": 0.8765,
+    "R1 w3": 0.8744,
+    "R2 w3": 0.8805,
+    "R3 w3": 0.9716
+   },
+   "chosen": "R2 w1",
+   "kind": "R2",
+   "max_years": 1,
+   "test": {
+    "R2": {
+     "n": 48,
+     "mae_ln": 0.7216,
+     "median_err": 0.1461,
+     "last_8cr_plus": {
+      "n": 11,
+      "mae_ln": 0.7204,
+      "median_err": -0.2964
+     }
+    },
+    "R0": {
+     "n": 48,
+     "mae_ln": 0.7212,
+     "median_err": -0.03,
+     "last_8cr_plus": {
+      "n": 11,
+      "mae_ln": 0.7218,
+      "median_err": -0.7732
+     }
+    }
+   },
+   "beats_model": true
   }
  }
 }

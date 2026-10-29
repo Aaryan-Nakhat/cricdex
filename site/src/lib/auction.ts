@@ -153,7 +153,18 @@ export interface PriceModel {
   league: string;
   competition: { cycle: "mega" | "mini"; purse: number; key?: string };
   floor_cr: number;
-  price: PriceModelPart & { resid_sd: number };
+  price: PriceModelPart & {
+    resid_sd: number;
+    // the price of a player resold within max_years of his last auction (pricing.market_price)
+    resale?: {
+      max_years: number;
+      intercept: number;
+      b_model: number;
+      c_last: number;
+      d_years?: number;
+      e_retained?: number;
+    };
+  };
   bought: PriceModelPart;
   [k: string]: unknown;
 }
@@ -264,6 +275,9 @@ export function marketFeatures(row: MarketInputs, cycle: string, pvMax?: number 
     brand,
     no_brand: views !== null ? 0 : 1,
     brand_x_indian: brand * (1 - ov),
+    // his value as far as the IPL has seen it, and his value when a capped Indian out of the India side
+    pv_x_ipl_evidence: (pv * Math.log1p(Math.max(fin(row.ipl_balls) || 0, 0))) / 8,
+    pv_x_indian_no_recent: pv * cappedInd * (recent === 0 ? 1 : 0),
   };
 }
 
@@ -333,10 +347,26 @@ export function marketPrice(
   const cal = calibrationPart(m.price, f);
   const raw = linkShare(m.price, linear(m.price, f));
   const lin = calibrate(cal, raw);
-  const price = Math.max(m.floor_cr, c.purse * Math.exp(lin));
+  let price = Math.max(m.floor_cr, c.purse * Math.exp(lin));
   // the upper quartile: a player 0.674 residual sd above him on the model's index, through the same
   // calibration (where the market's response flattens at the top, so does the spread above him)
-  const high = Math.max(m.floor_cr, c.purse * Math.exp(calibrate(cal, raw + MARKET_HIGH_Z * m.price.resid_sd)));
+  let hi = calibrate(cal, raw + MARKET_HIGH_Z * m.price.resid_sd);
+  // resale: priced from the model and his last auction price together (pricing.market_price)
+  const rs = m.price.resale;
+  const ps = fin(row.prior_share);
+  const py = fin(row.prior_years);
+  if (rs && ps !== null && ps > 0 && py !== null && py <= rs.max_years) {
+    const base = Math.log(price / c.purse);
+    const adj =
+      rs.intercept +
+      rs.b_model * base +
+      rs.c_last * Math.log(ps) +
+      (rs.d_years ?? 0) * py +
+      (rs.e_retained ?? 0) * (row.prior_retained ? 1 : 0);
+    price = Math.max(m.floor_cr, c.purse * Math.exp(adj));
+    hi += adj - base;
+  }
+  const high = Math.max(m.floor_cr, c.purse * Math.exp(hi));
   const p = f.never_ipl === 0 ? 1 / (1 + Math.exp(-linear(m.bought, f))) : null;
   return { price, high, p_bought: p };
 }

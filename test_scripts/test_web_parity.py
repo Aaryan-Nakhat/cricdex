@@ -87,6 +87,9 @@ MARKET_CASES = [
     ({"price_value": None, "role": "keeper", "is_overseas": False, "intl_caps": None, "age": None, "ipl_balls": None, "ipl_seasons": None, "ipl_gap": 3.2}, "mega", 90),
     ({"price_value": -45, "value_sd": 20, "role": "bowler", "is_overseas": True, "intl_caps": 3, "age": 41, "ipl_balls": 120, "ipl_seasons": 1, "ipl_gap": 9.5, "target_balls": 120, "prior_share": 0, "prior_years": 3, "prior_retained": True}, "mini", 125),
     ({"price_value": 18.5, "value_sd": 3.1, "role": "keeper", "is_overseas": True, "intl_caps": 160, "intl_caps_2y": 30, "age": 33.5, "ipl_balls": 2600, "ipl_seasons": 9, "ipl_gap": 0.6, "target_balls": 2500, "prior_share": 0.0001, "prior_years": 1, "wiki_views": 0}, "mega", 120),
+    # resold a season after his last auction (the resale rule, 2026-10-29): a sale and a retention
+    ({"price_value": 3.0, "value_sd": 6.0, "role": "batter", "is_overseas": False, "intl_caps": 0, "age": 20.4, "ipl_balls": 90, "ipl_seasons": 1, "ipl_gap": 0.6, "target_balls": 90, "prior_share": 0.1136, "prior_years": 1, "prior_retained": False}, "mini", 125),
+    ({"price_value": 12.0, "value_sd": 3.0, "role": "bowler", "is_overseas": True, "intl_caps": 60, "intl_caps_2y": 20, "age": 23.0, "ipl_balls": 1500, "ipl_seasons": 4, "ipl_gap": 0.6, "target_balls": 1500, "prior_share": 0.108, "prior_years": 1, "prior_retained": True}, "mini", 125),
     # the price input's own sd (2026-10-23: the pool's value_sd is the translated blend's)
     ({"price_value": 21.0, "price_value_sd": 9.0, "value_sd": 2.0, "role": "batter", "is_overseas": False, "intl_caps": 4, "age": 24.0, "ipl_balls": 300, "ipl_seasons": 2, "ipl_gap": 0.6, "target_balls": 300}, "mini", 125),
     ({"price_value": 21.0, "price_value_sd": None, "value_sd": 2.0, "role": "batter", "is_overseas": False, "intl_caps": 4, "age": 24.0, "ipl_balls": 300, "ipl_seasons": 2, "ipl_gap": 0.6, "target_balls": 300}, "mini", 125),

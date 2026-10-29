@@ -955,6 +955,28 @@ as exact prices, which pinned the stars who never reach an auction to their slab
 retained salaries were tried as floors too (candidate G) and made everything much worse (error 0.95):
 keeping an older contract in a mini year is not a statement that the market would pay that much.
 
+**Resale: the last auction price, a season on** (since 2026-10-29). As a feature of the whole model the
+last price didn't help (above). As a second step it does, for one group: a player the market priced at
+the last auction. The owner's reality check started it (Prashant Veer and Kartik Sharma, bought for
+14.2 cr in Dec 2025, priced 0.8 and 1.7 cr), and the data agree that the model runs low there: the 2025–26
+lots whose last price was 8 cr+ a season before fetched a median e^0.77 ≈ 2.2× the model's price (Starc
+4.7 for 11.75, Pathirana 6.9 for 18, Livingstone 5.6 for 13), while the hyped uncapped buys did crash
+(Sameer Rizvi 8.4 → 0.95, Kumar Kushagra 7.2 → 0.65). `scripts/ipl_price_model.py resale` prices every
+lot 2019–2026 out of time (the shipped recipe fitted on the auctions before it) and tries, declared before
+any number: R0 the model alone; R1 ln share = a + b ln(model share) + c ln(last share); R2 R1 + the seasons
+since + a retention flag; R3 the last price times the median resale ratio; each for a last verdict 1, 2 or
+3 seasons back. Leave one auction out on 2019–2024 (mean |ln error|): **R2 within 1 season wins (0.855
+against the model's 0.873)**; 2 and 3 seasons gain nothing (0.864 against 0.866; 0.874 against 0.877).
+Tested once on 2025–26 (48 lots): error level with the model (0.722 against 0.721), and the lots with a
+last price of 8 cr+ are no longer priced low (median error −0.30 against −0.77). Refitted on all 133
+resold lots: ln share = −0.43 + 0.585 ln(model) + 0.224 ln(last) − 0.43 × seasons since − 0.08 if it
+was a retention (`price.resale` in `config/price_model.json`; `pricing.market_price` ⇄ `marketPrice`,
+parity-tested); the upper quartile moves by the same amount. It pulls a price toward the last one both
+ways: Veer 0.8 → 1.7 cr, Kartik Sharma 1.7 → 2.6, Finn Allen (bought for 2) 9.9 → 4.8, Rachin Ravindra
+5.1 → 3.2 (he sold for 2.0 in 2026). A price two auctions old isn't used: Chahal (18 cr at the 2025 mega
+auction) stays 2.4. Keep or release's backtest refits the rule before each deadline on the earlier lots
+only.
+
 **The model.** A hurdle:
 
 1. **P(bought)**: logistic regression (L2, standardised), with the prior market price. The risk set is
@@ -1156,10 +1178,22 @@ and the shipped model is the one of the morning (Z, unchanged). The pageviews an
 stay in the code and the export (the site and the Python mirror read `wiki_views`, inert while the model
 has no brand coefficient), so the next real auction can be scored against them.
 
+**IPL evidence, tried and not chosen** (2026-10-29). The owner's reality check: Chahal 2.4 cr against 18 at
+the 2025 mega auction. His inputs show why: no international in the two years before (the recent-caps term
+is worth about ×4.5 for a current Indian international), age 36.4, and a strong value (+9.6) that adds
+little; Bhuvneshwar Kumar (+15.2) is 3.8, Mohammed Shami (+0.4, recent caps) 4.1. Declared before any
+number: AC = Z + value × ln IPL balls / 8 (value backed by IPL evidence), AD = Z + value for a capped
+Indian with no international in two years, AE = both (`pv_x_ipl_evidence`, `pv_x_indian_no_recent` in
+`market_features` ⇄ `marketFeatures`, inert unless a model has them). Leave one auction out on 2018–2024:
+Z 0.796, AD 0.798, AC 0.803, AE 0.804, so Z stays. Refitted on everything, AD and AE price Chahal 2.4 and
+2.3: the released Indians of 35+ out of the India side went cheap (Chawla, Mishra, Harbhajan, Karn
+Sharma), and the data can't tell Chahal from them. His last price (18 cr, two auctions back) is outside
+the resale window (above), which 2 seasons didn't earn.
+
 **What is left, the honest reading.** The market price is "what a released player like him fetches", and
 the data's released icons of 35+ went cheap; no stars like Kohli or Rohit have been released, so the
 data can't say what they would fetch. Their real 21 and 16.3 cr are retentions, a franchise paying to keep
-a player, which Keep or release models directly (section 10: Kohli 93% Keep, Rohit Borderline at 59%,
+a player, which Keep or release models directly (section 10: Kohli 93% Keep, Rohit 71% Keep since 2026-10-29,
 Narine 89%, Chahal 82%). A routine refit of recipe Z on the refreshed data (same recipe, new rows) prices
 Kohli at 6.8 and moves the star-price check to 0.317, so the shipped coefficients were left as they are.
 
@@ -1296,7 +1330,8 @@ star's price is a median with a wide range. The old stars are low (Kohli 7.5, Ro
 Singh and Yuvraj Singh 2 at 36–38, Sehwag 3.2 at 35), and the brand feature built to set Kohli apart from them (Wikipedia pageviews, above) was vetoed by the
 reality gate. The retained stars as a group are priced at about half their
 retention: what a released player like them fetches, not what their franchise pays to keep them (section
-10 models the second). The prior market price helps the "is he bought" part, not the price. P(bought)'s
+10 models the second). The prior market price helps the "is he bought" part, and since 2026-10-29 the price of a
+player resold a season after his last auction (Resale, above), not the price in general. P(bought)'s
 "not bought" includes players who didn't register. The caution (`value − 0.5 × sd`) is still a fixed
 0.5, not estimated (audit item 2c).
 
@@ -2475,11 +2510,29 @@ group stage and all of SMAT 2025-26 as missing) and are priced from the market (
      buy at the last auction;
    - in a mega year, a mega flag and its interaction with the price ratio (zero for IPL 2027, a mini).
 
+   - in a mini year, whether this franchise **retained him at the cycle's mega auction** (since
+     2026-10-29, candidate L7; the page and the CLI read it from `slab_holder`).
+
    Fitted on 1,449 squad decisions 2018–2026 (`config/keep_model.json`, by `scripts/keep_backtest.py`).
-   The largest effects: being overseas (−0.87 in log-odds: franchises let overseas players go far more
-   readily), the forecast's chance he stays a regular (+2.6 from 0 to 1), home-grown (+0.51), captain of
-   this side last season (+0.40), the forecast average (+0.44 per 10 runs). The price against the cost
-   counts little in a mini year (+0.14 per ln unit) and a lot in a mega year (+1.09).
+   The largest effects: the forecast's chance he stays a regular (+2.7 from 0 to 1), being overseas (−0.81
+   in log-odds: franchises let overseas players go far more readily), retained at the mega auction
+   (+0.79), home-grown (+0.53), the forecast average (+0.43 per 10 runs), captain of this side last season
+   (+0.26). The price against the cost counts little in a mini year (+0.11 per ln unit) and a lot in a
+   mega year (+0.99).
+
+   **The mega retention (L7, 2026-10-29).** The owner's reality check: Rohit Sharma, retained by MI at the
+   2025 mega auction and kept for 2026, was a 59% Borderline. Franchises kept 104 of the 111 players they
+   had retained at the cycle's mega auction at the mini deadlines up to 2024 (94%, against about 60% of the
+   rest; 41 of 44 in 2026), and the previous model (L4) put them at 0.90 on average. L7 = L4 + that flag,
+   declared before its numbers. On the selection (leave one deadline out, 2018–2024) it tied L4 on F1
+   (0.798) and had the lower log loss (0.5770 against 0.5780), so the selection rule now breaks a tie on
+   F1 (to 3 places) by the held-out log loss, written into the code before the test was read. Tested once
+   on 2025–26: accuracy 78.3% (stars 82.8%), F1 0.727 against L4's 0.717; its 2026 retainees average 0.93
+   against 0.93 kept (L4: 0.90). Rohit Sharma 59% → 71% (Keep), Dhoni 59% → 73%.
+
+   **What a toss-up means.** On the 2026 deadline (fitted 2018–2024), franchises kept 49% of the players
+   the model put at 35–50% and 56% of those at 50–65%, against 88% at 65%+: a Borderline call is close to
+   a coin flip, which is why it isn't forced either way.
 5. **The call.** *Keep* at a 65%+ chance, *Release* below 35%, *Borderline* in between (a close call
    either way); the default plan keeps him from 50% (the backtest's rule). The reason gives the price
    against the cost, his ties and the chance: "Worth about 7.8 cr at auction against 15 to keep
@@ -2494,8 +2547,8 @@ group stage and all of SMAT 2025-26 as missing) and are priced from the market (
 5b. **Should they?** (since 2026-10-27). The call is what franchises *will likely do*, and in a mini year
    the fitted model hardly weighs the cost: ln(price / cost) at +0.141 and ln(cost) at +0.139 nearly
    cancel (together about +0.14 ln price − 0.002 ln cost), so a dear retention looks as likely as a cheap
-   one (Kartik Sharma: 93% at a 14.2 cr cost against a 1.67 cr market price). The model is not refitted
-   (its protocol is frozen and the 2025–26 seasons are spent). Instead a second, cost-aware column reads
+   one (Kartik Sharma: 94% at a 14.2 cr cost against a 2.6 cr market price). The cost terms were not
+   re-specified for this (the 2025–26 seasons are spent). Instead a second, cost-aware column reads
    the market price (6b) against the cost (step 3): **Yes** when the median market price is at least the
    cost (a player like him would cost at least as much to buy at the auction); **No** when even the upper
    figure, the upper quartile of what players like him fetch, is below the cost; **Close** in between,
@@ -2631,13 +2684,13 @@ Read honestly:
   those bought for 1 cr+ in 2019–2024 (28 players) and 86% in 2026 (7), 41% / 55% of the cheaper ones. The
   model's "bought at the last auction" term is near zero (−0.01): it treats them through their price, cost
   and forecast like anyone else, and they come out near the line (Tejasvi Singh, KKR, 3 cr on 15 balls:
-  57%, Borderline, kept by default). No special rule.
+  59%, Borderline, kept by default). No special rule.
 
 *Worked example (IPL 2027 defaults, data to the 2026 final).* RCB's Virat Kohli: value +13.6 ± 2.8, 38 at
 the auction; market price 7.5 cr (10.9 in the top quarter). One of RCB's 2025 retentions: RCB's three (Kohli, Patidar, Dayal) cost the purse max(18 + 14
 + 4, 21 + 11 + 5) = 37 cr, and without him 22, so keeping him costs 15 cr. His price is half his cost, but
 he is home-grown, has played 19 seasons for RCB, and the forecast gives him a 54% chance of being a regular
-in 2029: franchises kept **93%** of players like him, so **Keep**. Before 2026-10-22 he was Borderline (and
+in 2029: franchises kept **96%** of players like him, so **Keep**. Before 2026-10-22 he was Borderline (and
 a Release before that).
 
 **The reality table: 25 marquee players** (2027 defaults; market median / upper quartile, cr; cost = what
@@ -2645,71 +2698,73 @@ keeping him takes from the purse; P = the chance a franchise keeps a player like
 
 | player | team | salary | cost | market | P | call | what the franchise did |
 |---|---|---|---|---|---|---|---|
-| Virat Kohli | RCB | 21 | 15 (slab) | 7.5 / 10.9 | 93% | Keep | Retained 2025 (21 cr), kept for 2026 |
-| Rohit Sharma | MI | 16.3 | 14 (slab) | 4.3 / 8.3 | 59% | Borderline (kept) | Retained 2025, kept for 2026 |
-| Suryakumar Yadav | MI | 16.35 | 14 (slab) | 7.8 / 11.1 | 89% | Keep | Retained 2025, kept for 2026 |
-| Jasprit Bumrah | MI | 18 | 14 (slab) | 11.0 / 15.5 | 97% | Keep | Retained 2025, kept for 2026 |
+| Virat Kohli | RCB | 21 | 15 (slab) | 7.5 / 10.9 | 96% | Keep | Retained 2025 (21 cr), kept for 2026 |
+| Rohit Sharma | MI | 16.3 | 14 (slab) | 4.3 / 8.3 | 71% | Keep | Retained 2025, kept for 2026 |
+| Suryakumar Yadav | MI | 16.35 | 14 (slab) | 7.8 / 11.1 | 94% | Keep | Retained 2025, kept for 2026 |
+| Jasprit Bumrah | MI | 18 | 14 (slab) | 11.0 / 15.5 | 99% | Keep | Retained 2025, kept for 2026 |
 | Shubman Gill | GT | 16.5 | 11 (slab) | 24.3 / 34.1 | 99% | Keep | Retained 2025, kept for 2026 (captain) |
-| Rishabh Pant | DC | 15 | 15 | 14.7 / 20.7 | 97% | Keep | Bought 27 by LSG (2025); traded back to DC at 15 (Oct 2026) |
-| Ravindra Jadeja | RR | 14 | 14 | 7.8 / 11.1 | 84% | Keep | Retained by CSK 2025; traded to RR for 2026 |
-| MS Dhoni | CSK | 4 | 4 | 0.5 / 1.0 | 59% | Borderline (kept) | Retained 2025 (uncapped, 4 cr), kept for 2026 |
-| Rinku Singh | KKR | 13 | 11 (slab) | 5.0 / 8.8 | 90% | Keep | Retained 2025, kept for 2026 |
-| Tejasvi Singh | KKR | 3 | 3 | 0.3 / 0.5 | 57% | Borderline (kept) | Bought 3 cr at the 2026 auction; 15 IPL balls |
-| Hardik Pandya | MI | 16.35 | 14 (slab) | 11.9 / 16.7 | 89% | Keep | Retained 2025, kept for 2026 (captain) |
-| Tilak Varma | MI | 8 | 8 | 15.2 / 21.4 | 98% | Keep | Retained 2025, kept for 2026 |
-| Abhishek Sharma | SRH | 14 | 14 | 15.9 / 22.4 | 98% | Keep | Retained 2025, kept for 2026 |
-| Yashasvi Jaiswal | RR | 18 | 18 | 12.4 / 17.4 | 98% | Keep | Retained 2025, kept for 2026 |
-| Shreyas Iyer | PBKS | 26.75 | 26.75 | 14.2 / 20.0 | 97% | Keep | Bought 26.75 (2025), kept for 2026 (captain) |
+| Rishabh Pant | DC | 15 | 15 | 14.7 / 20.7 | 96% | Keep | Bought 27 by LSG (2025); traded back to DC at 15 (Oct 2026) |
+| Ravindra Jadeja | RR | 14 | 14 | 7.8 / 11.1 | 82% | Keep | Retained by CSK 2025; traded to RR for 2026 |
+| MS Dhoni | CSK | 4 | 4 | 0.5 / 1.0 | 73% | Keep | Retained 2025 (uncapped, 4 cr), kept for 2026 |
+| Rinku Singh | KKR | 13 | 11 (slab) | 5.0 / 8.8 | 94% | Keep | Retained 2025, kept for 2026 |
+| Tejasvi Singh | KKR | 3 | 3 | 0.7 / 1.4 | 59% | Borderline (kept) | Bought 3 cr at the 2026 auction; 15 IPL balls |
+| Hardik Pandya | MI | 16.35 | 14 (slab) | 11.9 / 16.7 | 93% | Keep | Retained 2025, kept for 2026 (captain) |
+| Tilak Varma | MI | 8 | 8 | 15.2 / 21.4 | 99% | Keep | Retained 2025, kept for 2026 |
+| Abhishek Sharma | SRH | 14 | 14 | 15.9 / 22.4 | 99% | Keep | Retained 2025, kept for 2026 |
+| Yashasvi Jaiswal | RR | 18 | 18 | 12.4 / 17.4 | 99% | Keep | Retained 2025, kept for 2026 |
+| Shreyas Iyer | PBKS | 26.75 | 26.75 | 14.2 / 20.0 | 96% | Keep | Bought 26.75 (2025), kept for 2026 (captain) |
 | KL Rahul | DC | 14 | 14 | 10.1 / 14.3 | 94% | Keep | Bought 14 (2025), kept for 2026 |
-| Axar Patel | DC | 16.5 | 14 (slab) | 17.3 / 24.3 | 96% | Keep | Retained 2025, kept for 2026 (captain) |
-| Sanju Samson | CSK | 18 | 18 | 8.6 / 12.1 | 93% | Keep | Retained by RR 2025; traded to CSK for 2026 |
-| Ruturaj Gaikwad | CSK | 18 | 14 (slab) | 11.9 / 16.7 | 95% | Keep | Retained 2025, kept for 2026 (captain) |
-| Rashid Khan | GT | 18 | 11 (slab) | 9.4 / 13.4 | 92% | Keep | Retained 2025, kept for 2026 |
-| Pat Cummins | SRH | 18 | 14 (slab) | 9.0 / 12.9 | 72% | Keep | Retained 2025, kept for 2026 (captain) |
-| Heinrich Klaasen | SRH | 23 | 14 (slab) | 8.2 / 12.1 | 83% | Keep | Retained 2025 (23 cr), kept for 2026 |
-| Cameron Green | KKR | 25.2 | 25.2 | 10.5 / 14.8 | 81% | Keep | Bought 25.2 at the 2026 auction (paid 18) |
+| Axar Patel | DC | 16.5 | 14 (slab) | 17.3 / 24.3 | 97% | Keep | Retained 2025, kept for 2026 (captain) |
+| Sanju Samson | CSK | 18 | 18 | 8.6 / 12.1 | 92% | Keep | Retained by RR 2025; traded to CSK for 2026 |
+| Ruturaj Gaikwad | CSK | 18 | 14 (slab) | 11.9 / 16.7 | 97% | Keep | Retained 2025, kept for 2026 (captain) |
+| Rashid Khan | GT | 18 | 11 (slab) | 9.4 / 13.4 | 96% | Keep | Retained 2025, kept for 2026 |
+| Pat Cummins | SRH | 18 | 14 (slab) | 9.0 / 12.9 | 81% | Keep | Retained 2025, kept for 2026 (captain) |
+| Heinrich Klaasen | SRH | 23 | 14 (slab) | 8.2 / 12.1 | 90% | Keep | Retained 2025 (23 cr), kept for 2026 |
+| Cameron Green | KKR | 25.2 | 25.2 | 8.7 / 12.6 | 81% | Keep | Bought 25.2 at the 2026 auction (paid 18) |
 | Vaibhav Suryavanshi | RR | 1.1 | 1.1 | 18.0 / 25.4 | 100% | Keep | Bought 1.1 (2025), kept for 2026 |
-| Arshdeep Singh | PBKS | 18 | 18 | 10.2 / 14.4 | 94% | Keep | Bought back 18 with an RTM (2025), kept for 2026 |
+| Arshdeep Singh | PBKS | 18 | 18 | 10.2 / 14.4 | 93% | Keep | Bought back 18 with an RTM (2025), kept for 2026 |
 
 Every one of the 25 is kept by default, as every one of them was kept (or traded for) by his franchise
-for 2026. Rohit Sharma (39, a forecast that has him at −15 and a 20% chance of being a regular in 2029),
-Dhoni (45) and Tejasvi Singh (15 IPL balls) are Borderline, which is the honest reading: franchises keep
-players like Rohit and Dhoni a little more often than not, through what the model sees (home side, many
-seasons, captaincy history) rather than their price, which is a fraction of their cost. What the model
-can't see (Dhoni's following, Rohit's place in MI's leadership) would push them further up.
+for 2026. Rohit Sharma (39, a forecast that has him at −15 and a 20% chance of being a regular in 2029,
+71%) and Dhoni (45, 73%) are Keeps through what the model sees (retained at the 2025 mega auction, home
+side, many seasons) rather than their price, which is a fraction of their cost; before L7 (2026-10-29)
+both were Borderline at 59%. What the model can't see (Dhoni's following, Rohit's place in MI's
+leadership) would push them further up. Tejasvi Singh (15 IPL balls) stays Borderline, the honest
+reading for a 3 cr buy the data has barely seen. Cameron Green's market price is 8.7 cr since the
+resale step (10.5 before): big recent buys resell well below what they fetched.
 
 The default calls (P = the chance kept; the default plan releases below 50%), legal after step 7:
 
-- **CSK** (19 kept, 11.1 cr left): release Short (23%), Forrester, Matt Henry, Foulkes, Spencer Johnson,
-  Noronha, Kuldip Yadav, Aman Khan, Shreyas Gopal, Ellis, Hosein (49%). Borderline, kept: Dhoni (59%),
-  Overton, Ghosh, Urvil Patel, Madhwal.
-- **DC** (18, 26.0 cr; Ben Duckett is off the squad since 2026-10-27, banned for 2027 under the withdrawal rule): release Chameera, Jamieson, Rehan Ahmed, Miller, Ajay Mandal, Karun
-  Nair, Starc (49%). Borderline, kept: Madhav Tiwari, Tripurana Vijay, Prithvi Shaw, Parakh, Zeeshan Ansari.
-- **GT** (16, 14.0 cr): release Luke Wood (26%), Banton, Esterhuizen, Glenn Phillips, Khejroliya, Prithvi
-  Raj, Anuj Rawat, Jayant Yadav, Kushagra, Brar, Tewatia (48%). Borderline, kept: Shahrukh Khan, Arshad
-  Khan, Ishant Sharma, Suthar, Sindhu, Holder.
-- **KKR** (14, 23.2 cr): release Powell (29%), Seifert, Ranjan, Muzarabani, Rachin Ravindra, Kamra,
-  Ramandeep Singh, Sisodia, Solanki, Saini, Akash Deep, Tripathi, Manish Pandey (49%). Borderline, kept:
-  Umran Malik, Pathirana, Tejasvi Singh.
-- **LSG** (20, 24.5 cr): release Breetzke (39%), Linde, Nortje, Naman Tiwari, Shahbaz Ahmed, Arjun
-  Tendulkar. Borderline, kept: Markram, Akash Singh, Kulkarni, Himmat Singh, Hasaranga, Raghuwanshi.
-- **MI** (22, 13.7 cr): release Maharaj (29%), Izhar, Ahir, Ankolekar, Lomror, Raj Bawa, Boult (48%).
-  Borderline, kept: Rohit Sharma (59%), Rutherford, Shardul Thakur, Santner, Bosch, Minz, de Kock, Malewar
-  and others.
-- **PBKS** (17, 15.1 cr): release Dwarshuis (36%), Ferguson, Vishnu Vinod, Praveen Dubey, Mitchell Owen,
-  Nishad, Avinash, Pannu. Borderline, kept: Stoinis, Shashank Singh, Omarzai, Vyshak, Yash Thakur,
-  Bartlett, Musheer Khan.
-- **RCB** (15, 13.6 cr): release Shepherd (22%), Jordan Cox, Gleeson, Thushara, Mangesh Yadav, Deswal,
-  Ostwal, Malhotra, Chouhan, Swapnil Singh, Bethell (47%). Borderline, kept: Hazlewood, Jitesh Sharma, Yash
-  Dayal, Abhinandan Singh, Venkatesh Iyer, Duffy.
-- **RR** (18, 10.2 cr): release Milne (29%), Shanaka, Maphaka, Pretorius, Aman Rao, Emanjot Chahal,
-  Puthur, Yudhvir Singh, Sam Curran (44%). Borderline, kept: Hetmyer, Deshpande, Shubham Dubey, Sushant
-  Mishra, Kuldeep Sen, Ravi Singh.
-- **SRH** (17, 20.2 cr): release Carse (24%), Jack Edwards, Payne, Livingstone, Madushanka, Kamindu Mendis,
-  Tarmale, Amit Kumar, Fuletra, Ambrish, Coetzee, Mavi (50%, just under). Borderline, kept: Harshal Patel,
-  Unadkat, Smaran Ravichandran, Natarajan.
+- **CSK** (19 kept, 11.1 cr left): release Short (22%), Forrester, Matt Henry, Foulkes, Spencer Johnson,
+  Ellis, Kuldip Yadav, Noronha, Shreyas Gopal, Aman Khan, Hosein (49%). Borderline, kept: Madhwal (52%),
+  Ghosh, Overton, Urvil Patel, Mukesh Choudhary.
+- **DC** (18, 26.0 cr; Ben Duckett is off the squad since 2026-10-27, banned for 2027 under the withdrawal rule): release Chameera (28%), Rehan Ahmed, Jamieson, Ajay Mandal, Miller, Karun
+  Nair, Starc (46%). Borderline, kept: Tripurana Vijay, Madhav Tiwari, Zeeshan Ansari, Prithvi Shaw.
+- **GT** (17, 10.0 cr): release Luke Wood (27%), Esterhuizen, Glenn Phillips, Banton, Khejroliya, Prithvi
+  Raj, Kushagra, Jayant Yadav, Brar, Anuj Rawat (48%). Borderline, kept: Holder, Ishant Sharma, Arshad
+  Khan, Suthar, Sindhu, Tewatia.
+- **KKR** (15, 19.2 cr): release Powell (28%), Seifert, Muzarabani, Ranjan, Rachin Ravindra, Sisodia,
+  Kamra, Saini, Manish Pandey, Solanki, Tripathi, Akash Deep (49%). Borderline, kept: Umran Malik,
+  Pathirana, Tejasvi Singh, Ramandeep Singh.
+- **LSG** (20, 24.5 cr): release Breetzke (38%), Linde, Nortje, Shahbaz Ahmed, Arjun Tendulkar, Naman
+  Tiwari. Borderline, kept: Himmat Singh, Markram, Hasaranga, Kulkarni, Raghuwanshi, Akash Singh.
+- **MI** (22, 13.7 cr): release Maharaj (29%), Izhar, Ahir, Ankolekar, Boult, Raj Bawa, Lomror (48%).
+  Rohit Sharma is a Keep (71%). Borderline, kept: de Kock, Rutherford, Mayank Rawat, Bosch, Minz, Santner,
+  Shardul Thakur, Malewar, Krish Bhagat.
+- **PBKS** (16, 26.1 cr): release Dwarshuis (35%), Mitchell Owen, Ferguson, Vishnu Vinod, Praveen Dubey,
+  Avinash, Pannu, Nishad, Stoinis (50%, just under). Borderline, kept: Omarzai, Yash Thakur, Musheer Khan,
+  Bartlett, Vyshak, Shedge.
+- **RCB** (15, 13.6 cr): release Shepherd (21%), Jordan Cox, Gleeson, Thushara, Deswal, Swapnil Singh,
+  Mangesh Yadav, Bethell, Ostwal, Chouhan, Malhotra (50%, just under). Borderline, kept: Jitesh Sharma,
+  Hazlewood, Abhinandan Singh, Duffy, Venkatesh Iyer.
+- **RR** (18, 10.2 cr): release Shanaka (27%), Milne, Maphaka, Yudhvir Singh, Emanjot Chahal, Sam Curran,
+  Puthur, Aman Rao, Pretorius (46%). Borderline, kept: Shubham Dubey, Kuldeep Sen, Ravi Singh, Sushant
+  Mishra, Deshpande.
+- **SRH** (18, 19.5 cr): release Carse (23%), Jack Edwards, Payne, Livingstone, Madushanka, Kamindu Mendis,
+  Amit Kumar, Coetzee, Tarmale, Fuletra, Ambrish (48%). Borderline, kept: Mavi, Harshal Patel, Smaran
+  Ravichandran, Unadkat, Natarajan.
 
-176 of the 271 are kept by default (65%; franchises kept 68% in 2026). The releases are what franchises
+178 of the 271 are kept by default (66%; franchises kept 68% in 2026). The releases are what franchises
 release in a mini year: overseas squad players, the young uncapped who didn't play, the old who stopped
 playing.
 

@@ -222,6 +222,10 @@ def _market(work: Path, data: dict, letter: str | None) -> dict:
         if not letter
         else next(v for k, v in ipm.CANDIDATES.items() if k.split()[0] == letter)
     )
+    # the shipped resale rule (ipl_price_model.py resale), refitted on the resold lots before each
+    # deadline only
+    rs = ((pricing.load_price_model() or {}).get("price") or {}).get("resale")
+    lots = ipm.resale_lots(price_rows, ret_rows, spec) if rs and not letter else []
     out: dict = {}
     for s, rows in data.items():
         a = hist["auctions"][str(s)]
@@ -232,6 +236,13 @@ def _market(work: Path, data: dict, letter: str | None) -> dict:
             "price": ipm.fit_price_part(price_rows, ret_rows, spec, 2018 if s > 2019 else 2011, s),
             "bought": (pricing.load_price_model() or {}).get("bought"),
         }
+        before = [r for r in lots if r["season"] < s and r["prior_share"]
+                  and r["prior_years"] is not None and r["prior_years"] <= rs["max_years"]]  # fmt: skip
+        if len(before) >= RESALE_MIN_LOTS:
+            co = [float(x) for x in ipm._resale_fit(before, rs.get("rule", "R1"))] + [0.0, 0.0]
+            model["price"]["resale"] = {"max_years": rs["max_years"], "intercept": co[0],
+                                        "b_model": co[1], "c_last": co[2], "d_years": co[3],
+                                        "e_retained": co[4]}  # fmt: skip
         for r in rows:
             # the row as the recipe prices it (its value input: ipl_price_model._valued)
             rv = ipm._valued(r)
@@ -290,8 +301,24 @@ def _feats(r: dict) -> dict[str, float]:
         r.get("forecast_p_regular"), bool(r.get("captain_here")), int(r.get("seasons_here") or 0),
         bool(r.get("home_grown")), _capped(r) and not r.get("is_overseas"),
         bool(r.get("is_overseas")), r.get("age"), r.get("ipl_balls"), bool(r.get("bought_prev")),
-        r.get("p_play"), r.get("contrib"),
+        r.get("p_play"), r.get("contrib"), bool(r.get("mega_retained")),
     )  # fmt: skip
+
+
+def _mega_retained(data: dict) -> None:
+    """Each mini-year row's `mega_retained`: his franchise retained him at the cycle's mega auction
+    (2018 for 2019-21, 2022 for 2023-24, 2025 for 2026), from the published retained lists. In place."""
+    hist = json.loads(ipm.HISTORY.read_text(encoding="utf-8"))
+    megas = sorted(MEGA_RULES)
+    ret = {(r["season"], r["cricsheet_id"]): r["team"] for r in hist["retentions"]
+           if r["season"] in MEGA_RULES and r["kind"] == "retained" and r.get("cricsheet_id")}  # fmt: skip
+    for s, rows in data.items():
+        last = max((m for m in megas if m < s), default=None)
+        for r in rows:
+            r["mega_retained"] = (
+                s not in MEGA_RULES and last is not None
+                and ret.get((last, r["cricsheet_id"])) == r["team"]
+            )  # fmt: skip
 
 
 def _playing_time(data: dict) -> None:
@@ -347,6 +374,10 @@ def _playing_time(data: dict) -> None:
                 r["p_play"] = models[s].prob(pt.play_features(meta))
 
 
+# a deadline's resale rule needs this many resold lots before it (else the model's price alone)
+RESALE_MIN_LOTS = 20
+
+
 # Candidate rules, declared before any test number (2026-10-22). "rule": a threshold on one index;
 # "logit": a logistic regression of the franchise's decision on the inputs.
 BASE = ["log_ratio", "mega", "mega_x_log_ratio"]
@@ -356,6 +387,9 @@ STATUS = ["capped_indian", "overseas", "age", "age_over_33", "ipl_balls", "bough
 # playing time (declared 2026-10-22 evening, audit items 4 and 6, before any of its numbers): P(plays a
 # match) in his squad and P × his contribution per match (runs above replacement)
 PLAY = ["p_play", "play_value", "no_play"]
+# retained at the cycle's mega auction (declared 2026-10-29, before any of its numbers: the owner's
+# reality check that Rohit Sharma, retained by MI in 2025, is no toss-up)
+MEGA_RET = ["mega_retained"]
 # reference only (not a candidate): keep everyone the rules allow
 BASELINE = ("B0 keep everyone the rules allow", ("all", None))
 CANDIDATES = {
@@ -370,6 +404,8 @@ CANDIDATES = {
     "L5 L4 + playing time (P(plays) in his squad, P(plays) x contribution per match)": (
         "logit", BASE + FORECAST + FRANCHISE + STATUS + PLAY),
     "L6 L5 without the Form forecast": ("logit", BASE + FRANCHISE + STATUS + PLAY),
+    "L7 L4 + retained at the cycle's mega auction": (
+        "logit", BASE + FORECAST + FRANCHISE + STATUS + MEGA_RET),
 }  # fmt: skip
 C_GRID = (0.03, 0.1, 0.3, 1.0, 3.0)
 
@@ -527,6 +563,7 @@ def score(
     data: dict = pickle.loads((work / "rows.pkl").read_bytes())
     ipm.AUCTIONS_DATES.update(ipm.auction_dates())
     _playing_time(data)
+    _mega_retained(data)
     mk = _market(work, data, recipe or None)
     for s, rows in data.items():
         for r in rows:
@@ -546,7 +583,8 @@ def score(
     res: dict = {"protocol": {
         "selection": "leave one deadline out over 2018-2024 (each deadline predicted by the rule "
                      "fitted on the others up to 2024); highest F1 for 'kept' on the pooled "
-                     "held-out calls wins (logistic C chosen the same way)",
+                     "held-out calls wins, a tie going to the lower held-out log loss (logistic C "
+                     "chosen the same way)",
         "test": "fitted on 2018-2024, scored once on 2025 (mega) + 2026 (mini)",
         "label": "the published retained list; traded players and 2026's published retirements "
                  "left out",
@@ -574,8 +612,10 @@ def score(
                 f"star F1 {rep['star']['f1']:.3f}"
                 + (f" LL {rep['log_loss']:.4f}" if kind == "logit" else "")
             )
-            if kind != "all" and (best is None or rep["all"]["f1"] > best[0]):
-                best = (rep["all"]["f1"], name, c)
+            # a tie on F1 (to 3 places) goes to the lower held-out log loss (2026-10-29: L7 tied L4)
+            key = (rep["all"]["f1"], -rep.get("log_loss", math.inf))
+            if kind != "all" and (best is None or key > best[0]):
+                best = (key, name, c)
     _, chosen, chosen_c = best
     res["chosen"] = chosen if chosen_c is None else f"{chosen} (C={chosen_c})"
     typer.echo(f"chosen: {res['chosen']}")

@@ -1263,6 +1263,22 @@ CANDIDATES: dict[str, tuple] = {
         _NO_SQ + BRAND_FEATURES + ["brand_x_indian"], "tobit", "censored", False,
         {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
          "value": "time_aware"}),
+    # declared 2026-10-29 (the owner's reality check: Chahal 2.4 cr against 18 at the 2025 mega auction;
+    # the 2025 table prices him 7.5, Bhuvneshwar 3.1 for 10.75, both capped Indians out of the India
+    # side), before any of their numbers: Z with the value counted more where the IPL has seen it
+    # (value x ln IPL balls), and for a capped Indian with no international in the two years before
+    "AC Z + value backed by IPL evidence": (
+        _NO_SQ + ["pv_x_ipl_evidence"], "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
+         "value": "time_aware"}),
+    "AD Z + value for a capped Indian out of the India side": (
+        _NO_SQ + ["pv_x_indian_no_recent"], "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
+         "value": "time_aware"}),
+    "AE AC + AD": (
+        _NO_SQ + ["pv_x_ipl_evidence", "pv_x_indian_no_recent"], "tobit", "censored", False,
+        {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
+         "value": "time_aware"}),
 }  # fmt: skip
 # Candidates that won the selection but failed the reality gate (docs/METHODOLOGY.md §13: every model
 # change must pass it, and a check may not get worse): kept here with the reason, still evaluated and
@@ -1609,6 +1625,135 @@ def fit(
     print(
         f"wrote {out}: {len(rows)} price rows ({n_ret} retentions), {len(risk_rows)} risk-set rows"
     )
+
+
+# ---- resale: the last auction price, for a player the market priced a season ago ------------------
+
+# Candidates, declared 2026-10-29 before any of their numbers (the owner's reality check: Prashant Veer
+# and Kartik Sharma, bought for 14.2 cr in Dec 2025, priced 0.8 and 1.7; the 2025-26 lots with a
+# recent big price ran far above the model: Starc 4.7 for 11.75, Pathirana 6.9 for 18). Each corrects
+# the model's price of a lot whose player has a market verdict (sale or mega retention) at most
+# `max_years` seasons before, in shares of the purse:
+#   R0 the model alone; R1 a + b ln(model) + c ln(last); R2 R1 + d years + e retained;
+#   R3 ln(last) + a (the last price times the median resale ratio).
+# Window 1, 2 or 3 seasons; the lowest leave-one-auction-out mean |ln error| over 2019-2024 wins.
+RESALE_KINDS = ("R0", "R1", "R2", "R3")
+RESALE_WINDOWS = (1, 2, 3)
+
+
+def resale_lots(price_rows: list[dict], ret_rows: list[dict], spec: tuple) -> list[dict]:
+    """Every lot 2019-2026 priced out of time (the recipe `spec` fitted on the auctions before it),
+    with his last market verdict."""
+    out = []
+    for s in range(2019, 2027):
+        a = next(r for r in price_rows if r["season"] == s)
+        model = {
+            "floor_cr": 0.2 if s < 2025 else 0.3,
+            "competition": {"cycle": a["cycle"], "purse": float(a["purse"])},
+            "price": fit_price_part(price_rows, ret_rows, spec, 2018 if s > 2019 else 2011, s),
+            "bought": (pricing.load_price_model() or {}).get("bought"),
+        }
+        for r in price_rows:
+            if r["season"] == s:
+                mk = pricing.market_price(_valued(r), model["competition"], model)
+                out.append({k: r.get(k) for k in (
+                    "name", "season", "purse", "price_cr", "prior_share", "prior_years",
+                    "prior_retained")} | {"pred": mk["price"]})  # fmt: skip
+        logger.info(f"resale lots {s}: priced")
+    return out
+
+
+def _resale_x(r: dict, kind: str) -> list[float]:
+    lm, ll = math.log(r["pred"] / r["purse"]), math.log(r["prior_share"])
+    if kind == "R1":
+        return [1.0, lm, ll]
+    if kind == "R2":
+        return [1.0, lm, ll, float(r["prior_years"]), 1.0 if r["prior_retained"] else 0.0]
+    return [1.0]
+
+
+def _resale_fit(rows: list[dict], kind: str) -> np.ndarray | None:
+    if kind == "R0":
+        return None
+    A = np.array([_resale_x(r, kind) for r in rows])
+    off = np.array([math.log(r["prior_share"]) if kind == "R3" else 0.0 for r in rows])
+    b = np.array([math.log(r["price_cr"] / r["purse"]) for r in rows]) - off
+    return np.linalg.lstsq(A, b, rcond=None)[0]
+
+
+def _resale_err(rows: list[dict], kind: str, coef) -> list[float]:
+    out = []
+    for r in rows:
+        if kind == "R0":
+            p = math.log(r["pred"] / r["purse"])
+        else:
+            p = float(np.dot(_resale_x(r, kind), coef))
+            p += math.log(r["prior_share"]) if kind == "R3" else 0.0
+        p = max(p, math.log((0.2 if r["season"] < 2025 else 0.3) / r["purse"]))
+        out.append(p - math.log(r["price_cr"] / r["purse"]))
+    return out
+
+
+def resale_choice(lots: list[dict]) -> dict:
+    """The resale rule, chosen by leave one auction out on 2019-2024, tested once on 2025-26."""
+    sel_all: dict = {}
+    for w in RESALE_WINDOWS:
+        has = [r for r in lots if r["prior_share"] and r["prior_years"] is not None
+               and r["prior_years"] <= w]  # fmt: skip
+        sel = [r for r in has if r["season"] <= SELECT_LAST]
+        for kind in RESALE_KINDS:
+            errs: list[float] = []
+            for s in sorted({r["season"] for r in sel}):
+                c = _resale_fit([r for r in sel if r["season"] != s], kind)
+                errs += _resale_err([r for r in sel if r["season"] == s], kind, c)
+            sel_all[f"{kind} w{w}"] = round(float(np.mean(np.abs(errs))), 4)
+    # a correction only (R0 is the reference): the best of R1-R3 over the windows
+    best = min((k for k in sel_all if not k.startswith("R0")), key=lambda k: sel_all[k])
+    kind, w = best.split()[0], int(best.split()[1][1:])
+    has = [r for r in lots if r["prior_share"] and r["prior_years"] is not None
+           and r["prior_years"] <= w]  # fmt: skip
+    sel = [r for r in has if r["season"] <= SELECT_LAST]
+    test = [r for r in has if r["season"] in TEST_SEASONS]
+    c = _resale_fit(sel, kind)
+    big = [r for r in test if r["prior_share"] * r["purse"] >= 8]
+    t = {}
+    for k, cc in ((kind, c), ("R0", None)):
+        e, eb = _resale_err(test, k, cc), _resale_err(big, k, cc)
+        t[k] = {"n": len(e), "mae_ln": round(float(np.mean(np.abs(e))), 4),
+                "median_err": round(float(np.median(e)), 4),
+                "last_8cr_plus": {"n": len(eb), "mae_ln": round(float(np.mean(np.abs(eb))), 4),
+                                  "median_err": round(float(np.median(eb)), 4)}}  # fmt: skip
+    return {"selection": sel_all, "chosen": best, "kind": kind, "max_years": w, "test": t,
+            "beats_model": sel_all[best] < sel_all[f"R0 w{w}"]}  # fmt: skip
+
+
+@app.command()
+def resale(model_path: Path = typer.Option(MODEL_PATH, "--model")) -> None:
+    """Choose the resale rule on the shipped recipe's out-of-time lots and write it into the model
+    (`price.resale`, refitted on every lot 2019-2026; pricing.market_price applies it)."""
+    AUCTIONS_DATES.update(auction_dates())
+    model = json.loads(model_path.read_text(encoding="utf-8"))
+    price_rows, _risk, _hist, ret_rows = build_rows()
+    spec = shipped_spec(model)
+    pricing.load_price_model.cache_clear()
+    lots = resale_lots(price_rows, ret_rows, spec)
+    ch = resale_choice(lots)
+    logger.info(json.dumps(ch, indent=1))
+    model["price"].pop("resale", None)
+    if ch["beats_model"] and ch["kind"] in ("R1", "R2"):
+        w = ch["max_years"]
+        every = [r for r in lots if r["prior_share"] and r["prior_years"] is not None
+                 and r["prior_years"] <= w]  # fmt: skip
+        co = [round(float(x), 6) for x in _resale_fit(every, ch["kind"])] + [0.0, 0.0]
+        model["price"]["resale"] = {"rule": ch["kind"], "max_years": w, "intercept": co[0],
+                                    "b_model": co[1], "c_last": co[2], "d_years": co[3],
+                                    "e_retained": co[4], "rows": len(every)}  # fmt: skip
+    else:
+        logger.info(f"not shipped: {ch['chosen']} (R3 is not implemented in pricing.market_price)")
+    model.setdefault("evaluation", {})["resale"] = ch
+    model_path.write_text(json.dumps(model, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    pricing.load_price_model.cache_clear()
+    logger.info(f"wrote {model_path}")
 
 
 def _next_competition() -> dict:
