@@ -6,7 +6,7 @@ import { useAsync } from "@/lib/useAsync";
 import { getPhase } from "@/lib/data";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, smartFilters, DEFAULT_FILTERS, type Dim } from "@/lib/filters";
+import { applyFilters, smartFilters, defaultFiltersFor, type Dim } from "@/lib/filters";
 import { useUrlFilters, useUrlState } from "@/lib/useUrlState";
 import { PageTitle, Spinner, ErrorBox, Empty } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -46,12 +46,12 @@ export function Phase() {
     valid: PHASES.map((p) => p.key),
     replace: false,
   });
-  // same defaults as the other boards — keeps tiny samples from long-retired players off the top
-  const [filters, setFilters] = useUrlFilters(DEFAULT_FILTERS);
-
   const board = data?.[phase];
   const rawBatters = (board?.batters ?? []) as unknown as Row[];
   const rawBowlers = (board?.bowlers ?? []) as unknown as Row[];
+  // same defaults as the other boards — keeps tiny samples from long-retired players off the top
+  const defaults = useMemo(() => defaultFiltersFor([...rawBatters, ...rawBowlers]), [rawBatters, rawBowlers]);
+  const [filters, setFilters] = useUrlFilters(defaults);
 
   // options come from the rows actually on this phase's boards; dead ends are hidden / disabled
   const smart = useMemo(
@@ -96,7 +96,7 @@ export function Phase() {
       <FilterBar
         filters={filters}
         onChange={setFilters}
-        defaults={DEFAULT_FILTERS}
+        defaults={defaults}
         smart={smart}
       />
 

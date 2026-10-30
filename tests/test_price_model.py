@@ -38,11 +38,15 @@ def model() -> dict:
 def test_groups_split_overseas_by_auction_type(model):
     part = model["price"]
     names = [g["name"] for g in part["groups"]]
-    assert names == ["overseas_mega", "overseas_mini", "capped_indian", "uncapped_indian"]
+    # capped Indians split by auction type too since the 2026-10-30 refit (METHODOLOGY §6b)
+    assert names == [
+        "overseas_mega", "overseas_mini", "capped_indian_mini", "capped_indian", "uncapped_indian"
+    ]  # fmt: skip
     cases = [
         (_row(is_overseas=True, intl_caps=50), "mega", "overseas_mega"),
         (_row(is_overseas=True, intl_caps=50), "mini", "overseas_mini"),
-        (_row(intl_caps=20), "mini", "capped_indian"),
+        (_row(intl_caps=20), "mini", "capped_indian_mini"),
+        (_row(intl_caps=20), "mega", "capped_indian"),
         (_row(intl_caps=0), "mega", "uncapped_indian"),
     ]
     for row, cycle, want in cases:
@@ -52,7 +56,8 @@ def test_groups_split_overseas_by_auction_type(model):
 
 def test_price_is_the_calibrated_index_plus_group_shift(model):
     """The price is purse × e^(calibrate(linear) + his group's shift), no ceiling, at least the floor;
-    `high` is the same for an index 0.674 residual sd higher, through the same calibration."""
+    `high` adds the fitted spread (the 75th percentile of the out-of-fold residuals at that
+    prediction), or without one is the same for an index 0.674 residual sd higher."""
     part = model["price"]
     row = _row(is_overseas=True, intl_caps=80, price_value=12.0)
     comp = {"cycle": "mini", "purse": 125.0}
@@ -61,18 +66,26 @@ def test_price_is_the_calibrated_index_plus_group_shift(model):
     raw = pricing.link_share(part, pricing._linear(part, f))
     mk = pricing.market_price(row, comp, model)
     assert mk["price"] == pytest.approx(max(0.3, 125.0 * math.exp(pricing.calibrate(g, raw))))
-    hi = pricing.calibrate(g, raw + pricing.MARKET_HIGH_Z * part["resid_sd"])
+    lin = pricing.calibrate(g, raw)
+    if part.get("spread"):
+        hi = lin + max(0.0, part["spread"]["a"] + part["spread"]["b"] * lin)
+    else:
+        hi = pricing.calibrate(g, raw + pricing.MARKET_HIGH_Z * part["resid_sd"])
     assert mk["high"] == pytest.approx(max(0.3, 125.0 * math.exp(hi)))
 
 
 def test_the_top_end_is_bounded_without_a_ceiling(model):
     """No ceiling: a value far past anything the market priced is held to the training support, and
-    the calibrated top rises at its fitted slope (< 1), so no player in the shipped model reaches the
+    the top flattens, by the fitted budget-limit link (the median saturates at a share of the purse,
+    since 2026-10-30) or a calibrated top slope below 1, so no player in the shipped model reaches the
     purse (the 2026-10-22 reality check: Gill was about 90 cr on the linear index)."""
     part = model["price"]
     assert part.get("pv_max") is not None and part["pv_max"] < pricing.MARKET_PV_MAX
     cal = part.get("calibration") or {}
-    assert 0.0 <= cal.get("hi_slope", 1.0) < 1.0
+    link = part.get("link") or {}
+    assert (link.get("kind") == "sat" and 0.0 < link["cap_share"] <= 1.0) or (
+        0.0 <= cal.get("hi_slope", 1.0) < 1.0
+    )
     star = _row(price_value=60.0, value_sd=2.0, intl_caps=300, intl_caps_2y=60, ipl_balls=4000,
                 ipl_seasons=9, age=27.0, captain_ipl_last=1, captain_ipl_seasons=2,
                 captain_intl_2y=1)  # fmt: skip
@@ -83,6 +96,22 @@ def test_the_top_end_is_bounded_without_a_ceiling(model):
         {**star, "price_value": 90.0}, {"cycle": "mega", "purse": 125.0}, model
     )
     assert more["price"] == pytest.approx(mk["price"])
+
+
+def test_the_upper_quartile_is_never_below_the_price(model):
+    """`high` keeps its gap above the model's unfloored median, so it can't fall under the price: a
+    resold player the model puts below the floor read price 0.40, high 0.31 (Mayank Rawat, 2027)."""
+    comp = {"cycle": "mini", "purse": 125.0}
+    cases = [
+        _row(price_value=v, ipl_balls=b, ipl_seasons=n, prior_share=ps, prior_years=1)
+        for v in (-30.0, -10.0, 0.0, 10.0)
+        for b, n in ((0, 0), (40, 1), (1500, 5))
+        for ps in (0.2 / 120.0, 0.3 / 120.0, 1.0 / 120.0, 14.0 / 120.0)
+    ]
+    cases += [_row(price_value=v, ipl_balls=b) for v in (-40.0, -15.0, 5.0) for b in (0, 30, 3000)]
+    for row in cases:
+        mk = pricing.market_price(row, comp, model)
+        assert mk["high"] >= mk["price"] - 1e-9, (row, mk)
 
 
 def test_calibrate_continues_at_hi_slope():

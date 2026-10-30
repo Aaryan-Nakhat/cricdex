@@ -1,5 +1,5 @@
 {
- "_note": "Who can't be bought at the next IPL auction, with evidence a reviewer can check. Keyed by cricsheet_id. Fields: _name; status = \"retired\" (announced retirement: never in an auction pool again) or \"not_registered\" (did not enter the auction of the listed `seasons` only: kept in later pools, recorded so a reviewer sees why a veteran is still there) or \"banned\" (barred from the tournament and the player auction of the listed `seasons`: IPL Player Regulations 2025-27 item 6, a player who is bought and then makes himself unavailable before the season is banned for 2 seasons; out of the pool and off his squad for those seasons); scope = \"ipl\" (out of the IPL and Indian cricket, may still play other leagues) or \"all\" (all cricket); date = the announcement (YYYY-MM-DD); role_now = a coaching or staff role, if any; _evidence = [{title, url, date}]. Read by scripts/export_site.py (the auction pool, METHODOLOGY section 7) and by the player master (`retired` / `retired_scope`, src/cricdex/scout/identity/master.py). Retirements found in a Wikipedia 'List of <season> Indian Premier League personnel changes' page belong here; the master build lists any it can't find (player_master_review.json `todo`).",
+ "_note": "Who can't be bought at the next IPL auction, with evidence a reviewer can check. Keyed by cricsheet_id. Fields: _name; status = \"retired\" (announced retirement: never in an auction pool again) or \"not_registered\" (did not enter the auction of the listed `seasons` only: kept in later pools, recorded so a reviewer sees why a veteran is still there) or \"unconfirmed\" (may not be allowed to play the listed `seasons`, no ruling yet: kept in the pool and flagged with `note`) or \"banned\" (barred from the tournament and the player auction of the listed `seasons`: IPL Player Regulations 2025-27 item 6, a player who is bought and then makes himself unavailable before the season is banned for 2 seasons; out of the pool and off his squad for those seasons); scope = \"ipl\" (out of the IPL and Indian cricket, may still play other leagues) or \"all\" (all cricket); date = the announcement (YYYY-MM-DD); role_now = a coaching or staff role, if any; _evidence = [{title, url, date}]. Read by scripts/export_site.py (the auction pool, METHODOLOGY section 7) and by the player master (`retired` / `retired_scope`, src/cricdex/scout/identity/master.py). Retirements found in a Wikipedia 'List of <season> Indian Premier League personnel changes' page belong here; the master build lists any it can't find (player_master_review.json `todo`).",
  "495d42a5": {
   "_name": "R Ashwin",
   "status": "retired",
@@ -207,5 +207,16 @@
    {"title": "IPL Governing Council announces TATA IPL Player Regulations 2025-27, item 6 (iplt20.com)", "url": "https://www.iplt20.com/news/4109/ipl-governing-council-announces-tata-ipl-player-regulations-2025-27", "date": "2024-09-28"}
   ],
   "note": "Bought by Delhi Capitals for 2 cr at the 2026 auction, withdrew before the season to focus on England (not injured). The regulation's 2-season ban is applied to the confirmed withdrawal; no formal BCCI announcement was found by 2026-10-27. Remove this record if the BCCI grants an exception."
+ },
+ "0a8fce53": {
+  "_name": "Mustafizur Rahman",
+  "status": "unconfirmed",
+  "seasons": [2027],
+  "date": "2026-01-03",
+  "_evidence": [
+   {"title": "IPL 2026: KKR release Mustafizur Rahman after BCCI ruling (IANS)", "url": "https://ianslive.in/ipl-2026-kkr-release-mustafizur-rahman-after-bcci-ruling--20260103132746", "date": "2026-01-03"},
+   {"title": "IPL 2026: KKR release Bangladesh's Mustafizur Rahman following BCCI instructions (Gulf News)", "url": "https://gulfnews.com/sport/cricket/ipl/ipl-2026-kkr-release-bangladeshs-mustafizur-rahman-after-bcci-ruling-1.500397304", "date": "2026-01-03"}
+  ],
+  "note": "eligibility unconfirmed: KKR released him on 3 Jan 2026 on the BCCI's instruction; no statement on Bangladesh players for 2027"
  }
 }

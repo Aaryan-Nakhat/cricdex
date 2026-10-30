@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -299,6 +300,30 @@ def team_balls(u: pl.DataFrame, before: str, target: str = "ipl") -> float:
     return float(t["team_faced"].mean()) if t.height else 113.0
 
 
+# How his usual batting position is read (METHODOLOGY §12 (B15), 2026-10-30): "observed" = the median of his
+# positions (IPL, else other leagues), as shipped until then; "shrunk" = blended exactly as his balls
+# are (`shrunk_position`). The fit scripts take it from CRICDEX_PT_POSITION; the shipped model carries
+# its own (`position`).
+POSITIONS = ("observed", "shrunk")
+POSITION = os.environ.get("CRICDEX_PT_POSITION", "observed")
+
+
+def shrunk_position(pb: dict, bat: BallsModel, typical: float | None) -> float | None:
+    """His usual batting position weighted like his balls (`BallsModel.predict`): his IPL median with
+    his decayed IPL matches, the other leagues' with k_o × theirs, his role's typical position with k0.
+    A batter with one IPL match at No. 8 and a top-order record elsewhere is not a No. 8: his balls
+    already come mostly from his role's mean, and his replacement level must come from the same place
+    (a −14 batter was credited +2.45 runs a match against a No. 8's replacement level)."""
+    terms = [(pb.get("ipl_n") or 0.0, pb.get("pos_ipl")),
+             (bat.k_o * (pb.get("oth_n") or 0.0), pb.get("pos_oth")),
+             (bat.k0, typical)]  # fmt: skip
+    terms = [(w, x) for w, x in terms
+             if w > 0 and x is not None and not (isinstance(x, float) and math.isnan(x))]  # fmt: skip
+    if not terms:
+        return None
+    return sum(w * x for w, x in terms) / sum(w for w, _ in terms)
+
+
 def expected_usage(
     u: pl.DataFrame,
     before: str,
@@ -306,6 +331,7 @@ def expected_usage(
     bm: dict[str, BallsModel],
     T: float,
     roles: dict[str, str],
+    position: str | None = None,
 ) -> dict[str, dict]:
     """cid -> {faced, bowled, pos}: his expected legal balls faced and bowled per match he plays (the
     expected-balls models x the IPL's balls per innings `T`) and his usual batting position, from his
@@ -324,7 +350,10 @@ def expected_usage(
         pb = pri[bm["bat"].decay].get(cid, EMPTY_PRIOR)
         pw = pri[bm["bowl"].decay].get(cid, EMPTY_PRIOR)
         role = roles.get(cid, "batter")
-        pos = pb.get("bat_pos")
+        if (position or POSITION) == "shrunk":
+            pos = shrunk_position(pb, bm["bat"], typical.get(role))
+        else:
+            pos = pb.get("bat_pos")
         out[cid] = {
             "faced": bm["bat"].predict(_disc(pb, "bat"), role) * T,
             "bowled": bm["bowl"].predict(_disc(pw, "bowl"), role) * T,
@@ -761,7 +790,7 @@ def contributions(
     bm = shipped_balls(model)
     T = float(model["balls_per_innings"])
     repl = model["replacement"]
-    us = expected_usage(u, before, list(per_role), bm, T, roles)
+    us = expected_usage(u, before, list(per_role), bm, T, roles, model.get("position", "observed"))
     out = {}
     for cid, v in per_role.items():
         x = us[cid]

@@ -3,10 +3,10 @@
 // and `cricdex keep` show identical numbers (test_scripts/test_keep_parity.py runs both).
 // The method in plain words: docs/METHODOLOGY.md §10.
 import { hasMarketInputs, iplPrice, marketPrice, type MarketInputs, type Role } from "./auction.ts";
-import { slabCharge } from "./slabs.ts";
+import { purseCharged as slabsPurseCharged, slabCharge } from "./slabs.ts";
 
 // The default plan keeps a player when the chance a franchise keeps a player like him is at least
-// KEEP_CALL (the backtest's decision rule); within BORDER_BAND of it the call is Borderline.
+// KEEP_CALL (the backtest's decision rule); within BORDER_BAND of it the call is Toss-up.
 export const KEEP_CALL = 0.5;
 export const BORDER_BAND = 0.15;
 // The cheapest a squad slot can be filled for (the lowest base-price band, cr).
@@ -46,12 +46,19 @@ export interface KeepPlayer {
   role: Role;
   value: number | null;
   value_sd: number | null;
+  /** his value for the coming season (the headline; `value` is the career rating) */
+  value_now?: number | null;
+  value_now_sd?: number | null;
   target_balls: number;
   balls: number;
   age: number | null;
   tags: string;
   form: KeepForm | null;
   withdrawn?: string | boolean | null;
+  /** why he was missing last season (a sourced reason, else what the data say); absent = he played */
+  absence?: string | null;
+  /** his matches in the XI last season */
+  matches_last?: number | null;
   trade?: { from: string; salary_before_cr: number | null } | null;
   profile?: string | null;
   // the market price's inputs (auction.ts `marketFeatures`); absent in exports before it
@@ -61,6 +68,8 @@ export interface KeepPlayer {
   ipl_balls?: number | null;
   ipl_seasons?: number | null;
   ipl_gap?: number | null;
+  ipl_matches_2y?: number | null;
+  bowling_category?: string | null;
   captain_ipl_last?: number | null;
   captain_ipl_seasons?: number | null;
   captain_intl_2y?: number | null;
@@ -299,12 +308,41 @@ export const usesSlabs = (rules: Partial<KeepRules>) => rules.retained_cost === 
 // `slabCharge` lives in slabs.ts (the Auction room charges retentions the same way).
 export { slabCharge };
 
-/** What the kept players cost the purse. Mirror of keep.py `purse_charged`. */
+/** What the kept players cost the purse (slabs.ts, shared with the Auction room). Mirror of keep.py
+ * `purse_charged`. */
 export function purseCharged(kept: Pick<KeepPlayer, "salary" | "slab_holder">[], rules: Partial<KeepRules>): number {
-  if (!usesSlabs(rules)) return fsum(kept.map((p) => Number(p.salary)));
-  const holders = kept.filter((p) => p.slab_holder);
-  const rest = fsum(kept.filter((p) => !p.slab_holder).map((p) => Number(p.salary)));
-  return rest + (holders.length ? slabCharge(holders, rules) : 0);
+  return slabsPurseCharged(kept, rules);
+}
+
+/** The next mini auction's starting squads from Keep or release: each team's default plan and what
+ * keeping each player costs, so the Auction room starts where the Keep page leaves every team. Mirror
+ * of auction.py `mini_inputs` (`poolIds` = the auction pool's ids: kept players outside it are
+ * charged as `mini_fixed`). */
+export function miniInputs(data: KeepData | null | undefined, poolIds: Set<string> | null = null): {
+  mini_ids: Record<string, string[]>;
+  mini_squad: Record<string, { salary: number; slab_holder: string | null }>;
+  mini_fixed: Record<string, { salary: number; slab_holder: string | null }[]>;
+  mini_rules: KeepRules;
+} | null {
+  if (!data || !data.players || !data.players.length) return null;
+  const rules: KeepRules = { ...data.competition.rules };
+  const form = data.form ?? null;
+  const noGaps = { keeper: 0, opener: 0, death: 0, spinner: 0, overseas: 0 };
+  const ids: Record<string, string[]> = {};
+  const squad: Record<string, { salary: number; slab_holder: string | null }> = {};
+  const fixed: Record<string, { salary: number; slab_holder: string | null }[]> = {};
+  for (const team of data.teams ?? []) {
+    const res = evaluate(data.players.filter((p) => p.team === team), [], rules, {}, noGaps, form);
+    const kept = res.players.filter((p) => p.kept);
+    ids[team] = kept.filter((p) => poolIds === null || poolIds.has(p.key)).map((p) => p.key);
+    fixed[team] = [];
+    for (const p of kept) {
+      const row = { salary: Number(p.salary), slab_holder: p.slab_holder ?? null };
+      squad[p.key] = row;
+      if (poolIds !== null && !poolIds.has(p.key)) fixed[team].push(row);
+    }
+  }
+  return { mini_ids: ids, mini_squad: squad, mini_fixed: fixed, mini_rules: rules };
 }
 
 /** player key → what keeping him costs the purse: his salary, or for a slab holder what releasing
@@ -336,6 +374,8 @@ export interface KeepModel {
   coef: Record<string, number>; // feature → coefficient, in the order they are summed
   fitted?: string;
   trained_on?: number[];
+  /** per cycle: the recalibration σ(a + b × the linear sum), when the refit kept one */
+  calibration?: Partial<Record<"mega" | "mini", { a: number; b: number }>>;
 }
 let keepModel: KeepModel | null = null;
 /** Install the fitted retention model (data.ts `getKeep` does this from keep.json; so do the parity
@@ -365,7 +405,9 @@ export function keepFeatures(
   pPlay: number | null | undefined = null,
   contrib: number | null | undefined = null,
   megaRetained = false,
+  matchesLast: number | null | undefined = null,
 ): Record<string, number> {
+  const ml = Math.max(matchesLast || 0, 0);
   const c = cost && cost > 0 ? cost : 1e-3;
   const lr = Math.log(Math.max(market, 1e-3) / c);
   const mg = mega ? 1 : 0;
@@ -392,6 +434,8 @@ export function keepFeatures(
     play_value: hasPlay ? (pPlay as number) * (contrib as number) : 0,
     no_play: hasPlay ? 0 : 1,
     mega_retained: megaRetained && !mega ? 1 : 0,
+    played_last: Math.min(ml / 14, 1),
+    none_last: ml === 0 ? 1 : 0,
   };
 }
 
@@ -403,10 +447,12 @@ export function keepProbability(f: Record<string, number>, model: KeepModel): nu
     if (x === undefined) throw new Error(`keep model feature "${k}" is unknown`);
     t += c * x;
   }
+  const cal = model.calibration?.[f.mega ? "mega" : "mini"];
+  if (cal) t = cal.a + cal.b * t;
   return 1 / (1 + Math.exp(-t));
 }
 
-/** Keep / Borderline / Release from the chance he is kept. Mirror of keep.py `call_of`. */
+/** Keep / Toss-up / Release from the chance he is kept. Mirror of keep.py `call_of`. */
 export function callOf(pKeep: number): Rec {
   if (pKeep >= KEEP_CALL + BORDER_BAND) return "keep";
   if (pKeep < KEEP_CALL - BORDER_BAND) return "release";
@@ -524,6 +570,7 @@ export function assess(p: KeepPlayer, form: LeagueForm | null = null, cost: numb
       p.p_play,
       p.contrib,
       !!p.slab_holder,
+      p.matches_last,
     );
     pKeep = keepProbability(f, model);
     rec = callOf(pKeep);
@@ -634,6 +681,7 @@ export interface Gap {
   target: number;
   kept: number;
   gap: number;
+  to_buy: number;
   ref_value: number;
   ref_from_release: boolean;
   picks: { id: string; name: string; price: number; value: number; from_team: string | null }[];
@@ -660,7 +708,7 @@ export interface SquadResult {
   warnings: string[];
 }
 
-/** Who goes first when the default plan is over a limit: Borderline before Keep, then the lowest
+/** Who goes first when the default plan is over a limit: Toss-up before Keep, then the lowest
  * chance a franchise keeps him (an unpriced player first), then the key. Mirror of keep.py `_fit_order`. */
 function fitOrder(a: AssessedPlayer, b: AssessedPlayer): number {
   const ta = a.rec === "borderline" ? 0 : 1;
@@ -673,8 +721,8 @@ function fitOrder(a: AssessedPlayer, b: AssessedPlayer): number {
   return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
 }
 
-/** Make the default plan legal (mirror of keep.py `fit_to_rules`): release kept overseas Borderline
- * players, lowest chance kept first (a Keep only once no Borderline is left), until the overseas
+/** Make the default plan legal (mirror of keep.py `fit_to_rules`): release kept overseas Toss-up
+ * players, lowest chance kept first (a Keep only once no Toss-up is left), until the overseas
  * cap holds; then the same for the squad maximum. A player the user decided on is never moved. */
 export function fitToRules(players: AssessedPlayer[], rules: KeepRules): void {
   let sqMax = rules.squad_max;
@@ -770,7 +818,10 @@ export function evaluate(
       label: TAG_LABEL[tag],
       target: target[tag],
       kept: kept.filter((p) => hasTag(p, tag)).length,
-      gap: need,
+      // short of the target on the kept players alone (target − kept); to_buy is what is still needed
+      // after the buys for the roles above it (keep.py)
+      gap: Math.max(0, target[tag] - kept.filter((p) => hasTag(p, tag)).length),
+      to_buy: need,
       ref_value: ref,
       ref_from_release: relVals.length > 0,
       picks: picks.map((c) => ({ id: c.id, name: c.name, price: c.price, value: c.value, from_team: c.from_team })),
@@ -798,7 +849,7 @@ export function evaluate(
   for (const g of gaps)
     if (g.short > 0)
       warnings.push(
-        `${g.label}: only ${g.picks.length} of ${g.gap} found in the pool at that level (or no squad / overseas room left).`,
+        `${g.label}: only ${g.picks.length} of ${g.to_buy} found in the pool at that level (or no squad / overseas room left).`,
       );
 
   return {
@@ -824,8 +875,8 @@ export function evaluate(
 /** The table as CSV rows (same columns as keep.py's `to_csv_rows`). */
 export function toCsvRows(res: SquadResult): string[][] {
   const head = [
-    "player", "team", "role", "overseas", "age", "acquired", "salary_cr", "value", "value_sd",
-    "cost_cr", "price_cr", "onfield_cr", "p_bought", "surplus_cr", "p_keep", "recommendation", "should_keep", "decision", "auto_release",
+    "player", "team", "role", "overseas", "age", "acquired", "salary_cr", "value", "value_sd", "value_next_season",
+    "cost_cr", "price_cr", "priced_on_value", "onfield_cr", "p_bought", "surplus_cr", "p_keep", "recommendation", "should_keep", "decision", "auto_release",
     "reason", "outlook", "form", "outlook_3y_avg", "outlook_3y",
   ];
   const rows = [head];
@@ -840,8 +891,11 @@ export function toCsvRows(res: SquadResult): string[][] {
       fmtNum(Number(p.salary), 2),
       p.value === null || p.value === undefined ? "" : fmtNum(p.value, 1),
       p.value_sd === null || p.value_sd === undefined ? "" : fmtNum(p.value_sd, 1),
+      p.value_now === null || p.value_now === undefined ? "" : fmtNum(p.value_now, 1),
       fmtNum(Number(p.cost), 2),
       p.price === null ? "" : fmtNum(p.price, 2),
+      // the value the market price used (its own recipe input, METHODOLOGY §6b)
+      p.price === null || p.price_value === null || p.price_value === undefined ? "" : fmtNum(p.price_value, 1),
       p.onfield === null ? "" : fmtNum(p.onfield, 2),
       p.p_bought === null ? "" : fmtNum(p.p_bought, 2),
       p.surplus === null ? "" : fmtNum(p.surplus, 2),
@@ -918,7 +972,9 @@ export interface KeepData {
   };
   unmatched: { team: string; name: string }[];
   form: LeagueForm | null;
-  death_rule: { share: number; min_balls: number };
+  /** a death bowler bowls at the death in at least `match_share` of his matches (`share` of his balls
+   * in exports before 2026-10-29) */
+  death_rule: { match_share?: number; share?: number; min_balls: number };
   teams: string[];
   players: KeepPlayer[];
   pool_tags: Record<string, string>;

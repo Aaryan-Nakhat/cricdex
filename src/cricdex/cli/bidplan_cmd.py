@@ -104,6 +104,7 @@ def bidplan(
         TRIALS,
         build_context,
         chain_text,
+        gap_costs,
         plan,
         rival_runs,
         to_csv_rows,
@@ -173,6 +174,10 @@ def bidplan(
     with _render.spinner(f"Running {n_trials} rival auctions and the plan…"):
         runs = rival_runs(ctx, n_trials)
         res = plan(ctx, needs, overrides, n_trials, runs["prices"], rate=runs["rate"])
+    gaps = []
+    if res["missing"]:
+        with _render.spinner("Pricing the roles still short…"):
+            gaps = gap_costs(ctx, res, needs, overrides, runs["prices"], runs["rate"])
 
     comp = data["competition"]
     assumed = set(comp.get("assumed") or [])
@@ -210,7 +215,9 @@ def bidplan(
                 "player": x["name"] + (" ✈" if x["overseas"] else ""),
                 "slot": SLOT_LABEL[x["slot"]],
                 "from": x.get("from_team") or "free agent",
-                "value": fmt_num(x["value"], 1) if x["value"] is not None else None,
+                # next season's value, the career rating after it
+                "value": fmt_num(x["value_now"], 1) if x.get("value_now") is not None else None,
+                "career": fmt_num(x["value"], 1) if x["value"] is not None else None,
                 "market": cr(x["price"]),
                 "rivals pay": cr(x["expected_price"]),
                 "enough 9/10": cr(x["enough_90"]),
@@ -248,9 +255,27 @@ def bidplan(
         for n in NEED_ORDER
     ]
     c.print("[dim]" + " · ".join(need_bits) + "[/dim]")
+    if not res["converged"]:
+        c.print(
+            f"[yellow]![/yellow] The likely buys didn't settle after {res['rounds']} rounds: the likely "
+            "buys and max bids are the last round's; names near the 50% line are uncertain."
+        )
+    if res.get("topped_up_share"):
+        c.print(
+            f"[yellow]![/yellow] {round(100 * res['topped_up_share'])}% of runs ended short of the squad "
+            "minimum and were filled at the lowest base price."
+        )
     for m in res["missing"]:
         c.print(f"[yellow]![/yellow] Still missing after the likely buys: {m['label']} "
                 f"({m['have']} of {m['target']}).")  # fmt: skip
+    for g in gaps:
+        if g["id"] is None:
+            c.print(f"  No target fills {g['label'].lower()} within the purse.")
+            continue
+        c.print(f"  {g['label']}: {g['name']}, usually {cr(g['expected_price'])} cr ({cr(g['enough_90'])} cr to "
+                f"be sure in 9 runs of 10). Bought at that price, the best plan around him is "
+                f"{fmt_num(abs(g['cost']), 2)} runs a match {'weaker' if g['cost'] > 0 else 'stronger'} than "
+                f"this one, with {g['label'].lower()} in {round(100 * g['need_met'])}% of the runs.")  # fmt: skip
     for x in res["reconsider"]:
         c.print(f"[yellow]![/yellow] Reconsider keeping {x['name']}: worth about {cr(x['worth'])} cr to your "
                 f"squad, paid {cr(x['salary'])} cr"

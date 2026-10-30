@@ -28,6 +28,7 @@ from cricdex.web_parity.bidplan import (
     best_xi,
     build_context,
     chain_text,
+    gap_costs,
     piece,
     plan,
     rival_prices,
@@ -290,6 +291,10 @@ def _cases() -> list[dict]:
                     "rival_bids": riv,
                 }
             )
+    # the "opportunity" money rule (candidate of 2026-10-29) on the synthetic league and two real teams
+    synth = [c for c in out if c["pool"] is LEAGUE["_pool"]]
+    reals = [c for c in out if c["pool"] is not LEAGUE["_pool"] and c["data"] is not data][:2]
+    out += [{**c, "money": "opportunity"} for c in synth + reals]
     return out
 
 
@@ -357,7 +362,7 @@ def _python(cases: list[dict]) -> dict:
         runs = rival_runs(ctx, c["trials"])
         prices = runs["prices"]
         res = plan(ctx, c.get("needs") or {}, c.get("overrides") or {}, c["trials"], prices,
-                   rate=runs["rate"])  # fmt: skip
+                   rate=runs["rate"], money=c.get("money") or "auction")  # fmt: skip
         out.append(
             {
                 "ctx": {
@@ -369,6 +374,15 @@ def _python(cases: list[dict]) -> dict:
                 "plan": res,
                 "csv": to_csv_rows(res),
                 "chains": [chain_text(ch) for ch in res["chains"]],
+                "gaps": gap_costs(
+                    ctx,
+                    res,
+                    c.get("needs") or {},
+                    c.get("overrides") or {},
+                    prices,
+                    runs["rate"],
+                    c.get("money") or "auction",
+                ),  # fmt: skip
             }
         )
     xi = []
@@ -514,7 +528,51 @@ def test_unspent_purse_worth_what_later_lots_can_buy():
     # more money never makes a crore worth more (diminishing returns)
     rates = [mv.value(-1, m, 25)[0] for m in (0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0)]
     assert all(a >= b for a, b in zip(rates, rates[1:], strict=False))
-    res = plan(ctx, {}, {}, 25, runs["prices"], rate=runs["rate"])
+    res = plan(ctx, {}, {}, 25, runs["prices"], rate=runs["rate"], money="auction")
     assert res["money"] == "auction" and res["purse_rate"] == res["lam"]
     for t in res["targets"]:
         assert 0 <= t["max_bid"] <= max(0.0, ctx["purse_left"]) + 1e-9
+
+
+def test_opportunity_rule_bids_what_paying_gives_up():
+    """The "opportunity" money rule (candidate of 2026-10-29, after the review found every max bid
+    was the purse left and buys far above the sheet's own max bids): a lot's max bid is the most that
+    keeps what paying gives up (the later lots its money and place would have bought) within his gain,
+    so it is finite and never above the money left, and the plan never lands a likely buy above his max
+    bid on average. Every run reaches the squad minimum."""
+    from cricdex.web_parity.bidplan import DEFAULT_NEEDS, _cands, _Gains, _median, _OppValue
+
+    data = {k: v for k, v in LEAGUE.items() if k != "_pool"}
+    for team in ("AAA", "CCC"):
+        ctx = build_context(data, build_pool(LEAGUE["_pool"]), team, {}, None, 6)
+        runs = rival_runs(ctx, 25)
+        cands = _cands(ctx)
+        gains = _Gains(ctx["kept"], cands, dict(DEFAULT_NEEDS))
+        ov = _OppValue(cands, gains, [], [_median(ps) for ps in runs["prices"]])
+        for i in range(len(cands)):
+            g = gains.gain(gains.state([]), i)
+            bids = [
+                ov.max_bid(i, g, m, 5, 2, bool(cands[i]["os"])) for m in (0.0, 1.0, 3.0, 9.0, 27.0)
+            ]
+            assert all(
+                0.0 <= b <= m + 1e-9 for b, m in zip(bids, (0.0, 1.0, 3.0, 9.0, 27.0), strict=True)
+            )
+            # (more money can lower a max bid: the later lots his place would hold get better)
+            # places for every later lot: he is worth whatever money the later lots don't need
+            if g > 0:
+                later = sum(e for _r, j, e, _g, _os in ov.items if j > i)
+                mb = ov.max_bid(i, g, 1e6, 10**6, 99, bool(cands[i]["os"]))
+                assert 1e6 - later - 1e-6 <= mb <= 1e6
+            assert ov.max_bid(i, g, 27.0, 0, 2, False) == 0.0  # no place: nothing to buy
+        res = plan(ctx, {}, {}, 25, runs["prices"], rate=runs["rate"], money="opportunity")
+        assert res["money"] == "opportunity" and res["purse_rate"] == res["lam"]
+        assert res["mean_squad"] >= ctx["rules"]["squad_min"] - 1e-9
+        for t in res["targets"]:
+            assert 0 <= t["max_bid"] <= max(0.0, ctx["purse_left"]) + 1e-9
+            if t["likely"] and not t["override"]:
+                assert t["avg_paid"] <= t["max_bid"] + 1e-9, (
+                    team,
+                    t["name"],
+                    t["avg_paid"],
+                    t["max_bid"],
+                )

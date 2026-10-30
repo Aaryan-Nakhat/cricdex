@@ -172,6 +172,19 @@ const out = {
     retentionSpend("KKR", SLAB_PLAYERS.slice(0, 3), SLAB_OPTS),
     retentionSpend("XYZ", SLAB_PLAYERS, { ...SLAB_OPTS, retentionSlabs: null }),
     retentionSpend("KKR", SLAB_PLAYERS, { ...SLAB_OPTS, mode: "mini" as const }),
+    retentionSpend("KKR", [...SLAB_PLAYERS, { cricsheet_id: "z", projected_value: 2.5 } as unknown as PoolPlayer], {
+      ...SLAB_OPTS,
+      mode: "mini" as const,
+      miniSquad: {
+        a: { salary: 13, slab_holder: "capped" },
+        b: { salary: 12, slab_holder: "capped" },
+        c: { salary: 3, slab_holder: null },
+        d: { salary: 0.3, slab_holder: null },
+        e: { salary: 4, slab_holder: "uncapped" },
+      },
+      miniFixed: { KKR: [{ salary: 1.5, slab_holder: null }] },
+      miniRules: { retained_cost: "slabs", retention_slabs: [18, 14, 11, 18, 14], uncapped_retention_slab: 4 },
+    }),
   ],
   retentions,
   // a mini auction's default retentions: each team's top 18 by expected season value

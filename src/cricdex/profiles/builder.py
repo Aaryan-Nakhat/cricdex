@@ -339,6 +339,11 @@ def load_bayes_table(collection: str) -> dict[str, dict]:
             entry["strike_skill_sd"] = r.get("strike_skill_sd")
         if r.get("value") is not None:
             entry["value"] = r.get("value")
+            entry["value_sd"] = r.get("value_sd")
+            # its two parts (runs_value.py): scoring rate / economy, and the runs a wicket is worth
+            # (not getting out / taking wickets)
+            entry["value_rate"] = r.get("value_rate")
+            entry["value_wkts"] = r.get("value_wkts")
         out.setdefault(r.get("cricsheet_id"), {})[f"bayes_{r['role']}"] = entry
     return out
 

@@ -331,6 +331,10 @@ norm (rare; opener territory).
 
 ### 4.8 Pressure Conversion — `metrics/bowler.py:pressure_conversion`
 
+> **Retired from the site, 2026-10-29.** It failed a split-half reliability test (a player's odd and even
+> matches don't rank bowlers alike: r −0.18) even after a rebuild; see METHODOLOGY section 3. Kept here
+> for the method and its lesson: a rare event needs far more chances than a season gives.
+
 **Intuition.** A bowler's wicket rate on the delivery immediately
 after they've built a streak of 4+ consecutive dots in the same
 over.

@@ -136,32 +136,46 @@ exists to distinguish *style*.
 
 ---
 
-## Pressure Conversion — `cricdex.metrics.bowler.pressure_conversion`
+## Pressure Conversion — retired 2026-10-29
 
-**What it captures:** a bowler's wicket rate on the delivery immediately
-after building a streak of 4+ consecutive dots in the same over.
+Wicket rate on balls bowled after a pressure spell. The v1 board counted the ball after 4+ dots inside
+one bowler's over (a handful of chances a season); `cricdex.metrics.bowler.pressure_conversion` now
+counts every ball after the batting side's 4+ ball drought (no run, no wicket, across overs and
+bowlers), shrunk toward the league rate by a fitted beta-binomial prior (`conversion_pct`; raw
+`wicket_rate_pct`, `league_pct`, `prior_balls`). Even so the fitted spread between bowlers is zero and a
+player's odd and even matches don't agree (split-half r −0.18), so no board is published.
 
-**Computation:**
-1. Walk every over delivered by each bowler, tracking running
-   `streak_len` of consecutive dot balls (nothing scored, not a wide or
-   no-ball).
-2. When `streak_len ≥ threshold` (default 4), look at the next
-   delivery in the same over.
-3. Wicket rate = bowler-credited wickets on that "post-pressure" ball
-   ÷ total post-pressure balls. Run-outs don't count: they aren't the
-   bowler's squeeze paying off.
+---
 
-**Why "same over":** the streak resets across overs because the field +
-batter context is different. Within an over the bowler is genuinely
-sustaining the pressure.
+## Dot-Ball Avoidance — `cricdex.metrics.splits.dot_avoidance`
 
-**Reading:** different from raw economy — a tight 4-dot bowler who
-never converts the pressure into a wicket scores low here even though
-their economy looks great.
+Per batter, over legal balls faced (wides excluded): `dots_avoided_raw` = 100 × mean(league dot rate in
+the ball's phase − dot), `dots_avoided_per100` = that shrunk toward 0 (`_shrink`: × n / (n + k),
+k = per-ball residual variance ÷ the spread of true player means, method of moments). Also `dot_pct`,
+`expected_dot_pct`, `balls`. Minimum 150 balls (last 3 yrs 100, last year 60). Split-half r 0.70.
 
-**Filter:** `min_pressure_balls` — by default set per collection to
-`max(5, ½ × 75th-percentile pressure_balls)` so small collections aren't
-emptied; pass a number to fix it (30 was the old IPL floor).
+## Pace vs Spin — `cricdex.metrics.splits.pace_spin`
+
+Per batter, against each bowling type (player master `bowling_category`: seam / spin): runs per 100
+balls above the league against that type in the same phase (`above_vs_spin(_raw)`,
+`above_vs_pace(_raw)`, each shrunk as above, τ² fitted on players with the minimum), strike rates and
+balls. `spin_edge` = (raw spin − raw pace) × τ² / (τ² + its noise), its noise s²_spin/n_spin +
+s²_pace/n_pace and τ² the spread of true edges (`_shrink_edge`); `spin_edge_raw` unshrunk. Minimum 100
+balls against each (70 / 40). Split-half r 0.37 (0.66 for scoring against spin alone).
+
+## Finisher Index — `cricdex.metrics.splits.finisher`
+
+Per batter, legal balls faced in overs 17–20 of the second innings: `above_raw` = 100 × mean(runs − the
+league's average in that over of a chase), `above_per100` shrunk as above; `sr`, `balls`, `innings`
+(chases he faced a ball in those overs) and `not_out_pct` (of those, not dismissed). Minimum 40 balls
+(25 / 15). Split-half r 0.44.
+
+## Left vs Right — `cricdex.metrics.splits.hand_split`
+
+Per bowler, legal balls against each batting hand (player master `batting_hand`): runs saved per 100
+balls against the league on that hand in the same phase (`saved_vs_left(_raw)`, `saved_vs_right(_raw)`,
+each shrunk), balls against each; `left_edge` = left − right shrunk as a difference (`_shrink_edge`).
+Minimum 90 balls against each hand (60 / 36). Split-half r 0.30, the weakest that passed.
 
 ---
 

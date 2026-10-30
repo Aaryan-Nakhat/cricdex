@@ -29,7 +29,7 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: "/", label: "Overview", icon: LayoutDashboard, group: "Start", blurb: "The dataset at a glance + what CricDex does." },
-  { to: "/leaderboards", label: "Leaderboards", icon: Trophy, group: "Analyse", blurb: "Twelve boards — win chance added per match, nine context metrics, keeping and fielding — each with how to read it." },
+  { to: "/leaderboards", label: "Leaderboards", icon: Trophy, group: "Analyse", blurb: "Fifteen boards — win chance added per match, twelve context metrics, keeping and fielding — each with how to read it." },
   { to: "/player", label: "Player profile", icon: UserSearch, group: "Analyse", blurb: "Full dossier: skills, metrics, dismissals, twins." },
   { to: "/compare", label: "Compare", icon: GitCompareArrows, group: "Analyse", blurb: "Side-by-side across every number." },
   { to: "/head-to-head", label: "Head-to-head", icon: Swords, group: "Analyse", blurb: "P(A is better than B) from the Bayesian model." },
@@ -41,7 +41,7 @@ export const NAV: NavItem[] = [
   { to: "/scout", label: "Scout", icon: Network, group: "Scout", blurb: "Look-alikes across IPL, SMAT & every overseas league — price, savings & draft." },
   { to: "/auction", label: "Auction room", icon: Gavel, group: "Scout", blurb: "Simulate a real IPL auction — retain, then bid for the rest." },
   { to: "/keep", label: "Keep or release", icon: Scale, group: "Scout", blurb: "Before the 15 Nov 2026 retention deadline: what each team will likely keep, whether each player is worth his cost, and what the squad needs after." },
-  { to: "/bidplan", label: "Bid plan (beta)", icon: ClipboardList, group: "Scout", blurb: "Beta. Before the auction: whom to bid for, each target's max bid and odds, and a fallback per role. Not yet proven against real franchises." },
+  { to: "/bidplan", label: "Bid plan (draft)", icon: ClipboardList, group: "Scout", blurb: "Draft. Before the auction: whom to bid for, each target's max bid and odds, and a fallback per role. Not yet proven against real franchises." },
   { to: "/records", label: "Records", icon: Medal, group: "Explore", blurb: "All-time record books." },
   { to: "/venues", label: "Venues", icon: MapPin, group: "Explore", blurb: "Ground conditions: totals, phases, chasing." },
   { to: "/about", label: "How it works", icon: BookOpen, group: "Explore", blurb: "The models, plainly explained." },

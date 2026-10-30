@@ -363,6 +363,20 @@ def unavailable(
     return out
 
 
+def eligibility_notes(
+    season: int, league: str = "ipl", records: dict[str, dict] | None = None
+) -> dict[str, str]:
+    """cricsheet id → a note for a player kept in the pool whose eligibility for `season` is open
+    (status "unconfirmed": no ruling yet, e.g. a Bangladesh player after the BCCI had KKR release
+    Mustafizur Rahman in January 2026). The pages flag him; he isn't dropped."""
+    recs = load_availability(league) if records is None else records
+    return {
+        cid: str(r.get("note") or "eligibility unconfirmed")
+        for cid, r in recs.items()
+        if r.get("status") == "unconfirmed" and season in (r.get("seasons") or [])
+    }
+
+
 # IPL Player Regulations 2025-27, item 7 (IPL Governing Council, 28 Sep 2024, iplt20.com): "A capped
 # Indian player will become uncapped, if the player has in the last five calendar years preceding the
 # year in which the relevant Season is held, not played in the starting XI in International Cricket

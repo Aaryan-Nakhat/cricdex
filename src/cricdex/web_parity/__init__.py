@@ -24,6 +24,7 @@ from cricdex.web_parity.auction import (
     IPL_TEAMS_DEFAULT,
     build_pool,
     default_retentions,
+    mini_inputs,
     retention_inputs,
     simulate_auction,
 )
@@ -49,6 +50,7 @@ __all__ = [
     "SAME_SLOT",
     "build_pool",
     "default_retentions",
+    "mini_inputs",
     "est_value",
     "market_price",
     "scout_price",

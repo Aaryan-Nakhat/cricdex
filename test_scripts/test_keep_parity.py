@@ -243,7 +243,9 @@ def _keep_model() -> dict | None:
 
 # keep_features arguments: (market, cost, mega, forecast avg3, P(regular), captain here, seasons
 # here, home-grown, capped Indian, overseas, age, IPL balls, bought at the last auction[, P(plays),
-# contribution per match[, retained at the cycle's mega auction]])
+# contribution per match[, retained at the cycle's mega auction[, IPL matches last season]]])
+# a recalibration per cycle, as keep_parity_dump.ts's CAL
+KEEP_CAL = {"mega": {"a": -0.4, "b": 1.3}, "mini": {"a": 0.2, "b": 0.8}}
 KEEP_CASES = [
     [12.5, 14.0, False, 3.4, 0.54, False, 19, True, True, False, 38.0, 6000, False],
     [0.3, 3.0, False, None, None, False, 1, True, False, False, 24.5, 15, True],
@@ -255,6 +257,10 @@ KEEP_CASES = [
     # a 2025 mega-auction retention in a mini year, and the flag ignored in a mega year
     [4.3, 14.0, False, 2.2, 0.4, False, 18, True, True, False, 38.6, 6400, False, 0.8, 1.9, True],
     [9.0, 18.0, True, 5.0, 0.9, True, 8, True, True, False, 30.0, 3000, False, 0.9, 4.0, True],
+    # matches last season: none, a few, past a full league season
+    [6.0, 18.0, False, 2.0, 0.5, False, 4, False, True, False, 27.0, 900, False, 0.6, 1.0, True, 0],
+    [3.0, 5.0, False, 1.0, 0.3, False, 2, False, False, True, 29.0, 400, True, 0.4, 0.5, False, 5],
+    [7.0, 7.0, False, 4.0, 0.9, True, 6, True, True, False, 31.0, 3000, False, 0.9, 3.0, False, 16],
 ]
 
 
@@ -364,11 +370,16 @@ def test_keep_parity():
     km = _keep_model()
     for i, (args, b) in enumerate(zip(KEEP_CASES, js["keepCases"], strict=True)):
         f = keep_features(*args)
-        _approx_eq({"features": f, "p": keep_probability(f, km) if km else None}, b, f"keep[{i}]")
+        cal = {**km, "calibration": KEEP_CAL} if km else None
+        _approx_eq(
+            {"features": f, "p": keep_probability(f, km) if km else None,
+             "pCal": keep_probability(f, cal) if cal else None},
+            b, f"keep[{i}]",
+        )  # fmt: skip
 
 
 def test_keep_synthetic_calls():
-    """The calls follow the retention model's chance kept (Keep ≥ 65%, Release < 35%, Borderline
+    """The calls follow the retention model's chance kept (Keep ≥ 65%, Release < 35%, Toss-up
     between, kept by default from 50%), and the purse follows the default plan."""
     from cricdex.web_parity.keep import BORDER_BAND, KEEP_CALL
 
@@ -403,6 +414,11 @@ def test_keep_synthetic_calls():
     # released players free their salary; the contracted pool player is never a pick
     picks = {c["id"] for g in res["gaps"] for c in g["picks"]}
     assert "f008" not in picks
+    # "short by" is the target against the kept players alone; to_buy is what the buys for the
+    # roles above haven't already covered (the report's Short-by column once mixed the two)
+    for g in res["gaps"]:
+        assert g["gap"] == max(0, g["target"] - g["kept"])
+        assert 0 <= g["to_buy"] <= g["gap"]
     assert res["purse_left"] == pytest.approx(
         125 - sum(p["salary"] for p in res["players"] if p["kept"])
     )
@@ -424,7 +440,7 @@ def test_keep_model_is_the_backtested_one():
     f = keep_features(*KEEP_CASES[0])
     assert set(km["coef"]) <= set(f)
     assert km["trained_on"] == [2018, 2026]
-    assert "2018-2024" in km["evaluation"]["protocol"]["selection"]
+    assert "2020-2024" in km["evaluation"]["protocol"]["selection"]
     assert 0.0 < keep_probability(f, km) < 1.0
 
 
@@ -463,7 +479,7 @@ def test_keep_stale_share_in_the_reason():
 
 
 def test_keep_default_plan_is_legal():
-    """Over the squad or overseas limit, the default plan releases Borderline players first (lowest
+    """Over the squad or overseas limit, the default plan releases Toss-up players first (lowest
     chance kept), overseas ones for the overseas cap, never a decided player, and says so."""
     market = market_for("AAA", SQUAD + OTHERS, build_pool(POOL), POOL_TAGS, FORM)
     rules = {**RULES, "squad_max": 8, "overseas_max": 1}
@@ -476,7 +492,7 @@ def test_keep_default_plan_is_legal():
     assert len(kept) <= 8
     assert auto and all("Released to fit" in p["reason"] for p in auto)
     assert all(not p["overridden"] for p in auto)
-    # no Keep goes while a Borderline of the same pass is still kept
+    # no Keep goes while a Toss-up of the same pass is still kept
     for kind in ("overseas", "squad"):
         gone_keeps = [p for p in auto if p["auto_release"] == kind and p["rec"] == "keep"]
         if gone_keeps:

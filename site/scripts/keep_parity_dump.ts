@@ -22,6 +22,7 @@ import {
 const fx = JSON.parse(readFileSync(process.argv[2], "utf8"));
 // the market-price model the Python side uses (config/price_model.json), or null
 registerPriceModel(fx.model ?? null);
+const CAL = { mega: { a: -0.4, b: 1.3 }, mini: { a: 0.2, b: 0.8 } };
 // the retention model the Python side uses (config/keep_model.json), or null
 registerKeepModel(fx.keep_model ?? null);
 const out = fx.cases.map((c: any) => {
@@ -34,6 +35,11 @@ const fmt = (fx.fmt as number[]).map((x) => [fmtNum(x, 0), fmtNum(x, 1), fmtNum(
 // the retention model on fixed inputs (features + probability)
 const keepCases = (fx.keep_cases ?? []).map((a: any[]) => {
   const f = keepFeatures(...(a as Parameters<typeof keepFeatures>));
-  return { features: f, p: fx.keep_model ? keepProbability(f, fx.keep_model) : null };
+  return {
+    features: f,
+    p: fx.keep_model ? keepProbability(f, fx.keep_model) : null,
+    // the same model with a recalibration per cycle (keep_backtest.py's Platt, when the refit keeps one)
+    pCal: fx.keep_model ? keepProbability(f, { ...fx.keep_model, calibration: CAL }) : null,
+  };
 });
 process.stdout.write(JSON.stringify({ out, fmt, keepCases }));

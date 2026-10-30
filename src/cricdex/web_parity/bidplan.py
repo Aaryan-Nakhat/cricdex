@@ -100,7 +100,7 @@ NEED_LABEL = {
 # ---- the auction assumptions ------------------------------------------------------------------------
 
 # Every franchise's default plan opens at least this many squad places (releasing its lowest-surplus
-# Borderline players, Keep or release's `fit_to_rules` order): the median number of players a
+# Toss-up players, Keep or release's `fit_to_rules` order): the median number of players a
 # team bought at the 2023, 2024 and 2026 mini auctions (data/curated/ipl_auction_history.json).
 # 0 = Keep or release's plan exactly. A player the user decided on is never moved.
 OPEN_SLOTS = 8
@@ -118,9 +118,17 @@ MIN_SLOT_PRICE = 0.3
 # - "auction": what it can still buy from the later lots at their expected prices (`_MoneyValue`); 0
 #   at the end of the auction (no carry-over into the season, replacement fees outside the cap);
 # - "market": the rivals' runs per crore in the same runs (`rival_runs`), the rule of 2026-10-26;
-# - "none": nothing, one λ for the whole auction (the rule until 2026-10-26).
-MONEY_RULES = ("auction", "market", "none")
-MONEY = "auction"
+# - "none": nothing, one λ for the whole auction (the rule until 2026-10-26);
+# - "opportunity" (candidate of 2026-10-29): a lot is worth what it adds minus what paying for it
+#   gives up, the later lots the money and the place it takes would have bought (`_OppValue`), so a
+#   max bid is finite even when the places run out before the money (where "auction" valued a crore
+#   at 0 and bid up to the purse), and overseas places are counted.
+MONEY_RULES = ("auction", "market", "none", "opportunity")
+# shipped 2026-10-30 (METHODOLOGY §12, rule declared before the replays): "opportunity" passes the
+# plan gates "auction" fails by construction (no likely buy above his max bid, max bids that differ) and on
+# the 2024 replay spends closer to the real teams (error 0.075 against 0.106) with a stronger next season
+# (+6.1 runs a match against +3.8); METHODOLOGY §12
+MONEY = "opportunity"
 # A player is a target when the plan lands him in at least this share of the runs (or you set his
 # max bid); "likely" when it lands him in at least half of them.
 TARGET_MIN_SHARE = 0.05
@@ -337,6 +345,8 @@ def _avail_row(r: dict, tags: str, from_team: str | None) -> dict:
         "role": r["role"],
         "is_overseas": bool(r["is_overseas"]),
         "value": r["value"],
+        # his value for the coming season (shown; the plan reads the contribution)
+        "value_now": r.get("value_now"),
         "projected_value": r["projected_value"],
         "p_bought": r.get("p_bought"),
         "base_price": r["base_price"],
@@ -351,6 +361,8 @@ def _avail_row(r: dict, tags: str, from_team: str | None) -> dict:
         out["capped"] = r["capped"]
     if r.get("prior_share"):
         out["prior_share"] = r["prior_share"]
+    if r.get("eligibility"):
+        out["eligibility"] = r["eligibility"]
     return out
 
 
@@ -364,6 +376,7 @@ def _squad_row_as_lot(p: dict) -> dict:
         "role": p["role"],
         "is_overseas": bool(p.get("overseas")),
         "value": p["value"],
+        "value_now": p.get("value_now"),
         "projected_value": price,
         "p_bought": p.get("p_bought"),
         "base_price": price_tier(price),
@@ -387,16 +400,18 @@ NO_GAPS = {"keeper": 0, "opener": 0, "death": 0, "spinner": 0, "overseas": 0}
 
 def open_places(players: list[dict], limit: int) -> None:
     """Open squad places the way franchises do before a mini auction: while more than `limit`
-    players are kept, release the kept player with the lowest contribution per match the user hasn't
-    decided on (an unrated one first). Each gets `auto_release` = "open". In place, after Keep or
-    release's `evaluate`."""
+    players are kept, release the kept player the user hasn't decided on whom franchises are least
+    likely to keep (Keep or release's P(keep), fitted on every real deadline; one with no P(keep)
+    first). Each gets `auto_release` = "open". In place, after Keep or release's `evaluate`. (Until
+    2026-10-29 the lowest contribution per match went first, whatever his contract: LSG's default
+    plan released Mayank Yadav, an 11 cr Keep at 89%.)"""
     kept = [p for p in players if p["kept"]]
     extra = len(kept) - max(0, limit)
     if extra <= 0:
         return
     movable = sorted(
         (p for p in kept if not p["overridden"]),
-        key=lambda p: (p.get("contrib") is not None, p.get("contrib") or 0.0, p["key"]),
+        key=lambda p: (p.get("p_keep") is not None, p.get("p_keep") or 0.0, p["key"]),
     )
     for p in movable[:extra]:
         p["kept"] = False
@@ -677,6 +692,7 @@ def rival_plan_bids(
     display: dict[str, str] | None = None,
     trials: int = TRIALS,
     rounds: int = 3,
+    money: str = MONEY,
 ) -> dict[str, Any]:
     """Every franchise's default plan, each seeing the others' (ROADMAP I2): the plans are built in
     team order, each against the latest plans of the others, and repeated until the table stops
@@ -692,7 +708,7 @@ def rival_plan_bids(
             ctx = build_context(
                 data, pool, team, {}, None, OPEN_SLOTS, None, register, display, table
             )
-            res = plan(ctx, None, None, trials)
+            res = plan(ctx, None, None, trials, money=money)
             table[team] = {x["id"]: [round(x["max_bid"], 2), round(x["p_land"], 3)]
                            for x in res["targets"] if x["p_land"] > 0 and x["max_bid"] > 0}  # fmt: skip
         if table == before:
@@ -822,6 +838,109 @@ class _MoneyValue:
         return 0.0, 0.0
 
 
+class _OppValue:
+    """What the money, squad places and overseas places left at a lot can still buy: W(i, money,
+    room, os_room) = the summed gain of the lots after i taken in order of gain ÷ expected price (the
+    same ranking as `_MoneyValue`) while the money covers them (the fill stops at the first it
+    doesn't), the places last and, for an overseas lot, an overseas place is left (an overseas lot
+    with none left is passed over). Buying lot i at price r gives up W(i, M, R, O) − W(i, M − r, R − 1,
+    O − his overseas place), so his max bid is the most r that keeps that within his gain:
+    `max_bid`. Since 2026-10-29 (the review: every max bid was the purse left, and the plan bought
+    players far above their own max bids)."""
+
+    def __init__(self, cands: list[dict], gains: _Gains, future: list[int], expected: list[float]):
+        base = gains.state(future)
+        fut = set(future)
+        items = []
+        for j, c in enumerate(cands):
+            if c["own"] or c["ub"] <= 0 or expected[j] <= 0:
+                continue
+            if j in fut:
+                g = gains.gain(gains.state([k for k in future if k != j]), j)
+            else:
+                g = gains.gain(base, j)
+            if g > 0:
+                items.append((g / expected[j], j, expected[j], g, bool(c["os"])))
+        items.sort(key=lambda x: (-x[0], x[1]))
+        self.items = items
+        self._lists: dict[tuple[int, int], tuple[list[float], list[float]]] = {}
+
+    def _list(self, i: int, os_room: int) -> tuple[list[float], list[float]]:
+        """Cumulative (cost, gain) of the lots after i in rank order, an overseas lot past the first
+        `os_room` of them dropped."""
+        key = (i, os_room)
+        got = self._lists.get(key)
+        if got is None:
+            cum_e, cum_g = [], []
+            te = tg = 0.0
+            o = 0
+            for _r, j, e, g, os_ in self.items:
+                if j <= i:
+                    continue
+                if os_:
+                    if o >= os_room:
+                        continue
+                    o += 1
+                te += e
+                tg += g
+                cum_e.append(te)
+                cum_g.append(tg)
+            got = (cum_e, cum_g)
+            self._lists[key] = got
+        return got
+
+    def _skip_list(self, i: int, os_room: int, skip: set[int]) -> tuple[list[float], list[float]]:
+        cum_e, cum_g = [], []
+        te = tg = 0.0
+        o = 0
+        for _r, j, e, g, os_ in self.items:
+            if j <= i or j in skip:
+                continue
+            if os_:
+                if o >= os_room:
+                    continue
+                o += 1
+            te += e
+            tg += g
+            cum_e.append(te)
+            cum_g.append(tg)
+        return cum_e, cum_g
+
+    def lists(self, i: int, os_room: int, skip: set[int] | None = None):
+        os_room = max(os_room, 0)
+        return self._skip_list(i, os_room, skip) if skip else self._list(i, os_room)
+
+    @staticmethod
+    def worth(lst, money: float, room: int) -> float:
+        """W: the gain the fill buys with `money` and `room` places from one (cost, gain) list."""
+        cum_e, cum_g = lst
+        if room <= 0 or money < 0:
+            return 0.0
+        k = min(bisect.bisect_right(cum_e, money + 1e-9), room)
+        return cum_g[k - 1] if k > 0 else 0.0
+
+    def max_bid(self, i: int, g: float, money: float, room: int, os_room: int, is_os: bool,
+                skip: set[int] | None = None, money_skip: float | None = None) -> float:  # fmt: skip
+        """The most lot i (gain g) is worth paying with `money` crores if he is bought and
+        `money_skip` if he isn't (each net of its squad-minimum reserve; buying him fills one of the
+        places it is kept for), `room` squad places and `os_room` overseas places left: the largest
+        r ≤ money with g ≥ W(money_skip, room, os_room) − W(money − r, room − 1, os_room − his). 0
+        when even at no price the place he takes is worth more than he adds."""
+        if room <= 0 or g <= 0 or (is_os and os_room <= 0):
+            return 0.0
+        ms = money if money_skip is None else money_skip
+        now = self.worth(self.lists(i, os_room, skip), ms, room)
+        need = now - g  # what the money left after paying must still buy
+        if need <= 1e-12:
+            return max(money, 0.0)
+        cum_e, cum_g = self.lists(i, os_room - (1 if is_os else 0), skip)
+        # the fewest later lots (within room − 1) whose gain reaches `need`, and what they cost
+        k = bisect.bisect_left(cum_g, need - 1e-12)
+        if k >= len(cum_g) or k + 1 > room - 1:
+            return 0.0
+        return max(0.0, money - cum_e[k])
+
+
 def _cap(g: float, lam: float, slot: float) -> float:
     """The most a lot is worth paying: (gain − the place's worth) ÷ a crore's worth; the purse when a
     crore is worth nothing; 0 when the place is worth more than he adds."""
@@ -840,6 +959,7 @@ def _replay(
     gains: _Gains,
     future: list[int],
     mv: _MoneyValue | None = None,
+    ov: _OppValue | None = None,
 ) -> dict:
     """One run of the bidding rule: lots in pool order; for each, bid up to (his gain / λ) or the
     user's max bid; buy when that reaches the price to beat and the purse, squad and overseas room
@@ -849,7 +969,10 @@ def _replay(
     `prices[i]` = that run's price to beat for candidate i. With `mv` (the shipped rule since
     2026-10-27), λ at each lot is what a crore can still buy from the lots after it (`_MoneyValue`),
     given the money and places left in this run; 0 (bid up to what the purse allows) when the money
-    covers every later lot worth buying."""
+    covers every later lot worth buying. With `ov` (the "opportunity" rule) a lot is bought when the
+    price to beat is within `_OppValue.max_bid` at this run's money and places. A run that ends short
+    of the squad minimum buys the rest at the lowest base price (the accelerated rounds' unsold
+    players; `topped_up`)."""
     rules = ctx["rules"]
     sq_max = int(rules["squad_max"])
     sq_min = int(rules["squad_min"])
@@ -860,6 +983,7 @@ def _replay(
     left = float(ctx["purse_left"])
     bought: list[int] = []
     paid: list[float] = []
+    caps: dict[int, float] = {}  # the opportunity rule's max bid at each lot this run reached
     for i, c in enumerate(cands):
         if n >= sq_max:
             break
@@ -869,10 +993,18 @@ def _replay(
             continue  # a player we release isn't bought back (see `reconsider`)
         r = prices[i]
         reserve = max(0, sq_min - n - 1) * MIN_SLOT_PRICE
+        if ov is not None and c["id"] not in overrides:
+            # recorded whether or not the price is in reach: the sheet's max bid is these caps' median
+            ahead = bought + [j for j in future if j > i]
+            g = gains.gain(gains.state(ahead), i)
+            caps[i] = ov.max_bid(i, g, left - reserve, sq_max - n, os_max - os_n, bool(c["os"]),
+                                 money_skip=left - max(0, sq_min - n) * MIN_SLOT_PRICE)  # fmt: skip
         if r > left - reserve:
             continue
         if c["id"] in overrides:
             cap = overrides[c["id"]]
+        elif ov is not None:
+            cap = caps[i]
         else:
             lam_i, slot_i = (
                 (lam, 0.0) if mv is None else mv.value(i, left - reserve, sq_max - n - 1)
@@ -888,8 +1020,12 @@ def _replay(
             n += 1
             if c["os"]:
                 os_n += 1
+    # the squad minimum: the accelerated rounds' unsold players at the lowest base price (no gain)
+    topped_up = max(0, sq_min - n)
     st = gains.state(bought)
-    return {"bought": bought, "paid": paid, "spend": fsum(paid), "total": st["total"], "st": st}
+    spend = fsum(paid + [MIN_SLOT_PRICE] * topped_up)
+    return {"bought": bought, "paid": paid, "spend": spend, "total": st["total"], "st": st,
+            "topped_up": topped_up, "caps": caps}  # fmt: skip
 
 
 def _search(ctx, cands, by_run, over, gains, future, rate: float) -> tuple[float, list[dict]]:
@@ -1145,9 +1281,15 @@ def plan(
     while True:
         rounds += 1
         mv = None
+        ov = None
         if money == "auction":
             mv = _MoneyValue(cands, gains, future, expected)
             lam = mv.value(-1, float(ctx["purse_left"]) - reserve0, sq_max - len(ctx["kept"]))[0]
+            curve = []
+        elif money == "opportunity":
+            ov = _OppValue(cands, gains, future, expected)
+            lam = _opp_rate(ov, float(ctx["purse_left"]) - reserve0, sq_max - len(ctx["kept"]),
+                            int(rules["overseas_max"]) - sum(1 for p in ctx["kept"] if p["os"]))  # fmt: skip
             curve = []
         else:
             lam, curve = _search(ctx, cands, by_run, over, gains, future, rate)
@@ -1155,7 +1297,7 @@ def plan(
         price_sum = [0.0] * len(cands)
         runs = []
         for t in range(trials):
-            rr = _replay(ctx, cands, by_run[t], lam, over, gains, future, mv)
+            rr = _replay(ctx, cands, by_run[t], lam, over, gains, future, mv, ov)
             runs.append(rr)
             for i, pr in zip(rr["bought"], rr["paid"], strict=True):
                 land[i] += 1
@@ -1172,13 +1314,15 @@ def plan(
     totals: list[float] = []
     xis: list[float] = []
     sizes: list[int] = []
+    topped: list[int] = []
     need_met = dict.fromkeys(NEED_ORDER, 0)
     for rr in runs:
         spends.append(rr["spend"])
         totals.append(rr["total"])
         s = strength(rr["st"]["pieces"], tgt)
         xis.append(s["xi"])
-        sizes.append(len(rr["st"]["pieces"]))
+        sizes.append(len(rr["st"]["pieces"]) + rr["topped_up"])
+        topped.append(rr["topped_up"])
         for n in NEED_ORDER:
             if s["counts"][n] >= tgt[n]:
                 need_met[n] += 1
@@ -1188,6 +1332,7 @@ def plan(
     # the money value on the final likely squad (it differs from the last round's when the lookahead
     # stopped before converging)
     mv_final = _MoneyValue(cands, gains, likely, expected) if money == "auction" else None
+    ov_final = _OppValue(cands, gains, likely, expected) if money == "opportunity" else None
     likely_pieces = ctx["kept"] + [cands[i] for i in likely]
 
     exp_paid = {i: price_sum[i] / land[i] for i in likely}
@@ -1211,11 +1356,28 @@ def plan(
         """(max bid, gain, purse-bound): his gain on the likely squad without `drop`, over λ (λ = 0:
         nothing later is worth the money, so the purse is the limit); at most what the purse leaves
         after the rest of the likely buys at their average prices (keeping 0.3 cr a place to reach
-        the squad minimum)."""
+        the squad minimum). The "opportunity" rule: `_OppValue.max_bid` at his lot's state."""
         g = gain_without(drop, i)
         rest = [j for j in likely if j not in drop]
         reserve = max(0, sq_min - len(ctx["kept"]) - len(rest) - 1) * MIN_SLOT_PRICE
         budget = float(ctx["purse_left"]) - fsum([exp_paid[j] for j in rest]) - reserve
+        if ov_final is not None:
+            # the rule the runs bid by, at the state when his lot comes up: the likely buys before
+            # him made at their average prices, the later ones still to bid for (as in `_replay`)
+            before = [j for j in likely if j not in drop and j < i]
+            n_now = len(ctx["kept"]) + len(before)
+            spent = fsum([exp_paid[j] for j in before])
+            room = sq_max - n_now
+            os_room = (
+                os_max
+                - sum(1 for p in ctx["kept"] if p["os"])
+                - sum(1 for j in before if cands[j]["os"])
+            )
+            budget = float(ctx["purse_left"]) - spent - max(0, sq_min - n_now - 1) * MIN_SLOT_PRICE
+            skip_budget = float(ctx["purse_left"]) - spent - max(0, sq_min - n_now) * MIN_SLOT_PRICE
+            mb = ov_final.max_bid(i, g, max(budget, 0.0), room, os_room, bool(cands[i]["os"]),
+                                  drop - {i}, money_skip=skip_budget)  # fmt: skip
+            return mb, g, mb >= max(budget, 0.0) - 1e-9 and mb > 0
         li, slot = lam_at(drop, i)
         by_value = _cap(g, li, slot)
         mb = min(max(0.0, budget), by_value)
@@ -1227,6 +1389,12 @@ def plan(
         if share < TARGET_MIN_SHARE and not (c["id"] in over and over[c["id"]] > 0):
             continue
         mb, g, bound = max_bid({i}, i)
+        if ov_final is not None:
+            # the opportunity rule's sheet is what the runs bid by: the median of their max bids at
+            # his lot (each at that run's money and places)
+            rc = [rr["caps"][i] for rr in runs if i in rr["caps"]]
+            if rc:
+                mb = _median(rc)
         if c["id"] in over:
             mb, bound = over[c["id"]], False
         ps = prices[i]
@@ -1244,10 +1412,12 @@ def plan(
                 "overseas": c["os"],
                 "tags": c["tags"],
                 "value": a["value"],
+                "value_now": a.get("value_now"),
                 "price": a["projected_value"],
                 "p_bought": a.get("p_bought"),
                 "base_price": a["base_price"],
                 "from_team": a.get("from_team"),
+                "eligibility": a.get("eligibility"),
                 "slot": _slot_of(row),
                 "gain": g,
                 "max_bid": mb,
@@ -1259,7 +1429,11 @@ def plan(
                 "p_land": share,
                 "avg_paid": price_sum[i] / land[i] if land[i] else 0.0,
                 "likely": i in likely_set,
-                "net": p_le * (g - lam_at({i}, i)[1] - lam_at({i}, i)[0] * mean_under),
+                # expected surplus in runs a match: landed with chance p_le at a mean price under
+                # the max bid, where (opportunity rule) what he gives up rises to his gain at the max
+                "net": (p_le * g * (1.0 - mean_under / mb) if mb > 0 else 0.0)
+                if ov_final is not None
+                else (p_le * (g - lam_at({i}, i)[1] - lam_at({i}, i)[0] * mean_under)),
             }
         )
     targets.sort(key=lambda x: (-x["net"], x["id"]))
@@ -1311,7 +1485,7 @@ def plan(
         "lam": lam,
         "curve": curve,
         # what a crore left unspent is worth at the start (runs a match per crore)
-        "purse_rate": lam if money == "auction" else rate,
+        "purse_rate": lam if money in ("auction", "opportunity") else rate,
         "money": money,
         "rounds": rounds,
         "converged": converged,
@@ -1335,10 +1509,89 @@ def plan(
         "mean_squad": fsum([float(s) for s in sizes]) / trials
         if trials
         else float(len(ctx["kept"])),
+        # runs that ended short of the squad minimum and were topped up at the lowest base price
+        "topped_up_share": (sum(1 for x in topped if x > 0) / trials) if trials else 0.0,
         "need_met": {n: (need_met[n] / trials if trials else 0.0) for n in NEED_ORDER},
         "missing": missing,
         "reconsider": reconsider,
     }
+
+
+# What filling a role the plan leaves short costs (METHODOLOGY §12, 2026-10-30): the strength model scores
+# no role need (a hand-set penalty was dropped on 2026-10-23), so the sheet prices the gap instead of
+# pretending: the targets who fill it are forced in turn and the plan rebuilt around each.
+FILL_TRIES = 3  # the plan's targets tried per role still short, in priority order
+
+
+def fills(t: dict, need: str) -> bool:
+    """Whether target `t` (a plan target: role, tags) counts toward `need` (as `_piece`'s needs)."""
+    tags = t.get("tags") or ""
+    bowl = t["role"] in ("bowler", "all_rounder")
+    return {
+        "keeper": t["role"] == "keeper" or "k" in tags,
+        "opener": "o" in tags,
+        "death": "d" in tags,
+        "spinner": "s" in tags,
+        "pace": bowl and "s" not in tags,
+    }[need]
+
+
+def gap_costs(
+    ctx: dict,
+    res: dict,
+    needs: dict[str, int] | None = None,
+    overrides: dict[str, float] | None = None,
+    prices: list[list[float]] | None = None,
+    rate: float | None = None,
+    money: str = MONEY,
+) -> list[dict]:
+    """For each role `res` (a `plan` of ctx) leaves short after its likely buys, what filling it costs.
+    Up to FILL_TRIES of its targets who fill the role (priority order; not already a likely buy, not
+    overridden) are each taken as bought at his usual price (the median price to beat over the runs):
+    he joins the squad as the plan counts a bought lot, the price leaves the purse, and the plan is
+    rebuilt around him with the same runs. The one leaving the most strength is reported: his usual
+    price, the price that lands him in 9 runs of 10, how often the role is then met, and `cost` = the
+    strength (runs a match, mean over the runs) the plan gives up for him. `id` None when no target
+    fills the role or none fits the purse."""
+    over = {k: float(v) for k, v in (overrides or {}).items() if v is not None and v >= 0}
+    if prices is None:
+        rr = rival_runs(ctx, int(res["trials"]))
+        prices, rate = rr["prices"], rr["rate"]
+    cands = _cands(ctx, lot_p(ctx, [_median(ps) for ps in prices]))
+    index = {c["id"]: i for i, c in enumerate(cands)}
+    out = []
+    for m in res["missing"]:
+        n = m["need"]
+        opts = [
+            t for t in res["targets"] if fills(t, n) and not t["likely"] and t["id"] not in over
+        ]
+        best = None
+        for t in opts[:FILL_TRIES]:
+            i = index[t["id"]]
+            price = _median(prices[i])
+            if price > float(ctx["purse_left"]):
+                continue
+            ctx2 = {**ctx, "kept": ctx["kept"] + [cands[i]],
+                    "purse_left": float(ctx["purse_left"]) - price,
+                    "available": [a for k, a in enumerate(ctx["available"]) if k != i]}  # fmt: skip
+            pr2 = [ps for k, ps in enumerate(prices) if k != i]
+            r = plan(ctx2, needs, over, len(prices[0]), pr2, rate=rate, money=money)
+            row = {"need": n, "label": m["label"], "id": t["id"], "name": t["name"],
+                   "expected_price": price, "enough_90": _q90(prices[i]),
+                   "need_met": r["need_met"][n], "cost": res["mean_strength"] - r["mean_strength"]}  # fmt: skip
+            if best is None or (row["cost"], row["id"]) < (best["cost"], best["id"]):
+                best = row
+        out.append(best or {"need": n, "label": m["label"], "id": None, "name": None,
+                            "expected_price": None, "enough_90": None,
+                            "need_met": res["need_met"][n], "cost": None})  # fmt: skip
+    return out
+
+
+def _opp_rate(ov: _OppValue, money: float, room: int, os_room: int) -> float:
+    """What a crore is worth at the start under the "opportunity" rule (runs a match per crore): the
+    gain the fill loses when the money falls by one crore."""
+    lst = ov.lists(-1, os_room)
+    return max(0.0, ov.worth(lst, money, room) - ov.worth(lst, money - 1.0, room))
 
 
 def _share_le(xs: list[float], cap: float) -> float:
@@ -1376,7 +1629,7 @@ def chain_text(chain: dict) -> str:
 def to_csv_rows(res: dict) -> list[list[str]]:
     """The targets table as CSV rows (the page's "Export CSV" writes the same columns)."""
     head = [
-        "priority", "player", "role", "slot", "overseas", "from_team", "value", "market_price_cr",
+        "priority", "player", "role", "slot", "overseas", "from_team", "value", "value_next_season", "market_price_cr",
         "p_bought", "expected_price_cr", "enough_90_cr", "max_bid_cr", "your_max_bid", "p_land_at_max_bid",
         "p_land_in_plan", "gain_runs", "likely",
     ]  # fmt: skip
@@ -1391,6 +1644,7 @@ def to_csv_rows(res: dict) -> list[list[str]]:
                 "yes" if x["overseas"] else "no",
                 x.get("from_team") or "",
                 fmt_num(x["value"], 1),
+                "" if x.get("value_now") is None else fmt_num(x["value_now"], 1),
                 fmt_num(x["price"], 2),
                 "" if x.get("p_bought") is None else fmt_num(x["p_bought"], 2),
                 fmt_num(x["expected_price"], 2),

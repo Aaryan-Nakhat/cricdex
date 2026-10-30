@@ -60,7 +60,10 @@ const CONTEXT: [string, string, string, number][] = [
   ["crease_longevity", "longevity_index", "Crease longevity", 2],
   ["slow_start_cost", "slow_start_cost", "Slow-start cost", 1],
   ["wicket_quality", "wicket_quality", "Wicket quality", 3],
-  ["pressure_conversion", "wicket_rate_pct", "Pressure conversion %", 1],
+  ["dot_avoidance", "dots_avoided_per100", "Dots avoided / 100", 1],
+  ["pace_spin", "spin_edge", "Spin edge / 100", 1],
+  ["finisher", "above_per100", "Finisher / 100", 1],
+  ["hand_split", "left_edge", "Left edge / 100", 1],
 ];
 
 const ROWS: Row[] = [

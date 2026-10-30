@@ -107,7 +107,8 @@ def compare(
     rec = _load_json(f"dot_ball_recovery_{collection}.json")
     ca = _load_json(f"counter_attack_{collection}.json")
     bdr = _load_json(f"boundary_dependency_{collection}.json")
-    sticky = _load_json(f"pressure_conversion_{collection}.json")
+    dots = _load_json(f"dot_avoidance_{collection}.json")
+    fin = _load_json(f"finisher_{collection}.json")
     ratings = _load_json(f"scout_ratings_{collection}.json")
 
     con = duckdb.connect(str(db_path), read_only=True)
@@ -123,7 +124,8 @@ def compare(
             row["dot_ball_recovery"] = _safe_get(rec, "batter", p, "runs_per_6_after_dot")
             row["counter_attack_sr"] = _safe_get(ca, "batter", p, "counter_attack_sr")
             row["bdr_pct"] = _safe_get(bdr, "batter", p, "bdr_pct")
-            row["pressure_conversion_pct"] = _safe_get(sticky, "bowler", p, "wicket_rate_pct")
+            row["dots_avoided_per100"] = _safe_get(dots, "batter", p, "dots_avoided_per100")
+            row["finisher_per100"] = _safe_get(fin, "batter", p, "above_per100")
             row["bayes_skill_batter"] = _bayes_skill(con, ratings, p, "batter")
             row["bayes_survival_batter"] = _bayes_skill(
                 con, ratings, p, "batter", col="survival_skill"

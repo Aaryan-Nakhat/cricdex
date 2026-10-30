@@ -20,7 +20,7 @@ it predicts anything.
 
 **[Auction room](#-run-the-ipl-mega-auction-yourself)** · **[Keep or release](#-keep-or-release-before-the-retention-deadline)** · **[Bid plan](#-bid-plan-for-the-auction-room-draft)** · **[Form forecast](#-form-forecast-the-next-three-seasons)** · **[Net Game Impact](#-who-really-won-it)** ·
 **[Bayesian ratings](#-skill-judged-by-who-it-came-against)** · **[Scout](#-same-mould-other-leagues)** ·
-**[Ten metrics](#-ten-numbers-a-scorecard-hides)** · **[The backtest](#-does-any-of-it-predict-anything)** ·
+**[Thirteen metrics](#-thirteen-numbers-a-scorecard-hides)** · **[The backtest](#-does-any-of-it-predict-anything)** ·
 **[How it works](#-how-it-works)** · **[Quickstart](#-quickstart)** · **[Docs](#-docs)**
 
 **10,300+ T20 matches. 2.3 million balls. Fifteen competitions. Every number computed from Cricsheet's
@@ -74,10 +74,13 @@ behaves, not the exact crore of a real sale. → [How the auction works](docs/AU
 IPL 2027 retention lists are due on 15 November 2026 (as reported). Pick a franchise and see what keeping each
 player costs (his salary, or for a 2025 mega-auction retention the 2025 retention slabs, assumed to carry into
 2027) against his market price (what players like him have fetched at real auctions), and a **Keep / Release
-/ Borderline** call from **what franchises actually do**: the chance a franchise keeps a player like him, from
+/ Toss-up** call from **what franchises actually do**: the chance a franchise keeps a player like him, from
 a model of every real retention deadline since 2018 (price against cost, his three-season form forecast, his
-ties to the side, his status). Chosen on 2018–2024, it made the franchise's own call on the 2025–26 deadlines
-for 78% of players and 82% of stars (the old price-against-salary rule: 70% / 64%). Franchises hardly weigh
+ties to the side, his status, his IPL matches last season). Chosen on 2018–2024 and checked once on 2025–26:
+at the 2026 deadline (a mini year, like 2027) it made the franchise's own call for 71% of players, level with
+simply keeping everyone (69%) and ahead of the old price-against-salary rule (62%); its gain is the chance
+itself and finding who goes (61% of 2026's releases named). The 2027 calls are written down before the deadline
+([`data/predictions/`](data/predictions/)), the first clean test. Franchises hardly weigh
 the cost in a mini year, so a second column, **Should they?**, asks whether he is worth what keeping him costs:
 Yes when players like him fetch at least that at auction, No when even the dearer quarter of them fetch less. The reason is in one line,
 then the squad that follows: purse left, open slots, and the role gaps (keepers, openers, death
@@ -92,7 +95,7 @@ purse isn't published yet). In the terminal: `cricdex keep --team RCB`.
 
 <p align="center"><img src="docs/media/bidplan.png" alt="Bid plan (draft): a live 2027 sheet for RCB (top five targets, max bids and a fallback chain), how its chance of landing a player under the max bid held up at the 2025 and 2026 auctions, and the replay against the real franchises" width="100%"></p>
 
-**Draft, max bids not reliable yet:** player ratings now see age (a fitted aging curve) but not recent form, and many max bids come out as just the purse left. In replays of the real 2025 and 2026 auctions, at the real franchise's spend, its squad beat the real one on next-season output for 1 of 10 teams in 2025 and 0 of 10 in 2026. What's left is open as ROADMAP I18. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
+**Draft, a starting sheet:** each max bid is what the player adds against what his money and squad place would buy later, so the bids differ player by player. In replays with only what was known beforehand, its squad beat the real one on next-season output for 7 of 10 teams at the 2024 auction (full purse), but only 2 of 10 in 2025 and 1 of 10 in 2026 at the real franchise's spend. Known gaps: a few cheap batters with a thin IPL record are overrated, and each sheet is planned as if the other nine weren't chasing the same names. Whom should your franchise bid for at the IPL 2027 auction, and how high? Bid plan takes your squad and
 purse from Keep or release (your own calls carry over), lets the other nine teams bid in the Auction room's
 simulator 200 times to see what each player would cost, and picks the targets that add the most to your
 best XI for the money: each with a **max bid**, the odds of landing him under it, and a **fallback chain**
@@ -164,15 +167,18 @@ one at the auction's market price, so you see the budget swap and the saving. Un
 above their sample get a gem flag, and one click drafts a prospect into the auction room.
 → [Scout](docs/SCOUT.md)
 
-## 📊 Ten numbers a scorecard hides
+## 📊 Thirteen numbers a scorecard hides
 
 <p align="center"><img src="docs/media/metrics.png" alt="The ten context metrics, the fielding boards and the other pages" width="100%"></p>
 
 A 25-ball 40 in a slack chase and a 25-ball 40 chasing 12 an over look the same on a scorecard. These
 put the context back: NGI, Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary
-Dependency, Pressure Conversion, Wicket Quality, Crease Longevity and Slow-Start Cost, plus wicketkeeping
-and fielding boards. Every board exists for every league and three time windows (all-time, last three
-years, last year), and each metric is explained on the site. Also on every surface: matchups, phase
+Dependency, Wicket Quality, Crease Longevity, Slow-Start Cost, Dot-Ball Avoidance, Pace vs Spin, Finisher
+Index and Left vs Right, plus wicketkeeping and fielding boards. The last four passed a reliability test
+(a player's odd and even matches must rank players alike); wicket-based candidates and Pressure
+Conversion failed it and aren't shown. Every board exists for every league and four time windows
+(all-time, last three years, last year, and the league's era), and each metric is explained on the
+site. Also on every surface: matchups, phase
 specialists, form, partnerships, aging curves, records and venues. → [Metric formulas](docs/METRICS.md)
 
 ## 🧪 Does any of it predict anything?

@@ -272,37 +272,84 @@ METRICS: list[MetricDef] = [
         ],
     ),
     MetricDef(
-        slug="pressure_conversion",
-        name="Pressure Conversion",
-        one_liner="How often a bowler turns pressure balls into wickets.",
-        what=(
-            "After a bowler builds pressure with a run of dot balls, how often does the very next "
-            "ball take a wicket? Separates the bowlers who finish the squeeze from those who let "
-            "batters off the hook."
-        ),
-        how=(
-            "A pressure ball is a dot that makes it 4 or more dots in a row from the same bowler "
-            "within one over (any run, bye, wide or no-ball breaks the run). Conversion % = pressure "
-            "balls where the next ball of that over is a wicket the bowler is credited with (run-outs"
-            " don't count) ÷ pressure balls × 100. The last ball of an over has no next ball, so it "
-            "isn't counted."
-        ),
-        read=(
-            "When he has bowled four or more dot balls in a row in an over, how often does the very "
-            "next ball take a wicket? 10% means one wicket for every ten of those chances."
-        ),
-        good=(
-            "It's a rare event, so most IPL bowlers sit at 0% and anything above zero stands out; 12%"
-            " or more is top-10%. Small samples swing a lot — check the pressure-balls column."
-        ),
+        slug="dot_avoidance",
+        name="Dot-Ball Avoidance",
+        one_liner="How many fewer dot balls a batter faces than the average batter would on the same balls.",
+        what="Strike rotation: how often a batter turns a ball into at least a run, against what an average batter manages in the same phase. Boundary-heavy numbers hide it; a side full of batters who can't rotate stalls in the middle overs.",
+        how="For every legal ball he faced (wides don't count), a dot is a ball with no run off the bat. Dots avoided per 100 balls = (the league's dot rate in that phase − his) per 100 balls, summed over his balls. Each rate is pulled toward the league average by how little his sample says (empirical Bayes: the spread between players beyond what ball-to-ball noise gives sets how far), so a short record doesn't top the list; the raw figure is alongside. Passed a split-half reliability test (his odd and even matches rank players alike: r 0.70).",
+        read="+5 means that in 100 balls he faces five fewer dot balls than an average batter would facing the same mix of powerplay, middle and death balls. Below zero: more dots than average.",
+        good="In the IPL the middle of this board is about −1 and +5 or more is top-10%; −7 or below is bottom-10%.",
         direction="higher",
+        name_col="batter",
+        higher_is_better=True,
+        columns=[
+            Column("batter", "Batter"),
+            Column("dots_avoided_per100", "Dots avoided / 100", 1, primary=True, bar=True),
+            Column("dot_pct", "Dot %", 1),
+            Column("expected_dot_pct", "Average's dot %", 1),
+            Column("dots_avoided_raw", "Raw / 100", 1),
+            Column("balls", "Balls", 0),
+        ],
+    ),
+    MetricDef(
+        slug="pace_spin",
+        name="Pace vs Spin",
+        one_liner="Whether a batter scores relatively better against spin or against pace.",
+        what="Runs per 100 balls above the league against spin and against pace, each judged against the league on the same kind of bowling in the same phase, and the difference: who to send in when the spinners come on, and whom the opposition will attack with pace.",
+        how="Bowling type is the player master's (seam or spin). For each, his runs per ball minus the league's against that type in the same phase, per 100 balls; each side is pulled toward the league by its sample. Spin edge = the difference, itself shrunk by its own noise (both samples) so that a batter poor against both doesn't read strong against one. Needs 100 balls against each (fewer in the short windows). Passed a split-half reliability test (r 0.37 for the edge; 0.66 for the scoring against spin alone).",
+        read="Spin edge +20 means that, against the league, he scores 20 more runs per 100 balls against spin than against pace. Negative: relatively better against pace. The two columns beside it give each on its own.",
+        good="Most IPL batters sit near 0; +11 or more (spin) or −13 or less (pace) is the top or bottom 10%.",
+        direction="descriptive",
+        name_col="batter",
+        higher_is_better=True,
+        columns=[
+            Column("batter", "Batter"),
+            Column("spin_edge", "Spin edge / 100", 1, primary=True, bar=True),
+            Column("above_vs_spin", "vs spin / 100", 1),
+            Column("above_vs_pace", "vs pace / 100", 1),
+            Column("balls_spin", "Balls v spin", 0),
+            Column("balls_pace", "Balls v pace", 0),
+        ],
+    ),
+    MetricDef(
+        slug="finisher",
+        name="Finisher Index",
+        one_liner="How fast a batter scores in the last four overs of a chase, against the league.",
+        what="The closer's job: runs in overs 17-20 of a chase, against what the average batter scores in the same over of a chase, with how often he was still there at the end.",
+        how="Every legal ball he faced in overs 17-20 of the second innings: his runs minus the league's average for that over of a chase, per 100 balls. Each rate is pulled toward the league average by how little his sample says (empirical Bayes: the spread between players beyond what ball-to-ball noise gives sets how far), so a short record doesn't top the list; the raw figure is alongside. Not out % = the share of those innings he wasn't dismissed. Needs 40 balls (fewer in the short windows). Passed a split-half reliability test (r 0.44).",
+        read="+30 means 30 more runs per 100 balls than an average batter in the same overs of a chase: about five extra runs over the last three overs.",
+        good="In the IPL the middle of this board is about +5 and +30 or more is top-10%.",
+        direction="higher",
+        name_col="batter",
+        higher_is_better=True,
+        columns=[
+            Column("batter", "Batter"),
+            Column("above_per100", "Above avg / 100", 1, primary=True, bar=True),
+            Column("sr", "Strike rate", 1),
+            Column("not_out_pct", "Not out %", 0),
+            Column("innings", "Innings", 0),
+            Column("above_raw", "Raw / 100", 1),
+            Column("balls", "Balls", 0),
+        ],
+    ),
+    MetricDef(
+        slug="hand_split",
+        name="Left vs Right",
+        one_liner="Whether a bowler is relatively better against left- or right-handed batters.",
+        what="Runs saved per 100 balls against left-handers and against right-handers, each against the league on the same balls, and the difference: who to bowl at a left-hander. The weakest of the signals on these boards, so read it with the sample columns.",
+        how="Batting hand is the player master's. For each hand, the league's runs conceded per legal ball against that hand in the same phase minus his, per 100 balls; each side is pulled toward the league by its sample. Left edge = the difference, itself shrunk by its own noise. Needs 90 balls against each hand (fewer in the short windows). Passed a split-half reliability test, only just (r 0.30): a weaker signal than the others.",
+        read="Left edge +20 means that, against the league, he saves 20 more runs per 100 balls against left-handers than against right-handers. Off-spinners, who turn the ball into the left-hander, usually sit high; leg-spinners and left-arm spinners low.",
+        good="Most IPL bowlers sit near 0; +10 or more (left) or −10 or less (right) is the top or bottom 10%.",
+        direction="descriptive",
         name_col="bowler",
         higher_is_better=True,
         columns=[
             Column("bowler", "Bowler"),
-            Column("wicket_rate_pct", "Conversion %", 1, primary=True, bar=True),
-            Column("wickets_after_pressure", "Wickets", 0),
-            Column("pressure_balls", "Pressure balls", 0),
+            Column("left_edge", "Left edge / 100", 1, primary=True, bar=True),
+            Column("saved_vs_left", "Saved v left / 100", 1),
+            Column("saved_vs_right", "Saved v right / 100", 1),
+            Column("balls_vs_left", "Balls v left", 0),
+            Column("balls_vs_right", "Balls v right", 0),
         ],
     ),
     MetricDef(
@@ -411,23 +458,28 @@ METRICS: list[MetricDef] = [
         name="Wicketkeeping",
         one_liner="Dismissals behind the stumps — catches, stumpings, run-outs.",
         what=(
-            "Counts every dismissal a wicket-keeper is credited with: catches taken, stumpings, and "
-            "run-out involvements. It's a volume tally (longevity rewards it — use the min-matches "
-            "filter), not a per-chance success rate, which ball-by-ball data can't see."
+            "Counts the dismissals a player made while keeping wicket: catches taken, stumpings, and "
+            "run-out involvements, with the matches he kept in. It's a volume tally (longevity "
+            "rewards it — use the min-matches filter), not a per-chance success rate, which "
+            "ball-by-ball data can't see."
         ),
         how=(
-            "From each dismissal's fielder list: caught → catch, stumped → stumping, run out → an "
-            "involvement (every fielder named is credited). A player counts as a keeper if the "
-            "taxonomy says so or they have any stumping. Dismissals = catches + stumpings + run-outs."
+            "Scorecards don't say who kept, so the keeper of each innings is read from the fielding "
+            "side's XI: whoever made a stumping in it, else the XI player tagged as a wicket-keeper, "
+            "else one who has stumped someone in this league (ties go to the most stumpings). From "
+            "each dismissal's fielder list: caught → catch, stumped → stumping, run out → an "
+            "involvement (every fielder named is credited) — counted here only in the innings he "
+            "kept. Dismissals = catches + stumpings + run-outs."
         ),
         read=(
             "A count of his dismissals as wicket-keeper: catches, stumpings and run-outs. It's a "
-            "career total, so long careers collect more — compare keepers with similar match counts "
-            "(use Min matches)."
+            "career total, so long careers collect more — compare keepers with similar Matches kept,"
+            " or divide by them."
         ),
         good=(
-            "In the IPL half the keepers on this board have 20 or fewer dismissals and 110 or more is"
-            " top-10%. Divide by matches for a per-game feel."
+            "In the IPL half the keepers on this board have 15 or fewer dismissals and 102 or more is"
+            " top-10%. Regular keepers (20+ matches kept) make about 0.9 a match; 1.15 or more is "
+            "top-10%."
         ),
         direction="higher",
         name_col="fielder",
@@ -438,6 +490,7 @@ METRICS: list[MetricDef] = [
             Column("catches", "Catches", 0),
             Column("stumpings", "Stumpings", 0),
             Column("runouts", "Run-outs", 0),
+            Column("matches_kept", "Matches kept", 0),
         ],
     ),
     MetricDef(
@@ -451,15 +504,17 @@ METRICS: list[MetricDef] = [
         ),
         how=(
             "From each dismissal's fielder list: caught → catch, run out → an involvement (every "
-            "fielder named is credited; caught-and-bowled is a bowling wicket, excluded). Keepers are"
-            " split off to their own board. Dismissals = catches + run-outs."
+            "fielder named is credited; caught-and-bowled is a bowling wicket, excluded). Dismissals "
+            "made while keeping wicket go on the Wicketkeeping board instead (the keeper of each "
+            "innings is read from the XI), so a keeper's catches on days he fielded count here. "
+            "Dismissals = catches + run-outs."
         ),
         read=(
             "A count of his catches and run-outs in the field. It's a career total, so long careers "
             "collect more — compare fielders with similar match counts (use Min matches)."
         ),
         good=(
-            "In the IPL half the fielders on this board have 19 or fewer dismissals and 48 or more is"
+            "In the IPL half the fielders on this board have 20 or fewer dismissals and 51 or more is"
             " top-10%. Divide by matches for a per-game feel."
         ),
         direction="higher",

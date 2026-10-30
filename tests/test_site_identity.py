@@ -221,6 +221,14 @@ def test_retired_players_are_out_of_the_auction_pool():
             assert players[cid]["retired"] and players[cid]["team"] is None
 
 
+@pytest.mark.parametrize("col", COLLECTIONS)
+def test_display_names_are_unique_within_a_league(col):
+    """Namesakes carry their country (or years) so they don't read as one player merged wrongly."""
+    names = [p["display_name"] for p in _players(col)]
+    dup = sorted({n for n in names if names.count(n) > 1})
+    assert not dup, (col, dup[:5])
+
+
 def test_display_names_are_how_fans_say_them():
     target = leagues.auction_target().key
     players = {p["cricsheet_id"]: p for p in _players(target)}

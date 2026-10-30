@@ -9,7 +9,7 @@ import { MetricInfo, DirectionBadge } from "@/components/MetricInfo";
 import { usePlayers } from "@/lib/usePlayers";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, smartFilters, DEFAULT_FILTERS } from "@/lib/filters";
+import { applyFilters, smartFilters, defaultFiltersFor } from "@/lib/filters";
 import { hasKey, useUrlFilters, useUrlState } from "@/lib/useUrlState";
 import { PageTitle, Card, Spinner, ErrorBox, Empty, InfoTip, Segmented } from "@/components/ui";
 import { cn, collectionLabel } from "@/lib/utils";
@@ -27,9 +27,12 @@ const METRIC_GROUPS: { label: string; slugs: string[] }[] = [
       "boundary_dependency",
       "crease_longevity",
       "slow_start_cost",
+      "dot_avoidance",
+      "pace_spin",
+      "finisher",
     ],
   },
-  { label: "Bowling", slugs: ["pressure_conversion", "wicket_quality"] },
+  { label: "Bowling", slugs: ["wicket_quality", "hand_split"] },
   { label: "Fielding", slugs: ["keeping", "fielding"] },
 ];
 
@@ -82,13 +85,15 @@ export function Leaderboards() {
     ready: !!meta,
     replace: false,
   });
-  const [filters, setFilters] = useUrlFilters(DEFAULT_FILTERS);
   const metric = METRIC_BY_SLUG[slug];
 
   const { data, loading, error } = useAsync(
     () => getLeaderboard(collection, slug, activePeriod),
     [collection, slug, activePeriod],
   );
+  // the min-matches default is sized to the period (a one-season window can't ask for 20)
+  const defaults = useMemo(() => defaultFiltersFor(data ?? []), [data]);
+  const [filters, setFilters] = useUrlFilters(defaults);
 
   const { nameOf } = usePlayers(collection);
   // Only the filters (and options) that can apply on this board: e.g. no "wicket-keeper" role on the
@@ -148,7 +153,7 @@ export function Leaderboards() {
       <PageTitle
         title="Leaderboards"
         icon={<Trophy className="h-6 w-6" />}
-        desc="Twelve boards built from ball-by-ball data — ten context metrics that batting average and economy can't see, plus wicketkeeping and fielding. Pick one, sort any column, open a player for their full dossier."
+        desc="Fifteen boards built from ball-by-ball data — win chance added per match (NGI) and twelve context metrics that batting average and economy can't see, plus wicketkeeping and fielding. Pick one, sort any column, open a player for their full dossier."
       />
 
       {/* metric switcher, grouped */}
@@ -227,7 +232,7 @@ export function Leaderboards() {
       <FilterBar
         filters={filters}
         onChange={setFilters}
-        defaults={DEFAULT_FILTERS}
+        defaults={defaults}
         smart={smart}
         count={filtered.length}
         total={data?.length}

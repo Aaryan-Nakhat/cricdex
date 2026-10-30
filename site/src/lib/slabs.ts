@@ -9,6 +9,22 @@ export interface SlabHolder {
 export interface SlabRules {
   retention_slabs?: number[];
   uncapped_retention_slab?: number;
+  /** what a kept player costs the purse: "salary" | "slabs" (absent = salary) */
+  retained_cost?: string;
+}
+
+/** What the kept players cost the purse: their salaries, with the slab holders charged together by
+ * `slabCharge` when the cycle charges slabs (left-to-right sums, as keep.py's `fsum`). Mirror of
+ * keep.py `purse_charged`; keep.ts re-exports it. */
+export function purseCharged(kept: SlabHolder[], rules: SlabRules): number {
+  let t = 0;
+  if (rules.retained_cost !== "slabs") {
+    for (const p of kept) t += Number(p.salary);
+    return t;
+  }
+  const holders = kept.filter((p) => p.slab_holder);
+  for (const p of kept) if (!p.slab_holder) t += Number(p.salary);
+  return t + (holders.length ? slabCharge(holders, rules) : 0);
 }
 
 /** A team's kept slab holders together: max(Σ the first n capped slabs + the uncapped slab × n

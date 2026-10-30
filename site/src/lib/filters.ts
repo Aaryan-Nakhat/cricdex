@@ -24,6 +24,22 @@ export const EMPTY_FILTERS: Filters = {
 /** Where the player boards (Leaderboards, Form, Phase) start: established, currently active players. */
 export const DEFAULT_FILTERS: Filters = { ...EMPTY_FILTERS, minMatches: 20, activity: "active" };
 
+/** The default min-matches is 20, or this share of the most matches anyone has on the board when that is
+ * lower: a one-season window can't ask for 20 when nobody played more than 17. */
+export const MIN_MATCHES_SHARE = 0.4;
+
+export function defaultMinMatches(rows: Record<string, unknown>[]): number {
+  let most = 0;
+  for (const r of rows) most = Math.max(most, Number(r.matches ?? 0) || 0);
+  if (most <= 0) return DEFAULT_FILTERS.minMatches;
+  return Math.min(DEFAULT_FILTERS.minMatches, Math.ceil(MIN_MATCHES_SHARE * most));
+}
+
+/** DEFAULT_FILTERS with the min-matches sized to this board's rows. */
+export function defaultFiltersFor(rows: Record<string, unknown>[]): Filters {
+  return { ...DEFAULT_FILTERS, minMatches: defaultMinMatches(rows) };
+}
+
 export const ACTIVITY_OPTS = [
   { value: "active", label: "Active only" },
   { value: "retired", label: "Retired only" },
@@ -55,7 +71,7 @@ export const POSITION_OPTS = [
 ];
 
 export const FILTER_HELP: Record<string, string> = {
-  minMatches: "Drops small samples — players below this many matches are hidden. Default 20.",
+  minMatches: "Drops small samples — players below this many matches are hidden. Default 20, or 40% of the most matches anyone has in the period when that's lower (7 for one IPL season).",
   activity: "Active = appeared in this format within ~18 months of the latest match; retired = not. It's per-format, so a player retired from internationals can still be Active in IPL.",
   role: "Primary role (AI-classified): batter, bowler, all-rounder or wicket-keeper.",
   bowling: "Seam/pace vs spin — AI-classified bowling type (pure batters carry none).",

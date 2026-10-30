@@ -11,7 +11,7 @@
 ## How it works
 
 - [METHODOLOGY.md](METHODOLOGY.md) — every model in plain English, with worked examples, the backtest and the honest limits. Read this first.
-- [METRICS.md](METRICS.md) — exact formulas, filters and output columns for NGI, the nine context metrics and the fielding boards.
+- [METRICS.md](METRICS.md) — exact formulas, filters and output columns for NGI, the twelve context metrics and the fielding boards.
 - [SCOUT.md](SCOUT.md) — the scout module: tiers, the rating pipeline, cross-league look-alikes.
 - [AUCTION_MATH.md](AUCTION_MATH.md) — the auction room step by step, from skill to crore to who wins the bidding.
 - [IDENTITY.md](IDENTITY.md) — one id per player: match registries, the People Register, Wikidata and the taxonomy.

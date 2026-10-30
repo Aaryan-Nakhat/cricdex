@@ -15,6 +15,7 @@ player-keyed table filters on them with one helper.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,7 +67,10 @@ POSITION_OPTS = [
 ]
 
 FILTER_HELP: dict[str, str] = {
-    "min_matches": "Drops small samples — players below this many matches are hidden. Default 20.",
+    "min_matches": (
+        "Drops small samples — players below this many matches are hidden. Default 20, or 40% of "
+        "the most matches anyone has in the period when that's lower (7 for one IPL season)."
+    ),
     "activity": (
         "Active = appeared in this format within ~18 months of the latest match; retired = not. "
         "It's per-format, so a player retired from internationals can still be Active in IPL."
@@ -101,6 +105,19 @@ def apply_filters(rows: list[dict], f: Filters) -> list[dict]:
             continue
         out.append(r)
     return out
+
+
+DEFAULT_MIN_MATCHES = 20
+MIN_MATCHES_SHARE = 0.4
+
+
+def default_min_matches(rows: list[dict]) -> int:
+    """Port of filters.ts `defaultMinMatches`: 20, or 40% of the most matches anyone has on the
+    board when that is lower (a one-season window can't ask for 20)."""
+    most = max((float(r.get("matches") or 0) for r in rows), default=0.0)
+    if most <= 0:
+        return DEFAULT_MIN_MATCHES
+    return min(DEFAULT_MIN_MATCHES, math.ceil(MIN_MATCHES_SHARE * most))
 
 
 def countries_in(rows: list[dict]) -> list[tuple[str, str]]:
@@ -173,7 +190,9 @@ def load_cohorts(collection: str, cid: str, base: Path | str | None = None) -> d
 __all__ = [
     "ACTIVITY_OPTS",
     "BOWLING_OPTS",
+    "DEFAULT_MIN_MATCHES",
     "FILTER_HELP",
+    "MIN_MATCHES_SHARE",
     "Filters",
     "POSITION_OPTS",
     "ROLE_OPTS",
@@ -181,6 +200,7 @@ __all__ = [
     "WINDOW_LABELS",
     "apply_filters",
     "countries_in",
+    "default_min_matches",
     "load_cohorts",
     "load_leaderboard",
     "window_label",

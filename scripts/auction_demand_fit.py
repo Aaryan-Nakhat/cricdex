@@ -144,7 +144,7 @@ def _price_part_without(price_rows, ret_rows, spec, keep) -> dict:
     y = np.array([r["y"] for r in rows])
     alpha = ipm._choose_alpha(kind, rows, names)
     m = ipm._fit_reg(kind, ipm._matrix(rows, names), y, alpha, ipm._cens(rows))
-    cal = ipm._calibration_for(kind, rows, alpha, names, ipm._FORM["cal"], ipm.CAL_GROUPS)
+    cal = ipm._calibration_for(kind, rows, alpha, names, ipm._FORM["cal"], ipm._cal_groups())
     icpt, coef = ipm._raw_coef(m, names)
     out = {"intercept": icpt, "coef": coef, "link": ipm._link(m), **cal}
     if ipm._FORM["pv_max"] is not None:

@@ -105,8 +105,9 @@ function ScoutMath({ reg }: { reg: LeagueRegistry | null }) {
           the raw numbers aren't comparable across tiers. Similarity = how close those standings are.
         </p>
         <p>
-          Each row shows an <b>estimated crore price</b> (the same skill→price curve the Auction room
-          uses, discounted for the weaker tier). For every non-IPL look-alike we also show the{" "}
+          Each row shows an <b>estimated crore price</b>: the Auction room's market price, with his rating
+          moved onto the IPL scale for his league and role (fitted on players seen in both). For every
+          non-IPL look-alike we also show the{" "}
           <b>saving</b> versus your (expensive) IPL pick — the budget-swap case. A{" "}
           <Gem className="inline h-3 w-3 text-willow" /> <b className="text-willow">gem</b> flags an
           uncapped prospect with unusually high standing for how little he's played — a moneyball

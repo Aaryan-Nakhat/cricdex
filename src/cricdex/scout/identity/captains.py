@@ -17,6 +17,7 @@ adds them, with a "Captain" badge, to the pool, squad and profile rows.
 from __future__ import annotations
 
 import json
+import math
 from functools import lru_cache
 from pathlib import Path
 
@@ -45,6 +46,11 @@ def _index(
     d = json.loads(p.read_text(encoding="utf-8"))
     ipl: dict[str, dict[int, set[str]]] = {}
     regular: dict[str, dict[int, set[str]]] = {}
+    # one regular captain per side and season: of the stints that aren't a stand-in's, the one with
+    # the most matches a season (a stint's matches over its seasons; unknown = the full season). Two
+    # could pass the stand-in bar in one season (SRH 2026: Cummins, 38 matches over 2024-26, and
+    # Ishan Kishan, 7 while Cummins was injured): the reports named Cummins captain and Kishan stand-in.
+    best: dict[tuple[str, int], tuple[float, str]] = {}
     for s in d.get("ipl") or []:
         cid = s.get("cricsheet_id")
         if not cid:
@@ -53,8 +59,13 @@ def _index(
         for y in ys:
             ipl.setdefault(cid, {}).setdefault(y, set()).add(s["team"])
         if len(ys) == s["to"] - s["from"] + 1 and not _stand_in(s):
+            per = math.inf if s.get("matches") is None else s["matches"] / len(ys)
             for y in ys:
-                regular.setdefault(cid, {}).setdefault(y, set()).add(s["team"])
+                k = (s["team"], y)
+                if k not in best or (per, cid) > best[k]:
+                    best[k] = (per, cid)
+    for (team, y), (_per, cid) in best.items():
+        regular.setdefault(cid, {}).setdefault(y, set()).add(team)
     intl: dict[str, set[int]] = {}
     for s in d.get("international") or []:
         cid = s.get("cricsheet_id")

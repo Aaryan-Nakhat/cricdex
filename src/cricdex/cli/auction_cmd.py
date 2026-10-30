@@ -18,7 +18,9 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 @app.command("room", help="Real-rules IPL auction Monte-Carlo — identical to the web Auction room.")
 def room(
     mode: str = typer.Option("mega", "--mode", help="mega | mini"),
-    purse: float | None = typer.Option(None, "--purse", help="default 120 (mega) / 30 (mini)"),
+    purse: float | None = typer.Option(
+        None, "--purse", help="default 120 (mega) / the next season's purse (mini)"
+    ),
     squad_size: int = typer.Option(25, "--squad-size"),
     overseas_cap: int = typer.Option(8, "--overseas-cap"),
     trials: int = typer.Option(300, "--trials"),
@@ -31,9 +33,11 @@ def room(
         load_activity_index,
         load_auction_pool,
         load_retentions,
+        mini_inputs,
         retention_inputs,
         simulate_auction,
     )
+    from cricdex.web_parity.loader import load_keep
 
     if mode not in ("mega", "mini"):
         die("--mode must be `mega` or `mini`", code=EXIT_USER_ERROR)
@@ -56,9 +60,16 @@ def room(
     ri = retention_inputs(ret)  # the real 2025 lists, prices and the slab rule they cost
     mega_ids = ri["mega_ids"]
     act = load_activity_index("ipl")  # cid -> last-IPL / age / p_play
+    # the mini auction starts from Keep or release's default plan at each team's real purse left
+    try:
+        mi = mini_inputs(load_keep("ipl"), pool) if mode == "mini" else {}
+    except FileNotFoundError:
+        mi = {}
     if purse is None:
-        purse = 120.0 if mode == "mega" else 30.0
-    retentions = default_retentions(pool, IPL_TEAMS_DEFAULT, mode, mega_ids)
+        purse = (
+            120.0 if mode == "mega" else float((mi.get("mini_rules") or {}).get("purse") or 30.0)
+        )
+    retentions = default_retentions(pool, IPL_TEAMS_DEFAULT, mode, mega_ids, mi.get("mini_ids"))
     res = simulate_auction(
         pool,
         IPL_TEAMS_DEFAULT,
@@ -73,6 +84,7 @@ def room(
             "retention_slabs": ri["retention_slabs"],
             "slab_holders": ri["slab_holders"],
             "fixed_retained": ri["fixed_retained"],
+            **mi,
         },
     )
 

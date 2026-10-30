@@ -188,7 +188,7 @@ cricdex keep --team RCB [--keep NAME]… [--release NAME]… [--purse 125] [--ne
 
 Keep or release, the retention calculator: one franchise's squad with each
 player's salary, value (± uncertainty), estimated auction price, surplus
-(price − salary), a Keep / Release / Borderline call with a one-line reason,
+(price − salary), a Keep / Release / Toss-up call with a one-line reason,
 then the squad if you follow it (purse left, open slots) and the role gaps
 (keepers, openers, death bowlers, spinners, overseas) with the cheapest
 players in the likely auction pool that fill them. The rules (purse, squad

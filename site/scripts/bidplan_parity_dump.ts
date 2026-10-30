@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { buildPool, oneTrial, registerPriceModel } from "../src/lib/auction.ts";
 import { registerKeepModel } from "../src/lib/keep.ts";
-import { bestXi, buildContext, chainText, piece, plan, rivalRuns, strength, toCsvRows } from "../src/lib/bidplan.ts";
+import { bestXi, buildContext, chainText, gapCosts, piece, plan, rivalRuns, strength, toCsvRows } from "../src/lib/bidplan.ts";
 
 const fx = JSON.parse(readFileSync(process.argv[2], "utf8"));
 registerPriceModel(fx.model ?? null);
@@ -20,7 +20,7 @@ const out = fx.cases.map((c: any) => {
   const ctx = buildContext(c.data, pool, c.team, c.decisions ?? {}, c.purse ?? null, c.open_slots, c.rules ?? null, c.register ?? null, display, c.rival_bids ?? null);
   const runs = rivalRuns(ctx, c.trials);
   const prices = runs.prices;
-  const res = plan(ctx, c.needs ?? {}, c.overrides ?? {}, c.trials, prices, runs.rate);
+  const res = plan(ctx, c.needs ?? {}, c.overrides ?? {}, c.trials, prices, runs.rate, c.money ?? "auction");
   return {
     ctx: { kept: ctx.kept, purse_left: ctx.purse_left, rivals: ctx.rivals, available: ctx.available, squad: ctx.squad, rules: ctx.rules },
     prices,
@@ -28,6 +28,7 @@ const out = fx.cases.map((c: any) => {
     plan: res,
     csv: toCsvRows(res),
     chains: res.chains.map(chainText),
+    gaps: gapCosts(ctx, res, c.needs ?? {}, c.overrides ?? {}, prices, runs.rate, c.money ?? "auction"),
   };
 });
 // the strength model on its own, on fixed squads

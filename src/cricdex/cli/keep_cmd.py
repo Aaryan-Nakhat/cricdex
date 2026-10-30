@@ -190,8 +190,8 @@ def keep(
             "purse charged": f"{cr(res['purse_charged'])} cr",
             "purse left": f"{cr(res['purse_left'])} cr",
             "slots left": f"{res['slots_left']} ({res['overseas_slots_left']} overseas)",
-            "replacements": f"{cr(res['replacement_cost'])} cr",
-            "after replacements": f"{cr(res['purse_after_replacements'])} cr",
+            "gap buys": f"{cr(res['replacement_cost'])} cr",
+            "after gap buys": f"{cr(res['purse_after_replacements'])} cr",
         },
         title="Squad",
         cols=3,
@@ -213,7 +213,13 @@ def keep(
                     + (f" (from {c['from_team']})" if c.get("from_team") else "")
                     for c in g["picks"]
                 )
-                or ("—" if g["gap"] == 0 else "none found"),
+                or (
+                    "—"
+                    if g["gap"] == 0
+                    else "covered by the buys above"
+                    if g["to_buy"] == 0
+                    else "none found"
+                ),
                 "cost": cr(g["cost"]),
             }
             for g in res["gaps"]

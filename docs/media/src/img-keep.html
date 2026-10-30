@@ -60,14 +60,14 @@
   fill("rows", rows.map((p) => `<div class="kr"><div>${esc(p.name)}${p.overseas ? " ✈" : ""}${p.captain ? ' <span class="tag ta" style="padding:3px 6px">C</span>' : ""}<small>${p.role}</small></div>`
     + `<span class="n">${fx(p.cost)}</span><span class="n">${p.price == null ? "—" : fx(p.price)}</span>`
     + `<div class="pkv"><div class="pk"><i style="width:${p.p_keep}%;background:${color[p.rec]}"></i><b style="left:${100 * B.release}%"></b><b style="left:${100 * B.keep}%"></b></div><span class="n" style="font-weight:800">${p.p_keep}%</span></div>`
-    + `<span class="call ${p.rec}">${p.rec}</span></div>`).join(""));
+    + `<span class="call ${p.rec}">${p.rec === "borderline" ? "toss-up" : p.rec}</span></div>`).join(""));
   const r = Math.round(100 * B.release), k = Math.round(100 * B.keep);
-  fill("band", `<span style="width:${r}%;background:var(--red-lo);color:var(--red)">RELEASE</span><span style="width:${k - r}%;background:var(--gold-lo);color:var(--gold)">BORDERLINE</span><span style="width:${100 - k}%;background:var(--green-lo);color:var(--green)">KEEP</span>`);
+  fill("band", `<span style="width:${r}%;background:var(--red-lo);color:var(--red)">RELEASE</span><span style="width:${k - r}%;background:var(--gold-lo);color:var(--gold)">TOSS-UP</span><span style="width:${100 - k}%;background:var(--green-lo);color:var(--green)">KEEP</span>`);
   const T = K.test;
-  fill("acc", `<span class="faint" style="font:700 12.5px Inter;letter-spacing:.1em">MATCHED THE REAL CALL</span><span class="faint" style="font:700 12.5px Inter;text-align:right">PLAYERS</span><span class="faint" style="font:700 12.5px Inter;text-align:right">STARS</span>`
-    + `<span>Keep model</span><span class="v ok">${T.all}%</span><span class="v ok">${T.star}%</span>`
-    + `<span class="muted">Old rule: price vs salary</span><span class="v muted">${T.old_all}%</span><span class="v muted">${T.old_star}%</span>`);
-  fill("acc-t", `Under ${r}%: release · ${r}–${k}%: borderline · ${k}% and up: keep. Chosen on 2018–2024; on the 2025 and 2026 deadlines (${T.n} players, seen several times since, so optimistic).`);
+  fill("acc", `<span class="faint" style="font:700 12.5px Inter;letter-spacing:.1em">MATCHED THE REAL CALL</span><span class="faint" style="font:700 12.5px Inter;text-align:right">2026 MINI</span><span class="faint" style="font:700 12.5px Inter;text-align:right">2025 MEGA</span>`
+    + `<span>Keep model</span><span class="v ok">${T["2026"].accuracy}%</span><span class="v ok">${T["2025"].accuracy}%</span>`
+    + `<span class="muted">The majority call</span><span class="v muted">${T["2026"].majority}%</span><span class="v muted">${T["2025"].majority}%</span>`);
+  fill("acc-t", `Under ${r}%: release · ${r}–${k}%: toss-up · ${k}% and up: keep. Chosen on 2018–2024, checked once on 2025 (${T["2025"].n} players; majority: ${T["2025"].majority_call}) and 2026 (${T["2026"].n}; ${T["2026"].majority_call}): level on calls, the gain is the chance and finding who goes.`);
   fill("left", `<div><div class="muted" style="font:600 14px Inter">Purse left</div><div class="big" style="font-size:34px;margin-top:6px">${fx(K.purse_left)} <span class="muted" style="font-size:18px">of ${fx(K.purse, 0)} cr${K.purse_assumed ? "*" : ""}</span></div></div>`
     + `<div><div class="muted" style="font:600 14px Inter">Open places</div><div class="big" style="font-size:34px;margin-top:6px">${K.slots_left} <span class="muted" style="font-size:18px">(${K.overseas_slots_left} overseas)</span></div></div>`);
   fill("gaps", K.gaps.filter((g) => g.gap > 0).map((g) => `<div class="gap"><span>${esc(g.label)}</span><span class="warn">${g.kept} of ${g.target} · ${g.gap} to fill</span></div>`).join(""));

@@ -22,6 +22,8 @@ import { buildPool } from "@/lib/auction";
 import { cr, fmtNum, STALE_REASON_MIN, toCsv, type Decision, type KeepData } from "@/lib/keep";
 import {
   DEFAULT_NEEDS,
+  gapCosts,
+  type GapCost,
   NEED_LABEL,
   NEED_ORDER,
   OPEN_SLOTS,
@@ -140,38 +142,42 @@ function HowItWorks({ res }: { res: Plan | null }) {
           squad player up to one appearance a match, an auction lot only as often as players like him play at all (a
           retired-looking veteran with a 4% chance fills 4% of a match, not a whole one).
           Role needs (keepers, openers, death bowlers, spinners, pace) are targets the plan reports against; they don't
-          change the strength.
+          change the strength. For a role still short after the likely buys, the sheet can price the gap: the target
+          who fills it best, his usual price, and what the best plan built around him gains or gives up.
         </p>
         <pre className="overflow-auto rounded-lg border border-border bg-bg/60 px-3 py-2 font-mono text-xs leading-relaxed text-fg">{`strength = best XI + the bench filling the XI's missed matches
 gain     = strength with him − strength without him
-max bid  = gain ÷ λ   (at most the purse left after the other likely buys)`}</pre>
+max bid  = the price at which he gives up as much as he adds: the later
+           lots his money and his place would have bought instead`}</pre>
         <p>
-          <b className="text-fg">4. The bidding rule, and λ.</b> In each rival run the lots come up stars first; you bid for a
-          player up to his gain divided by λ, an exchange rate in runs per crore, as long as the purse (keeping 0.3 cr for
-          each place still needed to reach the squad minimum), the squad and the overseas cap allow. His gain counts the
-          likely buys still to come, so an early lot isn't overpaid while a cheaper fit is due later; if a likely buy goes
-          elsewhere, his substitutes bid higher. λ is what a crore can still buy at that point of the auction: the lots
-          still to come, ranked by the strength each adds to your likely squad per crore of his expected price (the
-          rivals' median), filled down within your money and places; λ is the ratio of the first lot your money no
-          longer covers{res ? <> (at the start, <b className="text-fg">{fmtNum(res.lam, 2)} runs per crore</b>)</> : null}.
+          <b className="text-fg">4. The bidding rule.</b> In each rival run the lots come up stars first. A player is
+          worth what he adds to your likely squad minus what paying for him gives up: the later lots that his money
+          and his squad place (an overseas place, if he is overseas) would have bought at their expected prices. You
+          bid up to the price where the two are equal, as long as the purse (keeping 0.3 cr for each place still
+          needed to reach the squad minimum), the squad and the overseas cap allow. His gain counts the likely buys
+          still to come, so an early lot isn't overpaid while a cheaper fit is due later; if a likely buy goes
+          elsewhere, his substitutes bid higher{res ? <> (a crore is worth <b className="text-fg">{fmtNum(res.lam, 2)} runs a match</b> at the start)</> : null}.
           Money left after the auction buys nothing for the season (a replacement's fee is capped at the fee of the
-          player he replaces and sits outside the cap), so when your money covers everything still worth buying, λ is 0
-          and the purse is the limit.
+          player he replaces and sits outside the cap: an assumption, from one press report, not the published
+          regulations), but a place you fill is a place a later, better lot can't take, so a max bid stays finite
+          even when the money outlasts the places.
         </p>
         <p>
           <b className="text-fg">5. The plan.</b> Targets are the players the rule lands in at least 5% of the runs (or that
-          you give a max bid). <b className="text-fg">Max bid</b> = his gain to the likely squad ÷ λ: above it a crore spent
-          on him buys less strength than the next-best use of the purse. <b className="text-fg">Fallback chains</b> list a
-          role's targets in priority order, each with his max bid if everyone before him has gone for more. Priority =
-          P(≤ max) × (gain − λ × the price you'd expect to pay).
+          you give a max bid). <b className="text-fg">Max bid</b> = the price where he gives up as much as he adds (the
+          median over the runs): above it the money and the place buy more elsewhere. <b className="text-fg">Fallback chains</b> list a
+          role's targets in priority order, each with his max bid if everyone before him has gone for more (so with
+          the money still there: these bids sit high). Priority = P(≤ max) × his gain × (1 − the price you'd expect
+          to pay ÷ his max bid).
         </p>
         <p className="rounded-lg border border-willow/20 bg-willow/5 px-3 py-2 text-xs">
           <b className="text-willow">Honest caveat:</b> the rivals bid by a demand model chosen on the 2019–24 auctions, but
           prices rest on the market model, which can't see scouting, injury or brand; values are ratings, not certainties.
-          Replayed on the 2025 and 2026 auctions at the real team's spend, the plan's squads were ahead of the real ones
-          for only 1 of 10 teams in 2025 and 0 of 10 in 2026 on what the players did next season (those two seasons
-          have been looked at five times while building it): see
-          docs/METHODOLOGY.md §12. Treat it as a starting sheet for the war room, not a verdict.
+          Replayed on the 2024 auction (full purse, before the rule was chosen) its squads beat the real ones on
+          the next season for 7 of 10 teams; on 2025 and 2026 at the real team's spend, for 2 of 10 and 1 of 10
+          (those two seasons have been looked at many times while building it): see{" "}
+          <a className="text-accent-glow underline" href="https://github.com/Aaryan-Nakhat/cricdex/blob/main/docs/METHODOLOGY.md#12-bid-plan-draft" target="_blank" rel="noreferrer">the methodology, section 12</a>.
+          Treat it as a starting sheet for the war room, not a verdict.
         </p>
       </div>
     </Collapsible>
@@ -192,13 +198,14 @@ export function BidPlan() {
       />
       <Card className="mb-4 border-gold/40 bg-gold/5 px-4 py-3 text-sm leading-relaxed text-muted">
         <Badge tone="gold" className="mr-2">Draft</Badge>
-        <b className="text-fg">Max bids are not reliable yet.</b> Money left after an IPL auction buys nothing,
-        so the plan spends like real teams do. But player ratings don't yet see age or recent decline, so older
-        players can look like bargains. Many max bids come out as just the purse left. Replaying the real
-        auctions with only what was known beforehand, at the real franchise's spend, the plan built a stronger
-        squad (on what the players did next season) for 3 of 10 teams in 2025 and 0 of 10 in 2026. Fix in
-        progress: ratings that see age and form (ROADMAP I18). Use it to explore targets and fallbacks, not as a
-        verdict. Full results in the methodology (Bid plan section).
+        <b className="text-fg">A starting sheet, not a verdict.</b> The plan spends like real teams do and its
+        max bids now differ player by player (each is what the player adds against what his money and place
+        would buy later). Two known gaps: a few cheap batters with a thin IPL record are overrated, so they sit
+        high on many sheets; and each sheet is planned as if the other nine weren't chasing the same names.
+        Replaying real auctions with only what was known beforehand, its squads beat the real ones on the next
+        season for 7 of 10 teams in 2024, but only 2 of 10 in 2025 and 1 of 10 in 2026 at the real franchise's
+        spend. Use it to explore targets and fallbacks. Full results in{" "}
+        <a className="text-accent-glow underline" href="https://github.com/Aaryan-Nakhat/cricdex/blob/main/docs/METHODOLOGY.md#12-bid-plan-draft" target="_blank" rel="noreferrer">the methodology (section 12)</a>.
       </Card>
       {keep.error || poolData.error ? (
         <ErrorBox message={(keep.error || poolData.error)!} />
@@ -367,7 +374,7 @@ function Planner({ data, raw, register, rivalBids }: { data: KeepData; raw: Auct
         the auction is {assumed.has("auction_date") ? "likely " : ""}on <b className="text-fg">{dateLabel(comp.auction_date)}</b> in{" "}
         {comp.auction_venue}, after retention lists are due on {dateLabel(comp.retention_deadline)}. A mini auction: each
         franchise brings the squad it kept and the purse that leaves ({cr(comp.rules.purse)} cr in all
-        {assumed.has("purse") && <>, <span className="text-gold">assumed</span>: no 2027 figure published</>}),{" "}
+        {assumed.has("purse") && <>, <span className="text-gold">assumed</span>: no 2027 figure published; about 130 cr is plausible as the salary cap rises 151 → 157 cr, which adds the same to every purse left: set it with the purse box to see the plan move</>}),{" "}
         {comp.squad_min}–{comp.squad_max} players, {comp.overseas_max} overseas.{" "}
         {register ? (
           <b className="text-fg">The official auction list is loaded: the pool is exactly those players.</b>
@@ -444,7 +451,7 @@ function Planner({ data, raw, register, rivalBids }: { data: KeepData; raw: Auct
           ) : res ? (
             <div className={cn("space-y-5 transition-opacity", busy && "opacity-60")} aria-busy={busy}>
               {busy && <div role="status" className="text-xs text-muted print:hidden">Updating the plan…</div>}
-              <Summary ctx={ctx} res={res} />
+              <Summary ctx={ctx} res={res} needs={needs} overrides={overrides} />
               <Targets res={res} ctx={ctx} overrides={overrides} setOverride={setOverride} nameLink={nameLink}
                 addOptions={addOptions} />
               <Chains res={res} />
@@ -491,7 +498,26 @@ function SquadGoingIn({ ctx, team, openSlots }: { ctx: BidContext; team: string;
   );
 }
 
-function Summary({ ctx, res }: { ctx: BidContext; res: Plan }) {
+function Summary({ ctx, res, needs, overrides }: {
+  ctx: BidContext;
+  res: Plan;
+  needs: Partial<Record<Need, number>>;
+  overrides: Record<string, number>;
+}) {
+  // what filling each role still short costs (bidplan gapCosts): a plan rebuilt per candidate, so only on request
+  const [gaps, setGaps] = useState<{ res: Plan; rows: GapCost[] } | null>(null);
+  const [pricing, setPricing] = useState(false);
+  const shown = gaps && gaps.res === res ? gaps.rows : null;
+  const priceGaps = () => {
+    setPricing(true);
+    window.setTimeout(() => {
+      try {
+        setGaps({ res, rows: gapCosts(ctx, res, needs, overrides) });
+      } finally {
+        setPricing(false);
+      }
+    }, 30);
+  };
   return (
     <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -522,12 +548,47 @@ function Summary({ ctx, res }: { ctx: BidContext; res: Plan }) {
             </Badge>
           ))}
         </div>
+        {!res.converged && (
+          <div className="mt-2 flex items-start gap-2 text-xs text-fg">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold" />
+            The likely buys didn't settle: after {res.rounds} rounds each round's likely squad still changed
+            the next one's bids, so the likely buys and max bids shown are from the last round, not a fixed
+            point. Treat the names near the 50% line as uncertain.
+          </div>
+        )}
+        {res.topped_up_share > 0 && (
+          <div className="mt-2 flex items-start gap-2 text-xs text-fg">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold" />
+            In {pct(res.topped_up_share)} of the runs the plan ended short of {ctx.rules.squad_min} players and
+            filled the rest at the lowest base price from the accelerated rounds.
+          </div>
+        )}
         {res.missing.length > 0 && (
           <div className="mt-2 space-y-1">
             {res.missing.map((m) => (
               <div key={m.need} className="flex items-start gap-2 text-xs text-fg">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold" />
                 Still missing after the likely buys: {m.label.toLowerCase()} ({m.have} of {m.target}).
+              </div>
+            ))}
+            {!shown && (
+              <button className="btn mt-1 text-xs" onClick={priceGaps} disabled={pricing}>
+                <Calculator className="h-3.5 w-3.5" /> {pricing ? "Rebuilding the plan…" : "What filling each one costs"}
+              </button>
+            )}
+            {shown?.map((g) => (
+              <div key={g.need} className="ml-5 text-xs text-muted">
+                {g.id === null ? (
+                  <>No target fills {g.label.toLowerCase()} within the purse.</>
+                ) : (
+                  <>
+                    {g.label}: <b className="text-fg">{g.name}</b>, usually {cr(g.expected_price as number)} cr
+                    ({cr(g.enough_90 as number)} cr to be sure in 9 runs of 10). Bought at that price, the best plan
+                    around him is {fmtNum(Math.abs(g.cost as number), 2)} runs a match{" "}
+                    {(g.cost as number) > 0 ? "weaker" : "stronger"} than this one, and has {g.label.toLowerCase()} in{" "}
+                    {pct(g.need_met)} of the runs.
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -618,13 +679,26 @@ function Targets({ res, ctx, overrides, setOverride, nameLink, addOptions }: {
                     {nameLink(x.id, x.name)}
                     {x.overseas && <Plane className="h-3 w-3 shrink-0 text-willow" aria-label="overseas" />}
                     {x.likely && <Badge tone="willow">likely</Badge>}
+                    {x.eligibility && (
+                      <span title={x.eligibility}>
+                        <Badge tone="gold">eligibility?</Badge>
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 text-[11px] text-muted">
                     {ROLE_LABEL[x.role] ?? x.role} · {x.from_team ? (x.from_team === ctx.team ? "released by you" : `released by ${x.from_team}`) : "free agent"}
                   </div>
+                  {x.eligibility && <div className="mt-0.5 max-w-[22rem] whitespace-normal text-[11px] text-gold">{x.eligibility}</div>}
                 </td>
                 <td className="td whitespace-nowrap text-xs text-muted">{SLOT_LABEL[x.slot]}</td>
-                <td className="td stat-num text-right">{x.value === null || x.value === undefined ? "—" : fmtNum(x.value, 1)}</td>
+                <td className="td stat-num whitespace-nowrap text-right">
+                  {x.value_now !== null && x.value_now !== undefined ? (
+                    <>
+                      {fmtNum(x.value_now, 1)}
+                      <div className="text-[11px] text-muted">career {fmtNum(x.value, 1)}</div>
+                    </>
+                  ) : x.value === null || x.value === undefined ? "—" : fmtNum(x.value, 1)}
+                </td>
                 <td className="td stat-num whitespace-nowrap text-right">
                   {cr(x.price)}
                   {x.p_bought !== null && x.p_bought !== undefined && <div className="text-[11px] text-muted">{pct(x.p_bought)} bought</div>}

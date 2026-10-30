@@ -79,6 +79,8 @@ def build_pool(rows: list[dict], model: dict | None = None) -> list[dict]:
                 "ipl_matches": r.get("ipl_matches"),
                 "last_share": r.get("last_share"),
                 "captain_ipl_last": r.get("captain_ipl_last"),
+                # an open eligibility question for the auction's season (ipl_availability.json)
+                "eligibility": r.get("eligibility"),
                 "base_price": base,
                 "vpc": pv / base,
             }
@@ -144,6 +146,39 @@ def retention_inputs(data: dict | None) -> dict:
     }
 
 
+def mini_inputs(keep_data: dict | None, pool: list[dict] | None = None) -> dict:
+    """The next mini auction's starting squads from Keep or release (keep.json): each team's default
+    plan (keep.evaluate, no overrides) and what keeping each player costs, so the room starts where the
+    Keep page leaves every team. {"mini_ids": team → kept ids, "mini_squad": id → {salary,
+    slab_holder}, "mini_fixed": team → the kept players outside `pool` (too few balls to rate, still
+    charged), "mini_rules": the competition's rules (purse, slabs)}; {} without keep data. (Until
+    2026-10-29 the room's mini mode kept each team's top 18 by value for free from a flat 30 cr purse,
+    while the real purses left ran from 10 to 36 cr.) Mirror of `miniInputs` in auction.ts."""
+    from cricdex.web_parity.keep import evaluate, squad_of
+
+    no_gaps = {"keeper": 0, "opener": 0, "death": 0, "spinner": 0, "overseas": 0}
+    in_pool = {p["cricsheet_id"] for p in pool} if pool is not None else None
+
+    if not keep_data or not keep_data.get("players"):
+        return {}
+    rules = dict(keep_data["competition"]["rules"])
+    form = keep_data.get("form")
+    ids: dict[str, list[str]] = {}
+    squad: dict[str, dict] = {}
+    fixed: dict[str, list[dict]] = {}
+    for team in keep_data.get("teams") or []:
+        res = evaluate(squad_of(keep_data, team), [], rules, {}, no_gaps, form)
+        kept = [p for p in res["players"] if p["kept"]]
+        ids[team] = [p["key"] for p in kept if in_pool is None or p["key"] in in_pool]
+        fixed[team] = []
+        for p in kept:
+            row = {"salary": float(p["salary"]), "slab_holder": p.get("slab_holder")}
+            squad[p["key"]] = row
+            if in_pool is not None and p["key"] not in in_pool:
+                fixed[team].append(row)
+    return {"mini_ids": ids, "mini_squad": squad, "mini_fixed": fixed, "mini_rules": rules}
+
+
 def retention_spend(team: str, retained: list[dict], opts: dict) -> tuple[float, list[float]]:
     """(what a team's retentions cost the purse, each retained player's share). Mini: 0 (the squad is
     already paid for). Mega: each at his real retention price (else the slab for his position); with
@@ -152,10 +187,28 @@ def retention_spend(team: str, retained: list[dict], opts: dict) -> tuple[float,
     `opts["slab_holders"]` (absent = capped), plus `opts["fixed_retained"][team]` (real retentions
     outside the pool, still charged); each player's share is the charge less the charge without him
     (keep.retention_costs). Mirror of `retentionSpend` in auction.ts."""
-    from cricdex.web_parity.keep import slab_charge
+    from cricdex.web_parity.keep import purse_charged, slab_charge
 
     if opts["mode"] == "mini":
-        return 0.0, [0.0] * len(retained)
+        sq = opts.get("mini_squad")
+        if not sq:
+            return 0.0, [0.0] * len(
+                retained
+            )  # an export without Keep or release: carried over free
+        # what keeping each costs, as on the Keep page: his contract salary, the 2025 retentions by
+        # the slab rule; a player from outside the squads (a Scout draft) at his market price
+        rows = [
+            sq.get(p["cricsheet_id"])
+            or {"salary": float(p.get("projected_value") or 0.0), "slab_holder": None}
+            for p in retained
+        ]
+        rules = opts["mini_rules"]
+        fixed = list((opts.get("mini_fixed") or {}).get(team, []))
+        total = purse_charged(rows + fixed, rules)
+        each = [
+            total - purse_charged(rows[:k] + rows[k + 1 :] + fixed, rules) for k in range(len(rows))
+        ]
+        return total, each
     sal = [
         float(opts["real_prices"].get(p["cricsheet_id"], slab_cost(i)))
         for i, p in enumerate(retained)
@@ -183,16 +236,23 @@ def retention_spend(team: str, retained: list[dict], opts: dict) -> tuple[float,
 
 
 def default_retentions(
-    pool: list[dict], team_cfg: list[dict], mode: str, mega_ids: dict[str, list[str]]
+    pool: list[dict],
+    team_cfg: list[dict],
+    mode: str,
+    mega_ids: dict[str, list[str]],
+    mini_ids: dict[str, list[str]] | None = None,
 ) -> dict[str, list[str]]:
-    """Mega = the real 2025 lists (mega_ids); Mini = each team's top-N active players by expected
-    season value (`_retain_key`)."""
+    """Mega = the real 2025 lists (mega_ids); Mini = Keep or release's default plan (`mini_ids`,
+    `mini_inputs`), else (no keep data) each team's top-N active players by expected season value
+    (`_retain_key`)."""
     out: dict[str, list[str]] = {}
     pool_ids = {p["cricsheet_id"] for p in pool}
     for cfg in team_cfg:
         team = cfg["team"]
         if mode == "mega":
             out[team] = [i for i in mega_ids.get(team, []) if i in pool_ids]
+        elif mini_ids:
+            out[team] = [i for i in mini_ids.get(team, []) if i in pool_ids]
         else:
             roster = sorted((p for p in pool if p["team"] == team), key=_retain_key, reverse=True)
             out[team] = [p["cricsheet_id"] for p in roster[:MINI_RETAIN]]
@@ -203,17 +263,17 @@ def default_retentions(
 
 
 def ladder_step(x: float) -> float:
-    """The IPL bid increment at a price of x cr: 5 lakh below 1 cr, 10 lakh to 2 cr, 20 lakh to
-    5 cr, 25 lakh above (Business Today, 2024-11-23, for the 2025 auction: 5 / 10 / 20 lakh, above
-    3 cr at the auctioneer's call with 20 lakh the least; checked on the real prices: above 5 cr
-    most 2020-2025 prices sit on 25 lakh steps). Mirror of `ladderStep` in auction.ts."""
+    """The IPL bid increment at a price of x cr: 5 lakh below 1 cr, 10 lakh to 2 cr, 20 lakh above
+    (Business Today, 2024-11-23: 5 / 10 / 20 lakh, above 3 cr at the auctioneer's call with 20 lakh
+    the least). Above 5 cr the auctioneer's step has varied: every price over 5 cr in 2018, 2019,
+    2024 and 2026 sits on a 20 lakh step (2026: Green 25.2, Veer and Kartik Sharma 14.2), in 2020-23
+    and 2025 on 25 lakh (ipl_auction_history.json). The 2027 mini auction is taken as the last two
+    minis ran: 20 lakh (ASSUMED; until 2026-10-29, 25 lakh). Mirror of `ladderStep` in auction.ts."""
     if x < 1.0:
         return 0.05
     if x < 2.0:
         return 0.1
-    if x < 5.0:
-        return 0.2
-    return 0.25
+    return 0.2
 
 
 def ladder_next(x: float) -> float:

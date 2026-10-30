@@ -38,6 +38,11 @@ CEILING_FULL_BALLS = 600
 CEILING_FLOOR_SHARE = 0.5
 
 # IPL base-price set bands (cr).
+# The base price a player picks (the 2026 auction's eight brackets, 30 lakh to 2 cr). Until the official
+# list is out a player's base is INFERRED from his market price (`price_tier`) over the six brackets
+# players actually pick: in 2024-26 one lot opened at 0.4 cr and four at 1.25 cr, so a price can't
+# say when those two apply (ipl_auction_history.json).
+BASE_BRACKETS = [0.3, 0.4, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 PRICE_TIERS = [0.3, 0.5, 0.75, 1.0, 1.5, 2.0]
 
 # A rating from another league is put on the IPL rating scale by the fitted league translation
@@ -111,6 +116,8 @@ MARKET_PV_MAX = 60.0
 MARKET_GAP_MAX = 6.0  # years since his last IPL match, capped
 # `high` = the upper quartile of what players like him fetch: the median × e^(0.674 × residual sd)
 MARKET_HIGH_Z = 0.674
+# recent internationals saturate: 1 - e^(-caps in two years / this) (METHODOLOGY §6b)
+RECENT_SAT_SCALE = 10.0
 # The prior market price (`prior` = ln(prior_share / PRIOR_REF_SHARE), clamped): 2% of the purse is
 # about 2.5 cr in 2026. Seasons since it are capped at PRIOR_YEARS_MAX.
 PRIOR_REF_SHARE = 0.02
@@ -157,7 +164,9 @@ def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[
     an IPL side the season before), `captain_ipl_seasons`, `captain_intl_2y` (captained his country
     in the two calendar years before).
     `wiki_views` (his article's mean monthly views in the 12 months before the auction; missing = no
-    article or no reading: the brand features, METHODOLOGY §6b).
+    article or no reading: the brand features, METHODOLOGY §6b). `ipl_matches_2y` (his IPL matches in
+    the two seasons before the auction) and `bowling_category` ("seam" / "spin"): the refit's terms
+    (METHODOLOGY §6b, 2026-10-30).
     `cycle` = "mega" | "mini". `pv_max` (the model's `price.pv_max`: the largest priced value in its
     training rows) holds the priced value to the range the market has priced, so a value beyond the
     best player ever sold is priced as that player (no extrapolation); missing → MARKET_PV_MAX.
@@ -193,6 +202,14 @@ def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[
         p_years = min(max(_num(row.get("prior_years")) or 0.0, 0.0), PRIOR_YEARS_MAX)
     views = _num(row.get("wiki_views"))
     brand = math.log1p(max(views, 0.0) / BRAND_SCALE) if views is not None else 0.0
+    # a seam bowler (a bowler or all-rounder who bowls seam): the market pays for pace the rating
+    # scale doesn't see (METHODOLOGY §6b)
+    pace = (
+        1.0 if role in ("bowler", "all_rounder") and row.get("bowling_category") == "seam" else 0.0
+    )
+    # recent internationals, saturating: the first caps say most (a log count doubled a price for one
+    # India cap; METHODOLOGY §6b)
+    recent_sat = 1.0 - math.exp(-max(_num(row.get("intl_caps_2y")) or 0.0, 0.0) / RECENT_SAT_SCALE)
     return {
         "pv": pv,
         "pv_pos_sq": (max(pv, 0.0) ** 2) / 100.0,
@@ -230,6 +247,18 @@ def market_features(row: dict, cycle: str, pv_max: float | None = None) -> dict[
         # is a capped Indian out of the India side (no international in the two years before)
         "pv_x_ipl_evidence": pv * math.log1p(max(_num(row.get("ipl_balls")) or 0.0, 0.0)) / 8.0,
         "pv_x_indian_no_recent": pv * capped_ind * (1.0 if recent == 0.0 else 0.0),
+        # the 2026-10-30 refit's terms (METHODOLOGY §6b)
+        "ipl_recent": math.log1p(max(_num(row.get("ipl_matches_2y")) or 0.0, 0.0)),
+        "pace": pace,
+        "pv_x_pace": pv * pace,
+        "recent_sat_x_indian": recent_sat * (1.0 - ov),
+        "recent_sat_x_overseas": recent_sat * ov,
+        # one pooled captaincy term (METHODOLOGY §6b): led an IPL side last season or his country in
+        # the two years before
+        "captain_any": 1.0
+        if (_num(row.get("captain_ipl_last")) or 0.0) > 0
+        or (_num(row.get("captain_intl_2y")) or 0.0) > 0
+        else 0.0,
     }
 
 
@@ -310,9 +339,7 @@ def market_price(
     lin = calibrate(cal, raw)
     floor = float(model["floor_cr"])
     price = max(floor, float(comp["purse"]) * math.exp(lin))
-    # the upper quartile: a player 0.674 residual sd above him on the model's index, through the same
-    # calibration (where the market's response flattens at the top, so does the spread above him)
-    hi = calibrate(cal, raw + MARKET_HIGH_Z * float(model["price"]["resid_sd"]))
+    hi = _upper(model["price"], cal, raw, lin)
     # resale: a player the market priced at the last auction (`resale.max_years` seasons ago or
     # less) is priced from both, ln share = a + b × ln(the model's share) + c × ln(his last share)
     # + d × the seasons since + e × (it was a retention) + f × ln(his last share) × the seasons since,
@@ -330,12 +357,29 @@ def market_price(
             + float(rs.get("f_last_years", 0.0)) * math.log(ps) * py
         )  # fmt: skip
         price = max(floor, float(comp["purse"]) * math.exp(adj))
-        hi += adj - base
+        # the upper quartile keeps its gap above the model's own (unfloored) median: measured from the
+        # floored price instead it fell below the price for a player the model puts under the floor
+        hi = adj + (hi - lin)
     high = max(floor, float(comp["purse"]) * math.exp(hi))
     p = None
     if f["never_ipl"] == 0.0:
-        p = 1.0 / (1.0 + math.exp(-_linear(model["bought"], f)))
+        # fitted on players at most `gap_max` years out of the IPL (its risk window): a longer
+        # absence is read as the window's edge, not extrapolated
+        gm = model["bought"].get("gap_max")
+        fb = f if gm is None else {**f, "ipl_gap": min(f["ipl_gap"], float(gm))}
+        p = 1.0 / (1.0 + math.exp(-_linear(model["bought"], fb)))
     return {"price": price, "high": high, "p_bought": p}
+
+
+def _upper(price: dict, cal: dict, raw: float, lin: float) -> float:
+    """The upper quartile's ln share. With a fitted `spread` {a, b} (the 75th percentile of the
+    out-of-fold residuals as a + b × the calibrated prediction, METHODOLOGY §6b): lin + that, at least
+    0 (the spread widens toward the top, where one sd was too narrow). Without it: a player 0.674
+    residual sd above him on the model's index, through the same calibration."""
+    sp = price.get("spread")
+    if sp:
+        return lin + max(0.0, float(sp["a"]) + float(sp["b"]) * lin)
+    return calibrate(cal, raw + MARKET_HIGH_Z * float(price["resid_sd"]))
 
 
 def has_market_inputs(row: dict, model: dict | None = None) -> bool:

@@ -3,13 +3,16 @@
 Every retention deadline with a complete published retained list (2018-2026: the 2018, 2022 and 2025
 mega auctions and the mini auctions in between) is replayed with only what was known before it:
 
-* the squad each franchise held before the deadline: everyone who played for it the season before
-  (Cricsheet), plus its retained and bought players of that season (the auction history); a player
-  another franchise lists as retained was traded and is left out, as is a published retirement;
+* the squad each franchise held before the deadline: every player whose latest signing since the
+  cycle's mega auction (a retention, an auction buy, or a match played for it) was its and whom it
+  retained at every deadline since (`_owners`; 2018, with no retained list before it, from the season
+  before); a player another franchise lists as retained was traded and is left out, as is one whose
+  retirement was announced on or before the deadline (data/curated/ipl_availability.json);
 * each player's market price from the price model fitted on the earlier auctions only (the shipped
-  recipe, `ipl_price_model.fit_price_part`), his value, captaincy, caps and age as of the auction
-  (`ipl_price_model.feature_fn`), and his three-season Form forecast built from the seasons up to the
-  deadline (`scout/forecast.build_forecast` on the walk-forward ratings);
+  recipe, `ipl_price_model.fit_price_part`), his value, captaincy, caps and age as of the retention
+  deadline (`RETENTION_DEADLINES`; `ipl_price_model.feature_fn`), his first IPL side from the seasons
+  before it, and his three-season Form forecast built from the seasons up to the deadline
+  (`scout/forecast.build_forecast` on the walk-forward ratings);
 * what keeping him cost the purse: his contract salary in a mini year, the cycle's retention slab in a
   mega year (in order: 2018 15 / 11 / 7 cr capped, 3 cr uncapped; 2022 16 / 12 / 8 / 6, 4; 2025
   18 / 14 / 11 / 18 / 14, 4), and in 2026 the 2025 slab holders at the slab they free
@@ -17,6 +20,11 @@ mega auctions and the mini auctions in between) is replayed with only what was k
 
 The label is the published retained list. Candidate rules (declared before any test number) are
 chosen by leave-one-season-out on the deadlines up to 2024 and scored once on 2025 + 2026.
+
+A published retention with no row is listed with its reason in `<work>/excluded_<key>.json`
+(traded, a retirement, or not in the squad data: a replacement signing who never played). The caches
+are keyed on a hash of their inputs (`_rows_key`, `_market_key`), and the output carries the git
+commit and those keys.
 
     uv run python scripts/keep_backtest.py rows --work <dir>      # build the rows (resumable, cached)
     uv run python scripts/keep_backtest.py score --work <dir> [--out data/metrics/keep_backtest_ipl.json]
@@ -73,6 +81,77 @@ SLAB_RULES_2025 = {
 }
 # The squads a deadline's franchises held: the season before, except the two sides suspended in 2016-17
 PREV_SEASON = {(2018, "CSK"): 2015, (2018, "RR"): 2015}
+# The retention deadline before each season's auction: every as-of feature is taken on it (until
+# 2026-10-29 they were taken on the auction date, 3-10 weeks later: 79 players gained caps between the
+# 2024 deadline and the 2025 auction). Sources: 2018 IPL GC (iplt20.com "VIVO IPL 2018 Player
+# Retention announced", 4 Jan 2018); 2019 trading window and lists, 15 Nov 2018 (The Quint, Cricket
+# Times); 2020 lists published 15 Nov 2019, the window closing on the 14th (Wisden, India TV); 2021
+# 20 Jan 2021 (Wisden; Wikipedia "List of 2021 IPL personnel changes"); 2022 30 Nov 2021 (Wikipedia
+# "List of 2022 IPL personnel changes"); 2023 15 Nov 2022 (Scroll, Wisden); 2024 26 Nov 2023
+# (Business Today, Wisden); 2025 31 Oct 2024 (iplt20.com "TATA IPL 2025 player retentions list
+# announced"); 2026 15 Nov 2025 (iplt20.com "TATA IPL 2026 Player Retentions Announced").
+RETENTION_DEADLINES = {
+    2018: "2018-01-04", 2019: "2018-11-15", 2020: "2019-11-15", 2021: "2021-01-20",
+    2022: "2021-11-30", 2023: "2022-11-15", 2024: "2023-11-26", 2025: "2024-10-31",
+    2026: "2025-11-15",
+}  # fmt: skip
+AVAILABILITY = DATA_DIR / "curated" / "ipl_availability.json"
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _sha(*parts: Path | str) -> str:
+    """sha256 (first 12 hex) of files (their bytes, CRLF folded) and strings."""
+    import hashlib
+
+    h = hashlib.sha256()
+    for x in parts:
+        if isinstance(x, Path):
+            h.update(x.name.encode())
+            h.update(x.read_bytes().replace(b"\r\n", b"\n") if x.exists() else b"<missing>")
+        else:
+            h.update(str(x).encode())
+    return h.hexdigest()[:12]
+
+
+def _rows_key() -> str:
+    """What the rows are built from: the auction history, squads, retirements, the player master, the
+    captaincy record, the rating model's version (its walk-forward fits are cached under it), the
+    league translation, time-aware drift and playing-time models, the as-of contributions (size and
+    time: a large file) and the code that builds them."""
+    cfg = ROOT / "config"
+    ac = ipm.ASOF_CONTRIB
+    ac_stamp = f"{ac.stat().st_size}:{int(ac.stat().st_mtime)}" if ac.exists() else "none"
+    return _sha(
+        ipm.HISTORY, DATA_DIR / "curated" / "ipl_squads_2026.json", AVAILABILITY, master.MASTER_PATH,
+        captains.CAPTAINS, Path(captains.__file__), bayesian.MODEL_VERSION,
+        cfg / "league_translation.json", cfg / "rating_drift.json", cfg / "value_shrink.json",
+        cfg / "playing_time_model.json", ac_stamp, Path(__file__), Path(ipm.__file__),
+    )  # fmt: skip
+
+
+def _market_key(rows_key: str) -> str:
+    """What the market prices are computed from: the rows, the shipped price model and its code."""
+    return _sha(
+        rows_key, ROOT / "config" / "price_model.json", Path(ipm.__file__), Path(pricing.__file__)
+    )
+
+
+def _git_sha() -> str | None:
+    import subprocess
+
+    try:
+        out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True)
+    except OSError:
+        return None
+    return out.stdout.strip() or None
+
+
+def _retired_by(deadline: str) -> set[str]:
+    """cids whose retirement (the reviewed availability file) was announced on or before `deadline`:
+    left out of that deadline's squads. A retirement announced after it was a release at it."""
+    av = json.loads(AVAILABILITY.read_text(encoding="utf-8")) if AVAILABILITY.exists() else {}
+    return {cid for cid, v in av.items() if isinstance(v, dict) and v.get("status") == "retired"
+            and v.get("date") and v["date"] <= deadline}  # fmt: skip
 
 
 def _played() -> tuple[dict, dict]:
@@ -92,7 +171,8 @@ def _played() -> tuple[dict, dict]:
 
 def _forecasts(work: Path, origin: int) -> dict:
     """The Form forecast as it stood at the end of season `origin` (ratings and seasons up to it)."""
-    f = work / f"forecast_{origin}.json"
+    # keyed by the rating model's version: the walk-forward fits it reads are
+    f = work / f"forecast_{origin}_{bayesian.MODEL_VERSION}.json"
     if f.exists():
         return json.loads(f.read_text(encoding="utf-8"))
     import form_forecast as ff
@@ -116,21 +196,32 @@ def _outlook(fcst: dict, cid: str, role: str) -> dict | None:
 def rows(work: Path = typer.Option(..., "--work")) -> None:
     """Build one row per (deadline, franchise, squad player) with the inputs and the label."""
     work.mkdir(parents=True, exist_ok=True)
-    out_f = work / "rows.pkl"
+    key = _rows_key()
+    out_f = work / f"rows_{key}.pkl"
     ipm.AUCTIONS_DATES.update(ipm.auction_dates())
     features_in, hist, apps = ipm.feature_fn()
     played, team_hist = _played()
     pm = master.load()
     sq = json.loads((DATA_DIR / "curated" / "ipl_squads_2026.json").read_text(encoding="utf-8"))
-    retired_2026 = {r.get("wiki_title") or r["name"] for r in sq.get("retired") or []}
     mega25 = (sq.get("mega_retentions_2025") or {}).get("teams") or {}
+    # the 2025 slab holders by id: the published 2025 retained list (the same Wikipedia names)
+    ret25 = {(r["team"], r["name"]): r["cricsheet_id"] for r in hist["retentions"]
+             if r["season"] == 2025 and r["kind"] == "retained" and r.get("cricsheet_id")}  # fmt: skip
+    # every deadline's published retained list: cid -> franchise
+    kept_at: dict[int, dict[str, str]] = {}
+    for r in hist["retentions"]:
+        if r["season"] in SEASONS and r["kind"] == "retained" and r.get("cricsheet_id"):
+            kept_at.setdefault(r["season"], {})[r["cricsheet_id"]] = r["team"]
     done: dict = pickle.loads(out_f.read_bytes()) if out_f.exists() else {}
+    ex_f = work / f"excluded_{key}.json"
+    excluded: dict = json.loads(ex_f.read_text(encoding="utf-8")) if ex_f.exists() else {}
     for s in SEASONS:
         if s in done:
             typer.echo(f"{s}: cached ({len(done[s])} rows)")
             continue
         a = hist["auctions"][str(s)]
-        date, purse, cycle = a["date"], float(a["purse_cr"]), a["kind"]
+        date, purse, cycle = RETENTION_DEADLINES[s], float(a["purse_cr"]), a["kind"]
+        retired = _retired_by(date)
         fcst = _forecasts(work, s - 1)
         vals = ipm.asof_values(s, date)
         kept: dict[str, str] = {}
@@ -140,27 +231,19 @@ def rows(work: Path = typer.Option(..., "--work")) -> None:
         # the franchises of season s that held a squad before it (2022's two new sides had none)
         teams = sorted({r["team"] for r in hist["lots"] if r["season"] == s and r.get("sold")}
                        & {t for (y, t) in played if y == PREV_SEASON.get((s, t), s - 1)})  # fmt: skip
+        owner = _owners(s, teams, team_hist, hist, kept_at)
         out = []
+        why_not: dict[str, str] = {}
         for team in teams:
             prev = PREV_SEASON.get((s, team), s - 1)
-            members = set(played.get((prev, team), set()))
-            for r in hist["retentions"]:
-                if r["season"] == prev and r["team"] == team and r.get("cricsheet_id"):
-                    members.add(r["cricsheet_id"])
-            for r in hist["lots"]:
-                if (
-                    r["season"] == prev
-                    and r.get("sold")
-                    and r["team"] == team
-                    and r.get("cricsheet_id")
-                ):
-                    members.add(r["cricsheet_id"])
-            for cid in sorted(members):
+            for cid in sorted(c for c, t in owner.items() if t == team):
                 if cid in kept and kept[cid] != team and kept[cid] in teams:
+                    why_not[cid] = f"traded: {team} to {kept[cid]}"
                     continue  # traded to another franchise before the deadline
                 # (a pick of a new franchise's draft, 2022, was released by this one: kept = False)
                 rec = pm.get(cid) if isinstance(pm.get(cid), dict) else {}
-                if s == 2026 and (rec.get("wiki_title") in retired_2026):
+                if cid in retired:
+                    why_not[cid] = "retirement announced by the deadline"
                     continue
                 f = features_in(cid, s, date, vals, None)
                 # his contract salary: the latest price paid for him (auction or retention) before s
@@ -173,9 +256,10 @@ def rows(work: Path = typer.Option(..., "--work")) -> None:
                 salary = max(paid)[1] if paid else None
                 bought_prev = any(r["season"] == prev and r["team"] == team for r in lots_prev)
                 seasons_here = sorted({y for y, t in team_hist.get(cid, []) if t == team and y < s})
-                first_team = (
-                    team_hist.get(cid, [(None, None)])[0][1] if team_hist.get(cid) else None
-                )
+                # his first IPL side among the seasons before the deadline only (until 2026-10-29 the
+                # whole history: a squad player with no match yet got the side he played for later)
+                before = [t for y, t in team_hist.get(cid, []) if y < s]
+                first_team = before[0] if before else None
                 o = _outlook(fcst, cid, f["role"])
                 cap = captains.as_of(cid, s)
                 out.append({
@@ -190,19 +274,82 @@ def rows(work: Path = typer.Option(..., "--work")) -> None:
                     "forecast_median": o["median"] if o else None,
                     "slab_holder_2025": None,
                 })  # fmt: skip
-        # 2026: the 2025 mega retentions still at their franchise are charged by slab
+        # 2026: the 2025 mega retentions still at their franchise are charged by slab (matched by
+        # id: by display name Abhishek Porel was missed)
         if s == 2026:
             for team, block in mega25.items():
                 for kind in ("capped", "uncapped"):
                     for name in block.get(kind, []):
+                        cid = ret25.get((team, name))
+                        if cid is None:
+                            raise ValueError(f"2025 slab holder {name} ({team}) has no id")
                         for r in out:
-                            if r["team"] == team and r["name"] == name:
+                            if r["team"] == team and r["cricsheet_id"] == cid:
                                 r["slab_holder_2025"] = kind
+        # every published retention is a row, or listed with the reason it isn't
+        rowed = {(r["team"], r["cricsheet_id"]) for r in out}
+        excluded[str(s)] = [
+            {"team": t, "cricsheet_id": c,
+             "name": (pm.get(c) or {}).get("display_name") if isinstance(pm.get(c), dict) else c,
+             "reason": why_not.get(c) or (
+                 f"in the {owner[c]} squad data, not {t}'s" if c in owner
+                 else "not in the squad data: no signing on record and no match the season before "
+                 "(a replacement signing who didn't play; in 2018 a player who missed 2017)")}
+            for c, t in sorted(kept.items()) if (t, c) not in rowed and t in teams
+        ]  # fmt: skip
+        ids = [r["cricsheet_id"] for r in out]
+        if len(ids) != len(set(ids)):
+            raise ValueError(
+                f"{s}: players in two squads: {sorted({c for c in ids if ids.count(c) > 1})[:5]}"
+            )
         done[s] = out
         out_f.write_bytes(pickle.dumps(done))
+        ex_f.write_text(json.dumps(excluded, indent=1, ensure_ascii=False), encoding="utf-8")
         n_kept = sum(r["kept"] for r in out)
-        typer.echo(f"{s}: {len(out)} squad players, {n_kept} kept, {len(teams)} teams")
-    typer.echo("done")
+        typer.echo(f"{s}: {len(out)} squad players, {n_kept} kept, {len(teams)} teams, "
+                   f"{len(excluded[str(s)])} retentions without a row")  # fmt: skip
+    typer.echo(f"done: {out_f.name}")
+
+
+def _owners(
+    s: int, teams: list[str], team_hist: dict, hist: dict, kept_at: dict[int, dict[str, str]]
+) -> dict[str, str]:
+    """cid -> the franchise that held his contract before deadline `s`.
+
+    His signings since the cycle's mega auction (a retention, an auction buy, or a match played for a
+    side: a replacement signing), by franchises still in the league (Rising Pune and Gujarat Lions
+    left in 2018): the latest one is his franchise, if it retained him at every deadline since (the
+    published retained lists; one it didn't retain released him). The first deadline, 2018, has no
+    retained list before it: its squads are the season before (2015 for CSK and RR, back from their
+    suspension), so a contracted player who missed that season isn't seen (Andre Russell, banned in
+    2017). A replacement signing who never played is never seen (listed in `excluded_<key>.json`)."""
+    live = set(teams)
+    events: dict[str, list[tuple[int, int, str]]] = {}
+    for r in hist["retentions"]:
+        if r["kind"] == "retained" and r.get("cricsheet_id"):
+            events.setdefault(r["cricsheet_id"], []).append((r["season"], 0, r["team"]))
+    for r in hist["lots"]:
+        if r.get("sold") and r.get("cricsheet_id"):
+            events.setdefault(r["cricsheet_id"], []).append((r["season"], 1, r["team"]))
+    for cid, seasons in team_hist.items():
+        for y, t in seasons:
+            events.setdefault(cid, []).append((y, 2, t))
+    if s == SEASONS[0]:
+        window = {t: (PREV_SEASON.get((s, t), s - 1),) * 2 for t in teams}
+    else:
+        mega = max(m for m in MEGA_RULES if m < s)
+        window = dict.fromkeys(teams, (mega, s - 1))
+    owner: dict[str, str] = {}
+    for cid, ev in events.items():
+        ev = sorted(e for e in ev if e[2] in live and window[e[2]][0] <= e[0] <= window[e[2]][1])
+        if not ev:
+            continue
+        last, _, team = ev[-1]
+        # under contract from his last signing or match (a released player re-bought at the next
+        # auction, Saha 2019, signs again): every deadline after it must have retained him
+        if all(kept_at.get(d, {}).get(cid) == team for d in SEASONS if last < d < s):
+            owner[cid] = team
+    return owner
 
 
 # ---- scoring ---------------------------------------------------------------------------------------
@@ -212,7 +359,7 @@ def _market(work: Path, data: dict, letter: str | None) -> dict:
     """(season, team, cid) → (market price, the upper quartile on his central value) from the price
     recipe (`letter`, else the shipped one) fitted on the auctions before each deadline only."""
     spec_name = letter or "shipped"
-    f = work / f"market_{spec_name}.pkl"
+    f = work / f"market_{spec_name}_{_market_key(_rows_key())}.pkl"
     if f.exists():
         return pickle.loads(f.read_bytes())
     ipm.AUCTIONS_DATES.update(ipm.auction_dates())
@@ -260,7 +407,9 @@ def _costs(rows: list[dict], s: int) -> None:
     """Each row's `cost`: what keeping him cost the purse. Mini: his salary (the lowest base price
     when unknown), and in 2026 the 2025 slab holders at the slab their release frees. Mega: the slab
     of his position, the team's players taken in market-price order (capped and uncapped slabs
-    apart; None past the last slab: he can't be retained)."""
+    apart). Past the last slab he costs the cycle's dearest slab (he can only take a place someone
+    else holds) and stays eligible: until 2026-10-30 he cost None and his P(keep) was forced to 0,
+    16 of 2025's 46 real retentions among them (METHODOLOGY §10)."""
     floor = 0.2 if s < 2025 else 0.3
     if s in MEGA_RULES:
         rule = MEGA_RULES[s]
@@ -271,10 +420,11 @@ def _costs(rows: list[dict], s: int) -> None:
             kc = ku = 0
             for r in sorted(team_rows, key=lambda x: -x["market"]):
                 if _capped(r):
-                    r["cost"] = rule["capped"][kc] if kc < len(rule["capped"]) else None
+                    caps = rule["capped"]
+                    r["cost"] = caps[kc] if kc < len(caps) else max(caps)
                     kc += 1
                 else:
-                    r["cost"] = rule["uncapped"] if ku < rule["max_uncapped"] else None
+                    r["cost"] = rule["uncapped"]
                     ku += 1
         return
     for r in rows:
@@ -299,7 +449,7 @@ def _feats(r: dict) -> dict[str, float]:
         r.get("forecast_p_regular"), bool(r.get("captain_here")), int(r.get("seasons_here") or 0),
         bool(r.get("home_grown")), _capped(r) and not r.get("is_overseas"),
         bool(r.get("is_overseas")), r.get("age"), r.get("ipl_balls"), bool(r.get("bought_prev")),
-        r.get("p_play"), r.get("contrib"), bool(r.get("mega_retained")),
+        r.get("p_play"), r.get("contrib"), bool(r.get("mega_retained")), r.get("matches_last"),
     )  # fmt: skip
 
 
@@ -324,7 +474,8 @@ def _playing_time(data: dict) -> None:
     of the auction (`playing_time_fit.py asof-contrib`) and P(plays a match) in the squad his
     franchise held before the deadline, from the squad model (playing_time_fit `play`) fitted
     out of fold: for a deadline up to 2024 on the other seasons up to 2024, for 2025-26 on
-    2018-2024 (the model of the test). In place: `contrib`, `p_play`."""
+    2018-2024 (the model of the test), and his IPL matches the season before. In place: `contrib`,
+    `p_play`, `matches_last`."""
     import playing_time_fit as ptf
 
     from cricdex.scout import playing_time as pt
@@ -335,7 +486,11 @@ def _playing_time(data: dict) -> None:
     prows = ptf._all_play_rows(bool(rep_["play"].get("xi_by_era")))
     contrib = {(s_, c): v for (s_, c), v in ipm._asof_contrib().items()}
     u = ptf._u()
-    _team_m, _played, share = ptf.ipl_shares(u)
+    _team_m, played_m, share = ptf.ipl_shares(u)
+    # his IPL matches the season before the deadline, for any side (keep.json's matches_last)
+    m_season: dict[tuple[int, str], int] = {}
+    for (y, _code, cid), n in played_m.items():
+        m_season[(y, cid)] = m_season.get((y, cid), 0) + n
     i = u.filter(pl.col("league") == "ipl")
     roles = ptf._roles()
     models: dict[int, pt.PlayModel] = {}
@@ -343,7 +498,7 @@ def _playing_time(data: dict) -> None:
         tr = [r for r in prows if r["season"] <= SELECT_LAST and r["season"] != s]
         models[s] = pt.fit_play_model(tr, feats, alpha)
     for s, rows in data.items():
-        date = ipm.AUCTIONS_DATES.get(s) or ipm.auction_dates()[s]
+        date = RETENTION_DEADLINES[s]
         ipl_m = dict(i.filter(pl.col("date") < date).group_by("cid").agg(pl.len()).iter_rows())
         by_team: dict[str, list[dict]] = {}
         for r in rows:
@@ -351,6 +506,8 @@ def _playing_time(data: dict) -> None:
         for team_rows in by_team.values():
             squad = []
             for r in team_rows:
+                prev = PREV_SEASON.get((s, r["team"]), s - 1)
+                r["matches_last"] = m_season.get((prev, r["cricsheet_id"]), 0)
                 c = contrib.get((s, r["cricsheet_id"]))
                 r["contrib"] = c[0] if c else None
                 squad.append(pt.squad_member(r["cricsheet_id"], c[0] if c else 0.0,
@@ -388,6 +545,9 @@ PLAY = ["p_play", "play_value", "no_play"]
 # retained at the cycle's mega auction (declared 2026-10-29, before any of its numbers: the owner's
 # reality check that Rohit Sharma, retained by MI in 2025, is no toss-up)
 MEGA_RET = ["mega_retained"]
+# played last season (declared 2026-10-30, before any of its numbers: METHODOLOGY §10; Dhoni, Dayal and
+# Pathirana missed 2026)
+PLAYED = ["played_last", "none_last"]
 # reference only (not a candidate): keep everyone the rules allow
 BASELINE = ("B0 keep everyone the rules allow", ("all", None))
 CANDIDATES = {
@@ -404,7 +564,13 @@ CANDIDATES = {
     "L6 L5 without the Form forecast": ("logit", BASE + FRANCHISE + STATUS + PLAY),
     "L7 L4 + retained at the cycle's mega auction": (
         "logit", BASE + FORECAST + FRANCHISE + STATUS + MEGA_RET),
+    "L8 L7 + played last season": (
+        "logit", BASE + FORECAST + FRANCHISE + STATUS + MEGA_RET + PLAYED),
 }  # fmt: skip
+# forward-chaining folds (K14, declared 2026-10-30): each deadline predicted by the deadlines before it
+FOLDS = (2020, 2021, 2022, 2023, 2024)
+RELIABILITY_BANDS = (0.0, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 0.9, 1.0)
+BOOT = 2000
 C_GRID = (0.03, 0.1, 0.3, 1.0, 3.0)
 
 
@@ -533,11 +699,10 @@ def _predict(kind, arg, train: list[dict], test: list[dict], c: float | None = N
                 out_s[i] = test[i]["_f"][arg]
                 out_k[i] = test[i]["cost"] is not None and out_s[i] >= t
         return _apply_caps(test, out_k, out_s), out_s, par
-    tr = [r for r in train if r["cost"] is not None]
-    m = _fit_logit(tr, arg, c)
-    # past the last retention slab a player can't be kept at all: P = 0
-    p = np.where([r["cost"] is None for r in test], 0.0, _logit_p(m, test, arg))
-    keep = [bool(x >= 0.5) and r["cost"] is not None for x, r in zip(p, test, strict=True)]
+    m = _fit_logit(train, arg, c)
+    # no forced zeros (K4): the mega caps limit the calls, never the chance
+    p = _logit_p(m, test, arg)
+    keep = [bool(x >= 0.5) for x in p]
     return _apply_caps(test, keep, list(p)), list(p), m
 
 
@@ -545,6 +710,88 @@ def _logloss(p: list[float], y: list[bool]) -> float:
     q = np.clip(np.array(p), 1e-6, 1 - 1e-6)
     t = np.array(y, dtype=float)
     return float(-np.mean(t * np.log(q) + (1 - t) * np.log(1 - q)))
+
+
+def _ll_each(p: list[float], y: list[bool]) -> np.ndarray:
+    q = np.clip(np.array(p, dtype=float), 1e-6, 1 - 1e-6)
+    t = np.array(y, dtype=float)
+    return -(t * np.log(q) + (1 - t) * np.log(1 - q))
+
+
+def _reliability(p: list[float], y: list[bool]) -> list[dict]:
+    """How often players were kept in each band of P(keep)."""
+    out = []
+    b = RELIABILITY_BANDS
+    for lo, hi in zip(b[:-1], b[1:], strict=True):
+        idx = [i for i, x in enumerate(p) if lo <= x < hi or (hi == 1.0 and x == 1.0)]
+        if idx:
+            out.append({"band": f"{lo:.2f}-{hi:.2f}", "n": len(idx),
+                        "mean_p": round(float(np.mean([p[i] for i in idx])), 3),
+                        "kept": round(float(np.mean([y[i] for i in idx])), 3)})  # fmt: skip
+    return out
+
+
+def _cycle_report(
+    rows: list[dict], pred: list[bool], p: list[float] | None, train: list[dict]
+) -> dict:
+    """One cycle's held-out calls against its own majority call and a constant rate, both taken from
+    the training deadlines of that cycle (K1), with 95% intervals of the differences by resampling
+    team-deadlines, the release precision / recall and (with chances) the log loss and reliability."""
+    if not rows:
+        return {}
+    cyc = rows[0]["cycle"]
+    tr = [r for r in train if r["cycle"] == cyc] or train
+    rate = float(np.mean([r["kept"] for r in tr]))
+    maj = rate >= 0.5
+    y = [r["kept"] for r in rows]
+    hit = np.array([a == b for a, b in zip(pred, y, strict=True)], dtype=float)
+    hit0 = np.array([maj == b for b in y], dtype=float)
+    out = {"n": len(rows), "kept_rate": round(float(np.mean(y)), 3),
+           "majority_call": "keep everyone" if maj else "release everyone",
+           "accuracy": round(float(hit.mean()), 3), "majority_accuracy": round(float(hit0.mean()), 3),
+           "prf": _report(rows, pred)}  # fmt: skip
+    groups: dict[tuple, list[int]] = {}
+    for i, r in enumerate(rows):
+        groups.setdefault((r["season"], r["team"]), []).append(i)
+    keys = list(groups)
+    rng = np.random.default_rng(7)
+    llm = ll0 = None
+    if p is not None:
+        llm = _ll_each(p, y)
+        ll0 = _ll_each([rate] * len(y), y)
+        out["log_loss"] = round(float(llm.mean()), 4)
+        out["const_log_loss"] = round(float(ll0.mean()), 4)
+        out["reliability"] = _reliability(p, y)
+    d_acc, d_ll = [], []
+    for _ in range(BOOT):
+        pick = [i for k in rng.integers(0, len(keys), len(keys)) for i in groups[keys[k]]]
+        d_acc.append(hit[pick].mean() - hit0[pick].mean())
+        if llm is not None:
+            d_ll.append(llm[pick].mean() - ll0[pick].mean())
+    out["acc_minus_majority"] = {"est": round(float(hit.mean() - hit0.mean()), 3),
+                                 "ci95": [round(float(x), 3) for x in np.percentile(d_acc, [2.5, 97.5])]}  # fmt: skip
+    if llm is not None:
+        out["ll_minus_const"] = {"est": round(float(llm.mean() - ll0.mean()), 4),
+                                 "ci95": [round(float(x), 4) for x in np.percentile(d_ll, [2.5, 97.5])]}  # fmt: skip
+    return out
+
+
+def _platt(p: list[float], y: list[bool]) -> tuple[float, float]:
+    """(a, b) of the recalibration σ(a + b·logit p), fitted by maximum likelihood (no penalty)."""
+    from sklearn.linear_model import LogisticRegression
+
+    q = np.clip(np.array(p, dtype=float), 1e-6, 1 - 1e-6)
+    x = np.log(q / (1 - q)).reshape(-1, 1)
+    m = LogisticRegression(C=1e6, max_iter=5000).fit(x, np.array(y, dtype=int))
+    return float(m.intercept_[0]), float(m.coef_[0][0])
+
+
+def _recal(p: list[float], ab: tuple[float, float] | None) -> list[float]:
+    if ab is None:
+        return list(p)
+    q = np.clip(np.array(p, dtype=float), 1e-6, 1 - 1e-6)
+    z = ab[0] + ab[1] * np.log(q / (1 - q))
+    return list(1.0 / (1.0 + np.exp(-z)))
 
 
 @app.command()
@@ -556,9 +803,12 @@ def score(
     out: Path = typer.Option(OUT, "--out"),
     model_out: Path = typer.Option(MODEL_OUT, "--model-out", help="the shipped model (keep.py)"),
 ) -> None:
-    """Choose the rule by leave-one-deadline-out on the deadlines up to 2024, score it once on 2025
-    (mega) + 2026 (mini)."""
-    data: dict = pickle.loads((work / "rows.pkl").read_bytes())
+    """Choose the rule by forward-chaining folds on the deadlines 2020-2024, validate it once on 2025
+    (mega) and 2026 (mini) apart (protocol declared 2026-10-30)."""
+    rows_f = work / f"rows_{_rows_key()}.pkl"
+    if not rows_f.exists():
+        raise typer.BadParameter(f"no {rows_f.name}: the rows' inputs changed, run `rows` first")
+    data: dict = pickle.loads(rows_f.read_bytes())
     ipm.AUCTIONS_DATES.update(ipm.auction_dates())
     _playing_time(data)
     _mega_retained(data)
@@ -579,81 +829,135 @@ def score(
             )
     early = [s for s in SEASONS if s <= SELECT_LAST]
     res: dict = {"protocol": {
-        "selection": "leave one deadline out over 2018-2024 (each deadline predicted by the rule "
-                     "fitted on the others up to 2024); highest F1 for 'kept' on the pooled "
-                     "held-out calls wins, a tie going to the lower held-out log loss (logistic C "
-                     "chosen the same way)",
-        "test": "fitted on 2018-2024, scored once on 2025 (mega) + 2026 (mini)",
-        "label": "the published retained list; traded players and 2026's published retirements "
-                 "left out",
+        "declared": "2026-10-30, before any of its numbers (METHODOLOGY §10, the 2026-10-30 refit)",
+        "selection": "forward-chaining: each deadline 2020-2024 predicted by the candidate fitted on "
+                     "the deadlines before it only; the lowest pooled held-out log loss wins "
+                     "(logistic C chosen the same way). Mega-auction caps limit the calls, never "
+                     "the chance (no forced zeros)",
+        "validation": "fitted on 2018-2024, scored once on 2025 (mega) and 2026 (mini), each "
+                      "against its own majority call and a constant rate; 95% intervals by "
+                      "resampling team-deadlines. Not an untouched test: earlier models were read "
+                      "on these deadlines",
+        "label": "the published retained list; traded players and retirements announced by the "
+                 "deadline left out",
     }, "selection": {}}  # fmt: skip
     best = None
+    oof: dict = {}  # (name, c) -> {season: scores} on 2019-2024, for the recalibration
     for name, (kind, arg) in [BASELINE, *CANDIDATES.items()]:
         cs = C_GRID if kind == "logit" else (None,)
         for c in cs:
-            preds, ys, ps = [], [], []
-            for s in early:
-                tr = [r for t in early if t != s for r in data[t]]
+            preds, ys, ps, rows_all = [], [], [], []
+            per: dict[str, dict] = {}
+            for s in FOLDS:
+                tr = [r for t in early if t < s for r in data[t]]
                 k, sc, _ = _predict(kind, arg, tr, data[s], c)
                 preds += k
                 ys += [r["kept"] for r in data[s]]
                 ps += sc
-            rows_all = [r for s in early for r in data[s]]
-            rep = _report(rows_all, preds)
+                rows_all += data[s]
+                per[str(s)] = _cycle_report(data[s], k, sc if kind == "logit" else None, tr)
+            if kind == "logit":
+                tr19 = list(data[2018])
+                oof[(name, c)] = {2019: _predict(kind, arg, tr19, data[2019], c)[1]}
+                for s in FOLDS:
+                    oof[(name, c)][s] = ps[sum(len(data[t]) for t in FOLDS if t < s) :][
+                        : len(data[s])
+                    ]
+            rep_ = _report(rows_all, preds)
             label = name if c is None else f"{name} (C={c})"
             if kind == "logit":
-                rep["log_loss"] = round(_logloss(ps, ys), 4)
-            res["selection"][label] = rep
+                rep_["log_loss"] = round(_logloss(ps, ys), 4)
+            rep_["by_deadline"] = per
+            for cyc in ("mega", "mini"):
+                idx = [i for i, r in enumerate(rows_all) if r["cycle"] == cyc]
+                tr_c = [r for t in early if t < FOLDS[0] for r in data[t]]
+                rep_[f"{cyc}_cycle"] = _cycle_report(
+                    [rows_all[i] for i in idx], [preds[i] for i in idx],
+                    [ps[i] for i in idx] if kind == "logit" else None, tr_c,
+                )  # fmt: skip
+            res["selection"][label] = rep_
             typer.echo(
-                f"{label[:78]:78} F1 {rep['all']['f1']:.3f} P {rep['all']['precision']:.3f} "
-                f"R {rep['all']['recall']:.3f} BA {rep['all']['balanced_accuracy']:.3f} "
-                f"star F1 {rep['star']['f1']:.3f}"
-                + (f" LL {rep['log_loss']:.4f}" if kind == "logit" else "")
+                f"{label[:70]:70} acc {rep_['all']['accuracy']:.3f} F1 {rep_['all']['f1']:.3f} "
+                f"star acc {rep_['star']['accuracy']:.3f}"
+                + (f" LL {rep_['log_loss']:.4f}" if kind == "logit" else "")
             )
-            # a tie on F1 (to 3 places) goes to the lower held-out log loss (2026-10-29: L7 tied L4)
-            key = (rep["all"]["f1"], -rep.get("log_loss", math.inf))
-            if kind != "all" and (best is None or key > best[0]):
-                best = (key, name, c)
+            if kind == "logit" and (best is None or rep_["log_loss"] < best[0]):
+                best = (rep_["log_loss"], name, c)
     _, chosen, chosen_c = best
-    res["chosen"] = chosen if chosen_c is None else f"{chosen} (C={chosen_c})"
+    res["chosen"] = f"{chosen} (C={chosen_c})"
     typer.echo(f"chosen: {res['chosen']}")
 
-    # the test, once: fitted on 2018-2024, scored on 2025 + 2026 (chosen, and the shipped rule)
+    # K6: a Platt recalibration per cycle, fitted on the earlier deadlines' out-of-fold scores, kept
+    # only if it lowers the 2020-2024 log loss
+    sc_oof = oof[(chosen, chosen_c)]
+    raw_p, cal_p, ys = [], [], []
+    for s in FOLDS:
+        cyc = data[s][0]["cycle"]
+        prior = [(p_, r["kept"]) for t in sc_oof if t < s and data[t][0]["cycle"] == cyc
+                 for p_, r in zip(sc_oof[t], data[t], strict=True)]  # fmt: skip
+        ab = _platt([x for x, _ in prior], [y for _, y in prior]) if len(prior) >= 100 else None
+        raw_p += sc_oof[s]
+        cal_p += _recal(sc_oof[s], ab)
+        ys += [r["kept"] for r in data[s]]
+    ll_raw, ll_cal = _logloss(raw_p, ys), _logloss(cal_p, ys)
+    use_cal = ll_cal < ll_raw
+    calib = None
+    if use_cal:
+        calib = {}
+        for cyc in ("mega", "mini"):
+            pr = [(p_, r["kept"]) for t in sc_oof if data[t][0]["cycle"] == cyc
+                  for p_, r in zip(sc_oof[t], data[t], strict=True)]  # fmt: skip
+            if len(pr) >= 100:
+                calib[cyc] = _platt([x for x, _ in pr], [y for _, y in pr])
+    res["calibration"] = {"log_loss_raw": round(ll_raw, 4), "log_loss_platt": round(ll_cal, 4),
+                          "applied": use_cal,
+                          "platt": {k: [round(v[0], 4), round(v[1], 4)] for k, v in (calib or {}).items()},
+                          "reliability_2020_2024": {
+                              cyc: _reliability([x for x, r in zip(raw_p, [r for s in FOLDS for r in data[s]], strict=True) if r["cycle"] == cyc],
+                                                [r["kept"] for s in FOLDS for r in data[s] if r["cycle"] == cyc])
+                              for cyc in ("mega", "mini")}}  # fmt: skip
+    typer.echo(f"calibration: raw {ll_raw:.4f} platt {ll_cal:.4f} -> applied {use_cal}")
+
+    # validation, once: fitted on 2018-2024, scored on 2025 (mega) and 2026 (mini)
     train = [r for s in early for r in data[s]]
-    res["test"] = {}
+    res["validation"] = {}
     ref = next(iter(CANDIDATES))
     cands = dict([BASELINE, *CANDIDATES.items()])
     for name in dict.fromkeys([chosen, ref, BASELINE[0]]):
         kind, arg = cands[name]
         c = chosen_c if name == chosen else None
-        rows_t, preds_t, ps_t = [], [], []
+        v: dict = {}
+        dis = []
         for s in TEST:
             k, sc, _ = _predict(kind, arg, train, data[s], c)
-            rows_t += data[s]
-            preds_t += k
-            ps_t += sc
-            res["test"].setdefault(name, {})[str(s)] = _report(data[s], k)
-        rep = _report(rows_t, preds_t)
-        if kind == "logit":
-            rep["log_loss"] = round(_logloss(ps_t, [r["kept"] for r in rows_t]), 4)
-        res["test"][name]["pooled"] = rep
-        # where the call and the franchise disagree, stars first (the honest list)
-        dis = []
-        for r, k, sc in zip(rows_t, preds_t, ps_t, strict=True):
-            if k != r["kept"] and _tier(r) == "star":
-                dis.append({"season": r["season"], "team": r["team"], "name": r["name"],
-                            "kept": r["kept"], "call": "keep" if k else "release",
-                            "score": round(float(sc), 3), "cost": r["cost"],
-                            "market": round(r["market"], 2), "age": r.get("age") and round(r["age"], 1),
-                            "captain_here": r.get("captain_here"),
-                            "seasons_here": r.get("seasons_here"),
-                            "home_grown": r.get("home_grown")})  # fmt: skip
-        res["test"][name]["star_disagreements"] = dis
-        typer.echo(f"TEST {name[:60]}: {json.dumps(rep['all'])} star {json.dumps(rep['star'])}")
+            if name == chosen and calib and data[s][0]["cycle"] in calib:
+                sc = _recal(sc, calib[data[s][0]["cycle"]])
+                k = _apply_caps(data[s], [x >= 0.5 for x in sc], sc)
+            v[str(s)] = _cycle_report(data[s], k, sc if kind == "logit" else None, train)
+            # where the call and the franchise disagree, stars first (the honest list)
+            for r, kk, x in zip(data[s], k, sc, strict=True):
+                if kk != r["kept"] and _tier(r) == "star":
+                    dis.append({"season": r["season"], "team": r["team"], "name": r["name"],
+                                "kept": r["kept"], "call": "keep" if kk else "release",
+                                "score": round(float(x), 3), "cost": r["cost"],
+                                "market": round(r["market"], 2),
+                                "age": r.get("age") and round(r["age"], 1),
+                                "matches_last": r.get("matches_last"),
+                                "captain_here": r.get("captain_here"),
+                                "seasons_here": r.get("seasons_here"),
+                                "home_grown": r.get("home_grown")})  # fmt: skip
+        v["star_disagreements"] = dis
+        res["validation"][name] = v
+        for s in TEST:
+            q = v[str(s)]
+            typer.echo(f"VALIDATION {s} {name[:50]}: acc {q['accuracy']} vs {q['majority_call']} "
+                       f"{q['majority_accuracy']} CI {q['acc_minus_majority']['ci95']}"
+                       + (f" LL {q['log_loss']} vs {q['const_log_loss']} CI {q['ll_minus_const']['ci95']}"
+                          if "log_loss" in q else ""))  # fmt: skip
 
     # the shipped rule: the chosen candidate refitted on every deadline 2018-2026
     kind, arg = CANDIDATES[chosen]
-    every = [r for s in SEASONS for r in data[s] if r["cost"] is not None]
+    every = [r for s in SEASONS for r in data[s]]
     if kind == "logit":
         m = _fit_logit(every, arg, chosen_c)
         sc_, est = m[0], m[-1]
@@ -664,12 +968,18 @@ def score(
         res["model"] = {"kind": "logit", "C": chosen_c, "intercept": round(icpt, 6),
                         "coef": {k: round(float(v), 6) for k, v in zip(names, raw, strict=True)},
                         "trained_on": [SEASONS[0], SEASONS[-1]], "rows": len(every)}  # fmt: skip
+        if calib:
+            res["model"]["calibration"] = {k: {"a": round(v[0], 6), "b": round(v[1], 6)}
+                                           for k, v in calib.items()}  # fmt: skip
     elif kind == "rule":
         res["model"] = {"kind": "rule", "index": arg,
                         "threshold": {cyc: _fit_rule([r for r in every if r["cycle"] == cyc], arg)
                                       for cyc in ("mega", "mini")}}  # fmt: skip
     else:
         res["model"] = {"kind": "current"}
+    # what these numbers were computed from
+    res["provenance"] = {"git": _git_sha(), "rows": _rows_key(),
+                         "market": _market_key(_rows_key()), "recipe": recipe or "shipped"}  # fmt: skip
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, indent=1, ensure_ascii=False), encoding="utf-8")
     typer.echo(f"wrote {out}")
@@ -682,7 +992,7 @@ def score(
             "fitted": _dt.date.today().isoformat(),
             "method": "P(a franchise keeps him at the retention deadline) = logistic regression on "
                       "web_parity/keep.py keep_features (L2, standardised, refolded to raw units), "
-                      f"recipe '{res['chosen']}', chosen by leave one deadline out on 2018-2024 "
+                      f"recipe '{res['chosen']}', chosen by forward-chaining folds on 2020-2024 "
                       "(scripts/keep_backtest.py)",
             "data": "the published retained lists of every deadline 2018-2026 "
                     "(data/curated/ipl_auction_history.json, Wikipedia, CC BY-SA 4.0) against each "
@@ -692,8 +1002,16 @@ def score(
             "trained_on": res["model"]["trained_on"],
             "rows": res["model"]["rows"],
             "evaluation": {"protocol": res["protocol"], "chosen": res["chosen"],
-                           "test": {k: v["pooled"] for k, v in res["test"].items()}},
+                           "calibration": res["calibration"],
+                           "validation": {k: {y: {q: v[y][q] for q in ("n", "kept_rate",
+                                                   "majority_call", "accuracy", "majority_accuracy",
+                                                   "acc_minus_majority", "log_loss", "const_log_loss",
+                                                   "ll_minus_const") if q in v[y]}
+                                              for y in ("2025", "2026")}
+                                          for k, v in res["validation"].items()}},
         }  # fmt: skip
+        if res["model"].get("calibration"):
+            shipped["calibration"] = res["model"]["calibration"]
         model_out.write_text(
             json.dumps(shipped, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
         )
@@ -704,7 +1022,7 @@ def _forecast_market(work: Path, data: dict, letter: str | None) -> dict:
     """(season, team, cid) → his market price with the 3-season forecast average as his value (what
     a buyer pays for over a contract; None without a forecast)."""
     spec_name = letter or "shipped"
-    f = work / f"fcmarket_{spec_name}.pkl"
+    f = work / f"fcmarket_{spec_name}_{_market_key(_rows_key())}.pkl"
     if f.exists():
         return pickle.loads(f.read_bytes())
     ipm.AUCTIONS_DATES.update(ipm.auction_dates())

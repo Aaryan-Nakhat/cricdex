@@ -1,75 +1,75 @@
 // Written by scripts/media_data.py: the numbers the README visuals show. Do not edit by hand.
 window.MEDIA = {
- "generated": "2026-10-23",
+ "generated": "2026-10-30",
  "data_as_of": "2026-05-31",
  "auction": {
   "purse": 120.0,
   "trials": 300,
-  "auctioned": 382,
+  "auctioned": 378,
   "pool_size": 555,
   "teams": [
    {
     "team": "CSK",
     "kept": 5,
     "retain": 65.0,
-    "bought": 53.1,
-    "used": 118.1,
+    "bought": 53.3,
+    "used": 118.3,
     "n_bought": 18
    },
    {
     "team": "MI",
     "kept": 5,
     "retain": 75.0,
-    "bought": 43.4,
-    "used": 118.4,
+    "bought": 43.8,
+    "used": 118.8,
     "n_bought": 17
    },
    {
     "team": "RCB",
     "kept": 3,
     "retain": 37.0,
-    "bought": 79.6,
-    "used": 116.6,
-    "n_bought": 20
+    "bought": 79.7,
+    "used": 116.7,
+    "n_bought": 19
    },
    {
     "team": "KKR",
     "kept": 5,
     "retain": 69.0,
-    "bought": 48.5,
-    "used": 117.5,
+    "bought": 48.6,
+    "used": 117.6,
     "n_bought": 18
    },
    {
     "team": "DC",
     "kept": 4,
     "retain": 47.0,
-    "bought": 69.8,
-    "used": 116.8,
+    "bought": 70.2,
+    "used": 117.2,
     "n_bought": 19
    },
    {
     "team": "PBKS",
     "kept": 2,
     "retain": 9.5,
-    "bought": 104.6,
-    "used": 114.1,
+    "bought": 105.0,
+    "used": 114.5,
     "n_bought": 21
    },
    {
     "team": "SRH",
     "kept": 5,
     "retain": 75.0,
-    "bought": 42.3,
-    "used": 117.3,
+    "bought": 42.1,
+    "used": 117.1,
     "n_bought": 18
    },
    {
     "team": "GT",
     "kept": 5,
     "retain": 51.0,
-    "bought": 65.5,
-    "used": 116.5,
+    "bought": 65.9,
+    "used": 116.9,
     "n_bought": 18
    },
    {
@@ -84,113 +84,29 @@ window.MEDIA = {
     "team": "LSG",
     "kept": 5,
     "retain": 51.0,
-    "bought": 65.9,
-    "used": 116.9,
+    "bought": 66.7,
+    "used": 117.7,
     "n_bought": 18
    }
   ],
   "top": [
    {
-    "name": "Vaibhav Suryavanshi",
-    "role": "batter",
-    "country": "India",
-    "price": 24.9,
-    "sold": 100,
-    "winners": [
-     {
-      "team": "PBKS",
-      "pct": 24
-     },
-     {
-      "team": "DC",
-      "pct": 15
-     },
-     {
-      "team": "RCB",
-      "pct": 15
-     }
-    ]
-   },
-   {
     "name": "Noor Ahmad",
     "role": "bowler",
     "country": "Afghanistan",
-    "price": 24.8,
+    "price": 28.3,
     "sold": 100,
     "winners": [
      {
       "team": "PBKS",
-      "pct": 22
+      "pct": 18
      },
      {
       "team": "RCB",
-      "pct": 15
-     },
-     {
-      "team": "DC",
-      "pct": 13
-     }
-    ]
-   },
-   {
-    "name": "Cameron Green",
-    "role": "all-rounder",
-    "country": "Australia",
-    "price": 17.5,
-    "sold": 98,
-    "winners": [
-     {
-      "team": "PBKS",
-      "pct": 17
-     },
-     {
-      "team": "RCB",
-      "pct": 15
-     },
-     {
-      "team": "GT",
       "pct": 14
-     }
-    ]
-   },
-   {
-    "name": "Jofra Archer",
-    "role": "bowler",
-    "country": "England",
-    "price": 16.3,
-    "sold": 100,
-    "winners": [
-     {
-      "team": "PBKS",
-      "pct": 15
-     },
-     {
-      "team": "CSK",
-      "pct": 15
      },
      {
       "team": "DC",
-      "pct": 15
-     }
-    ]
-   },
-   {
-    "name": "Rishabh Pant",
-    "role": "keeper",
-    "country": "India",
-    "price": 16.2,
-    "sold": 100,
-    "winners": [
-     {
-      "team": "RCB",
-      "pct": 17
-     },
-     {
-      "team": "GT",
-      "pct": 17
-     },
-     {
-      "team": "PBKS",
       "pct": 12
      }
     ]
@@ -199,28 +115,28 @@ window.MEDIA = {
     "name": "Shreyas Iyer",
     "role": "batter",
     "country": "India",
-    "price": 16.1,
+    "price": 20.3,
     "sold": 100,
     "winners": [
      {
       "team": "PBKS",
-      "pct": 18
+      "pct": 20
+     },
+     {
+      "team": "RCB",
+      "pct": 17
      },
      {
       "team": "DC",
-      "pct": 18
-     },
-     {
-      "team": "LSG",
-      "pct": 12
+      "pct": 15
      }
     ]
    },
    {
-    "name": "Arshdeep Singh",
+    "name": "Jofra Archer",
     "role": "bowler",
-    "country": "India",
-    "price": 15.9,
+    "country": "England",
+    "price": 18.7,
     "sold": 100,
     "winners": [
      {
@@ -229,20 +145,41 @@ window.MEDIA = {
      },
      {
       "team": "RCB",
-      "pct": 17
+      "pct": 16
      },
      {
-      "team": "DC",
-      "pct": 12
+      "team": "LSG",
+      "pct": 11
      }
     ]
    },
    {
-    "name": "Ishan Kishan",
+    "name": "Jos Buttler",
+    "role": "keeper",
+    "country": "England",
+    "price": 18.1,
+    "sold": 98,
+    "winners": [
+     {
+      "team": "PBKS",
+      "pct": 15
+     },
+     {
+      "team": "RCB",
+      "pct": 13
+     },
+     {
+      "team": "GT",
+      "pct": 13
+     }
+    ]
+   },
+   {
+    "name": "Rishabh Pant",
     "role": "keeper",
     "country": "India",
-    "price": 15.9,
-    "sold": 99,
+    "price": 17.5,
+    "sold": 100,
     "winners": [
      {
       "team": "RCB",
@@ -250,11 +187,74 @@ window.MEDIA = {
      },
      {
       "team": "PBKS",
-      "pct": 16
+      "pct": 18
      },
      {
       "team": "GT",
-      "pct": 15
+      "pct": 14
+     }
+    ]
+   },
+   {
+    "name": "Kagiso Rabada",
+    "role": "bowler",
+    "country": "South Africa",
+    "price": 16.3,
+    "sold": 99,
+    "winners": [
+     {
+      "team": "PBKS",
+      "pct": 18
+     },
+     {
+      "team": "RCB",
+      "pct": 14
+     },
+     {
+      "team": "DC",
+      "pct": 13
+     }
+    ]
+   },
+   {
+    "name": "Arshdeep Singh",
+    "role": "bowler",
+    "country": "India",
+    "price": 15.6,
+    "sold": 100,
+    "winners": [
+     {
+      "team": "PBKS",
+      "pct": 21
+     },
+     {
+      "team": "RCB",
+      "pct": 13
+     },
+     {
+      "team": "GT",
+      "pct": 13
+     }
+    ]
+   },
+   {
+    "name": "Cameron Green",
+    "role": "all-rounder",
+    "country": "Australia",
+    "price": 15.3,
+    "sold": 98,
+    "winners": [
+     {
+      "team": "PBKS",
+      "pct": 19
+     },
+     {
+      "team": "LSG",
+      "pct": 16
+     },
+     {
+      "team": "RCB",
+      "pct": 13
      }
     ]
    }
@@ -262,8 +262,8 @@ window.MEDIA = {
   "fewest": {
    "team": "PBKS",
    "kept": 2,
-   "bought": 104.6,
-   "most_likely_of_top20": 15,
+   "bought": 105.0,
+   "most_likely_of_top20": 14,
    "max_bought": true
   }
  },
@@ -284,21 +284,10 @@ window.MEDIA = {
     "overseas": false,
     "captain": true,
     "cost": 11.0,
-    "price": 5.2,
-    "p_keep": 97,
+    "price": 5.8,
+    "p_keep": 98,
     "rec": "keep",
-    "outlook": "+11 / +11 / +9 (2027-29) · holds, then declines · 66% a regular in 2029"
-   },
-   {
-    "name": "Devdutt Padikkal",
-    "role": "batter",
-    "overseas": false,
-    "captain": false,
-    "cost": 2.0,
-    "price": 3.8,
-    "p_keep": 95,
-    "rec": "keep",
-    "outlook": "-1 / 0 / 0 (2027-29) · holds · 77% a regular in 2029"
+    "outlook": "+11 / +11 / +9 (2027-29) · holds, then declines · 65% a regular in 2029"
    },
    {
     "name": "Virat Kohli",
@@ -307,31 +296,20 @@ window.MEDIA = {
     "captain": false,
     "cost": 15.0,
     "price": 7.8,
-    "p_keep": 93,
+    "p_keep": 97,
     "rec": "keep",
-    "outlook": "+5 / +4 / +2 (2027-29) · holds, then declines · 54% a regular in 2029"
+    "outlook": "+4 / +4 / +2 (2027-29) · holds, then declines · 55% a regular in 2029"
    },
    {
-    "name": "Suyash Sharma",
-    "role": "bowler",
+    "name": "Devdutt Padikkal",
+    "role": "batter",
     "overseas": false,
     "captain": false,
-    "cost": 2.6,
-    "price": 1.8,
-    "p_keep": 90,
+    "cost": 2.0,
+    "price": 2.5,
+    "p_keep": 96,
     "rec": "keep",
-    "outlook": "0 / +1 / 0 (2027-29) · holds · 67% a regular in 2029"
-   },
-   {
-    "name": "Tim David",
-    "role": "batter",
-    "overseas": true,
-    "captain": false,
-    "cost": 3.0,
-    "price": 5.0,
-    "p_keep": 89,
-    "rec": "keep",
-    "outlook": "+11 / +11 / +9 (2027-29) · holds · 63% a regular in 2029"
+    "outlook": "-1 / 0 / 0 (2027-29) · holds · 77% a regular in 2029"
    },
    {
     "name": "Bhuvneshwar Kumar",
@@ -339,10 +317,32 @@ window.MEDIA = {
     "overseas": false,
     "captain": false,
     "cost": 10.8,
-    "price": 2.4,
-    "p_keep": 88,
+    "price": 4.8,
+    "p_keep": 95,
     "rec": "keep",
-    "outlook": "+10 / +10 / +10 (2027-29) · holds · 47% a regular in 2029"
+    "outlook": "+10 / +10 / +10 (2027-29) · holds · 48% a regular in 2029"
+   },
+   {
+    "name": "Tim David",
+    "role": "batter",
+    "overseas": true,
+    "captain": false,
+    "cost": 3.0,
+    "price": 6.2,
+    "p_keep": 94,
+    "rec": "keep",
+    "outlook": "+10 / +11 / +9 (2027-29) · holds · 63% a regular in 2029"
+   },
+   {
+    "name": "Suyash Sharma",
+    "role": "bowler",
+    "overseas": false,
+    "captain": false,
+    "cost": 2.6,
+    "price": 2.2,
+    "p_keep": 93,
+    "rec": "keep",
+    "outlook": "0 / +1 / 0 (2027-29) · holds · 66% a regular in 2029"
    },
    {
     "name": "Krunal Pandya",
@@ -350,21 +350,10 @@ window.MEDIA = {
     "overseas": false,
     "captain": false,
     "cost": 5.8,
-    "price": 3.2,
-    "p_keep": 85,
+    "price": 2.9,
+    "p_keep": 92,
     "rec": "keep",
-    "outlook": "+7 / +6 / +6 (2027-29) · holds · 41% a regular in 2029"
-   },
-   {
-    "name": "Phil Salt",
-    "role": "keeper",
-    "overseas": true,
-    "captain": false,
-    "cost": 11.5,
-    "price": 10.0,
-    "p_keep": 84,
-    "rec": "keep",
-    "outlook": "+11 / +11 / +10 (2027-29) · holds · 62% a regular in 2029"
+    "outlook": "+7 / +6 / +6 (2027-29) · holds · 40% a regular in 2029"
    },
    {
     "name": "Rasikh Salam",
@@ -372,43 +361,10 @@ window.MEDIA = {
     "overseas": false,
     "captain": false,
     "cost": 6.0,
-    "price": 0.9,
-    "p_keep": 81,
+    "price": 1.6,
+    "p_keep": 86,
     "rec": "keep",
-    "outlook": "-4 / -3 / -3 (2027-29) · holds · 51% a regular in 2029"
-   },
-   {
-    "name": "Yash Dayal",
-    "role": "bowler",
-    "overseas": false,
-    "captain": false,
-    "cost": 5.0,
-    "price": 1.1,
-    "p_keep": 65,
-    "rec": "borderline",
-    "outlook": "-1 / 0 / 0 (2027-29) · holds · 17% a regular in 2029"
-   },
-   {
-    "name": "Venkatesh Iyer",
-    "role": "batter",
-    "overseas": false,
-    "captain": false,
-    "cost": 7.0,
-    "price": 2.7,
-    "p_keep": 63,
-    "rec": "borderline",
-    "outlook": "-5 / -7 / -8 (2027-29) · holds, then declines · 19% a regular in 2029"
-   },
-   {
-    "name": "Jacob Duffy",
-    "role": "bowler",
-    "overseas": true,
-    "captain": false,
-    "cost": 2.0,
-    "price": 4.0,
-    "p_keep": 63,
-    "rec": "borderline",
-    "outlook": "-7 / -5 / -5 (2027-29) · holds · 29% a regular in 2029"
+    "outlook": "-4 / -3 / -3 (2027-29) · holds · 48% a regular in 2029"
    },
    {
     "name": "Josh Hazlewood",
@@ -416,21 +372,32 @@ window.MEDIA = {
     "overseas": true,
     "captain": false,
     "cost": 12.5,
-    "price": 5.1,
-    "p_keep": 58,
-    "rec": "borderline",
-    "outlook": "+4 / +4 / +4 (2027-29) · holds · 24% a regular in 2029"
+    "price": 7.6,
+    "p_keep": 77,
+    "rec": "keep",
+    "outlook": "+4 / +4 / +4 (2027-29) · holds · 25% a regular in 2029"
    },
    {
-    "name": "Abhinandan Singh",
-    "role": "bowler",
+    "name": "Phil Salt",
+    "role": "keeper",
+    "overseas": true,
+    "captain": false,
+    "cost": 11.5,
+    "price": 9.9,
+    "p_keep": 75,
+    "rec": "keep",
+    "outlook": "+11 / +11 / +10 (2027-29) · holds · 62% a regular in 2029"
+   },
+   {
+    "name": "Venkatesh Iyer",
+    "role": "batter",
     "overseas": false,
     "captain": false,
-    "cost": 0.3,
-    "price": 0.4,
-    "p_keep": 57,
-    "rec": "borderline",
-    "outlook": ""
+    "cost": 7.0,
+    "price": 2.3,
+    "p_keep": 71,
+    "rec": "keep",
+    "outlook": "0 / -1 / -2 (2027-29) · holds, then declines · 48% a regular in 2029"
    },
    {
     "name": "Jitesh Sharma",
@@ -438,10 +405,43 @@ window.MEDIA = {
     "overseas": false,
     "captain": false,
     "cost": 11.0,
-    "price": 3.4,
-    "p_keep": 55,
+    "price": 3.2,
+    "p_keep": 68,
+    "rec": "keep",
+    "outlook": "-10 / -12 / -13 (2027-29) · holds, then declines · 18% a regular in 2029"
+   },
+   {
+    "name": "Yash Dayal",
+    "role": "bowler",
+    "overseas": false,
+    "captain": false,
+    "cost": 5.0,
+    "price": 1.7,
+    "p_keep": 67,
+    "rec": "keep",
+    "outlook": "-1 / 0 / 0 (2027-29) · holds · 17% a regular in 2029"
+   },
+   {
+    "name": "Vihaan Malhotra",
+    "role": "all-rounder",
+    "overseas": false,
+    "captain": false,
+    "cost": 0.3,
+    "price": 0.5,
+    "p_keep": 60,
     "rec": "borderline",
-    "outlook": "-10 / -12 / -13 (2027-29) · holds, then declines · 19% a regular in 2029"
+    "outlook": ""
+   },
+   {
+    "name": "Kanishk Chouhan",
+    "role": "all-rounder",
+    "overseas": false,
+    "captain": false,
+    "cost": 0.3,
+    "price": 0.5,
+    "p_keep": 60,
+    "rec": "borderline",
+    "outlook": ""
    },
    {
     "name": "Jacob Bethell",
@@ -449,19 +449,30 @@ window.MEDIA = {
     "overseas": true,
     "captain": false,
     "cost": 2.6,
-    "price": 4.6,
-    "p_keep": 47,
+    "price": 5.1,
+    "p_keep": 56,
     "rec": "borderline",
     "outlook": ""
    },
    {
-    "name": "Swapnil Singh",
+    "name": "Vicky Ostwal",
     "role": "all-rounder",
     "overseas": false,
     "captain": false,
-    "cost": 0.5,
-    "price": 0.3,
-    "p_keep": 43,
+    "cost": 0.3,
+    "price": 0.4,
+    "p_keep": 53,
+    "rec": "borderline",
+    "outlook": ""
+   },
+   {
+    "name": "Abhinandan Singh",
+    "role": "bowler",
+    "overseas": false,
+    "captain": false,
+    "cost": 0.3,
+    "price": 0.5,
+    "p_keep": 49,
     "rec": "borderline",
     "outlook": ""
    },
@@ -472,40 +483,7 @@ window.MEDIA = {
     "captain": false,
     "cost": 0.3,
     "price": 0.3,
-    "p_keep": 41,
-    "rec": "borderline",
-    "outlook": ""
-   },
-   {
-    "name": "Vicky Ostwal",
-    "role": "all-rounder",
-    "overseas": false,
-    "captain": false,
-    "cost": 0.3,
-    "price": 0.3,
-    "p_keep": 41,
-    "rec": "borderline",
-    "outlook": ""
-   },
-   {
-    "name": "Vihaan Malhotra",
-    "role": "all-rounder",
-    "overseas": false,
-    "captain": false,
-    "cost": 0.3,
-    "price": 0.3,
-    "p_keep": 41,
-    "rec": "borderline",
-    "outlook": ""
-   },
-   {
-    "name": "Kanishk Chouhan",
-    "role": "all-rounder",
-    "overseas": false,
-    "captain": false,
-    "cost": 0.3,
-    "price": 0.3,
-    "p_keep": 41,
+    "p_keep": 46,
     "rec": "borderline",
     "outlook": ""
    },
@@ -515,42 +493,9 @@ window.MEDIA = {
     "overseas": false,
     "captain": false,
     "cost": 5.2,
-    "price": 0.3,
-    "p_keep": 41,
+    "price": 0.4,
+    "p_keep": 42,
     "rec": "borderline",
-    "outlook": ""
-   },
-   {
-    "name": "Nuwan Thushara",
-    "role": "bowler",
-    "overseas": true,
-    "captain": false,
-    "cost": 1.6,
-    "price": 2.8,
-    "p_keep": 38,
-    "rec": "borderline",
-    "outlook": "0 / 0 / 0 (2027-29) · holds · 7% a regular in 2029"
-   },
-   {
-    "name": "Richard Gleeson",
-    "role": "bowler",
-    "overseas": true,
-    "captain": false,
-    "cost": 1.6,
-    "price": 1.1,
-    "p_keep": 30,
-    "rec": "release",
-    "outlook": ""
-   },
-   {
-    "name": "Jordan Cox",
-    "role": "keeper",
-    "overseas": true,
-    "captain": false,
-    "cost": 0.8,
-    "price": 2.5,
-    "p_keep": 30,
-    "rec": "release",
     "outlook": ""
    },
    {
@@ -559,16 +504,71 @@ window.MEDIA = {
     "overseas": true,
     "captain": false,
     "cost": 1.5,
-    "price": 3.1,
-    "p_keep": 22,
+    "price": 3.8,
+    "p_keep": 40,
+    "rec": "borderline",
+    "outlook": "-22 / -19 / -20 (2027-29) · improves · 10% a regular in 2029"
+   },
+   {
+    "name": "Jacob Duffy",
+    "role": "bowler",
+    "overseas": true,
+    "captain": false,
+    "cost": 2.0,
+    "price": 2.7,
+    "p_keep": 40,
+    "rec": "borderline",
+    "outlook": "-6 / -5 / -5 (2027-29) · holds · 15% a regular in 2029"
+   },
+   {
+    "name": "Swapnil Singh",
+    "role": "all-rounder",
+    "overseas": false,
+    "captain": false,
+    "cost": 0.5,
+    "price": 0.4,
+    "p_keep": 38,
+    "rec": "borderline",
+    "outlook": ""
+   },
+   {
+    "name": "Jordan Cox",
+    "role": "keeper",
+    "overseas": true,
+    "captain": false,
+    "cost": 0.8,
+    "price": 1.6,
+    "p_keep": 32,
     "rec": "release",
-    "outlook": "-22 / -19 / -19 (2027-29) · improves · 10% a regular in 2029"
+    "outlook": ""
+   },
+   {
+    "name": "Nuwan Thushara",
+    "role": "bowler",
+    "overseas": true,
+    "captain": false,
+    "cost": 1.6,
+    "price": 1.7,
+    "p_keep": 29,
+    "rec": "release",
+    "outlook": "0 / 0 / 0 (2027-29) · holds · 8% a regular in 2029"
+   },
+   {
+    "name": "Richard Gleeson",
+    "role": "bowler",
+    "overseas": true,
+    "captain": false,
+    "cost": 1.6,
+    "price": 1.1,
+    "p_keep": 23,
+    "rec": "release",
+    "outlook": ""
    }
   ],
-  "kept": 15,
-  "released": 11,
-  "purse_left": 13.6,
-  "slots_left": 10,
+  "kept": 17,
+  "released": 9,
+  "purse_left": 12.4,
+  "slots_left": 8,
   "overseas_slots_left": 4,
   "gaps": [
    {
@@ -579,15 +579,15 @@ window.MEDIA = {
    },
    {
     "label": "Openers",
-    "gap": 1,
+    "gap": 0,
     "target": 3,
-    "kept": 2
+    "kept": 3
    },
    {
     "label": "Death bowlers",
     "gap": 0,
     "target": 3,
-    "kept": 3
+    "kept": 4
    },
    {
     "label": "Spinners",
@@ -603,170 +603,179 @@ window.MEDIA = {
    }
   ],
   "test": {
-   "all": 78,
-   "star": 82,
-   "old_all": 70,
-   "old_star": 64,
-   "n": 484
+   "2025": {
+    "accuracy": 84,
+    "majority": 82,
+    "majority_call": "release everyone",
+    "n": 252
+   },
+   "2026": {
+    "accuracy": 71,
+    "majority": 69,
+    "majority_call": "keep everyone",
+    "n": 229
+   }
   }
  },
  "bidplan": {
-  "source": "METHODOLOGY section 12 (scripts/bidplan_backtest.py, re-run 2026-10-23)",
+  "source": "METHODOLOGY section 12 (scripts/bidplan_backtest.py, opportunity rule, 2026-10-30)",
   "replay": {
-   "mega": {
-    "label": "2025 mega auction",
+   "check": {
+    "label": "2024 mini (full purse)",
     "ahead": 7,
     "teams": 10,
-    "mean": 6.5
+    "mean": 6.1
    },
-   "mini": {
-    "label": "2026 mini auction",
+   "mega": {
+    "label": "2025 mega (real spend)",
     "ahead": 2,
     "teams": 10,
-    "mean": -2.4
+    "mean": -6.6
+   },
+   "mini": {
+    "label": "2026 mini (real spend)",
+    "ahead": 1,
+    "teams": 10,
+    "mean": -3.0
    }
   },
   "calibration": [
    {
     "band": "0.0–0.2",
     "y2025": [
-     0.06,
-     0.1,
-     145
+     0.02,
+     0.02,
+     296
     ],
     "y2026": [
-     0.12,
-     0.04,
-     23
+     0.06,
+     0.2,
+     40
     ]
    },
    {
     "band": "0.2–0.4",
     "y2025": [
-     0.29,
-     0.32,
-     56
+     0.27,
+     0.09,
+     22
     ],
     "y2026": [
-     0.3,
-     0.35,
-     17
+     0.28,
+     0.32,
+     28
     ]
    },
    {
     "band": "0.4–0.6",
     "y2025": [
-     0.5,
-     0.58,
-     71
+     0.49,
+     0.54,
+     13
     ],
     "y2026": [
-     0.5,
-     0.58,
-     24
+     0.47,
+     0.6,
+     10
     ]
    },
    {
     "band": "0.6–0.8",
     "y2025": [
-     0.69,
-     0.64,
-     45
+     0.71,
+     0.53,
+     38
     ],
     "y2026": [
      0.69,
-     0.78,
-     23
+     0.59,
+     17
     ]
    },
    {
     "band": "0.8–1.0",
     "y2025": [
-     0.89,
-     0.76,
-     58
+     0.88,
+     0.77,
+     52
     ],
     "y2026": [
-     0.91,
+     0.85,
      1.0,
-     13
+     9
     ]
    }
-  ],
-  "before_top_band_2026": [
-   0.88,
-   0.44
   ],
   "sheet": {
    "team": "RCB",
    "trials": 200,
-   "purse_left": 13.6,
-   "kept": 15,
-   "lam": 0.17,
+   "purse_left": 12.4,
+   "kept": 17,
+   "lam": 0.0,
    "missing": [
     "Spinners"
    ],
    "targets": [
     {
-     "name": "Ramandeep Singh",
+     "name": "Mayank Rawat",
      "slot": "Middle-order batter",
-     "from": "KKR",
-     "rivals": 0.6,
-     "max": 5.7,
+     "from": "MI",
+     "rivals": 0.3,
+     "max": 0.9,
      "p_le": 88,
-     "gain": 0.96
+     "gain": 0.33
     },
     {
-     "name": "Rahul Tewatia",
+     "name": "Jake Fraser-McGurk",
+     "slot": "Opener",
+     "from": null,
+     "rivals": 9.0,
+     "max": 3.5,
+     "p_le": 27,
+     "gain": 0.69
+    },
+    {
+     "name": "Mitchell Santner",
      "slot": "Spinner",
-     "from": "GT",
-     "rivals": 0.7,
-     "max": 5.3,
-     "p_le": 88,
-     "gain": 0.89
+     "from": "MI",
+     "rivals": 13.8,
+     "max": 5.0,
+     "p_le": 20,
+     "gain": 0.98
     },
     {
-     "name": "David Miller",
-     "slot": "Middle-order batter",
-     "from": "DC",
-     "rivals": 0.5,
-     "max": 3.6,
-     "p_le": 100,
-     "gain": 0.61
+     "name": "Lhuan-dre Pretorius",
+     "slot": "Wicketkeeper",
+     "from": "RR",
+     "rivals": 10.8,
+     "max": 10.0,
+     "p_le": 43,
+     "gain": 0.4
     },
     {
-     "name": "Rovman Powell",
-     "slot": "Middle-order batter",
-     "from": "KKR",
-     "rivals": 0.5,
-     "max": 2.5,
-     "p_le": 84,
-     "gain": 0.42
-    },
-    {
-     "name": "Akeal Hosein",
-     "slot": "Spinner",
-     "from": "CSK",
-     "rivals": 5.8,
-     "max": 5.8,
-     "p_le": 50,
-     "gain": 0.97
+     "name": "Atharva Taide",
+     "slot": "Opener",
+     "from": null,
+     "rivals": 0.3,
+     "max": 0.9,
+     "p_le": 64,
+     "gain": 0.23
     }
    ],
    "chain": {
     "label": "Spinner",
     "steps": [
      {
-      "name": "Rahul Tewatia",
-      "max": 5.3
+      "name": "Mitchell Santner",
+      "max": 11.8
      },
      {
-      "name": "Akeal Hosein",
-      "max": 5.8
+      "name": "Wanindu Hasaranga",
+      "max": 11.3
      },
      {
-      "name": "Liam Livingstone",
-      "max": 5.8
+      "name": "Maheesh Theekshana",
+      "max": 11.3
      }
     ]
    }
@@ -778,7 +787,7 @@ window.MEDIA = {
    "role": "bowler",
    "type": "seam",
    "country": "India",
-   "price": 11.2,
+   "price": 13.4,
    "value": 23.2,
    "rank": 2,
    "rank_of": 109,
@@ -796,8 +805,8 @@ window.MEDIA = {
     "country": "India",
     "domestic": false,
     "sim": 57,
-    "price": 2.4,
-    "saving": 8.8,
+    "price": 4.8,
+    "saving": 8.7,
     "stale": null,
     "ipl_peer": true
    },
@@ -810,7 +819,7 @@ window.MEDIA = {
     "domestic": false,
     "sim": 82,
     "price": 2.2,
-    "saving": 9.1,
+    "saving": 11.2,
     "stale": null,
     "ipl_peer": false
    },
@@ -823,7 +832,7 @@ window.MEDIA = {
     "domestic": true,
     "sim": 78,
     "price": 0.3,
-    "saving": 10.9,
+    "saving": 13.1,
     "stale": "2024-12-15",
     "ipl_peer": false
    },
@@ -835,8 +844,8 @@ window.MEDIA = {
     "country": "South Africa",
     "domestic": false,
     "sim": 72,
-    "price": 5.1,
-    "saving": 6.1,
+    "price": 3.1,
+    "saving": 10.3,
     "stale": null,
     "ipl_peer": false
    },
@@ -848,8 +857,8 @@ window.MEDIA = {
     "country": "New Zealand",
     "domestic": false,
     "sim": 66,
-    "price": 3.6,
-    "saving": 7.6,
+    "price": 2.3,
+    "saving": 11.1,
     "stale": null,
     "ipl_peer": false
    },
@@ -861,8 +870,8 @@ window.MEDIA = {
     "country": "England",
     "domestic": false,
     "sim": 56,
-    "price": 1.4,
-    "saving": 9.8,
+    "price": 1.6,
+    "saving": 11.9,
     "stale": null,
     "ipl_peer": false
    },
@@ -874,8 +883,8 @@ window.MEDIA = {
     "country": "New Zealand",
     "domestic": false,
     "sim": 50,
-    "price": 4.1,
-    "saving": 7.1,
+    "price": 3.0,
+    "saving": 10.5,
     "stale": null,
     "ipl_peer": false
    }
@@ -967,19 +976,19 @@ window.MEDIA = {
    {
     "a": "Vaibhav Suryavanshi",
     "b": "Virat Kohli",
-    "p": 0.9998375482682289,
+    "p": 0.999837548578123,
     "verdict": "Vaibhav Suryavanshi dominant (100%)"
    },
    {
     "a": "Sai Sudharsan",
     "b": "Virat Kohli",
-    "p": 0.6342310403274423,
+    "p": 0.6342311942752195,
     "verdict": "Sai Sudharsan likely better (63%)"
    },
    {
     "a": "Shubman Gill",
     "b": "Virat Kohli",
-    "p": 0.7810624867005913,
+    "p": 0.7810625271282063,
     "verdict": "Shubman Gill clearly better (78%)"
    }
   ],

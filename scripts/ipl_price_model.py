@@ -402,6 +402,10 @@ def feature_fn(refresh_caps: bool = False):
             **_captaincy(cid, season),
             "age": age,
             "ipl_seasons": len({d[:4] for d in ipl}),
+            # his IPL matches in the two seasons before this auction (METHODOLOGY §6b: recent IPL
+            # evidence instead of a season count that learned "released")
+            "ipl_matches_2y": sum(1 for d in ipl if int(d[:4]) >= season - 2),
+            "bowling_category": rec.get("bowling_category"),
             "ipl_gap": _years(date, last) if last else None,
             "last_ipl": last,
             "prev_share": prev_share,
@@ -486,7 +490,12 @@ def _build_rows(features_in, hist: dict, apps: dict) -> tuple:
             for cid, ds in apps.items()
             if bisect.bisect_left(ds, date) > bisect.bisect_left(ds, lo)
         }
-        for cid in sorted((recent - kept) | bought):
+        # the risk set is everyone the window can see (an IPL match in the RISK_DAYS before the
+        # auction, not retained), bought or not. Until 2026-10-29 it was that set plus every buy, so a
+        # player more than two years out entered only by being bought: 100% of them "bought", and the
+        # fitted ipl_gap coefficient came out positive (+0.345). The model is applied with the gap
+        # capped at the window (`bought.gap_max`, pricing.market_price)
+        for cid in sorted(recent - kept):
             f = features_in(cid, season, date, vals, None)
             if f["ipl_gap"] is None:
                 continue  # newcomers: no unsold record exists for them
@@ -517,13 +526,13 @@ TRIED_FEATURES = ("mega_x_overseas", ERA)
 # priced value is held to (None = pricing.MARKET_PV_MAX; a number = winsorised at the largest value
 # of any training row: no extrapolation beyond the best player the market has priced).
 _FORM: dict = {"ceiling": True, "pv_max": None, "cal": "none+group-median-offset", "tail": 0.2,
-               "value": "best"}  # fmt: skip
+               "value": "best", "groups": None}  # fmt: skip
 
 
 def _form_of(spec: tuple) -> dict:
     return {
         "ceiling": True, "winsor": False, "cal": "none+group-median-offset", "tail": TAIL_SHARE,
-        "value": "best", **(spec[4] if len(spec) > 4 else {}),
+        "value": "best", "groups": None, **(spec[4] if len(spec) > 4 else {}),
     }  # fmt: skip
 
 
@@ -556,6 +565,7 @@ def _use_form(spec: tuple, train: list[dict] | None = None) -> None:
     _FORM["cal"] = form["cal"]
     _FORM["tail"] = form["tail"]
     _FORM["value"] = form["value"]
+    _FORM["groups"] = CAL_GROUP_SETS[form["groups"]] if form["groups"] else None
     _FORM["pv_max"] = _pv_support(train) if form["winsor"] and train else None
 
 
@@ -778,6 +788,28 @@ CAL_GROUPS_3 = [
     {"name": "capped_indian", "when": {"overseas": [0, 0], "caps": [1e-9, 1e9]}},
     {"name": "uncapped_indian", "when": {"overseas": [0, 0], "caps": [0, 0]}},
 ]
+# METHODOLOGY §6b (2026-10-30): capped Indians split by auction type too (in mini auctions the model
+# priced them a median 1.32x what they sold for, in mega auctions 0.90x)
+CAL_GROUPS_5 = [
+    CAL_GROUPS[0], CAL_GROUPS[1],
+    {"name": "capped_indian_mini", "when": {"overseas": [0, 0], "caps": [1e-9, 1e9], "mega": [0, 0]}},
+    CAL_GROUPS[2], CAL_GROUPS[3],
+]  # fmt: skip
+# METHODOLOGY §6b (2026-10-30): uncapped Indians split by auction type too (walking forward to the
+# 2026 mini auction the model priced them a mean ln error of -0.70 below what they sold for, n 26)
+CAL_GROUPS_6 = [
+    *CAL_GROUPS_5[:4],
+    {"name": "uncapped_indian_mini", "when": {"overseas": [0, 0], "caps": [0, 0], "mega": [0, 0]}},
+    CAL_GROUPS[3],
+]
+CAL_GROUP_SETS = {"capped_x_cycle": CAL_GROUPS_5, "indian_x_cycle": CAL_GROUPS_6}
+
+
+def _cal_groups() -> list[dict]:
+    """The calibration groups of the candidate being evaluated (`_use_form`)."""
+    return _FORM.get("groups") or CAL_GROUPS
+
+
 GROUP_KNOTS = 11
 CAL_KNOTS = 21
 TAIL_SHARE = (
@@ -1114,8 +1146,45 @@ def _calibration_for(
     part = _fit_calibration(mode, o[ok], y[ok], rows_ok, groups, cens=cens)
     # the spread of a lot around its calibrated prediction, out of fold (the scale of the held-out
     # log-likelihood; the shipped `resid_sd`)
-    part["resid_sd"] = float(np.std(y[ok] - _apply_cal(part, o[ok], rows_ok)))
+    cal_o = _apply_cal(part, o[ok], rows_ok)
+    part["resid_sd"] = float(np.std(y[ok] - cal_o))
+    # the upper quartile's spread (METHODOLOGY §6b): the 75th percentile of the same out-of-fold
+    # residuals as a linear function of the calibrated prediction, so it can widen toward the top
+    part["spread"] = _spread(cal_o, y[ok] - cal_o)
     return part
+
+
+def _spread(pred: np.ndarray, resid: np.ndarray) -> dict:
+    """{a, b}: the 75th percentile of `resid` as a + b × `pred` (linear quantile regression)."""
+    from sklearn.linear_model import QuantileRegressor
+
+    qr = QuantileRegressor(quantile=0.75, alpha=0.0, solver="highs").fit(pred.reshape(-1, 1), resid)
+    return {"a": round(float(qr.intercept_), 6), "b": round(float(qr.coef_[0]), 6)}
+
+
+# model-price bands (cr) for the upper quartile's coverage (tests/test_price_gates.py)
+COVERAGE_BANDS = (0.0, 1.0, 2.0, 4.0, 7.0, 12.0, math.inf)
+
+
+def _coverage(m, part: dict, test: list[dict], names: list[str]) -> list[dict]:
+    """Per model-price band: the held-out lots, and the share whose real price beat `high` (the
+    model's upper quartile, as pricing._upper computes it)."""
+    lin = m.predict(_matrix(test, names))
+    cal = _apply_cal(part, lin, test)
+    purse = np.array([r["purse"] for r in test])
+    floor = np.array([r.get("floor_cr", 0.3) for r in test])
+    price = np.maximum(floor, purse * np.exp(cal))
+    sp = part.get("spread")
+    hi = cal + np.maximum(0.0, sp["a"] + sp["b"] * cal) if sp else cal
+    high = np.maximum(floor, purse * np.exp(hi))
+    real = np.array([r["price_cr"] for r in test])
+    out = []
+    for lo, up in zip(COVERAGE_BANDS, COVERAGE_BANDS[1:], strict=False):
+        k = (price >= lo) & (price < up)
+        if k.any():
+            out.append({"band_cr": [lo, None if math.isinf(up) else up], "n": int(k.sum()),
+                        "above_high": round(float(np.mean(real[k] > high[k])), 3)})  # fmt: skip
+    return out
 
 
 def _recipe(
@@ -1183,6 +1252,14 @@ PRIOR_FEATURES = ["prior", "no_prior", "prior_years", "prior_x_years", "prior_re
 BRAND_FEATURES = ["brand", "no_brand"]
 _NO_CAP = [f for f in PRICE_FEATURES if f not in CAPTAIN_FEATURES]
 _NO_SQ = [f for f in PRICE_FEATURES if f != "pv_pos_sq"]
+# the 2026-10-30 structural recipe's features (BA): Z's, with ipl_seasons -> ipl_recent, never_ipl out,
+# seam in, recent caps saturating by nationality
+_STRUCT = [
+    f for f in _NO_SQ
+    if f not in ("ipl_seasons", "never_ipl", "recent_caps", "recent_caps_x_indian")
+] + ["ipl_recent", "pace", "pv_x_pace", "recent_sat_x_indian", "recent_sat_x_overseas"]  # fmt: skip
+_STRUCT_FORM = {"ceiling": False, "winsor": True, "cal": "hinge+group-median-offset",
+                "tail": 0.2, "value": "time_aware", "groups": "capped_x_cycle"}  # fmt: skip
 # name: (features, regression kind, mega-year retentions "exact" | "censored", mini-year retentions
 # censored too[, form: {"ceiling": the shipped clamp includes the IPL-evidence ceiling (default
 # True, as every recipe up to K was shipped), "winsor": the priced value held to its training
@@ -1279,6 +1356,44 @@ CANDIDATES: dict[str, tuple] = {
         _NO_SQ + ["pv_x_ipl_evidence", "pv_x_indian_no_recent"], "tobit", "censored", False,
         {"ceiling": False, "winsor": True, "cal": "isotonic-tail+group-median-offset",
          "value": "time_aware"}),
+    # declared 2026-10-30 (the six-way review's price findings, METHODOLOGY §6b), before any of
+    # their numbers: Z with the structural fixes s1 (recent IPL matches for the season count), s7
+    # (no never-played step), s2 (seam), s3 (saturating recent caps by nationality), s4 (the smooth
+    # hinge calibration) and s9 (capped Indians split by auction type); BB-BE take one piece out each
+    "BA Z + the structural fixes": (
+        _STRUCT, "tobit", "censored", False, _STRUCT_FORM),
+    "BB BA without captaincy": (
+        [f for f in _STRUCT if f not in CAPTAIN_FEATURES], "tobit", "censored", False, _STRUCT_FORM),
+    "BC BA with Z's isotonic calibration": (
+        _STRUCT, "tobit", "censored", False,
+        {**_STRUCT_FORM, "cal": "isotonic-tail+group-median-offset"}),
+    "BD BA without seam": (
+        [f for f in _STRUCT if f not in ("pace", "pv_x_pace")], "tobit", "censored", False,
+        _STRUCT_FORM),
+    "BE BA with Z's recent caps": (
+        [f for f in _STRUCT if not f.startswith("recent_sat")]
+        + ["recent_caps", "recent_caps_x_indian"], "tobit", "censored", False, _STRUCT_FORM),
+    # round 2, declared 2026-10-30 before any of its numbers (BD priced Gill 29.2 cr, past the 27 cr
+    # record, and Kishan 22.1 on a captaincy term fitted on 11 lots)
+    "BF BD without captaincy": (
+        [f for f in _STRUCT if f not in ("pace", "pv_x_pace") and f not in CAPTAIN_FEATURES],
+        "tobit", "censored", False, _STRUCT_FORM),
+    "BG BD with one pooled captaincy term": (
+        [f for f in _STRUCT if f not in ("pace", "pv_x_pace") and f not in CAPTAIN_FEATURES]
+        + ["captain_any"], "tobit", "censored", False, _STRUCT_FORM),
+    # round 3, declared 2026-10-30 before any of its numbers (BD-BG fitted no flattening at the top:
+    # the hinge slope came out 1.0 and stars ran past the 27 cr record): BD with the budget-limit link
+    "BH BD with the budget limit": (
+        [f for f in _STRUCT if f not in ("pace", "pv_x_pace")],
+        "tobit-sat", "censored", False, _STRUCT_FORM),
+    "BI BH without captaincy": (
+        [f for f in _STRUCT if f not in ("pace", "pv_x_pace") and f not in CAPTAIN_FEATURES],
+        "tobit-sat", "censored", False, _STRUCT_FORM),
+    # round 4, declared 2026-10-30 before any of its numbers (METHODOLOGY §6b): BH with uncapped
+    # Indians split by auction type, as round 1 split capped Indians
+    "BJ BH with uncapped Indians split by auction type": (
+        [f for f in _STRUCT if f not in ("pace", "pv_x_pace")],
+        "tobit-sat", "censored", False, {**_STRUCT_FORM, "groups": "indian_x_cycle"}),
 }  # fmt: skip
 # Candidates that won the selection but failed the reality gate (docs/METHODOLOGY.md §13: every model
 # change must pass it, and a check may not get worse): kept here with the reason, still evaluated and
@@ -1323,7 +1438,7 @@ def fit_price_part(
     y = np.array([r["y"] for r in rows])
     alpha = _choose_alpha(kind, rows, names)
     m = _fit_reg(kind, _matrix(rows, names), y, alpha, _cens(rows))
-    cal = _calibration_for(kind, rows, alpha, names, _FORM["cal"], CAL_GROUPS)
+    cal = _calibration_for(kind, rows, alpha, names, _FORM["cal"], _cal_groups())
     icpt, coef = _raw_coef(m, names)
     out = {"intercept": icpt, "coef": coef, "link": _link(m), **cal}
     if _FORM["pv_max"] is not None:
@@ -1347,7 +1462,7 @@ def _rows_for(price_rows: list[dict], ret_rows: list[dict], first: int, spec: tu
 
 
 def _evaluate_on(kind, names, train, test, mode=None, groups=None) -> dict:
-    m, part = _recipe(kind, train, names, mode or _FORM["cal"], groups or CAL_GROUPS)
+    m, part = _recipe(kind, train, names, mode or _FORM["cal"], groups or _cal_groups())
     return _scored(_recipe_pred(m, part, test, names), test)
 
 
@@ -1372,7 +1487,7 @@ def _heldout_loglik(kind, rows, names, last, first_held=2018, mode=None) -> dict
         if not lots and not rets:
             continue
         m, part = _recipe(
-            kind, [r for r in rows if r["season"] != s], names, mode or _FORM["cal"], CAL_GROUPS
+            kind, [r for r in rows if r["season"] != s], names, mode or _FORM["cal"], _cal_groups()
         )
         sd = part["resid_sd"]
         if lots:
@@ -1407,7 +1522,7 @@ def _loao_upto(kind, rows, names, last, mode=None) -> dict:
         if not te:
             continue
         m, part = _recipe(
-            kind, [r for r in rows if r["season"] != s], names, mode or _FORM["cal"], CAL_GROUPS
+            kind, [r for r in rows if r["season"] != s], names, mode or _FORM["cal"], _cal_groups()
         )
         preds.append(_recipe_pred(m, part, te, names))
         tests += te
@@ -1437,6 +1552,86 @@ def _brief(m: dict) -> dict:
     return out
 
 
+def _ref_label(letter: str) -> str:
+    """The recipe the chosen one is tested against: `letter`, else the shipped model's recipe, else
+    the first candidate."""
+    if letter:
+        return next(k for k in CANDIDATES if k.split()[0] == letter)
+    shipped = (
+        json.loads(MODEL_PATH.read_text(encoding="utf-8")).get("evaluation", {}).get("chosen")
+        if MODEL_PATH.exists()
+        else None
+    )
+    return shipped if shipped in CANDIDATES else next(iter(CANDIDATES))
+
+
+# real-price bands (cr) the test error is reported in (METHODOLOGY §6b)
+HONEST_BANDS = (0.0, 1.0, 3.0, 7.0, 12.0, math.inf)
+
+
+def _honest(test: list[dict], pred: np.ndarray) -> dict:
+    """The test error without the flattering lots (METHODOLOGY §6b): 25-34% of every auction's lots
+    sell at the base price and the prediction is clamped to that floor, so their error is near zero.
+    Reports the mean |ln error| over all lots, over the lots sold above their base price, and by
+    real-price band."""
+    real = np.array([r["price_cr"] for r in test])
+    err = np.abs(pred - np.log(real))
+    base = np.array(
+        [(r["base_share"] * r["purse"]) if r.get("base_share") else r["floor_cr"] for r in test]
+    )
+    above = real > base + 1e-6
+    out = {"n": len(test), "mae_ln": round(float(err.mean()), 4),
+           "at_base_price_share": round(float(1 - above.mean()), 3),
+           "above_base": {"n": int(above.sum()), "mae_ln": round(float(err[above].mean()), 4)},
+           "by_real_price_cr": []}  # fmt: skip
+    for lo, up in zip(HONEST_BANDS, HONEST_BANDS[1:], strict=False):
+        k = (real >= lo) & (real < up)
+        if k.any():
+            out["by_real_price_cr"].append(
+                {"band": [lo, None if math.isinf(up) else up], "n": int(k.sum()),
+                 "mae_ln": round(float(err[k].mean()), 4),
+                 "bias_ln": round(float((pred[k] - np.log(real[k])).mean()), 4)}
+            )  # fmt: skip
+    return out
+
+
+def _paired_bootstrap(a: tuple, b: tuple, la: str, lb: str, n_boot: int = 2000) -> dict:
+    """Mean |ln error| of recipe a minus recipe b on the same test lots, with a 95% interval from
+    resampling lots within each auction (2000 draws, seed 0)."""
+    (te, pa), (te_b, pb) = a, b
+    key = [(r["season"], r.get("cricsheet_id"), r["price_cr"]) for r in te]
+    pos = {
+        k: i
+        for i, k in enumerate((r["season"], r.get("cricsheet_id"), r["price_cr"]) for r in te_b)
+    }
+    idx = [(i, pos[k]) for i, k in enumerate(key) if k in pos]
+    y = np.log([te[i]["price_cr"] for i, _ in idx])
+    d = np.abs(pa[[i for i, _ in idx]] - y) - np.abs(pb[[j for _, j in idx]] - y)
+    seasons = np.array([te[i]["season"] for i, _ in idx])
+    rng = np.random.default_rng(0)
+    groups = [np.flatnonzero(seasons == s) for s in sorted(set(seasons))]
+    boots = [
+        np.concatenate([d[rng.choice(g, len(g))] for g in groups]).mean() for _ in range(n_boot)
+    ]
+    lo, hi = np.percentile(boots, [2.5, 97.5])
+    return {"a": la, "b": lb, "n": len(idx), "mae_a_minus_b": round(float(d.mean()), 4),
+            "ci95": [round(float(lo), 4), round(float(hi), 4)]}  # fmt: skip
+
+
+def _unscored_lots() -> dict:
+    """The test auctions' sold lots the error can't score (no Cricsheet id: no ball-by-ball record
+    to price), with what they sold for: the error above is on the matched lots only."""
+    hist = json.loads(HISTORY.read_text(encoding="utf-8"))
+    out = {}
+    for s in TEST_SEASONS:
+        sold = [r for r in hist["lots"] if r["season"] == s and r.get("sold") and r.get("price_cr")]
+        miss = [r for r in sold if not r.get("cricsheet_id")]
+        out[str(s)] = {"sold": len(sold), "unscored": len(miss),
+                       "unscored_cr": round(sum(r["price_cr"] for r in miss), 2),
+                       "top": sorted(((r["name"], r["price_cr"]) for r in miss), key=lambda x: -x[1])[:5]}  # fmt: skip
+    return out
+
+
 @app.command()
 def fit(
     first: int = typer.Option(
@@ -1447,6 +1642,11 @@ def fit(
     report: Path | None = typer.Option(None, "--report", help="Write the full evaluation here."),
     only: str = typer.Option(
         "", "--only", help="Comma-separated candidate letters to evaluate (default: all)."
+    ),
+    ref_letter: str = typer.Option(
+        "",
+        "--ref",
+        help="Candidate letter the chosen one is tested against (default: the shipped recipe).",
     ),
 ) -> None:
     """Choose the recipe on auctions up to 2024, score it once on 2025-26, refit on everything and
@@ -1505,21 +1705,33 @@ def fit(
 
     # ---- 2. the test, once: fitted <= 2024, scored on 2025 + 2026; and walking forward to 2026
     ev["test"] = {}
-    ref = next(iter(CANDIDATES))
+    ref = _ref_label(ref_letter)
+    errs: dict[str, tuple[list[dict], np.ndarray]] = {}
     for label in dict.fromkeys([chosen, ref]):
-        if label not in cands:
-            continue
-        spec = cands[label]
+        spec = CANDIDATES[label]
         rr = _rows_for(price_rows, ret_rows, first, spec)
         tr = [r for r in rr if r["season"] <= SELECT_LAST]
         te = [r for r in rr if r["season"] in TEST_SEASONS and not r.get("retained")]
         _use_form(spec, tr)
         t = _brief(_evaluate_on(spec[1], spec[0], tr, te))
+        m_e, part_e = _recipe(spec[1], tr, spec[0], _FORM["cal"], _cal_groups())
+        errs[label] = (te, _recipe_pred(m_e, part_e, te, spec[0]))
         tr26 = [r for r in rr if r["season"] < 2026]
         te26 = [r for r in rr if r["season"] == 2026 and not r.get("retained")]
         _use_form(spec, tr26)
         t["walk_forward_2026"] = _brief(_evaluate_on(spec[1], spec[0], tr26, te26))
         ev["test"][label] = t
+        if label == chosen:
+            _use_form(spec, tr)
+            m_t, part_t = _recipe(spec[1], tr, spec[0], _FORM["cal"], _cal_groups())
+            ev["coverage"] = _coverage(m_t, part_t, te, spec[0])
+    ev["test_honest"] = {
+        label: _honest(te_, pred_) for label, (te_, pred_) in errs.items()
+    }  # fmt: skip
+    if ref != chosen:
+        ev["test_honest"]["paired"] = _paired_bootstrap(errs[chosen], errs[ref], chosen, ref)
+    ev["test_honest"]["unscored"] = _unscored_lots()
+    logger.info(f"test, honest view: {json.dumps(ev['test_honest'])}")
 
     # ---- 3. P(bought): C by leave one auction out, features chosen the same way, tested once
     rtr = [r for r in risk_rows if r["season"] <= SELECT_LAST]
@@ -1546,7 +1758,7 @@ def fit(
     m_all = _fit_reg(kind, _matrix(rows, names), y_all, alpha_all, _cens(rows))
     # the calibration on the out-of-fold predictions; its resid_sd (a lot's spread around his
     # calibrated prediction, out of fold) sets `high`
-    cal_all = _calibration_for(kind, rows, alpha_all, names, _FORM["cal"], CAL_GROUPS)
+    cal_all = _calibration_for(kind, rows, alpha_all, names, _FORM["cal"], _cal_groups())
     icpt, coef = _raw_coef(m_all, names)
     lm_all = _fit_logit(
         _matrix(risk_rows, bnames), np.array([r["bought"] for r in risk_rows]), best_c
@@ -1572,7 +1784,7 @@ def fit(
             f"| bought) {kind} regression (alpha={alpha_all}, standardised features, refolded to raw "
             f"units; recipe '{chosen.split(maxsplit=1)[1]}', chosen by leave one auction out on "
             f"auctions <= {SELECT_LAST}); calibration {_FORM['cal']} on out-of-fold predictions "
-            "(groups: " + ", ".join(g["name"] for g in CAL_GROUPS) + ")"
+            "(groups: " + ", ".join(g["name"] for g in _cal_groups()) + ")"
         ),
         "trained_on": {
             "seasons": [seasons[0], seasons[-1]],
@@ -1605,8 +1817,9 @@ def fit(
             **cal_all,
             "calibration_mode": _FORM["cal"],
             "resid_sd": round(float(cal_all["resid_sd"]), 4),
+            "spread": cal_all.get("spread"),
         },
-        "bought": {"intercept": bi, "coef": bc},
+        "bought": {"intercept": bi, "coef": bc, "gap_max": round(RISK_DAYS / 365.25, 4)},
         "evaluation": {
             "protocol": ev["protocol"],
             "chosen": chosen,
@@ -1614,6 +1827,8 @@ def fit(
             "selection": ev["selection"],
             "test": ev["test"],
             "bought": ev["bought"],
+            # the upper quartile on the 2025-26 lots, fitted <= 2024 (tests/test_price_gates.py)
+            "coverage": ev.get("coverage"),
         },
     }  # fmt: skip
     out.write_text(json.dumps(model, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")

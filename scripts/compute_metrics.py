@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import duckdb
 import polars as pl
 import typer
 from loguru import logger
@@ -26,8 +27,10 @@ from cricdex.common.sql import is_window
 from cricdex.config import DATA_DIR
 from cricdex.metrics import batter as batter_metrics
 from cricdex.metrics import bowler as bowler_metrics
-from cricdex.metrics import bowler_wicket_quality
+from cricdex.metrics import bowler_wicket_quality, provenance, splits
 from cricdex.metrics import fielding as fielding_metrics
+
+DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -52,6 +55,10 @@ def _emit(df: pl.DataFrame, metric: str, collection: str, out_json: Path | None)
         for c, dt in df.schema.items()
     )
     df.write_json(str(out_path))
+    if out_json is None:
+        # what it was computed from, so the export can refuse it once the data or code moves on
+        with duckdb.connect(str(DB_PATH), read_only=True) as con:
+            provenance.write_stamp(out_path, provenance.fingerprint(con, collection, metric))
     logger.info(f"wrote {out_path}")
     return out_path
 
@@ -317,9 +324,45 @@ def all_cmd(
         collection,
         None,
     )
+    # the four context splits of 2026-10-29 (metrics/splits.py; each passed the split-half test that
+    # Pressure Conversion failed), with lower ball minimums for the short windows
     _emit(
-        bowler_metrics.pressure_conversion(collection=collection, top_n=top_n),
-        "pressure_conversion",
+        splits.dot_avoidance(
+            collection=collection,
+            top_n=top_n,
+            min_balls=_window_value(collection, {"last1y": 60, "last3y": 100}, 150),
+        ),
+        "dot_avoidance",
+        collection,
+        None,
+    )
+    _emit(
+        splits.pace_spin(
+            collection=collection,
+            top_n=top_n,
+            min_balls=_window_value(collection, {"last1y": 40, "last3y": 70}, 100),
+        ),
+        "pace_spin",
+        collection,
+        None,
+    )
+    _emit(
+        splits.finisher(
+            collection=collection,
+            top_n=top_n,
+            min_balls=_window_value(collection, {"last1y": 15, "last3y": 25}, 40),
+        ),
+        "finisher",
+        collection,
+        None,
+    )
+    _emit(
+        splits.hand_split(
+            collection=collection,
+            top_n=top_n,
+            min_balls=_window_value(collection, {"last1y": 36, "last3y": 60}, 90),
+        ),
+        "hand_split",
         collection,
         None,
     )

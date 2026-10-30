@@ -92,7 +92,7 @@ DEFAULT_DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 # Bump whenever the model or its inputs change: cached fits (e.g. the backtests') are keyed by it,
 # so a fit from an older model can never be reused by mistake.
 MODEL_VERSION = "2026.10-runs"
-VARIANTS = ("v2", "legacy")
+VARIANTS = ("v2", "v3", "legacy")
 
 # Wicket kinds credited to the bowler (exclude run out / retired /
 # obstructing — those don't test the batter-vs-bowler contest).
@@ -118,12 +118,51 @@ class Flags:
     nb_scale: bool = True
     slot_prior: bool = True
     extras: bool = True
+    # v3: a player's two skills share one prior (correlated): a batter's scoring with his survival,
+    # a bowler's economy with his strike, so evidence on one informs the other
+    corr_prior: bool = False
 
     @classmethod
     def of(cls, variant: str) -> Flags:
         if variant not in VARIANTS:
             raise ValueError(f"variant must be one of {VARIANTS}, got {variant!r}")
+        if variant == "v3":
+            return cls(corr_prior=True)
         return cls() if variant == "v2" else cls(False, False, False, False)
+
+
+def _is_international(collection: str) -> bool:
+    from cricdex import leagues
+
+    try:
+        return leagues.get(collection).kind == "international"
+    except KeyError:
+        return False
+
+
+def _player_nations(db_path: Path | str, collection: str, before: str | None) -> dict[str, str]:
+    """player id -> the side he played most matches for (an international collection's XI table,
+    `match_players_<col>`, before `before`); {} without the table."""
+    safe = table_suffix(collection)
+    from cricdex.common.sql import base_suffix
+
+    xi = f"match_players_{base_suffix(collection)}"
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        if xi not in _tables(con):
+            return {}
+        cond = f"AND m.match_date < '{date.fromisoformat(before).isoformat()}'" if before else ""
+        rows = con.execute(
+            f"""
+            SELECT identifier, team FROM (
+                SELECT x.identifier, x.team, COUNT(*) AS n,
+                       ROW_NUMBER() OVER (PARTITION BY x.identifier ORDER BY COUNT(*) DESC, x.team) AS rk
+                FROM {xi} x JOIN matches_{safe} m ON m.match_id = x.match_id
+                WHERE x.identifier IS NOT NULL {cond}
+                GROUP BY 1, 2
+            ) WHERE rk = 1
+            """
+        ).fetchall()
+    return dict(rows)
 
 
 def _slot_group(slot: float | None) -> int:
@@ -333,6 +372,28 @@ def _skill(site: str, plate: str, n: int, sigma, mean=None):
     return numpyro.deterministic(site, (0.0 if mean is None else mean) + sigma * raw)
 
 
+def _pair(sites: tuple[str, str], plate: str, n: int, sigmas: tuple, means: tuple, corr_site: str):
+    """Two hierarchical skills of the same players with a correlated prior, non-centred:
+    (a, b)_i = means_i + diag(sigmas) · L · z_i, z_i ~ N(0, I₂), L ~ LKJCholesky(2, η = 2) — the
+    same marginal priors as two `_skill`s, plus a correlation fitted from the data (recorded as
+    `corr_site`). Both are recorded under their usual site names."""
+    import numpyro
+    import numpyro.distributions as dist
+
+    chol = numpyro.sample(f"{corr_site}_chol", dist.LKJCholesky(2, concentration=2.0))
+    numpyro.deterministic(corr_site, chol[1, 0])  # the correlation (L[0,0] = 1)
+    with numpyro.plate(plate, n):
+        z = numpyro.sample(
+            f"{sites[0]}_{sites[1]}_raw", dist.Normal(0.0, 1.0).expand([2]).to_event(1)
+        )
+    eff = z @ chol.T  # [n, 2], each row ~ N(0, R)
+    out = []
+    for k in range(2):
+        m = 0.0 if means[k] is None else means[k]
+        out.append(numpyro.deterministic(sites[k], m + sigmas[k] * eff[:, k]))
+    return out
+
+
 def _levels(site: str, n: int, scale: float = 1.0):
     """`n` levels of a factor with the first as the reference (0) and N(0, scale) priors on the rest."""
     import jax.numpy as jnp
@@ -395,6 +456,9 @@ def _model(
     n_kgrp: int = 1,
     extras: dict | None = None,
     dismissal: bool = True,
+    bnat=None,
+    knat=None,
+    n_nat: int = 0,
 ):
     """The joint runs + dismissals (+ extras) model — see the module docstring."""
     import jax.numpy as jnp
@@ -403,6 +467,23 @@ def _model(
 
     flags = flags or Flags.of("legacy")
     use_ctx = flags.context and ctx is not None
+    nat: dict = {}
+
+    def _m(mu, grp, key: str):
+        """A skill's prior mean: its role group's mean, plus (international collections, `bnat` /
+        `knat` given) his nation's effect, hierarchical per skill: a nation that rarely meets
+        stronger sides is placed by the matches it does play against them, so its players aren't
+        centred on everyone else's mean (Uganda's bowlers above Bumrah)."""
+        base = mu[grp] if slots else None
+        idx = bnat if key in ("b", "s") else knat
+        if idx is None:
+            return base
+        if key not in nat:
+            tau = numpyro.sample(f"nat_{key}_tau", dist.HalfNormal(0.5))
+            nat[key] = _skill(f"nat_{key}", f"nations_{key}", n_nat, tau)
+        e = nat[key][idx]
+        return e if base is None else base + e
+
     slots = flags.slot_prior and bgrp is not None
 
     # --- scoring-rate sub-model ---
@@ -410,8 +491,25 @@ def _model(
     sigma_k = numpyro.sample("sigma_k", dist.HalfNormal(1.0))
     mu_b = _levels("mu_b", n_bgrp, 0.5) if slots else None
     mu_k = _levels("mu_k", n_kgrp, 0.5) if slots else None
-    b_skill = _skill("b_skill", "batters", n_batters, sigma_b, mu_b[bgrp] if slots else None)
-    k_skill = _skill("k_skill", "bowlers", n_bowlers, sigma_k, mu_k[kgrp] if slots else None)
+    corr = flags.corr_prior and dismissal
+    if corr:
+        # v3: each player's two skills drawn together (the dismissal sub-model's sigmas and group
+        # means first, so the pair can be)
+        sigma_surv = numpyro.sample("sigma_surv", dist.HalfNormal(1.0))
+        sigma_strike = numpyro.sample("sigma_strike", dist.HalfNormal(1.0))
+        mu_s = _levels("mu_surv", n_bgrp, 0.5) if slots else None
+        mu_t = _levels("mu_strike", n_kgrp, 0.5) if slots else None
+        b_skill, bat_survive = _pair(
+            ("b_skill", "bat_survive"), "batters", n_batters, (sigma_b, sigma_surv),
+            (_m(mu_b, bgrp, "b"), _m(mu_s, bgrp, "s")), "rho_bat",
+        )  # fmt: skip
+        k_skill, bowl_strike = _pair(
+            ("k_skill", "bowl_strike"), "bowlers", n_bowlers, (sigma_k, sigma_strike),
+            (_m(mu_k, kgrp, "k"), _m(mu_t, kgrp, "t")), "rho_bowl",
+        )  # fmt: skip
+    else:
+        b_skill = _skill("b_skill", "batters", n_batters, sigma_b, _m(mu_b, bgrp, "b"))
+        k_skill = _skill("k_skill", "bowlers", n_bowlers, sigma_k, _m(mu_k, kgrp, "k"))
     intercept = numpyro.sample("intercept", dist.Normal(0.0, 3.0))
     alpha = numpyro.sample("alpha", dist.HalfNormal(5.0))
     eta = intercept + b_skill[bi] - k_skill[ki]
@@ -425,16 +523,21 @@ def _model(
 
     if dismissal:
         # --- dismissal sub-model ---
-        sigma_surv = numpyro.sample("sigma_surv", dist.HalfNormal(1.0))
-        sigma_strike = numpyro.sample("sigma_strike", dist.HalfNormal(1.0))
-        mu_s = _levels("mu_surv", n_bgrp, 0.5) if slots else None
-        mu_t = _levels("mu_strike", n_kgrp, 0.5) if slots else None
-        bat_survive = _skill(
-            "bat_survive", "batters_surv", n_batters, sigma_surv, mu_s[bgrp] if slots else None
-        )
-        bowl_strike = _skill(
-            "bowl_strike", "bowlers_strike", n_bowlers, sigma_strike, mu_t[kgrp] if slots else None
-        )
+        if not corr:
+            sigma_surv = numpyro.sample("sigma_surv", dist.HalfNormal(1.0))
+            sigma_strike = numpyro.sample("sigma_strike", dist.HalfNormal(1.0))
+            mu_s = _levels("mu_surv", n_bgrp, 0.5) if slots else None
+            mu_t = _levels("mu_strike", n_kgrp, 0.5) if slots else None
+            bat_survive = _skill(
+                "bat_survive", "batters_surv", n_batters, sigma_surv, _m(mu_s, bgrp, "s")
+            )
+            bowl_strike = _skill(
+                "bowl_strike",
+                "bowlers_strike",
+                n_bowlers,
+                sigma_strike,
+                _m(mu_t, kgrp, "t"),
+            )
         # Baseline dismissal log-odds. Per-ball dismissal prob in T20 ~ 1/25,
         # so logit ≈ log(1/24) ≈ -3.2 — a Normal(-3, 2) prior covers it.
         w_intercept = numpyro.sample("w_intercept", dist.Normal(-3.0, 2.0))
@@ -504,6 +607,12 @@ _EXTRA_SITES = (
     "w_season_tau",
     "r_sigma_venue",
     "w_sigma_venue",
+    "rho_bat",
+    "rho_bowl",
+    "nat_b",
+    "nat_k",
+    "nat_s",
+    "nat_t",
 )
 
 
@@ -636,6 +745,7 @@ def fit(
     half_life: float | None = None,
     variant: str = "v2",
     return_fit: bool = False,
+    nation_prior: bool | None = None,
 ) -> Any:
     """Fit the model and return one row per (cricsheet_id, role) — with `return_fit`, the tuple
     `(table, FitResult, samples)`.
@@ -650,7 +760,11 @@ def fit(
     `sampler` ∈ {"advi", "nuts"}. ADVI is fast and approximate, NUTS
     is the calibrated full-Bayes run. Both run through NumPyro / JAX.
 
-    `variant` ∈ {"v2", "legacy"}: the context-adjusted model (default) or the earlier one.
+    `variant` ∈ {"v2", "v3", "legacy"}: the context-adjusted model (default), it with each player's
+    two skills under one correlated prior, or the earlier one.
+
+    `nation_prior`: each player's prior means shifted by his nation's (international collections:
+    None = on when the league's `kind` is "international").
 
     `dismissal_aware` (default True) fits the joint runs + dismissals
     model so each batter also gets a `survival_skill` (resistance to
@@ -694,6 +808,12 @@ def fit(
         if rates.get(k, 0.0) >= FRONTLINE_BALLS:
             kgrp[i] = 0
 
+    # an international collection: each player's nation (the side he played most for) shifts his
+    # prior means (`_model._m`); None = on for `kind = "international"` leagues
+    if nation_prior is None:
+        nation_prior = _is_international(collection)
+    nations = _player_nations(db_path, collection, before) if nation_prior else {}
+
     model_kwargs: dict[str, Any] = {
         "bi": jnp.asarray(edges["bi"].cast(pl.Int32).to_numpy()),
         "ki": jnp.asarray(edges["ki"].cast(pl.Int32).to_numpy()),
@@ -717,6 +837,20 @@ def fit(
             "n_phases": len(PHASES),
             "n_venues": len(venues),
         }
+    if nations:
+        nat_idx = {n: i for i, n in enumerate(sorted(set(nations.values())))}
+        unknown = len(nat_idx)  # a player with no team on record shares one level
+        bnat = np.array(
+            [nat_idx.get(nations.get(b), unknown) for b in sorted(batter_idx, key=batter_idx.get)]
+        )
+        knat = np.array(
+            [nat_idx.get(nations.get(k), unknown) for k in sorted(bowler_idx, key=bowler_idx.get)]
+        )
+        model_kwargs.update(
+            bnat=jnp.asarray(bnat, dtype=jnp.int32),
+            knat=jnp.asarray(knat, dtype=jnp.int32),
+            n_nat=unknown + 1,
+        )
     if flags.slot_prior:
         model_kwargs.update(
             bgrp=jnp.asarray(bgrp),

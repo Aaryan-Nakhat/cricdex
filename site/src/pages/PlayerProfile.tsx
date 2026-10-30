@@ -4,7 +4,7 @@ import { UserSearch, Activity, Target, Shield, Swords, Users2, Instagram, Twitte
 import { useStore } from "@/lib/store";
 import { usePlayers } from "@/lib/usePlayers";
 import { useAsync } from "@/lib/useAsync";
-import { getProfile, getCohorts, displayName, type Profile, type PlayerRow } from "@/lib/data";
+import { getProfile, getCohorts, getValueNow, displayName, type Profile, type PlayerRow, type ValueNow } from "@/lib/data";
 import { Combobox } from "@/components/Combobox";
 import { PageTitle, Card, CardHeader, Spinner, ErrorBox, Empty, Badge, StatTile, Segmented, InfoTip, StaleBadge } from "@/components/ui";
 import { MetricInfo } from "@/components/MetricInfo";
@@ -13,7 +13,7 @@ import { METRIC_BY_SLUG, fmtMetric } from "@/lib/metrics";
 import { BAT_STATS, BOWL_STATS, fmtStat, standardStats } from "@/lib/standard";
 import { useUrlState } from "@/lib/useUrlState";
 import { normCountry } from "@/lib/scout";
-import { cn, collectionLabel, fmt } from "@/lib/utils";
+import { cn, collectionLabel, fmt, fmtSigned } from "@/lib/utils";
 
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -88,7 +88,10 @@ const METRIC_CARDS: Record<string, [string, string, string, number]> = {
   dot_ball_recovery: ["Dot-Ball Recovery", "runs_per_6_after_dot", "runs / 6 balls after a dot", 1],
   counter_attack: ["Counter-Attack", "counter_attack_sr", "SR after a partner falls", 1],
   boundary_dependency: ["Boundary Dependency", "bdr_pct", "% of runs from boundaries", 1],
-  pressure_conversion: ["Pressure Conversion", "wicket_rate_pct", "pressure balls → wickets", 1],
+  dot_avoidance: ["Dot-Ball Avoidance", "dots_avoided_per100", "dots avoided per 100 balls vs average", 1],
+  pace_spin: ["Pace vs Spin", "spin_edge", "runs / 100 balls better v spin than pace", 1],
+  finisher: ["Finisher Index", "above_per100", "runs / 100 balls above avg, chase overs 17-20", 1],
+  hand_split: ["Left vs Right", "left_edge", "runs / 100 saved, left-handers v right", 1],
   wicket_quality: ["Wicket Quality", "wicket_quality", "avg skill of batters dismissed", 3],
   crease_longevity: ["Crease Longevity", "longevity_index", "balls per dismissal vs cohort", 2],
   slow_start_cost: ["Slow-Start Cost", "slow_start_cost", "career SR − first-20-ball SR", 1],
@@ -182,14 +185,49 @@ function SocialChip({ href, icon, label }: { href: string; icon: React.ReactNode
   );
 }
 
+/** A role's value badge: next season's value when known (the career rating and its balls beside it),
+ * else the career rating; a bowler's economy and wicket parts after it. */
+function RoleValue({
+  tone,
+  label,
+  now,
+  career,
+  balls,
+  parts,
+}: {
+  tone: "accent" | "willow";
+  label: string;
+  now?: [number, number];
+  career: number;
+  balls: number;
+  parts?: [number, number] | null;
+}) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <Badge tone={tone}>
+        {label} {fmt(now ? now[0] : career, 1)}
+        {now ? " next season" : ""}
+      </Badge>
+      <span className="text-xs text-muted">
+        {now ? `career ${fmt(career, 1)} · ` : ""}
+        {balls.toLocaleString()} balls
+        {parts ? ` · economy ${fmtSigned(parts[0], 1)}, wickets ${fmtSigned(parts[1], 1)}` : ""}
+      </span>
+    </span>
+  );
+}
+
 function Identity({
   profile,
   bat,
   bowl,
+  now,
 }: {
   profile: Profile;
   bat?: Record<string, number>;
   bowl?: Record<string, number>;
+  /** his value for the coming season per role (IPL profiles only) */
+  now?: ValueNow[string] | null;
 }) {
   const w = (profile.wikidata ?? {}) as Record<string, string | null>;
   // identity (the player-data pass) wins over the older taxonomy block; both are optional
@@ -282,8 +320,13 @@ function Identity({
             ) : (
               <Badge tone="ball">retired{profile.activity.last_match_date ? ` · last ${profile.activity.last_match_date.slice(0, 4)}` : ""}</Badge>
             ))}
-          {bat && <Badge tone="accent">batting value {fmt(bat.value, 1)}</Badge>}
-          {bowl && bowl.balls > 60 && <Badge tone="willow">bowling value {fmt(bowl.value, 1)}</Badge>}
+          {bat && (
+            <RoleValue tone="accent" label="batting value" now={now?.bat} career={bat.value} balls={bat.balls} />
+          )}
+          {bowl && bowl.balls > 60 && (
+            <RoleValue tone="willow" label="bowling value" now={now?.bowl} career={bowl.value} balls={bowl.balls}
+              parts={bowl.value_rate != null && bowl.value_wkts != null ? [bowl.value_rate, bowl.value_wkts] : null} />
+          )}
           {(bat || (bowl && bowl.balls > 60)) && (
             <InfoTip title="Batting / bowling value" label="What batting and bowling value mean">
               One number per role from the skill model, in runs per 100 balls above the league's average ball:
@@ -291,6 +334,22 @@ function Identity({
               Batting value is extra scoring plus the runs saved by not getting out, a wicket priced at what it
               costs where he bats (dear early, cheap at the death); bowling value is runs saved plus extra
               wickets at the same price.
+              {now && (
+                <>
+                  {" "}The headline is his value for the coming season: the career rating moved by how players of his
+                  age and kind change from season to season, his recent seasons weighed in, and pulled part of the way
+                  toward the average (about a quarter for batters, a fifth for bowlers, fitted on what players then did
+                  the next season). The career rating is beside it, with the balls it rests on.
+                </>
+              )}
+              {bowl?.value_rate != null && (
+                <>
+                  {" "}A bowler's value splits into economy (runs saved) and wickets (extra wickets at that price).
+                  Economy carries over from one season to the next; a wicket rate barely does (season-to-season
+                  IPL correlation about 0.1, against about 0.3 for economy), so a Purple Cap year says little about the
+                  next one.
+                </>
+              )}
             </InfoTip>
           )}
           <Badge>id {profile.cricsheet_id}</Badge>
@@ -391,6 +450,11 @@ export function PlayerProfile() {
     () => (cid && !switching ? getProfile(collection, cid) : Promise.resolve(null)),
     [collection, cid, switching],
   );
+  // next season's values live with the auction target (the IPL)
+  const { data: valueNow } = useAsync(
+    () => (collection === "ipl" ? getValueNow(collection) : Promise.resolve(null)),
+    [collection],
+  );
   const { data: cohorts } = useAsync(
     () => (cid && !switching ? getCohorts(collection, cid) : Promise.resolve(null)),
     [collection, cid, switching],
@@ -452,7 +516,7 @@ export function PlayerProfile() {
               {collectionLabel(collection)} data has stopped updating — every number on this page ends at that date.
             </div>
           )}
-          <Identity profile={profile} bat={bat} bowl={bowl} />
+          <Identity profile={profile} bat={bat} bowl={bowl} now={cid ? valueNow?.[cid] : null} />
 
           {/* career: totals or the standard scorecard stats, one click apart */}
           {career && <CareerBlock profile={profile} career={career} view={statView} setView={setStatView} />}

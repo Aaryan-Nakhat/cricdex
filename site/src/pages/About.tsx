@@ -82,14 +82,16 @@ const SECTIONS: Section[] = [
   },
   {
     icon: <Sigma className="h-5 w-5" />,
-    title: "Nine more metrics + fielding",
+    title: "Twelve more metrics + fielding",
     body: (
       <>
         Each metric isolates one skill that a scorecard hides — strike rate <em>specifically</em> when the
         required rate is climbing (Pressure Runs), how a batter responds to a dot (Dot-Ball Recovery),
-        whether a bowler converts built-up pressure into a wicket (Pressure Conversion), wickets weighted
-        by the calibre of the batter dismissed (Wicket Quality), and more. They’re all on the Leaderboards
-        page, each with a plain-English explainer.
+        wickets weighted by the calibre of the batter dismissed (Wicket Quality), strike rotation
+        (Dot-Ball Avoidance), scoring against spin and pace (Pace vs Spin), closing a chase (Finisher
+        Index), and more. The newest four passed a reliability test first: a player's odd and even
+        matches must rank players alike, which wicket-based candidates (and the old Pressure Conversion)
+        failed. They’re all on the Leaderboards page, each with a plain-English explainer.
       </>
     ),
   },
@@ -158,11 +160,13 @@ const SECTIONS: Section[] = [
         is <strong>what franchises actually do</strong>: the chance a franchise keeps a player like him, from a
         model fitted to every real retention deadline 2018–2026 (his market price against his cost, his
         three-season Form forecast, his ties to the side: captain, seasons there, home-grown; capped Indian or
-        overseas, age, IPL balls). Chosen on the deadlines up to 2024, it made the franchise's own call on the
-        2025–26 deadlines for 78% of players (82% of stars); those seasons have since been looked at up to five
-        times, so treat that as optimistic. Franchises hardly weigh the cost in a mini year, so a second column,{" "}
+        overseas, age, IPL balls, matches last season). Chosen on the deadlines up to 2024, it made the
+        franchise's own call at the 2026 deadline (a mini year, like 2027) for 71% of players: level with simply
+        keeping everyone (69%), ahead of the old price-against-salary rule (62%). Its gain is the chance itself
+        and finding who goes (61% of 2026's releases named); the 2027 calls were written to a dated file before
+        the deadline, the first clean test. Franchises hardly weigh the cost in a mini year, so a second column,{" "}
         <strong>Should they?</strong>, asks whether he is worth what keeping him costs at the auction's prices. His playing time (the chance he plays in this
-        squad × his runs a match) was tried as an input too and didn't improve the calls. Keep at 65%+, release under 35%, borderline in
+        squad × his runs a match) was tried as an input too and didn't improve the calls. Keep at 65%+, release under 35%, toss-up in
         between. Then the squad that follows: purse left after what the kept players cost, open slots, and the role gaps
         (keepers, openers, death bowlers, spinners, overseas) filled from the likely auction pool, free agents
         plus the players our calls release elsewhere. Squads and salaries come from Wikipedia's personnel pages
@@ -191,7 +195,7 @@ const SECTIONS: Section[] = [
         2022–2026: for batters the lowest error of every baseline at every horizon; for bowlers a tie with the
         rating; the chance of being a regular beats every baseline; about three in four seasons landed inside
         the 80% one-season range. Methodology §11 checks 15 stars against their last three seasons and explains
-        each disagreement (Kohli, at 38 after three big seasons, comes out at +5: players like him have
+        each disagreement (Kohli, 37 in the 2026 season and 38 by the 2027 one, comes out at +5 after three big seasons: players like him have
         averaged +6 the season after). Keep or release shows it as a "3-season outlook" column.
         The medians are <em>if he plays</em>; read them with the chance he does. Also on the CLI:{" "}
         <code>cricdex forecast "Kohli"</code>, <code>cricdex forecast --team RCB</code>.
@@ -211,15 +215,15 @@ const SECTIONS: Section[] = [
         times his chance of playing (an opener about
         21 a match, a No. 7 about 9, a frontline bowler about 23; the XI's balls held to a side's innings; at most 4
         overseas, a keeper, five bowling and six batting options), plus the bench filling the matches the XI misses
-        (each player's chance of not playing; no hand-set depth weight or need penalty). In every run you bid for a player up to his gain in strength ÷ λ, an exchange rate in runs per
-        crore chosen to give the best average squad. Each target gets a <strong>max bid</strong> (where his value per crore
-        drops below the next-best use of the purse), the odds of landing him under it, and a{" "}
+        (each player's chance of not playing; no hand-set depth weight or need penalty). In every run you bid for a player up to the price where what he adds equals what paying for him gives
+        up: the later lots his money and his squad place would have bought. Each target gets a <strong>max bid</strong> (that
+        price), the odds of landing him under it, and a{" "}
         <strong>fallback chain</strong> per role. The rivals bid by the Auction room's fitted demand model, and a team
         never buys back its own releases: a release worth more to the squad than his salary is flagged "reconsider
-        keeping". Replayed on the 2025 and 2026 auctions with only what was known beforehand, at the real team's spend,
-        the plan spends what real teams spend, but its squads were weaker than the real ones on what the players did
-        next season (ahead for 1 of 10 teams in 2025 and 0 of 10 in 2026, after those seasons had been looked at five
-        times), so it stays in beta, a starting sheet, not a forecast. Same optimiser on the CLI
+        keeping". Replayed with only what was known beforehand, it spends what real teams spend; its squads beat the
+        real ones on the next season for 7 of 10 teams at the 2024 auction (full purse), but only 2 of 10 in 2025 and
+        1 of 10 in 2026 at the real team's spend (seasons looked at many times while building it), so it stays a
+        draft, a starting sheet, not a forecast. Same optimiser on the CLI
         (<code>cricdex bidplan</code>), locked by a parity test.
       </>
     ),
@@ -239,10 +243,10 @@ const SECTIONS: Section[] = [
         test, predicting every ball of the next season, the current model beats the old one in every
         season.{" "}
         <strong>IPL newcomers</strong> (2014–26, rated only from other leagues): here the ratings are no
-        better than the players' own league-adjusted numbers from those leagues (batters 0.08 vs 0.10,
-        bowlers 0.22 vs 0.26, with all 13 other leagues). The only lean is for batters with the original
-        five leagues (0.11 vs 0.06), and re-drawing the ~100 newcomers 2,000 times it held in just 78% of
-        redraws; after correcting for running six tests at once none of the results is significant.
+        better than the players' own league-adjusted numbers from those leagues (all 13 other leagues,
+        with the fitted league translation: batters 0.12 vs 0.08, bowlers 0.25 vs 0.26). The batters'
+        lean held in just 70% of 2,000 re-draws of the ~100 newcomers, and after correcting for running
+        six tests at once none of the results is significant.
         Earlier versions of this page claimed an edge for newcomer batters; one came from an unfair
         baseline, the other from the old way of adding up the value, and neither survives. Both
         backtests are scripts in the repo, so you can re-run them.

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Gavel, Dices, Plane, Calculator, X, Users } from "lucide-react";
 import { useAsync } from "@/lib/useAsync";
-import { getAuctionPool, getRetentions, getActivityIndex, getLeagues } from "@/lib/data";
+import { getAuctionPool, getRetentions, getActivityIndex, getLeagues, getKeep } from "@/lib/data";
 import {
   buildPool,
   simulateAuction,
@@ -17,8 +17,8 @@ import {
   type AuctionMode,
 } from "@/lib/auction";
 import { PageTitle, Card, CardHeader, Spinner, Badge, Empty, InfoTip, Collapsible, ErrorBox, StaleBadge, StaleShareBadge } from "@/components/ui";
-import { STALE_REASON_MIN } from "@/lib/keep";
-import { cn, fmt, profilePath } from "@/lib/utils";
+import { STALE_REASON_MIN, miniInputs } from "@/lib/keep";
+import { cn, fmt, methodologyUrl, profilePath } from "@/lib/utils";
 import { leagueShort, translatedAt, type LeagueRegistry } from "@/lib/leagues";
 
 /** "BBL, SA20 & CPL" */
@@ -78,17 +78,16 @@ function AuctionMath() {
 
         <div>
           <div className="mb-2 text-xs font-bold uppercase tracking-wider text-accent">
-            Part 1 · Skill → crore price
+            Part 1 · Player → crore price
           </div>
           <div className="space-y-3">
-            <Step n={1} title="Amplify skill exponentially">
-              Skill is counted in runs per 100 balls above the league's average ball (avg 0, the
-              best regulars ~+20 to +25; a wicket is priced in runs where the player plays).
-              The price uses a cautious estimate, value − ½ × its uncertainty, so a short, hot record
-              ("promising but unproven") is priced below a proven one. Exponentiate and scale so the
-              spread matches real money — top players land in the 20s, the median ~1.2 cr. (This is the
-              older skill-only curve, the "on-field worth"; it still keeps its own 27 cr cap, rising with
-              IPL balls from 13.5 cr. The pool's price is the market model, which needs no cap.)
+            <Step n={1} title="Market price">
+              Each player's price is the <b>market model</b>, fitted to every real IPL auction since 2008:
+              what players like him went for, from his value (runs per 100 balls above the league's average
+              ball, a wicket priced in runs where he plays, moved to the coming season), his IPL record,
+              international caps, age, captaincy and, when the market priced him lately, his last price. It
+              gives a median and an upper quartile (a player the market prices above him one time in four).
+              The older skill-only curve survives only as the "on-field worth" column.
             </Step>
             <Step n={2} title="Playing time">
               Who ranks where: his <b>expected season value</b> = the chance he plays a match ×
@@ -99,15 +98,13 @@ function AuctionMath() {
               and one-season wonders out of the top, with no hand-set penalty.
             </Step>
             <Step n={3} title="Base price">
-              The opening tag, snapped to IPL bands (0.3 / 0.5 / 0.75 / 1 / 1.5 / 2 cr). Bidding pushes
-              the final price up from there.
+              The opening tag. A player picks his own from eight brackets (0.3 / 0.4 / 0.5 / 0.75 / 1 / 1.25 /
+              1.5 / 2 cr); until the official list is out it is <b>inferred</b> from his market price, using
+              the six brackets players actually pick (in 2024–26 one lot opened at 0.4 cr and four at 1.25
+              cr), and the official list replaces it once published. Most players sell at their base;
+              bidding pushes the rest up from there.
             </Step>
           </div>
-          <Code>{`"Player X", value +10 ± 3 runs per 100 balls:
-  priced value = 10 − 0.5 × 3 = 8.5
-  4.03 × e^(0.0743 × 8.5)     ≈ 7.6 cr   ← projected value
-  (− recency penalty if stale)
-  opening tag                 = 0.75 cr  ← base price`}</Code>
         </div>
 
         <div>
@@ -157,7 +154,7 @@ its max bid  = e^(level + its needs + the lot's heat + its own view)
   heat      : how hot he is on the day (shared by every team); own view: each team's taste`}</Code>
           <ul className="mt-2 space-y-1 text-sm text-muted">
             <li>• a team bids at most its purse less the minimum base price for each place it still needs to reach 18 (the IPL purse rule)</li>
-            <li>• the highest bid wins and pays one <b>ladder step above the second-highest</b> (5 lakh below 1 cr, 10 lakh to 2 cr, 20 lakh to 5 cr, 25 lakh above), or the base price when nobody else bids</li>
+            <li>• the highest bid wins and pays one <b>ladder step above the second-highest</b> (5 lakh below 1 cr, 10 lakh to 2 cr, 20 lakh above: the 2024 and 2026 auctions; 2025 used 25 lakh above 5 cr), or the base price when nobody else bids</li>
             <li>• unsold lots come back once in an accelerated round; a team still short of 18 buys the cheapest leftovers at base</li>
           </ul>
           <p className="mt-3 text-sm leading-relaxed text-muted">
@@ -168,9 +165,15 @@ its max bid  = e^(level + its needs + the lot's heat + its own view)
         </div>
 
         <p className="rounded-lg border border-willow/20 bg-willow/5 px-3 py-2 text-xs leading-relaxed text-muted">
-          <b className="text-willow">Honest caveat:</b> the bidding is fitted on real auctions and checked on
-          the 2025 and 2026 auctions it never saw (METHODOLOGY §7), but a lot's price still rests on the market
-          model, which can't see scouting, injury or brand: treat a price as a range, not a forecast.
+          <b className="text-willow">Honest caveat:</b> the bidding was chosen on the auctions up to 2024 and
+          scored on the 2025 and 2026 auctions it was not fitted on (
+          <a className="underline hover:text-fg" href={methodologyUrl("7-the-auction-room")} target="_blank" rel="noreferrer">
+            methodology §7
+          </a>
+          ); those two have been
+          looked at several times since, so the score is optimistic, and the shipped fit then uses every
+          auction 2019–2026. A lot's price still rests on the market model, which can't see scouting,
+          injury or brand: treat a price as a range, not a forecast.
         </p>
       </div>
     </Collapsible>
@@ -228,13 +231,19 @@ export function Auction() {
   // real 2025 retention ids + prices per team, and the slab rule they are charged by (retentions.json)
   const retIn = useMemo(() => retentionInputs(retentions.data), [retentions.data]);
   const { megaIds } = retIn;
+  // the next mini auction starts from Keep or release's default plan and real purses (keep.json)
+  const keepData = useAsync(() => getKeep("ipl").catch(() => null), []);
+  const mini = useMemo(
+    () => miniInputs(keepData.data, new Set(pool.map((p) => p.cricsheet_id))),
+    [keepData.data, pool],
+  );
 
   return (
     <>
       <PageTitle
         title="Auction room"
         icon={<Gavel className="h-6 w-6" />}
-        desc="Simulate the real IPL auction over ACTIVE players. Each franchise first RETAINS its core (Mega = ~5 keepers, the real 2025 lists; Mini = keep most of the squad) — editable below — then the ten teams bid for everyone else by a demand model fitted on real auctions (each team's squad, overseas places and purse at every lot), hundreds of times, so you see who lands each remaining star and how each squad shapes up."
+        desc="Simulate the real IPL auction over ACTIVE players. Each franchise first RETAINS its core (Mega = ~5 keepers, the real 2025 lists; Mini = Keep or release's default plan, each team at its real purse left) — editable below — then the ten teams bid for everyone else by a demand model fitted on real auctions (each team's squad, overseas places and purse at every lot), hundreds of times, so you see who lands each remaining star and how each squad shapes up."
       />
 
       {/* what is this for */}
@@ -258,7 +267,7 @@ export function Auction() {
       ) : pool.length === 0 ? (
         <Empty>No rated IPL pool available.</Empty>
       ) : (
-        <Simulate pool={pool} megaIds={megaIds} retIn={retIn} draftId={draftId} navigate={navigate} />
+        <Simulate pool={pool} megaIds={megaIds} retIn={retIn} mini={mini} draftId={draftId} navigate={navigate} />
       )}
     </>
   );
@@ -295,12 +304,14 @@ function Simulate({
   pool,
   megaIds,
   retIn,
+  mini,
   draftId,
   navigate,
 }: {
   pool: PoolPlayer[];
   megaIds: Record<string, string[]>;
   retIn: ReturnType<typeof retentionInputs>;
+  mini: ReturnType<typeof miniInputs>;
   draftId: string | null;
   navigate: (p: string) => void;
 }) {
@@ -347,19 +358,20 @@ function Simulate({
   // editable retentions per team — reset to the mode's default when mode/pool changes
   const [retentions, setRetentions] = useState<Record<string, string[]>>({});
   useEffect(() => {
-    const base = defaultRetentions(pool, teams, mode, megaIds);
+    const base = defaultRetentions(pool, teams, mode, megaIds, mini?.mini_ids ?? null);
     // Inject a Scout-drafted prospect as an extra retention for the chosen team.
     if (draftCid && pool.some((p) => p.cricsheet_id === draftCid)) {
       const cur = base[draftTeam] ?? [];
       if (!cur.includes(draftCid)) base[draftTeam] = [...cur, draftCid];
     }
     setRetentions(base);
-    // Mega = full 120cr purse (retentions drawn from it). Mini = the squad is
-    // already paid for; teams bid from a small leftover purse.
-    setPurse(mode === "mega" ? 120 : 30);
+    // Mega = the full 120 cr purse (retentions drawn from it). Mini = the next season's purse, each
+    // team's kept squad charged as on the Keep page (contracts; 2025 retentions by the slab rule), so
+    // its purse left is Keep or release's; 30 cr each only for an export without that data
+    setPurse(mode === "mega" ? 120 : (mini?.mini_rules.purse ?? 30));
     setResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pool, megaIds]);
+  }, [mode, pool, megaIds, mini]);
 
   // The drafted prospect moves between teams without wiping anyone's retention edits.
   useEffect(() => {
@@ -392,11 +404,12 @@ function Simulate({
   }, [pool, teams]);
   const byId = useMemo(() => new Map(pool.map((p) => [p.cricsheet_id, p])), [pool]);
 
-  // Mega: retention cost (real price or slab). Mini: carried over, free.
-  // what each team's retentions cost the purse: mega by the slab rule (retentionSpend), mini free
+  // what each team's retentions cost the purse (retentionSpend): mega by the real 2025 prices and the
+  // slab rule; mini by Keep or release's costs (contracts, the 2025 retentions by the slab rule)
   const { realPrices, retentionSlabs, slabHolders, fixedRetained } = retIn;
   const retOpts: SimOpts = {
     purse, squadSize, overseasCap, trials, mode, retentions, realPrices, retentionSlabs, slabHolders, fixedRetained,
+    miniSquad: mini?.mini_squad ?? null, miniFixed: mini?.mini_fixed ?? null, miniRules: mini?.mini_rules ?? null,
   };
   const retCosts = (team: string) =>
     retentionSpend(team, (retentions[team] ?? []).map((cid) => byId.get(cid)).filter((p): p is PoolPlayer => !!p), retOpts);

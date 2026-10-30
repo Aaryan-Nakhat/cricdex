@@ -46,6 +46,9 @@ data/rules/*
 !data/drs/
 data/drs/*
 !data/drs/scenarios.jsonl
+# Dated predictions, written before the event they call (scripts/keep_predictions.py): committed
+# so the commit date proves they came first.
+!data/predictions/
 # Curated player facts (role / country from the taxonomy, DOB / photo from Wikidata): small, slow to rebuild,
 # and needed by the refresh workflow — committed so a refresh on a fresh runner keeps them.
 !data/curated/

@@ -3,11 +3,10 @@ import { Link } from "react-router-dom";
 import { RefreshCw, ChevronDown, CircleDot, CalendarClock, Github, Sun, Moon, Monitor, Check } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useTheme, type ThemeChoice } from "@/lib/theme";
-import { collectionLabel, fmt, prettyDate } from "@/lib/utils";
+import { REPO_URL, collectionLabel, fmt, prettyDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { StaleBadge } from "./ui";
 
-const REPO_URL = "https://github.com/Aaryan-Nakhat/cricdex";
 
 /** League picker — a listbox you can drive with the keyboard (↑ ↓ Enter Esc). */
 function CollectionSelect() {

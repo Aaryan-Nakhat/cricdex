@@ -1,263 +1,259 @@
 {
  "schema": 1,
  "league": "ipl",
- "fitted": "2026-10-29",
- "method": "P(a franchise keeps him at the retention deadline) = logistic regression on web_parity/keep.py keep_features (L2, standardised, refolded to raw units), recipe 'L7 L4 + retained at the cycle's mega auction (C=0.03)', chosen by leave one deadline out on 2018-2024 (scripts/keep_backtest.py)",
+ "fitted": "2026-10-30",
+ "method": "P(a franchise keeps him at the retention deadline) = logistic regression on web_parity/keep.py keep_features (L2, standardised, refolded to raw units), recipe 'L8 L7 + played last season (C=0.1)', chosen by forward-chaining folds on 2020-2024 (scripts/keep_backtest.py)",
  "data": "the published retained lists of every deadline 2018-2026 (data/curated/ipl_auction_history.json, Wikipedia, CC BY-SA 4.0) against each franchise's squad before it",
- "intercept": 0.013345,
+ "intercept": -0.38549,
  "coef": {
-  "log_ratio": 0.113061,
-  "mega": -1.432757,
-  "mega_x_log_ratio": 0.991516,
-  "forecast": 0.4305,
-  "forecast_regular": 2.706307,
-  "no_forecast": -0.302918,
-  "captain_here": 0.25755,
-  "seasons_here": -0.104803,
-  "home_grown": 0.532505,
-  "capped_indian": 0.01336,
-  "overseas": -0.810316,
-  "age": -0.167452,
-  "age_over_33": 0.22891,
-  "ipl_balls": 0.181684,
-  "bought_prev": 0.056434,
-  "log_cost": 0.082569,
-  "mega_retained": 0.785011
+  "log_ratio": 0.121463,
+  "mega": -2.655141,
+  "mega_x_log_ratio": 0.346948,
+  "forecast": 0.716078,
+  "forecast_regular": 1.203296,
+  "no_forecast": -0.340742,
+  "captain_here": 0.149076,
+  "seasons_here": 0.041647,
+  "home_grown": 0.214102,
+  "capped_indian": 0.017758,
+  "overseas": -0.786644,
+  "age": -0.334437,
+  "age_over_33": 0.319938,
+  "ipl_balls": -0.030354,
+  "bought_prev": 0.056196,
+  "log_cost": -0.027585,
+  "mega_retained": 0.699424,
+  "played_last": 2.283504,
+  "none_last": 0.46431
  },
  "trained_on": [
   2018,
   2026
  ],
- "rows": 1449,
+ "rows": 1910,
  "evaluation": {
   "protocol": {
-   "selection": "leave one deadline out over 2018-2024 (each deadline predicted by the rule fitted on the others up to 2024); highest F1 for 'kept' on the pooled held-out calls wins, a tie going to the lower held-out log loss (logistic C chosen the same way)",
-   "test": "fitted on 2018-2024, scored once on 2025 (mega) + 2026 (mini)",
-   "label": "the published retained list; traded players and 2026's published retirements left out"
+   "declared": "2026-10-30, before any of its numbers (METHODOLOGY section 10, the 2026-10-30 refit)",
+   "selection": "forward-chaining: each deadline 2020-2024 predicted by the candidate fitted on the deadlines before it only; the lowest pooled held-out log loss wins (logistic C chosen the same way). Mega-auction caps limit the calls, never the chance (no forced zeros)",
+   "validation": "fitted on 2018-2024, scored once on 2025 (mega) and 2026 (mini), each against its own majority call and a constant rate; 95% intervals by resampling team-deadlines. Not an untouched test: earlier models were read on these deadlines",
+   "label": "the published retained list; traded players and retirements announced by the deadline left out"
   },
-  "chosen": "L7 L4 + retained at the cycle's mega auction (C=0.03)",
-  "test": {
-   "L7 L4 + retained at the cycle's mega auction": {
-    "all": {
-     "n": 484,
-     "kept": 203,
-     "called_keep": 182,
-     "precision": 0.769,
-     "recall": 0.69,
-     "f1": 0.727,
-     "release_precision": 0.791,
-     "release_recall": 0.851,
-     "balanced_accuracy": 0.77,
-     "accuracy": 0.783
+  "chosen": "L8 L7 + played last season (C=0.1)",
+  "calibration": {
+   "log_loss_raw": 0.4775,
+   "log_loss_platt": 0.6051,
+   "applied": false,
+   "platt": {},
+   "reliability_2020_2024": {
+    "mega": [
+     {
+      "band": "0.00-0.10",
+      "n": 153,
+      "mean_p": 0.017,
+      "kept": 0.052
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 17,
+      "mean_p": 0.143,
+      "kept": 0.176
+     },
+     {
+      "band": "0.20-0.35",
+      "n": 14,
+      "mean_p": 0.281,
+      "kept": 0.5
+     },
+     {
+      "band": "0.35-0.50",
+      "n": 7,
+      "mean_p": 0.406,
+      "kept": 0.286
+     },
+     {
+      "band": "0.50-0.65",
+      "n": 6,
+      "mean_p": 0.576,
+      "kept": 0.333
+     },
+     {
+      "band": "0.65-0.80",
+      "n": 4,
+      "mean_p": 0.735,
+      "kept": 0.25
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 3,
+      "mean_p": 0.861,
+      "kept": 0.667
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 4,
+      "mean_p": 0.939,
+      "kept": 0.5
+     }
+    ],
+    "mini": [
+     {
+      "band": "0.00-0.10",
+      "n": 1,
+      "mean_p": 0.055,
+      "kept": 1.0
+     },
+     {
+      "band": "0.10-0.20",
+      "n": 22,
+      "mean_p": 0.169,
+      "kept": 0.318
+     },
+     {
+      "band": "0.20-0.35",
+      "n": 114,
+      "mean_p": 0.282,
+      "kept": 0.368
+     },
+     {
+      "band": "0.35-0.50",
+      "n": 199,
+      "mean_p": 0.429,
+      "kept": 0.472
+     },
+     {
+      "band": "0.50-0.65",
+      "n": 161,
+      "mean_p": 0.568,
+      "kept": 0.578
+     },
+     {
+      "band": "0.65-0.80",
+      "n": 120,
+      "mean_p": 0.725,
+      "kept": 0.8
+     },
+     {
+      "band": "0.80-0.90",
+      "n": 121,
+      "mean_p": 0.852,
+      "kept": 0.917
+     },
+     {
+      "band": "0.90-1.00",
+      "n": 125,
+      "mean_p": 0.947,
+      "kept": 1.0
+     }
+    ]
+   }
+  },
+  "validation": {
+   "L8 L7 + played last season": {
+    "2025": {
+     "n": 252,
+     "kept_rate": 0.183,
+     "majority_call": "release everyone",
+     "accuracy": 0.841,
+     "majority_accuracy": 0.817,
+     "acc_minus_majority": {
+      "est": 0.024,
+      "ci95": [
+       -0.004,
+       0.055
+      ]
+     },
+     "log_loss": 0.3066,
+     "const_log_loss": 0.4939,
+     "ll_minus_const": {
+      "est": -0.1872,
+      "ci95": [
+       -0.2231,
+       -0.1494
+      ]
+     }
     },
-    "star": {
-     "n": 99,
-     "kept": 67,
-     "called_keep": 68,
-     "precision": 0.868,
-     "recall": 0.881,
-     "f1": 0.874,
-     "release_precision": 0.742,
-     "release_recall": 0.719,
-     "balanced_accuracy": 0.8,
-     "accuracy": 0.828
-    },
-    "regular": {
-     "n": 156,
-     "kept": 62,
-     "called_keep": 61,
-     "precision": 0.705,
-     "recall": 0.694,
-     "f1": 0.699,
-     "release_precision": 0.8,
-     "release_recall": 0.809,
-     "balanced_accuracy": 0.751,
-     "accuracy": 0.763
-    },
-    "depth": {
+    "2026": {
      "n": 229,
-     "kept": 74,
-     "called_keep": 53,
-     "precision": 0.717,
-     "recall": 0.514,
-     "f1": 0.598,
-     "release_precision": 0.795,
-     "release_recall": 0.903,
-     "balanced_accuracy": 0.708,
-     "accuracy": 0.777
-    },
-    "mega": {
-     "n": 254,
-     "kept": 46,
-     "called_keep": 21,
-     "precision": 0.762,
-     "recall": 0.348,
-     "f1": 0.478,
-     "release_precision": 0.871,
-     "release_recall": 0.976,
-     "balanced_accuracy": 0.662,
-     "accuracy": 0.862
-    },
-    "mini": {
-     "n": 230,
-     "kept": 157,
-     "called_keep": 161,
-     "precision": 0.77,
-     "recall": 0.79,
-     "f1": 0.78,
-     "release_precision": 0.522,
-     "release_recall": 0.493,
-     "balanced_accuracy": 0.641,
-     "accuracy": 0.696
-    },
-    "log_loss": 0.8643
+     "kept_rate": 0.686,
+     "majority_call": "keep everyone",
+     "accuracy": 0.707,
+     "majority_accuracy": 0.686,
+     "acc_minus_majority": {
+      "est": 0.022,
+      "ci95": [
+       -0.039,
+       0.091
+      ]
+     },
+     "log_loss": 0.5091,
+     "const_log_loss": 0.6253,
+     "ll_minus_const": {
+      "est": -0.1163,
+      "ci95": [
+       -0.1739,
+       -0.0644
+      ]
+     }
+    }
    },
    "C0 shipped rule (market vs cost, 0.5 cr / 15% margins, age 35)": {
-    "all": {
-     "n": 484,
-     "kept": 203,
-     "called_keep": 157,
-     "precision": 0.58,
-     "recall": 0.448,
-     "f1": 0.506,
-     "release_precision": 0.657,
-     "release_recall": 0.765,
-     "balanced_accuracy": 0.607,
-     "accuracy": 0.632
+    "2025": {
+     "n": 252,
+     "kept_rate": 0.183,
+     "majority_call": "release everyone",
+     "accuracy": 0.813,
+     "majority_accuracy": 0.817,
+     "acc_minus_majority": {
+      "est": -0.004,
+      "ci95": [
+       -0.049,
+       0.039
+      ]
+     }
     },
-    "star": {
-     "n": 99,
-     "kept": 67,
-     "called_keep": 11,
-     "precision": 0.636,
-     "recall": 0.104,
-     "f1": 0.179,
-     "release_precision": 0.318,
-     "release_recall": 0.875,
-     "balanced_accuracy": 0.49,
-     "accuracy": 0.354
-    },
-    "regular": {
-     "n": 156,
-     "kept": 62,
-     "called_keep": 40,
-     "precision": 0.45,
-     "recall": 0.29,
-     "f1": 0.353,
-     "release_precision": 0.621,
-     "release_recall": 0.766,
-     "balanced_accuracy": 0.528,
-     "accuracy": 0.577
-    },
-    "depth": {
+    "2026": {
      "n": 229,
-     "kept": 74,
-     "called_keep": 106,
-     "precision": 0.623,
-     "recall": 0.892,
-     "f1": 0.733,
-     "release_precision": 0.935,
-     "release_recall": 0.742,
-     "balanced_accuracy": 0.817,
-     "accuracy": 0.79
-    },
-    "mega": {
-     "n": 254,
-     "kept": 46,
-     "called_keep": 13,
-     "precision": 0.538,
-     "recall": 0.152,
-     "f1": 0.237,
-     "release_precision": 0.838,
-     "release_recall": 0.971,
-     "balanced_accuracy": 0.562,
-     "accuracy": 0.823
-    },
-    "mini": {
-     "n": 230,
-     "kept": 157,
-     "called_keep": 144,
-     "precision": 0.583,
-     "recall": 0.535,
-     "f1": 0.558,
-     "release_precision": 0.151,
-     "release_recall": 0.178,
-     "balanced_accuracy": 0.357,
-     "accuracy": 0.422
+     "kept_rate": 0.686,
+     "majority_call": "keep everyone",
+     "accuracy": 0.616,
+     "majority_accuracy": 0.686,
+     "acc_minus_majority": {
+      "est": -0.07,
+      "ci95": [
+       -0.103,
+       -0.039
+      ]
+     }
     }
    },
    "B0 keep everyone the rules allow": {
-    "all": {
-     "n": 484,
-     "kept": 203,
-     "called_keep": 290,
-     "precision": 0.631,
-     "recall": 0.901,
-     "f1": 0.742,
-     "release_precision": 0.897,
-     "release_recall": 0.619,
-     "balanced_accuracy": 0.76,
-     "accuracy": 0.738
+    "2025": {
+     "n": 252,
+     "kept_rate": 0.183,
+     "majority_call": "release everyone",
+     "accuracy": 0.786,
+     "majority_accuracy": 0.817,
+     "acc_minus_majority": {
+      "est": -0.032,
+      "ci95": [
+       -0.093,
+       0.024
+      ]
+     }
     },
-    "star": {
-     "n": 99,
-     "kept": 67,
-     "called_keep": 96,
-     "precision": 0.688,
-     "recall": 0.985,
-     "f1": 0.81,
-     "release_precision": 0.667,
-     "release_recall": 0.062,
-     "balanced_accuracy": 0.524,
-     "accuracy": 0.687
-    },
-    "regular": {
-     "n": 156,
-     "kept": 62,
-     "called_keep": 86,
-     "precision": 0.57,
-     "recall": 0.79,
-     "f1": 0.662,
-     "release_precision": 0.814,
-     "release_recall": 0.606,
-     "balanced_accuracy": 0.698,
-     "accuracy": 0.679
-    },
-    "depth": {
+    "2026": {
      "n": 229,
-     "kept": 74,
-     "called_keep": 108,
-     "precision": 0.63,
-     "recall": 0.919,
-     "f1": 0.747,
-     "release_precision": 0.95,
-     "release_recall": 0.742,
-     "balanced_accuracy": 0.83,
-     "accuracy": 0.799
-    },
-    "mega": {
-     "n": 254,
-     "kept": 46,
-     "called_keep": 60,
-     "precision": 0.433,
-     "recall": 0.565,
-     "f1": 0.491,
-     "release_precision": 0.897,
-     "release_recall": 0.837,
-     "balanced_accuracy": 0.701,
-     "accuracy": 0.787
-    },
-    "mini": {
-     "n": 230,
-     "kept": 157,
-     "called_keep": 230,
-     "precision": 0.683,
-     "recall": 1.0,
-     "f1": 0.811,
-     "release_precision": 0.0,
-     "release_recall": 0.0,
-     "balanced_accuracy": 0.5,
-     "accuracy": 0.683
+     "kept_rate": 0.686,
+     "majority_call": "keep everyone",
+     "accuracy": 0.686,
+     "majority_accuracy": 0.686,
+     "acc_minus_majority": {
+      "est": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ]
+     }
     }
    }
   }

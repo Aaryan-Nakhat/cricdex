@@ -144,12 +144,12 @@
       <div style="margin-top:14px" id="h-krows"></div>
     </div>
     <div class="card" style="left:1020px;top:236px;width:484px;height:290px;padding:24px 28px" data-in="2.6,0.6,up">
-      <h3>Tested on the 2025 and 2026 deadlines</h3>
+      <h3>Checked on the 2025 and 2026 deadlines</h3>
       <div style="display:flex;gap:30px;margin-top:20px" id="h-kacc"></div>
       <div class="muted" style="font:600 15px/1.45 Inter;margin-top:14px" data-in="3.4,0.5,fade" id="h-kold"></div>
     </div>
     <div class="card" style="left:1020px;top:546px;width:484px;height:264px;padding:24px 28px;border-color:rgba(180,120,6,.45)" data-in="3.8,0.6,up">
-      <div style="display:flex;align-items:center;gap:10px"><h3>Then: Bid plan</h3><span class="tag ta" data-in="4.2,0.4,pop">BETA</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><h3>Then: Bid plan</h3><span class="tag ta" data-in="4.2,0.4,pop">DRAFT</span></div>
       <div style="font:700 19px/1.4 Inter;margin-top:14px">A max bid per target, the odds of landing him under it, and a fallback per role.</div>
       <div class="muted" style="font:600 15px/1.45 Inter;margin-top:12px" data-in="4.6,0.5,fade" id="h-bp"></div>
     </div>
@@ -166,12 +166,13 @@
         fill("h-krows", rows.map((p, i) => `<div style="display:grid;grid-template-columns:1fr 96px 96px 200px 52px 118px;gap:14px;align-items:center;height:53px;border-top:1px solid var(--line2);font:700 18px Inter" data-in="${(0.7 + 0.12 * i).toFixed(2)},0.4,left">`
           + `<span>${esc(p.name)}${p.overseas ? " ✈" : ""}</span><span class="num muted"><span class="faint">cost</span> ${fx(p.cost)}</span><span class="num"><span class="faint">mkt</span> ${p.price == null ? "—" : fx(p.price)}</span>`
           + `<div class="bar"><i data-in="${(0.9 + 0.12 * i).toFixed(2)},0.7,grow" data-to="${p.p_keep}" style="background:${col[p.rec]}"></i></div><span class="num">${p.p_keep}%</span>`
-          + `<span class="tag ${tag[p.rec]}" style="justify-self:end" data-in="${(1.4 + 0.12 * i).toFixed(2)},0.35,pop">${p.rec.toUpperCase()}</span></div>`).join(""));
-        fill("h-kacc", `<div><div class="big ok" data-in="2.9,1.0,count" data-to="${T.all}" data-suf="%"></div><div class="muted" style="font:600 15px Inter;margin-top:8px">of players: the franchise's own call</div></div>`
-          + `<div><div class="big ok" data-in="3.0,1.0,count" data-to="${T.star}" data-suf="%"></div><div class="muted" style="font:600 15px Inter;margin-top:8px">of stars</div></div>`);
-        fill("h-kold", `The old price-against-salary rule: ${T.old_all}% / ${T.old_star}%.`);
+          + `<span class="tag ${tag[p.rec]}" style="justify-self:end" data-in="${(1.4 + 0.12 * i).toFixed(2)},0.35,pop">${p.rec === "borderline" ? "TOSS-UP" : p.rec.toUpperCase()}</span></div>`).join(""));
+        const t26 = T["2026"], t25 = T["2025"];
+        fill("h-kacc", `<div><div class="big ok" data-in="2.9,1.0,count" data-to="${t26.accuracy}" data-suf="%"></div><div class="muted" style="font:600 15px Inter;margin-top:8px">the franchise's own call, 2026 (a mini year)</div></div>`
+          + `<div><div class="big" data-in="3.0,1.0,count" data-to="${t26.majority}" data-suf="%"></div><div class="muted" style="font:600 15px Inter;margin-top:8px">${esc(t26.majority_call)}</div></div>`);
+        fill("h-kold", `2025 (mega): ${t25.accuracy}% against ${t25.majority}% for ${esc(t25.majority_call)}. Level on calls; the gain is the chance and finding who goes.`);
         const r = BP.replay;
-        fill("h-bp", `Replayed on real auctions: ahead of the real squad for ${r.mega.ahead} of ${r.mega.teams} teams (2025 mega), ${r.mini.ahead} of ${r.mini.teams} (2026 mini). Not clearly ahead, so still beta.`);
+        fill("h-bp", `Replayed on real auctions: ahead of the real squad for ${r.check.ahead} of ${r.check.teams} teams in 2024 (full purse), ${r.mega.ahead} of ${r.mega.teams} in 2025 and ${r.mini.ahead} of ${r.mini.teams} in 2026 (real spend). Not clearly ahead, so still a draft.`);
       })();
     </script>
   </section>

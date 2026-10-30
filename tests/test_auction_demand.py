@@ -37,7 +37,8 @@ def test_ladder():
     assert auction.ladder_next(0.98) == 1.0
     assert auction.ladder_next(1.0) == 1.1
     assert auction.ladder_next(4.9) == 5.0
-    assert auction.ladder_next(26.6) == 26.75
+    assert auction.ladder_next(26.6) == 26.8  # 20 lakh above 5 cr (the 2024 and 2026 auctions)
+    assert auction.ladder_next(14.0) == 14.2  # Veer and Kartik Sharma, 2026
 
 
 def test_lots_scale_with_open_places():

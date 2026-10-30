@@ -6,6 +6,7 @@ import { getLeaderboard } from "@/lib/data";
 import { usePlayers } from "@/lib/usePlayers";
 import { METRIC_BY_SLUG, fmtMetric, primaryCol } from "@/lib/metrics";
 import { MetricInfo } from "@/components/MetricInfo";
+import { defaultMinMatches } from "@/lib/filters";
 import { NAV, NAV_GROUPS } from "@/lib/nav";
 import { Card, StatTile, Badge } from "@/components/ui";
 import { AUTHOR, AUTHOR_URL, cn, collectionLabel, fmt, prettyDate } from "@/lib/utils";
@@ -18,13 +19,21 @@ const DEADLINE_LABEL = new Date(`${DEADLINE}T00:00:00`).toLocaleDateString("en-G
 export function Overview() {
   const daysLeft = Math.ceil((new Date(`${DEADLINE}T23:59:59`).getTime() - Date.now()) / 86400000);
   const { meta, collection, collections, setCollection } = useStore();
-  const ngi = useAsync(() => getLeaderboard(collection, "ngi").catch(() => []), [collection]);
+  // "right now" = the last three seasons' board (its own match counts), all-time only for a league
+  // exported without that window
+  const recent = (meta?.windows ?? []).includes("last3y");
+  const ngi = useAsync(
+    () => getLeaderboard(collection, "ngi", recent ? "last3y" : "all").catch(() => []),
+    [collection, recent],
+  );
   const { nameOf } = usePlayers(collection);
   const ngiDef = METRIC_BY_SLUG.ngi;
   const ngiCol = primaryCol(ngiDef);
-  // the biggest match-winners among active regulars: win chance added per match, 25+ matches
+  // the biggest match-winners among active regulars: win chance added per match, at least the board's
+  // default min-matches (20 all-time; 40% of the most anyone played in the last three seasons)
+  const minM = defaultMinMatches((ngi.data ?? []) as Record<string, unknown>[]);
   const winners = (ngi.data ?? [])
-    .filter((r) => Number(r.matches ?? 0) >= 25 && (r as Record<string, unknown>).active !== false && Number.isFinite(Number(r.ngi_per_match)))
+    .filter((r) => Number(r.matches ?? 0) >= minM && (r as Record<string, unknown>).active !== false && Number.isFinite(Number(r.ngi_per_match)))
     .sort((a, b) => Number(b.ngi_per_match) - Number(a.ngi_per_match))
     .slice(0, 5);
 
@@ -102,8 +111,9 @@ export function Overview() {
             <MetricInfo m={ngiDef} />
           </div>
           <p className="mb-3 text-xs text-muted">
-            Win chance added per match — active players with 25+ matches. +5% means he adds five percentage points to
-            his side's chance of winning in a typical game.
+            Win chance added per match {recent ? "over the last three seasons" : "over their careers"} — active
+            players with {minM}+ matches in that time. +5% means he adds five percentage points to his side's
+            chance of winning in a typical game.
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
             {winners.map((r, i) => (

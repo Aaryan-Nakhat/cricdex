@@ -5,6 +5,12 @@ import { leagueLabel } from "./leagues";
 /** The site's byline (sidebar, home page). */
 export const AUTHOR = "Aaryan Nakhat";
 export const AUTHOR_URL = "https://github.com/Aaryan-Nakhat";
+export const REPO_URL = "https://github.com/Aaryan-Nakhat/cricdex";
+
+/** A link to a section of docs/METHODOLOGY.md on GitHub (`anchor` = GitHub's heading slug). */
+export function methodologyUrl(anchor: string): string {
+  return `${REPO_URL}/blob/main/docs/METHODOLOGY.md#${anchor}`;
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

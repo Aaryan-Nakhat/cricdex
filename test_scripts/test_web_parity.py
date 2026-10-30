@@ -280,10 +280,35 @@ def test_web_parity():
         retention_spend("KKR", sp[:3], slab_opts),
         retention_spend("XYZ", sp, {**slab_opts, "retention_slabs": None}),
         retention_spend("KKR", sp, {**slab_opts, "mode": "mini"}),
+        # a mini auction charged as Keep or release does (contracts, the 2025 holders by the slab
+        # rule, a kept player outside the pool, a player from outside the squads at his price)
+        retention_spend(
+            "KKR",
+            sp + [{"cricsheet_id": "z", "projected_value": 2.5}],
+            {
+                **slab_opts,
+                "mode": "mini",
+                "mini_squad": {
+                    "a": {"salary": 13, "slab_holder": "capped"},
+                    "b": {"salary": 12, "slab_holder": "capped"},
+                    "c": {"salary": 3, "slab_holder": None},
+                    "d": {"salary": 0.3, "slab_holder": None},
+                    "e": {"salary": 4, "slab_holder": "uncapped"},
+                },
+                "mini_fixed": {"KKR": [{"salary": 1.5, "slab_holder": None}]},
+                "mini_rules": {
+                    "retained_cost": "slabs",
+                    "retention_slabs": [18, 14, 11, 18, 14],
+                    "uncapped_retention_slab": 4,
+                },
+            },
+        ),
     ]
     _approx_eq([{"total": t, "each": e} for t, e in py_slab], js["slabSpend"], "slabSpend")
     # KKR's real 2025 charge: 18 + 14 + 11 + 18 + 4 + 4 = 69 cr, not the 57 cr of salaries
     assert py_slab[0][0] == 69
+    # mini: holders max(18 + 14 + 4, 29) = 36, plus 3 + 0.3 + 1.5 (outside the pool) + 2.5 (drafted)
+    assert py_slab[4][0] == 43.3
 
     # 5) the cautious price (value − PRICE_CAUTION_SD × value_sd) under the IPL-evidence ceiling,
     # on fixed inputs (value on the IPL scale, role, value_sd, target-league balls)

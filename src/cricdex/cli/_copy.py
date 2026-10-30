@@ -53,10 +53,21 @@ METRIC_HINTS: dict[str, str] = {
         "Share of runs from 4s + 6s. High = boundary-reliant; low = strike-rotator. "
         "A style, not a level — neither is better."
     ),
-    "pressure_conversion": (
-        "Wicket rate on the next ball after a 4+ consecutive dot streak "
-        "in the same over (bowler metric). Higher = turns pressure into "
-        "dismissals."
+    "dot_avoidance": (
+        "Dots avoided per 100 balls against the average batter in the same phase (strike "
+        "rotation), shrunk toward the league by sample. Higher = fewer dot balls."
+    ),
+    "pace_spin": (
+        "Runs per 100 balls above the league against spin minus against pace (each in the same "
+        "phase, shrunk). Positive = relatively better against spin."
+    ),
+    "finisher": (
+        "Runs per 100 balls above the league in overs 17-20 of a chase, shrunk toward the league, "
+        "with not-out %."
+    ),
+    "hand_split": (
+        "Runs saved per 100 balls against left-handers minus against right-handers (bowler metric, "
+        "shrunk; the weakest signal of the boards). Positive = relatively better against lefties."
     ),
     "intent_curve": (
         "Early SR (balls 1-10) — who comes out firing — with the full "
@@ -150,7 +161,7 @@ KEEP_INTRO = (
     "franchises actually do: the chance a franchise keeps a player like him, from a model fitted to "
     "every real retention deadline 2018-2026 (market price vs cost, the 3-season Form forecast, "
     "captain / seasons there / home-grown, capped Indian, overseas, age, IPL balls). Keep at 65%+, "
-    "release under 35%, borderline in between (kept by default from 50%). Then the purse left "
+    "release under 35%, toss-up in between (kept by default from 50%). Then the purse left "
     "after what the kept players cost, the role gaps and the cheapest free agents who fill them."
 )
 

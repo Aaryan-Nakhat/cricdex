@@ -198,9 +198,16 @@ export interface RetentionData {
 }
 export const getRetentions = (c: string) => getJSON<RetentionData>(`${c}/retentions.json`);
 
+/** Each rated player's value for the coming season per role, [value, sd] (the auction target only:
+ * `<c>/value_now.json`; missing elsewhere and in older exports). */
+export type ValueNow = Record<string, { bat?: [number, number]; bowl?: [number, number] }>;
+export const getValueNow = (c: string) => getJSON<ValueNow>(`${c}/value_now.json`).catch(() => null);
+
 export interface AuctionPoolRow {
   cricsheet_id: string;
   name: string;
+  /** an open eligibility question for the auction's season (ipl_availability.json "unconfirmed") */
+  eligibility?: string | null;
   display_name?: string | null;
   aliases?: string[] | null;
   capped?: boolean | null;
@@ -214,6 +221,12 @@ export interface AuctionPoolRow {
   /** sd of that value (sources blended by precision, translation uncertainty included); the
    * on-field price uses value − PRICE_CAUTION_SD × value_sd. Absent in older exports (= 0). */
   value_sd?: number | null;
+  /** his value for the coming season (the headline): each role moved from the career level by the
+   * time-aware model and shrunk by the season-ahead calibration, his better role now (METHODOLOGY
+   * §4b / §4c). `value` is the career rating. Absent in older exports. */
+  value_now?: number | null;
+  value_now_sd?: number | null;
+  value_now_role?: "batter" | "bowler" | null;
   /** IPL balls in the role priced: sets the price ceiling (priceCeiling). Absent → 0. */
   target_balls?: number | null;
   role: "batter" | "bowler" | "all_rounder" | "keeper";

@@ -1510,6 +1510,8 @@ def ship(next_auction: str = typer.Option("2026-12-16", "--before")) -> None:
                   "balls bowled per match / 100); scripts/playing_time_fit.py, "
                   "docs/METHODOLOGY.md section 6c",
         "balls_per_innings": round(T, 3),
+        # how the usual batting position is read (METHODOLOGY §12 (B15); pt.POSITIONS)
+        "position": pt.POSITION,
         "league_matches": pt.LEAGUE_MATCHES,
         "balls": {k: v.to_json() for k, v in bm.items()},
         "balls_chosen": chosen_balls,

@@ -13,13 +13,14 @@ taxonomy (role, bowling type, batting slot, country).
 ## Shipped
 
 **Data and identity**
-- Cricsheet ingest → DuckDB for eight men's collections (IPL, BBL, SA20, CPL, T20 Blast, SMAT, men's T20Is,
-  recently played), with all-time, last-3-years and last-year windows.
+- Cricsheet ingest → DuckDB for sixteen men's collections: fourteen leagues (IPL, SMAT, BBL, SA20, CPL, T20
+  Blast, PSL, ILT20, The Hundred, MLC, BPL, LPL, Super Smash, CSA T20 Challenge), men's T20Is and recently
+  played, with all-time, last-3-years, last-year and league-era windows (the IPL's Impact Player era).
 - One Cricsheet id per player from each match's registry, with the People Register (18,651 players, 99.8%
   linked to ESPNcricinfo) as fallback and ~7,500 name variants for search.
 - Merged venue names: one `"<ground>, <city>"` per ground, renamed grounds under their current name, old
   spellings kept as aliases.
-- Indian domestic T20 (Syed Mushtaq Ali Trophy) via Cricsheet's state-team archives: 689 matches.
+- Indian domestic T20 (Syed Mushtaq Ali Trophy) via Cricsheet's state-team archives: 695 matches (to Dec 2024).
 - Wikidata enrichment: date of birth, photo and socials for 331 of 342 cached players.
 - AI-classified taxonomy for 2,525 players (an LLM via LiteLLM, any provider set in `.env`).
 
@@ -27,8 +28,10 @@ taxonomy (role, bowling type, batting slot, country).
 - **Net Game Impact (NGI)**: a calibrated XGBoost win-probability model, ΔWP per ball credited to batter
   and bowler.
 - Nine context metrics: Pressure Runs, Intent Curve, Dot-Ball Recovery, Counter-Attack, Boundary
-  Dependency, Pressure Conversion, Wicket Quality, Crease Longevity, Slow-Start Cost.
-- Wicketkeeping and Fielding boards: twelve leaderboards in all, each in three time windows.
+  Dependency, Wicket Quality, Crease Longevity, Slow-Start Cost, and (2026-10-29, each through a split-half
+  reliability test) Dot-Ball Avoidance, Pace vs Spin, Finisher Index, Left vs Right. Pressure Conversion
+  failed that test and was retired.
+- Wicketkeeping and Fielding boards: fifteen leaderboards in all, each in four time windows.
 - Dismissal-aware Bayesian ratings (NumPyro / JAX): scoring, survival, economy and strike skills with
   uncertainty, ADVI by default and NUTS available; checked against NUTS on the IPL.
 - Ratings backtests: established IPL players and IPL newcomers rated from other leagues
@@ -37,7 +40,7 @@ taxonomy (role, bowling type, batting slot, country).
 - Style twins (per-role ball-by-ball style axes against par, robust z, same role and bowling type; METHODOLOGY §5a) and co-faced cohorts on every profile.
 
 **Rooms and pages**
-- **Scout**: cross-league look-alikes across IPL, SMAT, BBL, SA20, CPL and T20 Blast, with estimated price,
+- **Scout**: cross-league look-alikes across every auction-pool league (fourteen), with estimated price,
   saving versus the pick, a gem flag, role and batting-slot filters, and one-click draft into the auction.
 - **Auction room**: real-rules IPL auction Monte-Carlo with a cross-league pool ranked by expected season
   value (P(plays) × contribution per match, METHODOLOGY §6c),
@@ -227,7 +230,7 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   keep`, the site page): salaries for all 274 squad players (`scripts/ipl_squad_salaries.py`, 2027 trades
   and retirements applied), the cycle's rules as data in `config/competitions.toml` (each rule sourced or
   marked assumed; the 2027 purse isn't published, 125 cr assumed), price vs salary → Keep / Release /
-  Borderline with a reason, purse left, role gaps filled from free agents plus other teams' release calls,
+  Toss-up with a reason, purse left, role gaps filled from free agents plus other teams' release calls,
   web ⇄ Python parity (METHODOLOGY §10). Open: the 22 squad players with no ball-by-ball can't be rated;
   four teams' salaries don't reproduce their published 2026 purses (CSK 2.0, DC 3.45, KKR 6.0, RR 4.0 cr).*
 - [ ] 8. "True" strike rate and economy (S–M): runs against the same-match, same-phase baseline, on boards

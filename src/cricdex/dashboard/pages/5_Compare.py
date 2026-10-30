@@ -121,6 +121,20 @@ ROWS: list[tuple[str, str, object, int, str]] = [
         2,
         "high",
     ),
+    (
+        "Metrics",
+        "Dots avoided / 100",
+        lambda p: _num(_g(p, "metrics", "dot_avoidance", "dots_avoided_per100")),
+        1,
+        "high",
+    ),
+    (
+        "Metrics",
+        "Finisher / 100",
+        lambda p: _num(_g(p, "metrics", "finisher", "above_per100")),
+        1,
+        "high",
+    ),
 ]
 GROUPS = ["Bayesian skill", "Career", "Metrics"]
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from cricdex.common.filters import Filters, apply_filters
+from cricdex.common.filters import Filters, apply_filters, default_min_matches
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
@@ -52,3 +52,12 @@ def test_filters_parity():
         assert py_ids == dump["survivors"][name], (
             f"case {name}: {py_ids} != {dump['survivors'][name]}"
         )
+
+
+def test_default_min_matches_parity():
+    dump = _node_dump()
+    for name, rows in dump["depths"].items():
+        assert default_min_matches(rows) == dump["minDefaults"][name], name
+    # a one-season board (17 at most) defaults to 7, not an empty 20
+    assert dump["minDefaults"]["season"] == 7
+    assert dump["minDefaults"]["fixture"] == 20

@@ -4,7 +4,7 @@
 // (src/cricdex/common/filters.py) must reproduce this — test_scripts/
 // test_filters_parity.py runs this and diffs. Run via:
 //   node --no-warnings --experimental-strip-types scripts/filters_parity_dump.ts
-import { applyFilters, type Filters } from "../src/lib/filters.ts";
+import { applyFilters, defaultMinMatches, type Filters } from "../src/lib/filters.ts";
 
 // A small, hand-built fixture exercising every gate. `id` is just a label.
 const fixture: Record<string, unknown>[] = [
@@ -39,4 +39,14 @@ for (const [name, f] of Object.entries(cases)) {
   out[name] = applyFilters(fixture, f).map((r) => String(r.id));
 }
 
-process.stdout.write(JSON.stringify({ fixture, cases, survivors: out }));
+// default min-matches on boards of different depth (all-time vs a one-season window)
+const depths: Record<string, Record<string, unknown>[]> = {
+  fixture,
+  season: [{ matches: 17 }, { matches: 9 }, { matches: 3 }],
+  short: [{ matches: 2 }],
+  none: [],
+};
+const minDefaults: Record<string, number> = {};
+for (const [name, rows] of Object.entries(depths)) minDefaults[name] = defaultMinMatches(rows);
+
+process.stdout.write(JSON.stringify({ fixture, cases, survivors: out, depths, minDefaults }));

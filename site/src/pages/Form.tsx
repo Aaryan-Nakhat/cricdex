@@ -9,7 +9,7 @@ import { usePlayers } from "@/lib/usePlayers";
 import { MetricInfo } from "@/components/MetricInfo";
 import { DataTable, type Col } from "@/components/DataTable";
 import { FilterBar } from "@/components/FilterBar";
-import { applyFilters, smartFilters, DEFAULT_FILTERS } from "@/lib/filters";
+import { applyFilters, smartFilters, defaultFiltersFor } from "@/lib/filters";
 import { useUrlFilters, useUrlState } from "@/lib/useUrlState";
 import { PageTitle, Card, Spinner, ErrorBox, Empty, Badge, StatTile, Segmented } from "@/components/ui";
 import { cn, fmtSigned } from "@/lib/utils";
@@ -34,8 +34,6 @@ export function Form() {
     valid: FORM_METRICS.map((m) => m.slug),
     replace: false,
   });
-  // same defaults as the leaderboards: established, active players
-  const [filters, setFilters] = useUrlFilters(DEFAULT_FILTERS);
   const metric = METRIC_BY_SLUG[slug];
   const pcol = primaryCol(metric);
   const valueKey = pcol.key;
@@ -54,6 +52,9 @@ export function Form() {
     () => (recentWin ? getLeaderboard(collection, slug, recentWin) : Promise.resolve([])),
     [collection, slug, recentWin],
   );
+  // same defaults as the leaderboards: established, active players, the min-matches sized to the window
+  const defaults = useMemo(() => defaultFiltersFor((recent.data ?? []) as Row[]), [recent.data]);
+  const [filters, setFilters] = useUrlFilters(defaults);
 
   // only the filters / options that can apply to this metric's board
   const smart = useMemo(
@@ -160,7 +161,7 @@ export function Form() {
       <FilterBar
         filters={filters}
         onChange={setFilters}
-        defaults={DEFAULT_FILTERS}
+        defaults={defaults}
         smart={smart}
         count={rows.length}
       />

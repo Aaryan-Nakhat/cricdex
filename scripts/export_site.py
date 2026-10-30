@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import gc
 import json
+import math
 import os
 import re
 import shutil
@@ -62,6 +63,7 @@ from cricdex.common.sql import (
 )
 from cricdex.config import CURATED_DIR, DATA_DIR
 from cricdex.config import SITE_DATA as _DEFAULT_SITE_DATA
+from cricdex.metrics import provenance
 from cricdex.scout import forecast, playing_time, translation
 from cricdex.scout.identity import captains, countries, pageviews
 from cricdex.scout.identity import master as player_master
@@ -170,7 +172,10 @@ METRIC_SLUGS = [
     "dot_ball_recovery",
     "counter_attack",
     "boundary_dependency",
-    "pressure_conversion",
+    "dot_avoidance",
+    "pace_spin",
+    "finisher",
+    "hand_split",
     "wicket_quality",
     "crease_longevity",
     "slow_start_cost",
@@ -603,6 +608,17 @@ def _price_inputs(con: duckdb.DuckDBPyConnection, ref_date: str | None, season: 
         ).fetchall():
             hist[cid] = (int(n), str(last)[:10])
     ref = _dt.date.fromisoformat(ref_date) if ref_date else None
+    # his IPL matches in the two seasons before the auction (ipl_price_model counts the same:
+    # match years >= season - 2, before the auction date)
+    recent_m: dict[str, int] = {}
+    if f"match_players_{t}" in have and season and ref:
+        for cid, n in con.execute(
+            f"SELECT p.identifier, COUNT(DISTINCT m.match_id) FROM match_players_{t} p "
+            f"JOIN matches_{t} m USING (match_id) WHERE p.identifier IS NOT NULL "
+            f"AND YEAR(CAST(m.match_date AS DATE)) >= ? AND CAST(m.match_date AS DATE) < ? GROUP BY 1",
+            [season - 2, ref],
+        ).fetchall():
+            recent_m[cid] = int(n)
     ref_s = ref.isoformat() if ref else "9999-12-31"
     lo_s = (ref - _dt.timedelta(days=730)).isoformat() if ref else "0000-01-01"
     # his Wikipedia article, for the brand (pageviews.views_asof; the price fit reads the same)
@@ -626,6 +642,7 @@ def _price_inputs(con: duckdb.DuckDBPyConnection, ref_date: str | None, season: 
             "intl_caps_2y": n_caps - _bisect.bisect_left(ds, lo_s),
             "ipl_balls": balls.get(cid or "", 0),
             "ipl_seasons": h[0] if h else 0,
+            "ipl_matches_2y": recent_m.get(cid or "", 0),
             "ipl_gap": gap,
             "wiki_views": _round_views(pageviews.views_asof(wiki.get(cid or ""), views_date)),
         }
@@ -907,6 +924,7 @@ def _export_auction_pool(
     # player master's team (else the latest season's)
     contract: dict[str, str] | None = None
     unavail: dict[str, str] = {}
+    elig: dict[str, str] = {}
     if comp is not None:
         from cricdex import competitions as _comps
 
@@ -918,6 +936,8 @@ def _export_auction_pool(
         }
         # announced retirements and auction opt-outs (data/curated/ipl_availability.json)
         unavail = _comps.unavailable(comp.season, AUCTION_TARGET)
+        # kept in the pool but flagged: an open eligibility question (no ruling yet)
+        elig = _comps.eligibility_notes(comp.season, AUCTION_TARGET)
     activity: dict[str, dict] = {}
     out = []
     extra_rows: dict[str, dict] = {}
@@ -954,7 +974,7 @@ def _export_auction_pool(
                 "last_ipl": li,
                 "last_any": ld,
                 "home_league": home,
-                "age": round(age, 1) if age is not None else None,
+                "age": _age_down(age),
                 # the chance he plays a match (P(plays), METHODOLOGY §6c; replaced ipl_relevance)
                 "p_play": (pt_rows.get(cid) or {}).get("p_play"),
             }
@@ -968,6 +988,10 @@ def _export_auction_pool(
             "value": round(b["value"], 4),
             # its uncertainty: the price uses value − PRICE_CAUTION_SD × value_sd
             "value_sd": round(b["value_sd"], 4),
+            # his value for the coming season (the headline since 2026-10-30): each role moved from
+            # the career level by the time-aware model and shrunk by the season-ahead calibration
+            # (METHODOLOGY §4b / §4c), his better role now; `value` stays the career rating beside it
+            **_now_of(per_role.get(cid)),
             # IPL balls in the role priced: the price ceiling rises with them
             "target_balls": int(b["target_balls"]),
             # the market price's inputs (web_parity/pricing.market_features): his value as the
@@ -992,6 +1016,7 @@ def _export_auction_pool(
             "bowling_style": tax.get("bowling_style"),
             "country": country,
             "is_overseas": bool(country) and country != "IND",
+            "eligibility": elig.get(cid),
             # the set he comes up in: capped for the coming season under the IPL's rule (an Indian
             # with no international in the five calendar years before it is uncapped again,
             # competitions.ipl_capped; any international cap when there is no competition)
@@ -1010,7 +1035,7 @@ def _export_auction_pool(
             "last_match_date": ld,
             "last_ipl": li,
             "home_league": home,
-            "age": round(age, 1) if age is not None else None,
+            "age": _age_down(age),
         }
         if pooled:
             out.append(row)
@@ -1032,6 +1057,18 @@ def _export_auction_pool(
     keep_fa = max(AUCTION_POOL_CAP - n_squad, 0)
     out = [p for p in out if p.get("team") or (keep_fa := keep_fa - 1) >= 0]
     _write(out_dir / "auction_pool.json", out)
+    # the same value for the coming season per role, for every rated player in the pool leagues (the
+    # profile shows it next to the career rating)
+    _write(
+        out_dir / "value_now.json",
+        {
+            cid: {
+                "bat" if r == "batter" else "bowl": [round(v, 2), round(sd, 2)]
+                for r, (v, sd) in rs.items()
+            }
+            for cid, rs in sorted(per_role.items())
+        },
+    )
     _write(out_dir / "activity_index.json", dict(sorted(activity.items())))
     return len(out), extra_rows
 
@@ -1111,6 +1148,15 @@ def _scout_time_shifts(col, bat, bowl, sds, taxonomy, db_path) -> dict[tuple[str
         vals, shares, comp, None, _dob_by_cid(taxonomy), taxonomy, db_path
     )
     return {(cid, "bat" if r == "batter" else "bowl"): sh for (cid, r), (sh, _sd) in info.items()}
+
+
+def _now_of(roles: dict[str, tuple[float, float]] | None) -> dict:
+    """A pool row's value for the coming season: his better role's (value, sd) after the
+    time-aware move and the season-ahead shrink, and which role."""
+    if not roles:
+        return {"value_now": None, "value_now_sd": None, "value_now_role": None}
+    role, (v, sd) = max(roles.items(), key=lambda kv: kv[1][0])
+    return {"value_now": round(v, 4), "value_now_sd": round(sd, 4), "value_now_role": role}
 
 
 def _shift_of(info: dict, cid: str, role: str) -> float | None:
@@ -1261,8 +1307,8 @@ def _stale_evidence(
 
 # the per-player market-price inputs `_price_inputs` adds to pool, squad and Scout rows
 PRICE_INPUT_KEYS = (
-    "intl_caps", "intl_caps_2y", "ipl_balls", "ipl_seasons", "ipl_gap",
-    "prior_share", "prior_years", "prior_retained", "wiki_views",
+    "intl_caps", "intl_caps_2y", "ipl_balls", "ipl_seasons", "ipl_gap", "ipl_matches_2y",
+    "prior_share", "prior_years", "prior_retained", "wiki_views", "bowling_category",
 )  # fmt: skip
 # captaincy known before the next auction (scout/identity/captains.as_of): market-price inputs, and
 # `captain_teams` (the IPL sides he led last season) for the "Captain" badge
@@ -1270,12 +1316,14 @@ CAPTAIN_KEYS = ("captain_ipl_last", "captain_ipl_seasons", "captain_intl_2y", "c
 
 # ---- Keep or release (retention calculator) -----------------------------------------------------
 
-# A death bowler bowls at least this share of his legal balls in the death overs (16-20), with at
-# least KEEP_DEATH_MIN_BALLS of them, across every auction-pool league (the IPL's average share is
-# about 18%; a specialist bowls one or two of his four overs at the death), over the recent window
-# (player_master.RECENT_YEARS before the pool's newest match): a career count kept tagging bowlers
-# who no longer bowl at the death, or barely bowl at all after an injury.
-KEEP_DEATH_SHARE = 0.25
+# A death bowler bowls in the death overs (16-20) in at least this share of the matches he bowls in,
+# with at least KEEP_DEATH_MIN_BALLS death balls, across every auction-pool league, over the recent
+# window (player_master.RECENT_YEARS before the pool's newest match): a career count kept tagging
+# bowlers who no longer bowl at the death, or barely bowl at all after an injury. "Most of his
+# matches" is what a franchise means by one. Until 2026-10-29 the rule was 25% of his balls, which a
+# new-ball quick who also closes the innings misses (IPL 2023-26: Hazlewood 24% of his balls at the
+# death but in 76% of his matches, Siraj 21% / 72%, Starc 21% / 67%), so CSK read "no death bowler".
+KEEP_DEATH_MATCH_SHARE = 0.5
 KEEP_DEATH_MIN_BALLS = 60
 # A spinner tag needs him to still bowl: at least this many overs a match over his recent T20
 # matches (the player master's part-time line), once he has this many of them.
@@ -1292,25 +1340,28 @@ def _keep_death_bowlers(con: duckdb.DuckDBPyConnection) -> set[str]:
         default=None,
     )  # fmt: skip
     since = player_master.recent_since(newest)
+    # cid -> [death balls, matches bowled in, matches with a death ball]
     death: dict[str, list[int]] = {}
     for col in cols:
         materialize_keyed(con, col)
         kb = keyed_balls(con, col)
-        for cid, d, n in con.execute(
+        for cid, d, m, md in con.execute(
             f"""
-            SELECT bowler, COUNT(*) FILTER (WHERE phase = 'death'), COUNT(*) FROM {kb}
+            SELECT bowler, COUNT(*) FILTER (WHERE phase = 'death'), COUNT(DISTINCT match_id),
+                   COUNT(DISTINCT CASE WHEN phase = 'death' THEN match_id END) FROM {kb}
             WHERE COALESCE(extras_type, '') NOT IN ('wides', 'noballs') AND {MAIN_INNINGS}
               AND bowler IS NOT NULL AND match_date >= '{since}'
             GROUP BY 1
             """
         ).fetchall():
-            a = death.setdefault(cid, [0, 0])
+            a = death.setdefault(cid, [0, 0, 0])
             a[0] += int(d or 0)
-            a[1] += int(n or 0)
+            a[1] += int(m or 0)
+            a[2] += int(md or 0)
     return {
         cid
-        for cid, (d, n) in death.items()
-        if n and d >= KEEP_DEATH_MIN_BALLS and d / n >= KEEP_DEATH_SHARE
+        for cid, (d, m, md) in death.items()
+        if m and d >= KEEP_DEATH_MIN_BALLS and md / m >= KEEP_DEATH_MATCH_SHARE
     }
 
 
@@ -1343,6 +1394,36 @@ def _keep_tags(
     if overseas:
         t += "x"
     return t
+
+
+def _season_appearances(con: duckdb.DuckDBPyConnection, col: str, season: int) -> dict[str, int]:
+    """player id -> his matches in the XI in `season` (Cricsheet info.players); {} without the table."""
+    safe = _safe(col)
+    if f"match_players_{safe}" not in {r[0] for r in con.execute("SHOW TABLES").fetchall()}:
+        return {}
+    rows = con.execute(
+        f"""
+        SELECT x.identifier, COUNT(DISTINCT x.match_id) FROM match_players_{safe} x
+        JOIN matches_{safe} m ON m.match_id = x.match_id
+        WHERE x.identifier IS NOT NULL AND EXTRACT(YEAR FROM m.match_date::DATE) = {int(season)}
+        GROUP BY 1
+        """
+    ).fetchall()
+    return {k: int(n) for k, n in rows}
+
+
+def _absence_note(rec: dict | None, withdrawn, matches: int | None, season: int) -> str | None:
+    """Why a squad player was missing last season, for the page and the report: the sourced reason
+    when there is one, else what the data say (replaced during the season; no match in it)."""
+    if rec and rec.get("reason"):
+        return str(rec["reason"])
+    if isinstance(withdrawn, str):
+        return withdrawn
+    if withdrawn:
+        return f"Replaced during the {season} season (reason not recorded)."
+    if matches == 0:
+        return f"No match in the {season} season."
+    return None
 
 
 def _keep_form(con: duckdb.DuckDBPyConnection, col: str) -> tuple[dict, dict[str, dict]]:
@@ -1445,6 +1526,17 @@ def _export_keep(
     squads_file = competitions.load_squads(comp)
     squads = competitions.squad_rows(comp, squads_file)
     form_lg, form = _keep_form(con, col)
+    # who missed the last season: his appearances in it (the XI table) and the sourced reasons
+    # (data/curated/<league>_absences.json); the page and the report say so beside the call
+    last_season = int(form_lg.get("season") or comp.season - 1) if form_lg else comp.season - 1
+    apps_last = _season_appearances(con, col, last_season)
+    abs_path = CURATED_DIR / f"{col}_absences.json"
+    absences = (
+        {k: v for k, v in json.loads(abs_path.read_text(encoding="utf-8")).items()
+         if not k.startswith("_") and v.get("season") == last_season}
+        if abs_path.exists()
+        else {}
+    )  # fmt: skip
     # Form forecast's "3-season outlook" (scripts/form_forecast.py build; METHODOLOGY §11)
     fc_path = METRIC_DIR / f"forecast_{col}.json"
     fc = json.loads(fc_path.read_text(encoding="utf-8")) if fc_path.exists() else None
@@ -1473,7 +1565,7 @@ def _export_keep(
         if not d:
             return None
         try:
-            return round((at - _dt.date.fromisoformat(str(d)[:10])).days / 365.25, 1)
+            return _age_down((at - _dt.date.fromisoformat(str(d)[:10])).days / 365.25)
         except ValueError:
             return None
 
@@ -1511,6 +1603,8 @@ def _export_keep(
                     "role": role,
                     "value": round(rr["value"], 3) if rr else None,
                     "value_sd": round(rr["value_sd"], 3) if rr else None,
+                    "value_now": rr.get("value_now") if rr else None,
+                    "value_now_sd": rr.get("value_now_sd") if rr else None,
                     "target_balls": int(rr["target_balls"]) if rr else 0,
                     "balls": int(rr.get("balls", 0)) if rr else 0,
                     # the market price's inputs (from the same pool row)
@@ -1546,6 +1640,13 @@ def _export_keep(
                     "tags": _keep_tags(rec, role, overseas, death, cid),
                     "form": form.get(cid or "") or None,
                     "withdrawn": r.get("withdrawn") or None,
+                    "matches_last": apps_last.get(cid or "", 0) if cid else None,
+                    "absence": _absence_note(
+                        absences.get(cid or ""),
+                        r.get("withdrawn"),
+                        apps_last.get(cid or "", 0) if cid else None,
+                        last_season,
+                    ),  # fmt: skip
                     "trade": r.get("trade") or None,
                     "note": r.get("salary_note") or None,
                     "profile": (rr or {}).get("profile_collection") or ("ipl" if cid else None),
@@ -1609,7 +1710,7 @@ def _export_keep(
         },
         "unmatched": unmatched,
         "form": form_lg,
-        "death_rule": {"share": KEEP_DEATH_SHARE, "min_balls": KEEP_DEATH_MIN_BALLS},
+        "death_rule": {"match_share": KEEP_DEATH_MATCH_SHARE, "min_balls": KEEP_DEATH_MIN_BALLS},
         "teams": sorted(squads),
         "players": players,
         "pool_tags": pool_tags,
@@ -1651,7 +1752,7 @@ def _keep_model_payload() -> dict | None:
     m = load_keep_model()
     if not m:
         return None
-    return {k: m[k] for k in ("intercept", "coef", "fitted", "trained_on") if k in m}
+    return {k: m[k] for k in ("intercept", "coef", "fitted", "trained_on", "calibration") if k in m}
 
 
 # A league whose newest match is more than this many days older than the newest match anywhere is
@@ -2097,10 +2198,57 @@ def _players(
                 # identity (player master): display_name, full_name, aliases, capped, active,
                 # retired, country, team, batting_hand, bowling_arm/category/style, primary_role
                 **ident,
+                # `active` on a league's rows means active in this league (the ratings, boards and
+                # filters read it per format); the identity's any-league flag stays as active_anywhere
+                "active": act.get("active", False),
+                "active_anywhere": bool(ident.get("active")),
             }
         )
     out.sort(key=lambda r: (-(r["balls_faced"] + r["balls_bowled"]), r["cricsheet_id"]))
+    _disambiguate_names(out)
     return out
+
+
+def _years_tag(p: dict) -> str | None:
+    first, last = (p.get("first_match_date") or "")[:4], (p.get("last_match_date") or "")[:4]
+    return f"{first}–{last}" if first and last and first != last else first or None
+
+
+# what tells namesakes apart, in the order a fan reads best: the first that differs for every one of
+# them wins (two English Ollie Robinsons who both played the 2024 Hundred differ only from the 3rd on)
+_NAME_TAGS = (
+    lambda p: p.get("country"),
+    _years_tag,
+    lambda p: p.get("full_name"),
+    lambda p: (p.get("primary_role") or p.get("role") or "").replace("_", " ") or None,
+    lambda p: f"from {p['first_match_date']}" if p.get("first_match_date") else None,
+)
+
+
+def _disambiguate_names(players: list[dict]) -> None:
+    """Two players of one league with the same display name (the USA's Harmeet Singh and India's; a
+    Kenyan Shubman Gill in T20Is) read as one player merged wrongly: give each his country, or his
+    years in the league, his full name, his role or his first match, whichever is the first to tell
+    every one of them apart (else the registry id). The plain name stays searchable (aliases)."""
+    groups: dict[str, list[dict]] = {}
+    for p in players:
+        if p.get("display_name"):
+            groups.setdefault(p["display_name"], []).append(p)
+    for name, same in groups.items():
+        if len(same) < 2:
+            continue
+        tag = next(
+            (
+                f
+                for f in _NAME_TAGS
+                if all(f(p) for p in same) and len({f(p) for p in same}) == len(same)
+            ),
+            lambda p: p["cricsheet_id"],
+        )
+        for p in same:
+            p["display_name"] = f"{name} ({tag(p)})"
+            if name not in p["aliases"]:
+                p["aliases"] = [*p["aliases"], name]
 
 
 def _has_registry(con: duckdb.DuckDBPyConnection, collection: str) -> bool:
@@ -2120,14 +2268,56 @@ def _match_counts(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, 
     return appearances(con, collection)
 
 
+def _assert_forecast_current(src: Path, taxonomy: dict[str, dict]) -> None:
+    """The forecast is built from a player master (it leaves retired players out): one built from
+    an older master still projects a player who has since retired. Rebuild it rather than ship it."""
+    fc = json.loads(src.read_text(encoding="utf-8"))
+    stale = sorted(
+        (taxonomy.get(cid) or {}).get("display_name") or cid
+        for cid in fc.get("players", {})
+        if (taxonomy.get(cid) or {}).get("retired")
+    )
+    if stale:
+        raise DataQualityError(
+            f"{src.name} projects {len(stale)} retired players ({', '.join(stale[:5])}): "
+            "rebuild it with `python scripts/form_forecast.py build`"
+        )
+
+
+def _age_down(age: float | None) -> float | None:
+    """An age in years cut (not rounded) to 3 decimals: every page shows the completed years
+    (floor), and rounding to one decimal made a player four days short of 25 read 25 (Jaiswal)."""
+    return None if age is None else math.floor(age * 1000) / 1000
+
+
+def _retired_here(tax: dict | None, collection: str) -> bool:
+    """An announced retirement that covers this league: scope "all" (all cricket), or "ipl" (the IPL
+    and Indian cricket, data/curated/ipl_availability.json) on a league played in India."""
+    if not tax or not tax.get("retired"):
+        return False
+    scope = tax.get("retired_scope") or "all"
+    if scope == "all":
+        return True
+    try:
+        country = leagues.get(collection).country
+    except KeyError:
+        return False
+    return scope == "ipl" and country == "India"
+
+
 def _activity_map(
-    con: duckdb.DuckDBPyConnection, collection: str, as_of: str | None
+    con: duckdb.DuckDBPyConnection,
+    collection: str,
+    as_of: str | None,
+    taxonomy: dict[str, dict] | None = None,
 ) -> dict[str, dict]:
     """player key -> {first_match_date, last_match_date, active}. 'active'
-    = appeared within 18 months of the collection's latest match (so it's
-    per-collection = per-format; a player retired from internationals can
-    still be active in IPL). Data-driven, no model needed."""
+    = appeared within 18 months of the collection's latest match and has not announced a
+    retirement that covers this league (so it's per-collection = per-format; a player retired
+    from internationals can still be active in IPL). Data-driven, no model needed."""
     import datetime as _dt
+
+    taxonomy = taxonomy or {}
 
     materialize_keyed(con, collection)
     kb = keyed_balls(con, collection)
@@ -2151,6 +2341,8 @@ def _activity_map(
         # lexicographically, so normalise to str and string-compare.
         last_iso = str(last_d)[:10] if last_d else None
         active = bool(cutoff_iso and last_iso and last_iso >= cutoff_iso)
+        if active and _retired_here(taxonomy.get(name), collection):
+            active = False
         out[name] = {
             "first_match_date": str(first_d)[:10] if first_d else None,
             "last_match_date": last_iso,
@@ -2210,6 +2402,7 @@ def _pivot_intent_curve(rows: list[dict]) -> list[dict]:
 
 
 def _export_leaderboards(
+    con: duckdb.DuckDBPyConnection,
     collection: str,
     out_dir: Path,
     matches: dict[str, int],
@@ -2219,7 +2412,8 @@ def _export_leaderboards(
 ) -> int:
     """All-time (window=None) or a recomputed time window. Window metrics
     live in data/metrics/<slug>_<collection>_<window>.json (cooked by the
-    subprocess pass); the site file gets a `.<window>` suffix."""
+    subprocess pass); the site file gets a `.<window>` suffix. A cache computed from other data or
+    older metric code than now (its `.stamp.json`, cricdex.metrics.provenance) fails the export."""
     src_col = f"{collection}_{window}" if window else collection
     suffix = f".{window}" if window else ""
     n = 0
@@ -2227,6 +2421,12 @@ def _export_leaderboards(
         src = METRIC_DIR / f"{slug}_{src_col}.json"
         if not src.exists():
             continue
+        why = provenance.stale_reason(src, provenance.fingerprint(con, src_col, slug))
+        if why:
+            raise DataQualityError(
+                f"{src.name} is stale ({why}): recompute it with "
+                f"`python scripts/compute_metrics.py all -c {src_col}`"
+            )
         rows = json.loads(src.read_text())
         if isinstance(rows, dict):
             rows = rows.get("rows", [])
@@ -2798,6 +2998,8 @@ def _linked_players(
                 "last_match_date": None,
                 "active_here": False,
                 **player_master.identity_block(ident, fallback_name=name),
+                "active": False,
+                "active_anywhere": bool(ident.get("active")),
             }
         )
     if rows:
@@ -2845,7 +3047,7 @@ def _export_league(
     # DuckDB internal error
     materialize_keyed(con, col)
     name_tax = _name_identity(con, col, taxonomy)
-    activity = _activity_map(con, col, meta.get("data_as_of"))
+    activity = _activity_map(con, col, meta.get("data_as_of"), taxonomy)
     players = _players(con, col, min_balls, taxonomy, activity)
     meta["windows"] = windows
     # labels for the period selector: the time windows plus the league's eras
@@ -2868,6 +3070,7 @@ def _export_league(
         n_keep = _export_keep(con, col, out_dir, taxonomy, rated, _keep_death_bowlers(con))
         fc_src = METRIC_DIR / f"forecast_{col}.json"
         if fc_src.exists():
+            _assert_forecast_current(fc_src, taxonomy)
             forecast.export_site(fc_src, out_dir / "forecast.json")
         else:
             logger.warning("no forecast_ipl.json: run scripts/form_forecast.py build")
@@ -2882,11 +3085,11 @@ def _export_league(
         # the pool read every pool league's ball-by-ball: keep only this league's in memory
         _drop_temp_tables(con, keep=col)
     match_counts = _match_counts(con, col)
-    n_lb = _export_leaderboards(col, out_dir, match_counts, name_tax, activity)
+    n_lb = _export_leaderboards(con, col, out_dir, match_counts, name_tax, activity)
     for win in windows:
         # matches counted inside the window, so a min-matches gate means what it says
         win_counts = _match_counts(con, f"{col}_{win}")
-        _export_leaderboards(col, out_dir, win_counts, name_tax, activity, window=win)
+        _export_leaderboards(con, col, out_dir, win_counts, name_tax, activity, window=win)
     n_rat = _export_ratings(col, out_dir, taxonomy)
     _export_records_venues(con, col, out_dir, name_tax)
     _export_phase(col, out_dir, match_counts, name_tax, activity)

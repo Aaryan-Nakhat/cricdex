@@ -5,7 +5,7 @@ the retention deadline (`keep_probability`: a logistic model of what franchises 
 deadline 2018-2026, fitted and backtested by scripts/keep_backtest.py, config/keep_model.json), from
 his market price against what keeping him costs, his three-season Form forecast, his ties to the
 franchise (captain, seasons there, home-grown) and his status (capped Indian, overseas, age, IPL
-balls, a buy at the last auction), and recommends Keep, Release or Borderline with a one-line
+balls, a buy at the last auction), and recommends Keep, Release or Toss-up with a one-line
 reason. For the squad it adds up the purse left after the
 kept salaries, the open slots, the role gaps (keepers, openers, death bowlers, spinners, overseas)
 and what filling each gap from the current auction pool would cost.
@@ -29,7 +29,7 @@ from cricdex.web_parity.pricing import PRICE_TIERS, est_value, has_market_inputs
 
 # The default plan keeps a player when the chance a franchise keeps a player like him is at least
 # KEEP_CALL (the backtest's decision rule: more likely kept than not). Within BORDER_BAND of it the
-# call is shown as Borderline (a close call either way); above, Keep; below, Release.
+# call is shown as Toss-up (a close call either way); above, Keep; below, Release.
 KEEP_CALL = 0.5
 BORDER_BAND = 0.15
 # The cheapest a squad slot can be filled for (the lowest base-price band, cr).
@@ -304,7 +304,7 @@ _KEEP_MODEL_PATHS = (
 @lru_cache(maxsize=4)
 def load_keep_model(path: str | None = None) -> dict | None:
     """The fitted retention model ($CRICDEX_KEEP_MODEL, else config/keep_model.json, else the package
-    copy); None when there is none (every call is then Borderline)."""
+    copy); None when there is none (every call is then Toss-up)."""
     cands = [Path(path)] if path else []
     env = os.environ.get("CRICDEX_KEEP_MODEL")
     if env:
@@ -333,6 +333,7 @@ def keep_features(
     p_play: float | None = None,
     contrib: float | None = None,
     mega_retained: bool = False,
+    matches_last: int | None = None,
 ) -> dict[str, float]:
     """The retention model's inputs (scripts/keep_backtest.py fits it on the same function):
     ln(market price / what keeping him costs), ln(cost), the mega-auction flag, the 3-season Form
@@ -341,8 +342,10 @@ def keep_features(
     IPL side), capped Indian, overseas, age ((age − 28) / 5 and (age − 33)+ / 3), ln(1 + IPL balls)
     / 5, bought at the last auction, mega × the price ratio, his playing time (METHODOLOGY §6c):
     P(plays a match) in this squad, P × his contribution per match (runs above replacement) and a flag
-    when either is missing, and in a mini year whether this franchise retained him at the cycle's
-    mega auction. Mirror of `keepFeatures` in keep.ts."""
+    when either is missing, in a mini year whether this franchise retained him at the cycle's
+    mega auction, and his IPL matches last season (/ 14, at most 1, and a flag for none; unknown counts
+    as none). Mirror of `keepFeatures` in keep.ts."""
+    ml = max(matches_last or 0, 0)
     c = cost if cost and cost > 0 else 1e-3
     lr = math.log(max(market, 1e-3) / c)
     mg = 1.0 if mega else 0.0
@@ -367,20 +370,27 @@ def keep_features(
         "play_value": p_play * contrib if p_play is not None and contrib is not None else 0.0,
         "no_play": 0.0 if p_play is not None and contrib is not None else 1.0,
         "mega_retained": 1.0 if mega_retained and not mega else 0.0,
+        "played_last": min(ml / 14.0, 1.0),
+        "none_last": 1.0 if ml == 0 else 0.0,
     }
 
 
 def keep_probability(f: dict[str, float], model: dict) -> float:
     """The chance a franchise keeps him: σ(intercept + Σ coef × feature), summed in the model's
-    order. Mirror of `keepProbability` in keep.ts."""
+    order, then, when the model carries one for the cycle, its recalibration σ(a + b × that sum)
+    (keep_backtest.py: Platt, kept only if it lowers the held-out log loss). Mirror of
+    `keepProbability` in keep.ts."""
     t = float(model["intercept"])
     for k, c in model["coef"].items():
         t += float(c) * f[k]
+    cal = (model.get("calibration") or {}).get("mega" if f.get("mega") else "mini")
+    if cal:
+        t = float(cal["a"]) + float(cal["b"]) * t
     return 1.0 / (1.0 + math.exp(-t))
 
 
 def call_of(p_keep: float) -> str:
-    """Keep / Borderline / Release from the chance he is kept (KEEP_CALL ± BORDER_BAND)."""
+    """Keep / Toss-up / Release from the chance he is kept (KEEP_CALL ± BORDER_BAND)."""
     if p_keep >= KEEP_CALL + BORDER_BAND:
         return "keep"
     if p_keep < KEEP_CALL - BORDER_BAND:
@@ -507,7 +517,7 @@ def assess(p: dict, form: dict | None = None, cost: float | None = None) -> dict
             (p.get("team") or "") in (p.get("captain_teams") or []), int(p.get("seasons_here") or 0),
             bool(p.get("home_grown")), (p.get("intl_caps") or 0) > 0 and not p.get("overseas"),
             bool(p.get("overseas")), p.get("age"), p.get("ipl_balls"), p.get("acquired") == "auction",
-            p.get("p_play"), p.get("contrib"), bool(p.get("slab_holder")),
+            p.get("p_play"), p.get("contrib"), bool(p.get("slab_holder")), p.get("matches_last"),
         )  # fmt: skip
         p_keep = keep_probability(f, model)
         rec = call_of(p_keep)
@@ -620,7 +630,7 @@ def market_for(
 
 
 def _fit_order(p: dict) -> tuple:
-    """Who goes first when the default plan is over a limit: Borderline before Keep, then the
+    """Who goes first when the default plan is over a limit: Toss-up before Keep, then the
     lowest chance a franchise keeps him (an unpriced player first), then the key."""
     tier = 0 if p["rec"] == "borderline" else 1
     pk = p.get("p_keep")
@@ -629,8 +639,8 @@ def _fit_order(p: dict) -> tuple:
 
 def fit_to_rules(players: list[dict], rules: dict[str, Any]) -> None:
     """Make the default plan legal: while the kept overseas players are over the overseas cap (or the
-    overseas retention limit), release kept overseas Borderline players, lowest chance kept first
-    (a Keep only once no Borderline is left); then the same for the squad maximum (or the retention
+    overseas retention limit), release kept overseas Toss-up players, lowest chance kept first
+    (a Keep only once no Toss-up is left); then the same for the squad maximum (or the retention
     limit) over every kept player. A player the user decided on is never moved. Each one released here
     gets `auto_release` ("overseas" | "squad") and a sentence on his reason. In place.
     Mirror of `fitToRules` in keep.ts."""
@@ -754,7 +764,11 @@ def evaluate(
                 "label": TAG_LABEL[tag],
                 "target": target[tag],
                 "kept": sum(1 for p in kept if has_tag(p, tag)),
-                "gap": need,
+                # short of the target on the kept players alone (target − kept); `to_buy` is what is
+                # still needed after the buys for the roles above it (a pick counts for every tag he
+                # carries), so a gap the earlier buys already fill shows to_buy 0
+                "gap": max(0, target[tag] - sum(1 for p in kept if has_tag(p, tag))),
+                "to_buy": need,
                 "ref_value": ref,
                 "ref_from_release": bool(rel_vals),
                 "picks": [
@@ -800,7 +814,7 @@ def evaluate(
     for g in gaps:
         if g["short"] > 0:
             warnings.append(
-                f"{g['label']}: only {len(g['picks'])} of {g['gap']} found in the pool at that "
+                f"{g['label']}: only {len(g['picks'])} of {g['to_buy']} found in the pool at that "
                 f"level (or no squad / overseas room left)."
             )
 
@@ -834,7 +848,7 @@ def to_csv_rows(res: dict) -> list[list[str]]:
     """The table as CSV rows (the page's "Export CSV" writes the same columns)."""
     head = [
         "player", "team", "role", "overseas", "age", "acquired", "salary_cr", "value",
-        "value_sd", "cost_cr", "price_cr", "onfield_cr", "p_bought", "surplus_cr", "p_keep",
+        "value_sd", "value_next_season", "cost_cr", "price_cr", "priced_on_value", "onfield_cr", "p_bought", "surplus_cr", "p_keep",
         "recommendation", "should_keep",
         "decision", "auto_release", "reason", "outlook", "form", "outlook_3y_avg", "outlook_3y",
     ]  # fmt: skip
@@ -851,8 +865,13 @@ def to_csv_rows(res: dict) -> list[list[str]]:
                 fmt_num(float(p["salary"]), 2),
                 "" if p.get("value") is None else fmt_num(p["value"], 1),
                 "" if p.get("value_sd") is None else fmt_num(p["value_sd"], 1),
+                "" if p.get("value_now") is None else fmt_num(p["value_now"], 1),
                 fmt_num(float(p["cost"]), 2),
                 "" if p.get("price") is None else fmt_num(p["price"], 2),
+                # the value the market price used (its own recipe input, METHODOLOGY §6b)
+                ""
+                if p.get("price") is None or p.get("price_value") is None
+                else fmt_num(p["price_value"], 1),
                 "" if p.get("onfield") is None else fmt_num(p["onfield"], 2),
                 "" if p.get("p_bought") is None else fmt_num(p["p_bought"], 2),
                 "" if p.get("surplus") is None else fmt_num(p["surplus"], 2),

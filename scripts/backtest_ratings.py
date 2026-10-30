@@ -68,6 +68,13 @@ def _spearman(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.corrcoef(ra, rb)[0, 1])
 
 
+def _wslope(pred: np.ndarray, act: np.ndarray, w: np.ndarray) -> float:
+    """Weighted least-squares slope of `act` on `pred`."""
+    pm, am = np.average(pred, weights=w), np.average(act, weights=w)
+    var = np.average((pred - pm) ** 2, weights=w)
+    return float(np.average((pred - pm) * (act - am), weights=w) / var) if var > 0 else float("nan")
+
+
 def _z(x: np.ndarray) -> np.ndarray:
     sd = x.std()
     return (x - x.mean()) / sd if sd > 0 else x * 0
@@ -117,6 +124,7 @@ def _season(
     seeds: list[int],
     half_life: float | None,
     variant: str,
+    nation_prior: bool | None = None,
 ) -> dict:
     start, end = f"{season}-01-01", f"{season + 1}-01-01"
     db = bayesian.DEFAULT_DB_PATH
@@ -134,6 +142,7 @@ def _season(
             half_life=half_life,
             variant=variant,
             return_fit=True,
+            nation_prior=nation_prior,
         )
         fits.append(ratings)
         lls.append(bayesian.heldout_loglik(res, season_edges))
@@ -213,6 +222,24 @@ def _season(
                     if name in preds:
                         cell[f"{name}_thin"] = _spearman(preds[name][axis][thin], act[axis][thin])
             res[axis] = cell
+        # calibration of the value (runs per 100 balls), mean over seeds: the ball-weighted slope of
+        # what each player did on what was predicted (1 = right spread, < 1 = predictions too
+        # extreme), and the bias (predicted − did) of the top fifth by prediction among the thin
+        # records (< `low_prior` balls before): where a short record of big hitting sits
+        wt = df["balls"].to_numpy().astype(float)
+        calib: dict = {}
+        for k in range(len(fits)):
+            pred = preds[f"model{k}"]["all"]
+            for tag, m in (("all", np.ones(len(pred), bool)), ("thin", thin)):
+                if m.sum() < 10:
+                    continue
+                calib.setdefault(f"slope_{tag}", []).append(_wslope(pred[m], act["all"][m], wt[m]))
+            if thin.sum() >= 10:
+                top = thin & (pred >= np.quantile(pred[thin], 0.8))
+                calib.setdefault("bias_thin_top", []).append(
+                    float(np.average(pred[top] - act["all"][top], weights=wt[top]))
+                )
+        res["calib"] = {k: float(np.mean(v)) for k, v in calib.items()}
         # quintiles by pre-season value (first seed): how each fifth actually did
         balls, runs = df["balls"].to_numpy(), df["runs"].to_numpy()
         outs, trials = df["outs"].to_numpy(), df["trials"].to_numpy()
@@ -244,6 +271,10 @@ def _summary(results: list[dict], names: list[str]) -> dict:
                 s[role][a]["thin"] = {
                     n: float(np.mean([x[a][f"{n}_thin"] for x in thin_rows])) for n in names
                 }
+    for role in ("batter", "bowler"):
+        cal = [r[role]["calib"] for r in results if role in r and "calib" in r[role]]
+        if cal:
+            s[role]["calib"] = {k: float(np.mean([c[k] for c in cal if k in c])) for k in cal[0]}
     hs = [r["heldout"] for r in results]
     s["heldout"] = {
         k: float(np.average([h[k] for h in hs], weights=[h["n_balls"] for h in hs]))
@@ -265,12 +296,16 @@ def run(
     advi_steps: int = typer.Option(12000, "--advi-steps"),
     seed: int = typer.Option(42, "--seed", help="first ADVI seed"),
     seeds: int = typer.Option(3, "--seeds", help="ADVI seeds (seed, seed+1, ...)"),
-    variant: str = typer.Option("v2", "--variant", help="v2 (default) | legacy"),
+    variant: str = typer.Option("v2", "--variant", help="v2 (default) | v3 | legacy"),
     compare: str = typer.Option(
         "", "--compare", help="also run this variant (e.g. legacy) with one seed, for comparison"
     ),
     out_json: Path | None = typer.Option(None, "--json"),
+    nation: str = typer.Option(
+        "auto", "--nation", help="nation prior: auto (international leagues) | on | off"
+    ),
 ) -> None:
+    nation_prior = {"auto": None, "on": True, "off": False}[nation]
     first, last = (int(x) for x in seasons.split("-"))
     seed_list = [seed + i for i in range(seeds)]
     names = ["model", "career"] + (["recent"] if half_life is not None else [])
@@ -280,7 +315,17 @@ def run(
         for s in range(first, last + 1):
             logger.info(f"[{var}] season {s}: fitting on matches before {s} ({len(sl)} seed(s))")
             results.append(
-                _season(collection, s, min_balls, low_prior, advi_steps, sl, half_life, var)
+                _season(
+                    collection,
+                    s,
+                    min_balls,
+                    low_prior,
+                    advi_steps,
+                    sl,
+                    half_life,
+                    var,
+                    nation_prior,
+                )
             )
         runs_by_variant[var] = results
     out_path = out_json or (DATA_DIR / "metrics" / f"ratings_backtest_{collection}.json")

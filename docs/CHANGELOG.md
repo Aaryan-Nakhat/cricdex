@@ -8,6 +8,133 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
+### Fixes from the six-way review (2026-10-29)
+
+- **The site and the docs say what the models do today.** The retired "78% / 82%" Keep headline is replaced
+  everywhere (Keep page, About, README, the images) by the per-cycle check: level with keeping everyone in a
+  mini year, better on the chance and on finding who goes. Bid plan describes the opportunity money rule and
+  its replay (7 of 10 teams ahead in 2024, 2 and 1 of 10 in 2025-26); one label, draft (it was beta in the
+  nav). METHODOLOGY §10's worked example, reality table and default calls are generated from the site's
+  data (`scripts/keep_sheets.py`; a test fails on drift); §12 opens with where the plan stands; a key explains
+  the candidate names; no reference points to a private file any more.
+- **Bid plan: max bids mean something now** (money rule "opportunity"). A lot is worth what it adds minus the
+  later lots its money and place would have bought, so the max bids differ (they were all the purse left)
+  and no likely buy is paid above his max bid (LSG paid 13.49 cr for Gurbaz against a max bid of 0). On the
+  2024 replay it spends closer to real teams (error 0.075 against 0.106) and builds a stronger next season
+  (+6.1 against +3.8 runs a match). Known gap: a few cheap batters with a thin IPL record are overrated
+  (Mayank Rawat first on 7 sheets); the declared fix failed its test and is not shipped (METHODOLOGY §12).
+- **Bid plan's "money left is worth nothing" premise is labelled an assumption** (one press source).
+- **Bid plan prices the roles it leaves short**: for a missing spinner, keeper or death bowler the sheet names
+  the target who fills it best, his usual price and the price to be sure of him, and what the best plan
+  around him gains or gives up (page: on request; CLI: always). The strength score still has no need penalty.
+- **The documented 2027 Bid plan sheets are generated from the site's data** (`scripts/bidplan_sheets.py`);
+  the reality gate fails when the docs and the site differ (they had drifted: CSK's purse left read 25.6
+  against 11.65). New plan checks: no likely buy paid above his max bid, max bids that differ.
+- **Rival plans tried again and kept off**: with the new money rule they stopped one player being a likely
+  buy on every sheet, but the plans chasing each other didn't settle in three rounds (METHODOLOGY §12).
+- **The price's test error is reported without what flatters it** (`ipl_price_model.py fit`,
+  `test_honest`): 44% of the 2025-26 lots sold at their base price, where the price is clamped; over the
+  rest the error is 0.745 (the headline 0.652 counts them). By real price, the error and the
+  under-pricing grow with the price (12 cr+: 1.10). The 20 unmatched sold lots are counted, not dropped.
+  `fit --ref` adds a paired bootstrap of two recipes on the same lots.
+- **Uncapped Indians in a mini auction are priced about half what they fetch** (walking forward to 2026,
+  26 lots). A fix (BJ: their own mini-auction group) was declared and lost on held-out auctions (0.801
+  against 0.787): BH stays and the gap is documented, not hidden.
+- **The Keep page says what value a price used** under each price ("priced on"; the CSV's
+  `priced_on_value`). The resale rule's 8 cr+ claim is restated: no measurable gain out of time.
+- **The Keep model is refitted (L8, 2026-10-30).** No player's chance of being kept is forced to 0 any
+  more (it hit 16 of 2025's 46 real retentions); each deadline is predicted only from the ones before
+  it; the chance is chosen on log loss and reported per cycle against that cycle's majority call. The
+  new input that won: IPL matches last season. On 2025-26 (a validation, not a fresh test) the chance
+  beats a flat rate clearly in both years, but in a mini year the calls are level with keeping everyone
+  (70.7% against 68.6%, interval −3.9 to +9.1 points). It finds 61% of 2026's releases (was 51%) and
+  still keeps the four stars released in 2026. The "78% / 82%" headline is retired. METHODOLOGY §10.
+- **The 2027 Keep calls are written down before the 15 Nov deadline** (`data/predictions/ipl_keep_2027.json`,
+  `scripts/keep_predictions.py`): 175 of 271 squad players kept, with the commit and input hashes, to be
+  scored against the published lists.
+- **Namesakes who share a country and a season** (the two English Ollie Robinsons of the 2024 Hundred)
+  now get their full name, role or first match as the tag.
+- **The market price is refitted (recipe BH, 2026-10-30).** The six price defects the review found are
+  tests now (`tests/test_price_gates.py`: more IPL seasons never lower a price, a few IPL balls don't cut
+  it, a longer absence never raises P(bought), prices don't sit on a staircase, the upper quartile is
+  beaten about a quarter of the time, no price past the 27 cr record), and BH, chosen by a rule written
+  before its numbers over three rounds of candidates, passes all of them; Z failed five. Its accuracy on
+  2025-26 is a tie with Z (0.652 against 0.654, 95% interval of the difference about ±0.04). Recent IPL
+  matches replace the season count, recent caps saturate, the calibration is a smooth hinge with a
+  budget-limit link, capped Indians in a mini auction get their own level, and the upper quartile
+  follows the residuals' spread at each price. Captaincy still rests on few lots (Kishan 19.2 cr).
+  METHODOLOGY §6b.
+- **The headline value is next season's (2026-10-30).** Keep or release, the IPL profile and the Bid plan
+  lead with each player's value for the coming season (career moved by the time-aware model, then the
+  season-ahead shrink), the career rating and its IPL balls beside it; CSVs gain `value_next_season`.
+  Tested first: career ratings are about three times too spread as a guide to the next season and miss
+  declines (Kohli 13.6 career, 8.3 next season). Profiles split a bowler's value into economy and wickets,
+  with why wickets count for little (a wicket rate barely carries over between seasons). METHODOLOGY §4c.
+- **Last-year boards were empty.** The default min-matches was 20 on every period; nobody plays more
+  than 17 in a season. It is now 20, or 40% of the most matches anyone has on that board when lower
+  (7 for one IPL season); Leaderboards, Form and Phase, web ⇄ desktop parity-tested.
+- **Active means active here.** A league's `active` is now that league's (it was the any-league flag:
+  Warner and Lynn were "active" IPL batters) and leaves out an announced retirement that covers it
+  (Rahane, Ashwin, Russell, Mohit Sharma). The any-league flag stays as `active_anywhere`.
+- **Wicketkeeping board.** Scorecards don't say who kept: the keeper of each innings is now read from
+  the fielding side's XI (a stumping in it, else the tagged keeper, else the side's stumper), and only
+  dismissals made keeping count there, with the matches kept. A batter once tagged a keeper (Gaikwad, 47
+  "dismissals") moves to Fielding; a keeper's catches on days he fielded count there too.
+- **Stale caches can't ship.** Every metric cache now carries the matches, code and (keeper boards)
+  player-master build it came from; the export refuses one that no longer matches, and refuses a Form
+  forecast that still projects a retired player.
+- **Namesakes** in one league carry their country (Harmeet Singh (IND) and (USA)).
+- **Price: the upper quartile could sit below the price** for a resold player the model puts under the
+  floor (Mayank Rawat 0.40 / 0.31): it now keeps its gap above the model's own median; tested.
+- **Keep backtest inputs.** Features are taken on each real retention deadline (they were taken on the
+  auction date, weeks later: 79 players gained caps in between in 2024); "first IPL side" only from
+  seasons before the deadline (it read later seasons); a retirement counts when announced by the
+  deadline (the filter read a missing key and dropped no one); squads are the contracted players (latest
+  signing, retained at every deadline since; Rising Pune's and Gujarat Lions' players go back to CSK and
+  RR in 2018); 2025 slab holders matched by id; every published retention without a row is listed with
+  its reason; caches keyed on their inputs, and the output names the commit.
+- **Short by** on Keep or release is the target against the kept players (it subtracted the buys made
+  for other roles); what those buys leave is shown apart.
+- **"Toss-up"** replaces "Borderline" everywhere a reader sees it.
+- Ages are cut, not rounded (a player four days short of 25 read 25).
+- **Death bowlers** are those who bowl at the death in at least half the matches they bowl in (60+ death
+  balls, last three years, every league); the rule was 25% of their balls, which new-ball quicks who also
+  close the innings miss (Hazlewood 24% of his balls but 76% of his matches, Siraj, Starc), so CSK read
+  "no death bowler".
+- **One captain per side and season**: a stand-in who passed the bar (Ishan Kishan, 7 matches for SRH in
+  2026 while Cummins was injured) no longer makes two "current captains".
+- **Bid plan opens places by the Keep model's P(keep)** (lowest first), not the lowest contribution: LSG's
+  default plan no longer releases Mayank Yadav (11 cr, Keep at 89%).
+- **Bid plan, every run reaches the squad minimum**: a run that ends short buys the rest at the lowest
+  base price, as the accelerated rounds do (KKR ended some runs on 17). A plan whose likely buys didn't
+  settle now says so.
+- **Bid plan money rule, candidate "opportunity"** (not yet shipped; to be replayed on the 2025 and 2026
+  auctions against the shipped rule): a lot's max bid is the most that keeps what paying for him gives up
+  (the later lots the money and the place would have bought, overseas places counted) within his gain.
+  The shipped rule valued a crore at 0 once places ran out before money, so most max bids were the purse
+  left and the plan bought players far above its own sheet; under the candidate no likely buy is above
+  its max bid, and the sheet is the median of the max bids the runs actually bid by. Parity-tested.
+- **Auction room, mini mode** starts from Keep or release's default plan with each team's real purse left
+  (contracts and the 2025 slab rule charged from the 125 cr purse), on the page, the CLI and the TUI; it
+  kept each team's top 18 for free from a flat 30 cr. Parity-tested.
+- **Bid increments**: 20 lakh above 2 cr, as every price over 5 cr in the 2024 and 2026 auctions shows
+  (2025 used 25 lakh; assumed for 2027). The eight base-price brackets are listed; a base price is
+  labelled inferred until the official list.
+- **Mustafizur Rahman** stays in the pool flagged "eligibility unconfirmed" (KKR released him on the
+  BCCI's instruction on 3 Jan 2026; nothing published about 2027): a new availability status, with sources.
+- **Four new boards, one retired.** A split-half reliability test, declared first (a player's odd and
+  even matches must rank players alike: Spearman r ≥ 0.30, p < 0.01, 40+ players), kept Dot-Ball
+  Avoidance (r 0.70), Pace vs Spin (0.37), Finisher Index (0.44) and Left vs Right (0.30, the weakest),
+  each measured against the league on the same kind of ball and shrunk by its sample
+  (`metrics/splits.py`, on the site, CLI, TUI and dashboard). Wickets of set batters (−0.05) and with the
+  new ball (−0.16) failed. **Pressure Conversion is retired**: rebuilt from the batting side's drought
+  and shrunk toward the league, it still showed no bowler differing from the league beyond chance (r
+  −0.18). Fifteen boards in all.
+- Site text: the Auction room's test is described as it was (chosen to 2024, scored on 2025-26, those two
+  since looked at several times); Scout prices and the Auction walk-through describe the market model;
+  "Biggest match-winners right now" uses the last three seasons; metric counts agree; a player with no
+  forecast reads "too little recent play"; a squad listed above 25 says why.
+
 ### Keep or release and the price, after the owner's reality check (2026-10-29)
 
 Each candidate declared before its numbers, chosen on data up to 2024 and looked at once on 2025–26.

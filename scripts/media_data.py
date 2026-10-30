@@ -38,22 +38,24 @@ COUNTRY = {
     "NEP": "Nepal", "UAE": "UAE",
 }  # fmt: skip
 
-# Bid plan (beta) replay, METHODOLOGY section 12, re-run 2026-10-23 (latest: the bench capped at a lot's P(plays)): same spend, plan's squad vs the real one
-# next season; and "P(<= max bid)" said / came true per band on the 2025 and 2026 test auctions.
+# Bid plan (draft) replay, METHODOLOGY section 12, the opportunity money rule (2026-10-30; scripts/bidplan_backtest.py
+# --money opportunity, 200 runs): the plan's squad vs the real one next season (2024 at full purse, the year the
+# rule was checked on; 2025-26 at the real team's spend, seen before); and "P(<= max bid)" said / came true per
+# band on the 2025 and 2026 auctions.
 BIDPLAN_DOC = {
-    "source": "METHODOLOGY section 12 (scripts/bidplan_backtest.py, re-run 2026-10-23)",
+    "source": "METHODOLOGY section 12 (scripts/bidplan_backtest.py, opportunity rule, 2026-10-30)",
     "replay": {
-        "mega": {"label": "2025 mega auction", "ahead": 7, "teams": 10, "mean": 6.5},
-        "mini": {"label": "2026 mini auction", "ahead": 2, "teams": 10, "mean": -2.4},
+        "check": {"label": "2024 mini (full purse)", "ahead": 7, "teams": 10, "mean": 6.1},
+        "mega": {"label": "2025 mega (real spend)", "ahead": 2, "teams": 10, "mean": -6.6},
+        "mini": {"label": "2026 mini (real spend)", "ahead": 1, "teams": 10, "mean": -3.0},
     },
     "calibration": [
-        {"band": "0.0–0.2", "y2025": [0.06, 0.10, 145], "y2026": [0.12, 0.04, 23]},
-        {"band": "0.2–0.4", "y2025": [0.29, 0.32, 56], "y2026": [0.30, 0.35, 17]},
-        {"band": "0.4–0.6", "y2025": [0.50, 0.58, 71], "y2026": [0.50, 0.58, 24]},
-        {"band": "0.6–0.8", "y2025": [0.69, 0.64, 45], "y2026": [0.69, 0.78, 23]},
-        {"band": "0.8–1.0", "y2025": [0.89, 0.76, 58], "y2026": [0.91, 1.00, 13]},
+        {"band": "0.0–0.2", "y2025": [0.02, 0.02, 296], "y2026": [0.06, 0.20, 40]},
+        {"band": "0.2–0.4", "y2025": [0.27, 0.09, 22], "y2026": [0.28, 0.32, 28]},
+        {"band": "0.4–0.6", "y2025": [0.49, 0.54, 13], "y2026": [0.47, 0.60, 10]},
+        {"band": "0.6–0.8", "y2025": [0.71, 0.53, 38], "y2026": [0.69, 0.59, 17]},
+        {"band": "0.8–1.0", "y2025": [0.88, 0.77, 52], "y2026": [0.85, 1.00, 9]},
     ],
-    "before_top_band_2026": [0.88, 0.44],
 }
 
 
@@ -385,15 +387,17 @@ def keep_block(team: str) -> dict:
     }
     fk = METRICS / "keep_backtest_ipl.json"
     if fk.exists():
-        t = _read(fk)["test"]
-        model = next(v for k, v in t.items() if k.startswith("L"))["pooled"]
-        old = next(v for k, v in t.items() if k.startswith("C0"))["pooled"]
+        # each validation deadline against its own majority call (2025 mega, 2026 mini; METHODOLOGY §10)
+        v = _read(fk)["validation"]
+        model = next(x for k, x in v.items() if k.startswith("L"))
         out["test"] = {
-            "all": round(100 * model["all"]["accuracy"]),
-            "star": round(100 * model["star"]["accuracy"]),
-            "old_all": round(100 * old["all"]["accuracy"]),
-            "old_star": round(100 * old["star"]["accuracy"]),
-            "n": model["all"]["n"],
+            y: {
+                "accuracy": round(100 * model[y]["accuracy"]),
+                "majority": round(100 * model[y]["majority_accuracy"]),
+                "majority_call": model[y]["majority_call"],
+                "n": model[y]["n"],
+            }
+            for y in ("2025", "2026")
         }
     return out
 

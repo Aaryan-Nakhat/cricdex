@@ -1,11 +1,13 @@
 import type { AuctionPoolRow, RetentionData } from "./data";
-import { slabCharge, type SlabHolder } from "./slabs.ts";
+import { purseCharged, slabCharge, type SlabHolder, type SlabRules } from "./slabs.ts";
 
 export type Role = "batter" | "bowler" | "all_rounder" | "keeper";
 
 export interface PoolPlayer {
   cricsheet_id: string;
   name: string;
+  /** an open eligibility question for the auction's season */
+  eligibility?: string | null;
   role: Role;
   country: string;
   is_overseas: boolean;
@@ -73,7 +75,9 @@ export function pricedValue(value: number, valueSd?: number | null): number {
 }
 
 // IPL base-price set bands (cr) — what a player ENTERS the auction at.
+// the base prices inferred from a market price (pricing.py PRICE_TIERS); BASE_BRACKETS = all eight
 const PRICE_TIERS = [0.3, 0.5, 0.75, 1.0, 1.5, 2.0];
+export const BASE_BRACKETS = [0.3, 0.4, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
 export function priceTier(pv: number): number {
   if (pv < 2) return PRICE_TIERS[0];
@@ -114,6 +118,14 @@ export const MARKET_PV_MAX = 60;
 export const MARKET_GAP_MAX = 6; // years since his last IPL match, capped
 // `high` = the upper quartile of what players like him fetch: the median × e^(0.674 × residual sd)
 export const MARKET_HIGH_Z = 0.674;
+
+/** The market price is fitted on its own value input (`price_value`: the legacy league blend moved to
+ * the coming season, pricing.value_input), not the value shown (METHODOLOGY §6b, 2026-10-30), so a price
+ * always says which value it used. */
+export const PRICED_ON_TIP =
+  "The market price is fitted on the rating the market models were built on (one discount per league, moved to the coming season), which priced later auctions better than the value shown. This is the value it used.";
+/** recent internationals saturate: 1 − e^(−caps in two years / this) (pricing.RECENT_SAT_SCALE) */
+export const RECENT_SAT_SCALE = 10;
 // The prior market price: prior = ln(prior_share / PRIOR_REF_SHARE), clamped (2% of the purse is about
 // 2.5 cr in 2026); seasons since it capped at PRIOR_YEARS_MAX. Mirror of pricing.py.
 export const PRIOR_REF_SHARE = 0.02;
@@ -155,6 +167,9 @@ export interface PriceModel {
   floor_cr: number;
   price: PriceModelPart & {
     resid_sd: number;
+    /** the upper quartile's spread: the 75th percentile of the out-of-fold residuals as a + b × the
+     * calibrated prediction (absent: resid_sd through the calibration) */
+    spread?: { a: number; b: number } | null;
     // the price of a player resold within max_years of his last auction (pricing.market_price)
     resale?: {
       max_years: number;
@@ -198,6 +213,8 @@ export interface MarketInputs {
   prior_years?: number | null; // seasons since
   prior_retained?: boolean | null; // a mega-auction retention rather than a sale
   wiki_views?: number | null; // his Wikipedia article's mean monthly views, 12 months before (the brand)
+  ipl_matches_2y?: number | null; // his IPL matches in the two seasons before the auction
+  bowling_category?: string | null; // "seam" | "spin"
 }
 
 let priceModel: PriceModel | null = null;
@@ -243,6 +260,9 @@ export function marketFeatures(row: MarketInputs, cycle: string, pvMax?: number 
   }
   const views = fin(row.wiki_views);
   const brand = views !== null ? Math.log1p(Math.max(views, 0) / BRAND_SCALE) : 0;
+  // a seam bowler (METHODOLOGY §6b) and recent internationals, saturating (P3)
+  const pace = (row.role === "bowler" || row.role === "all_rounder") && row.bowling_category === "seam" ? 1 : 0;
+  const recentSat = 1 - Math.exp(-Math.max(fin(row.intl_caps_2y) || 0, 0) / RECENT_SAT_SCALE);
   return {
     pv,
     pv_pos_sq: (pvPos * pvPos) / 100,
@@ -279,6 +299,14 @@ export function marketFeatures(row: MarketInputs, cycle: string, pvMax?: number 
     // his value as far as the IPL has seen it, and his value when a capped Indian out of the India side
     pv_x_ipl_evidence: (pv * Math.log1p(Math.max(fin(row.ipl_balls) || 0, 0))) / 8,
     pv_x_indian_no_recent: pv * cappedInd * (recent === 0 ? 1 : 0),
+    // the 2026-10-30 refit's terms (METHODOLOGY §6b)
+    ipl_recent: Math.log1p(Math.max(fin(row.ipl_matches_2y) || 0, 0)),
+    pace,
+    pv_x_pace: pv * pace,
+    recent_sat_x_indian: recentSat * (1 - ov),
+    recent_sat_x_overseas: recentSat * ov,
+    // one pooled captaincy term (METHODOLOGY §6b): an IPL side last season or his country in two years
+    captain_any: (fin(row.captain_ipl_last) || 0) > 0 || (fin(row.captain_intl_2y) || 0) > 0 ? 1 : 0,
   };
 }
 
@@ -349,9 +377,10 @@ export function marketPrice(
   const raw = linkShare(m.price, linear(m.price, f));
   const lin = calibrate(cal, raw);
   let price = Math.max(m.floor_cr, c.purse * Math.exp(lin));
-  // the upper quartile: a player 0.674 residual sd above him on the model's index, through the same
-  // calibration (where the market's response flattens at the top, so does the spread above him)
-  let hi = calibrate(cal, raw + MARKET_HIGH_Z * m.price.resid_sd);
+  // the upper quartile (pricing._upper): the fitted spread above him when the model has one, else
+  // 0.674 residual sd up the model's index through the same calibration
+  const sp = m.price.spread;
+  let hi = sp ? lin + Math.max(0, sp.a + sp.b * lin) : calibrate(cal, raw + MARKET_HIGH_Z * m.price.resid_sd);
   // resale: priced from the model and his last auction price together (pricing.market_price)
   const rs = m.price.resale;
   const ps = fin(row.prior_share);
@@ -366,10 +395,15 @@ export function marketPrice(
       (rs.e_retained ?? 0) * (row.prior_retained ? 1 : 0) +
       (rs.f_last_years ?? 0) * Math.log(ps) * py;
     price = Math.max(m.floor_cr, c.purse * Math.exp(adj));
-    hi += adj - base;
+    // the upper quartile keeps its gap above the model's own (unfloored) median: measured from the
+    // floored price instead it fell below the price for a player the model puts under the floor
+    hi = adj + (hi - lin);
   }
   const high = Math.max(m.floor_cr, c.purse * Math.exp(hi));
-  const p = f.never_ipl === 0 ? 1 / (1 + Math.exp(-linear(m.bought, f))) : null;
+  // the bought part was fitted inside its risk window: a longer absence reads as the window's edge
+  const gm = (m.bought as { gap_max?: number }).gap_max;
+  const fb = gm === undefined || gm === null ? f : { ...f, ipl_gap: Math.min(f.ipl_gap, gm) };
+  const p = f.never_ipl === 0 ? 1 / (1 + Math.exp(-linear(m.bought, fb))) : null;
   return { price, high, p_bought: p };
 }
 
@@ -425,6 +459,8 @@ export function buildPool(rows: AuctionPoolRow[]): PoolPlayer[] {
       ipl_matches: r.ipl_matches ?? null,
       last_share: r.last_share ?? null,
       captain_ipl_last: r.captain_ipl_last ?? null,
+      // an open eligibility question for the auction's season (auction.py)
+      eligibility: r.eligibility ?? null,
       base_price: base,
       vpc: pv / base,
     };
@@ -470,11 +506,15 @@ export function defaultRetentions(
   teamCfg: { team: string }[],
   mode: AuctionMode,
   megaIds: Record<string, string[]>,
+  miniIds: Record<string, string[]> | null = null,
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const { team } of teamCfg) {
     if (mode === "mega") {
       out[team] = (megaIds[team] ?? []).filter((id) => pool.some((p) => p.cricsheet_id === id));
+    } else if (miniIds) {
+      // Keep or release's default plan (keep.ts `miniInputs`)
+      out[team] = (miniIds[team] ?? []).filter((id) => pool.some((p) => p.cricsheet_id === id));
     } else {
       out[team] = pool
         .filter((p) => p.team === team)
@@ -503,6 +543,10 @@ export interface SimOpts {
   slabHolders?: Record<string, string>;
   /** per team: real retentions outside the pool (too few balls to rate), still charged */
   fixedRetained?: Record<string, SlabHolder[]>;
+  /** Mini: what keeping each squad player costs (keep.ts `miniInputs`); absent = retentions are free */
+  miniSquad?: Record<string, SlabHolder> | null;
+  miniFixed?: Record<string, SlabHolder[]> | null;
+  miniRules?: SlabRules | null;
 }
 
 /** The real 2025 retentions as simulator inputs: team → ids (the mega default), id → price, the
@@ -537,7 +581,18 @@ export function retentionInputs(data: RetentionData | null | undefined): {
  * each player's cost = the charge less the charge without him (keep.py `retention_costs`).
  * Mirror of auction.py `retention_spend`. */
 export function retentionSpend(team: string, retained: PoolPlayer[], opts: SimOpts): { total: number; each: number[] } {
-  if (opts.mode === "mini") return { total: 0, each: retained.map(() => 0) };
+  if (opts.mode === "mini") {
+    const sq = opts.miniSquad;
+    if (!sq) return { total: 0, each: retained.map(() => 0) }; // no Keep or release data: carried over free
+    // as on the Keep page: his contract salary, the 2025 retentions by the slab rule; a player from
+    // outside the squads (a Scout draft) at his market price (auction.py `retention_spend`)
+    const rows: SlabHolder[] = retained.map((p) => sq[p.cricsheet_id] ?? { salary: Number(p.projected_value ?? 0), slab_holder: null });
+    const rules = opts.miniRules ?? {};
+    const fixed = opts.miniFixed?.[team] ?? [];
+    const total = purseCharged([...rows, ...fixed], rules);
+    const each = rows.map((_, k) => total - purseCharged([...rows.slice(0, k), ...rows.slice(k + 1), ...fixed], rules));
+    return { total, each };
+  }
   const sal = retained.map((p, i) => opts.realPrices[p.cricsheet_id] ?? slabCost(i));
   const slabs = opts.retentionSlabs;
   if (!slabs) return { total: sal.reduce((a, b) => a + b, 0), each: sal };
@@ -674,10 +729,10 @@ export function demand(opts: { demand?: Partial<Demand> | null }): Demand {
 /** The IPL bid increment at a price of x cr: 5 lakh below 1 cr, 10 lakh to 2 cr, 20 lakh to 5 cr, 25 lakh
  * above. Mirror of auction.py `ladder_step`. */
 export function ladderStep(x: number): number {
+  // 20 lakh above 2 cr, as the 2024 and 2026 auctions ran (auction.py `ladder_step`; ASSUMED for 2027)
   if (x < 1.0) return 0.05;
   if (x < 2.0) return 0.1;
-  if (x < 5.0) return 0.2;
-  return 0.25;
+  return 0.2;
 }
 /** The next ladder price above a bid of x cr. */
 export function ladderNext(x: number): number {

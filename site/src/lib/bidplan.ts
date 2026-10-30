@@ -73,9 +73,12 @@ export const LAMBDA_GRID = [
 export const MIN_SLOT_PRICE = 0.3;
 /** How a crore left unspent is valued (bidplan.py MONEY_RULES): "auction" = what it can still buy
  * from the later lots at their expected prices (`MoneyValue`), 0 at the end of the auction;
- * "market" = the rivals' runs per crore; "none" = nothing (one λ for the whole auction). */
-export type MoneyRule = "auction" | "market" | "none";
-export const MONEY: MoneyRule = "auction";
+ * "market" = the rivals' runs per crore; "none" = nothing (one λ for the whole auction);
+ * "opportunity" = a lot is worth what it adds minus the later lots its money and place would have
+ * bought (`OppValue`). */
+export type MoneyRule = "auction" | "market" | "none" | "opportunity";
+// shipped 2026-10-30 (METHODOLOGY §12; bidplan.py MONEY)
+export const MONEY: MoneyRule = "opportunity";
 export const TARGET_MIN_SHARE = 0.05;
 export const LIKELY_SHARE = 0.5;
 export const LOOKAHEAD_ROUNDS = 4;
@@ -305,6 +308,8 @@ export interface Lot extends ContribFields {
   role: Role;
   is_overseas: boolean;
   value: number;
+  /** his value for the coming season (shown; the plan reads the contribution) */
+  value_now?: number | null;
   projected_value: number;
   p_bought: number | null;
   base_price: number;
@@ -316,6 +321,8 @@ export interface Lot extends ContribFields {
   prior_share?: number | null;
   /** the set he comes up in (capped first; absent = capped) */
   capped?: boolean | null;
+  /** an open eligibility question for the auction's season */
+  eligibility?: string | null;
   /** the buy model's inputs besides the squad (bidplan.py BUY_META_KEYS) */
   age?: number | null;
   ipl_matches?: number | null;
@@ -372,7 +379,7 @@ const buyMeta = (r: BuyMeta) => ({
 });
 
 function availRow(
-  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; projected_value: number; p_bought?: number | null; base_price: number; capped?: boolean | null; prior_share?: number | null } & ContribFields & BuyMeta,
+  r: { cricsheet_id: string; name: string; role: Role; is_overseas: boolean; value: number; value_now?: number | null; projected_value: number; p_bought?: number | null; base_price: number; capped?: boolean | null; prior_share?: number | null; eligibility?: string | null } & ContribFields & BuyMeta,
   tags: string,
   fromTeam: string | null,
 ): Lot {
@@ -384,6 +391,7 @@ function availRow(
     role: r.role,
     is_overseas: !!r.is_overseas,
     value: r.value,
+    value_now: r.value_now ?? null,
     projected_value: r.projected_value,
     p_bought: r.p_bought ?? null,
     base_price: r.base_price,
@@ -401,6 +409,7 @@ function availRow(
   if (anchor) out.anchor_price = anchor;
   if (r.capped !== null && r.capped !== undefined) out.capped = r.capped;
   if (r.prior_share) out.prior_share = r.prior_share;
+  if (r.eligibility) out.eligibility = r.eligibility;
   return out;
 }
 
@@ -412,6 +421,7 @@ function squadRowAsLot(p: AssessedPlayer) {
     role: p.role,
     is_overseas: !!p.overseas,
     value: p.value as number,
+    value_now: p.value_now ?? null,
     projected_value: price,
     p_bought: p.p_bought ?? null,
     base_price: priceTier(price),
@@ -437,7 +447,9 @@ export function openPlaces(players: AssessedPlayer[], limit: number): void {
   const kept = players.filter((p) => p.kept);
   const extra = kept.length - Math.max(0, limit);
   if (extra <= 0) return;
-  const key = (p: AssessedPlayer): [number, number] => [p.contrib === null || p.contrib === undefined ? 0 : 1, p.contrib ?? 0];
+  // the kept player franchises are least likely to keep goes first (Keep or release's P(keep); one
+  // without it first): bidplan.py `open_places`
+  const key = (p: AssessedPlayer): [number, number] => [p.p_keep === null || p.p_keep === undefined ? 0 : 1, p.p_keep ?? 0];
   const movable = kept
     .filter((p) => !p.overridden)
     .sort((a, b) => {
@@ -849,6 +861,105 @@ interface Run {
   spend: number;
   total: number;
   st: GainState;
+  /** places bought at the lowest base price to reach the squad minimum */
+  topped_up: number;
+  /** the opportunity rule's max bid at each lot the run reached */
+  caps: Map<number, number>;
+}
+
+function bisectRight(xs: number[], x: number): number {
+  let lo = 0;
+  let hi = xs.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (x < xs[mid]) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
+
+function bisectLeft(xs: number[], x: number): number {
+  let lo = 0;
+  let hi = xs.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** What the money, squad places and overseas places left at a lot can still buy (mirror of
+ * bidplan.py `_OppValue`): the later lots in order of gain ÷ expected price while the money covers
+ * them, an overseas lot only with an overseas place left; a lot's max bid is the most that keeps what
+ * paying gives up within his gain. */
+class OppValue {
+  items: [number, number, number, number, boolean][] = [];
+  lists = new Map<string, [number[], number[]]>();
+  constructor(cands: Piece[], gains: Gains, future: number[], expected: number[]) {
+    const base = gains.state(future);
+    const fut = new Set(future);
+    cands.forEach((c, j) => {
+      if (c.own || (c.ub as number) <= 0 || expected[j] <= 0) return;
+      const g = fut.has(j) ? gains.gain(gains.state(future.filter((k) => k !== j)), j) : gains.gain(base, j);
+      if (g > 0) this.items.push([g / expected[j], j, expected[j], g, !!c.os]);
+    });
+    this.items.sort((a, b) => (a[0] !== b[0] ? (a[0] > b[0] ? -1 : 1) : a[1] - b[1]));
+  }
+  build(i: number, osRoom: number, skip: Set<number> | null): [number[], number[]] {
+    const cumE: number[] = [];
+    const cumG: number[] = [];
+    let te = 0;
+    let tg = 0;
+    let o = 0;
+    for (const [, j, e, g, os] of this.items) {
+      if (j <= i || (skip && skip.has(j))) continue;
+      if (os) {
+        if (o >= osRoom) continue;
+        o += 1;
+      }
+      te += e;
+      tg += g;
+      cumE.push(te);
+      cumG.push(tg);
+    }
+    return [cumE, cumG];
+  }
+  list(i: number, osRoom: number, skip: Set<number> | null = null): [number[], number[]] {
+    const o = Math.max(osRoom, 0);
+    if (skip && skip.size) return this.build(i, o, skip);
+    const key = `${i}|${o}`;
+    let got = this.lists.get(key);
+    if (!got) {
+      got = this.build(i, o, null);
+      this.lists.set(key, got);
+    }
+    return got;
+  }
+  static worth(lst: [number[], number[]], money: number, room: number): number {
+    const [cumE, cumG] = lst;
+    if (room <= 0 || money < 0) return 0;
+    const k = Math.min(bisectRight(cumE, money + 1e-9), room);
+    return k > 0 ? cumG[k - 1] : 0;
+  }
+  maxBid(i: number, g: number, money: number, room: number, osRoom: number, isOs: boolean,
+         skip: Set<number> | null = null, moneySkip: number | null = null): number {
+    if (room <= 0 || g <= 0 || (isOs && osRoom <= 0)) return 0;
+    const ms = moneySkip === null ? money : moneySkip;
+    const now = OppValue.worth(this.list(i, osRoom, skip), ms, room);
+    const need = now - g;
+    if (need <= 1e-12) return Math.max(money, 0);
+    const [cumE, cumG] = this.list(i, osRoom - (isOs ? 1 : 0), skip);
+    const k = bisectLeft(cumG, need - 1e-12);
+    if (k >= cumG.length || k + 1 > room - 1) return 0;
+    return Math.max(0, money - cumE[k]);
+  }
+}
+
+/** A crore's worth at the start under the opportunity rule (bidplan.py `_opp_rate`). */
+function oppRate(ov: OppValue, money: number, room: number, osRoom: number): number {
+  const lst = ov.list(-1, osRoom);
+  return Math.max(0, OppValue.worth(lst, money, room) - OppValue.worth(lst, money - 1, room));
 }
 
 /** What a crore and a squad place are still worth at each lot: the later lots ranked by gain on
@@ -932,7 +1043,7 @@ function capOf(g: number, lam: number, slot: number): number {
   return lam > 0 ? net / lam : Infinity;
 }
 
-function replay(ctx: BidContext, cands: Piece[], prices: number[], lam: number, overrides: Record<string, number>, gains: Gains, future: number[], mv: MoneyValue | null = null): Run {
+function replay(ctx: BidContext, cands: Piece[], prices: number[], lam: number, overrides: Record<string, number>, gains: Gains, future: number[], mv: MoneyValue | null = null, ov: OppValue | null = null): Run {
   const sqMax = Number(ctx.rules.squad_max);
   const sqMin = Number(ctx.rules.squad_min);
   const osMax = Number(ctx.rules.overseas_max);
@@ -941,16 +1052,25 @@ function replay(ctx: BidContext, cands: Piece[], prices: number[], lam: number, 
   let left = Number(ctx.purse_left);
   const bought: number[] = [];
   const paid: number[] = [];
+  const caps = new Map<number, number>();
   for (let i = 0; i < cands.length; i++) {
     const c = cands[i];
     if (n >= sqMax) break;
     if (c.os && osN >= osMax) continue;
-    if (c.own && !Object.prototype.hasOwnProperty.call(overrides, c.id)) continue; // never bought back (see `reconsider`)
+    const has = Object.prototype.hasOwnProperty.call(overrides, c.id);
+    if (c.own && !has) continue; // never bought back (see `reconsider`)
     const r = prices[i];
     const reserve = Math.max(0, sqMin - n - 1) * MIN_SLOT_PRICE;
+    if (ov !== null && !has) {
+      // recorded whether or not the price is in reach: the sheet's max bid is these caps' median
+      const ahead = [...bought, ...future.filter((j) => j > i)];
+      const g = gains.gain(gains.state(ahead), i);
+      caps.set(i, ov.maxBid(i, g, left - reserve, sqMax - n, osMax - osN, !!c.os, null, left - Math.max(0, sqMin - n) * MIN_SLOT_PRICE));
+    }
     if (r > left - reserve) continue;
     let cap: number;
-    if (Object.prototype.hasOwnProperty.call(overrides, c.id)) cap = overrides[c.id];
+    if (has) cap = overrides[c.id];
+    else if (ov !== null) cap = caps.get(i) as number;
     else {
       const [lamI, slotI] = mv === null ? [lam, 0] : mv.value(i, left - reserve, sqMax - n - 1);
       if ((c.ub as number) <= slotI || (c.ub as number) < lamI * r + slotI) continue;
@@ -965,8 +1085,10 @@ function replay(ctx: BidContext, cands: Piece[], prices: number[], lam: number, 
       if (c.os) osN += 1;
     }
   }
+  // the squad minimum: the accelerated rounds' unsold players at the lowest base price (no gain)
+  const toppedUp = Math.max(0, sqMin - n);
   const st = gains.state(bought);
-  return { bought, paid, spend: fsum(paid), total: st.total, st };
+  return { bought, paid, spend: fsum([...paid, ...new Array(toppedUp).fill(MIN_SLOT_PRICE)]), total: st.total, st, topped_up: toppedUp, caps };
 }
 
 export interface CurvePoint {
@@ -1044,10 +1166,12 @@ export interface Target {
   overseas: boolean;
   tags: string;
   value: number;
+  value_now: number | null;
   price: number;
   p_bought: number | null;
   base_price: number;
   from_team: string | null;
+  eligibility: string | null;
   slot: Slot;
   gain: number;
   max_bid: number;
@@ -1107,6 +1231,8 @@ export interface BidPlan {
   mean_xi: number;
   mean_spend: number;
   mean_squad: number;
+  /** share of runs topped up at the lowest base price to reach the squad minimum */
+  topped_up_share: number;
   need_met: Record<Need, number>;
   missing: { need: Need; label: string; target: number; have: number }[];
   /** our releases worth more to the likely squad than their salary (never bought back by the plan) */
@@ -1171,16 +1297,21 @@ export function plan(
   for (;;) {
     rounds += 1;
     let mv: MoneyValue | null = null;
+    let ov: OppValue | null = null;
     if (money === "auction") {
       mv = new MoneyValue(cands, gains, future, expected);
       lam = mv.value(-1, Number(ctx.purse_left) - reserve0, sqMax - ctx.kept.length)[0];
+      curve = [];
+    } else if (money === "opportunity") {
+      ov = new OppValue(cands, gains, future, expected);
+      lam = oppRate(ov, Number(ctx.purse_left) - reserve0, sqMax - ctx.kept.length, Number(ctx.rules.overseas_max) - ctx.kept.filter((p) => p.os).length);
       curve = [];
     } else [lam, curve] = search(ctx, cands, byRun, over, gains, future, marketRate);
     land = new Array(cands.length).fill(0);
     priceSum = new Array(cands.length).fill(0);
     runs = [];
     for (let t = 0; t < nTrials; t++) {
-      const rr = replay(ctx, cands, byRun[t], lam, over, gains, future, mv);
+      const rr = replay(ctx, cands, byRun[t], lam, over, gains, future, mv, ov);
       runs.push(rr);
       rr.bought.forEach((i, k) => {
         land[i] += 1;
@@ -1197,13 +1328,15 @@ export function plan(
   const totals: number[] = [];
   const xis: number[] = [];
   const sizes: number[] = [];
+  const topped: number[] = [];
   const needMet = { keeper: 0, opener: 0, death: 0, spinner: 0, pace: 0 } as Record<Need, number>;
   for (const rr of runs) {
     spends.push(rr.spend);
     totals.push(rr.total);
     const s = strength(rr.st.pieces, tgt);
     xis.push(s.xi);
-    sizes.push(rr.st.pieces.length);
+    sizes.push(rr.st.pieces.length + rr.topped_up);
+    topped.push(rr.topped_up);
     for (const n of NEED_ORDER) if (s.counts[n] >= tgt[n]) needMet[n] += 1;
   }
 
@@ -1211,6 +1344,7 @@ export function plan(
   const likelySet = new Set(likely);
   // the money value on the final likely squad (bidplan.py `mv_final`)
   const mvFinal = money === "auction" ? new MoneyValue(cands, gains, likely, expected) : null;
+  const ovFinal = money === "opportunity" ? new OppValue(cands, gains, likely, expected) : null;
   const likelyPieces = [...ctx.kept, ...likely.map((i) => cands[i])];
   const expPaid = new Map(likely.map((i) => [i, priceSum[i] / land[i]]));
 
@@ -1230,6 +1364,19 @@ export function plan(
   };
   const maxBid = (drop: Set<number>, i: number): [number, number, boolean] => {
     const g = gainWithout(drop, i);
+    if (ovFinal !== null) {
+      // the rule the runs bid by, at the state when his lot comes up (bidplan.py `max_bid`)
+      const before = likely.filter((j) => !drop.has(j) && j < i);
+      const nNow = ctx.kept.length + before.length;
+      const spent = fsum(before.map((j) => expPaid.get(j) as number));
+      const room = sqMax - nNow;
+      const osRoom = osMax - ctx.kept.filter((p) => p.os).length - before.filter((j) => cands[j].os).length;
+      const budget = Number(ctx.purse_left) - spent - Math.max(0, sqMin - nNow - 1) * MIN_SLOT_PRICE;
+      const skipBudget = Number(ctx.purse_left) - spent - Math.max(0, sqMin - nNow) * MIN_SLOT_PRICE;
+      const skip = new Set([...drop].filter((j) => j !== i));
+      const mb = ovFinal.maxBid(i, g, Math.max(budget, 0), room, osRoom, !!cands[i].os, skip, skipBudget);
+      return [mb, g, mb >= Math.max(budget, 0) - 1e-9 && mb > 0];
+    }
     const rest = likely.filter((j) => !drop.has(j));
     const budget = budgetOf(rest);
     const [li, slot] = lamAt(drop, i);
@@ -1244,6 +1391,11 @@ export function plan(
     const has = Object.prototype.hasOwnProperty.call(over, c.id);
     if (share < TARGET_MIN_SHARE && !(has && over[c.id] > 0)) return;
     let [mb, g, bound] = maxBid(new Set([i]), i);
+    if (ovFinal !== null) {
+      // the opportunity rule's sheet is what the runs bid by: the median of their max bids at his lot
+      const rc = runs.filter((rr) => rr.caps.has(i)).map((rr) => rr.caps.get(i) as number);
+      if (rc.length) mb = median(rc);
+    }
     if (has) {
       mb = over[c.id];
       bound = false;
@@ -1261,10 +1413,12 @@ export function plan(
       overseas: c.os,
       tags: c.tags,
       value: a.value,
+      value_now: a.value_now ?? null,
       price: a.projected_value,
       p_bought: a.p_bought ?? null,
       base_price: a.base_price,
       from_team: a.from_team ?? null,
+      eligibility: a.eligibility ?? null,
       slot: slotOf(c),
       gain: g,
       max_bid: mb,
@@ -1276,7 +1430,7 @@ export function plan(
       p_land: share,
       avg_paid: land[i] ? priceSum[i] / land[i] : 0,
       likely: likelySet.has(i),
-      net: pLe * (g - lamAt(new Set([i]), i)[1] - lamAt(new Set([i]), i)[0] * meanUnder),
+      net: ovFinal !== null ? (mb > 0 ? pLe * g * (1 - meanUnder / mb) : 0) : pLe * (g - lamAt(new Set([i]), i)[1] - lamAt(new Set([i]), i)[0] * meanUnder),
       priority: 0,
     });
   });
@@ -1324,7 +1478,7 @@ export function plan(
     team: ctx.team,
     lam,
     curve,
-    purse_rate: money === "auction" ? lam : marketRate,
+    purse_rate: money === "auction" || money === "opportunity" ? lam : marketRate,
     money,
     rounds,
     converged,
@@ -1343,10 +1497,94 @@ export function plan(
     mean_xi: nTrials ? fsum(xis) / nTrials : before.xi,
     mean_spend: nTrials ? fsum(spends) / nTrials : 0,
     mean_squad: nTrials ? fsum(sizes) / nTrials : ctx.kept.length,
+    topped_up_share: nTrials ? topped.filter((x) => x > 0).length / nTrials : 0,
     need_met: Object.fromEntries(NEED_ORDER.map((n) => [n, nTrials ? needMet[n] / nTrials : 0])) as Record<Need, number>,
     missing,
     reconsider,
   };
+}
+
+// ---- what filling a role still short costs (bidplan.py `gap_costs`; METHODOLOGY §12) ----
+
+/** The plan's targets tried per role still short, in priority order (bidplan.py FILL_TRIES). */
+export const FILL_TRIES = 3;
+
+/** Whether a plan target counts toward `need` (bidplan.py `fills`). */
+export function fills(t: { role: string; tags: string }, need: Need): boolean {
+  const tags = t.tags || "";
+  const bowl = t.role === "bowler" || t.role === "all_rounder";
+  if (need === "keeper") return t.role === "keeper" || tags.includes("k");
+  if (need === "opener") return tags.includes("o");
+  if (need === "death") return tags.includes("d");
+  if (need === "spinner") return tags.includes("s");
+  return bowl && !tags.includes("s");
+}
+
+export interface GapCost {
+  need: Need;
+  label: string;
+  id: string | null;
+  name: string | null;
+  /** his usual price: the median price to beat over the runs */
+  expected_price: number | null;
+  /** the price that lands him in 9 runs of 10 */
+  enough_90: number | null;
+  /** how often the role is met in the plan rebuilt around him */
+  need_met: number;
+  /** strength the plan gives up for him (runs a match; negative = the plan around him is stronger) */
+  cost: number | null;
+}
+
+/** For each role `res` leaves short after its likely buys, what filling it costs: up to FILL_TRIES of
+ * its targets who fill the role (priority order; not a likely buy, not overridden) are each taken as
+ * bought at his usual price, joining the squad and leaving the purse, and the plan rebuilt around him
+ * with the same runs; the one leaving the most strength is reported (mirror of bidplan.py `gap_costs`). */
+export function gapCosts(
+  ctx: BidContext,
+  res: BidPlan,
+  needs: Partial<Record<Need, number>> = {},
+  overrides: Record<string, number> = {},
+  pricesIn: number[][] | null = null,
+  rateIn: number | null = null,
+  money: MoneyRule = MONEY,
+): GapCost[] {
+  const over: Record<string, number> = {};
+  for (const [k, v] of Object.entries(overrides)) if (v !== null && v !== undefined && v >= 0) over[k] = Number(v);
+  let prices: number[][];
+  let rate: number | null = rateIn;
+  if (pricesIn === null) {
+    const rr = rivalRuns(ctx, res.trials);
+    prices = rr.prices;
+    rate = rr.rate;
+  } else prices = pricesIn;
+  const cands = candsOf(ctx, lotP(ctx, prices.map((ps) => median(ps))));
+  const index = new Map(cands.map((c, i) => [c.id, i]));
+  const out: GapCost[] = [];
+  for (const m of res.missing) {
+    const n = m.need;
+    const opts = res.targets.filter((t) => fills(t, n) && !t.likely && !(t.id in over));
+    let best: GapCost | null = null;
+    for (const t of opts.slice(0, FILL_TRIES)) {
+      const i = index.get(t.id) as number;
+      const price = median(prices[i]);
+      if (price > Number(ctx.purse_left)) continue;
+      const ctx2: BidContext = {
+        ...ctx,
+        kept: [...ctx.kept, cands[i]],
+        purse_left: Number(ctx.purse_left) - price,
+        available: ctx.available.filter((_, k) => k !== i),
+      };
+      const pr2 = prices.filter((_, k) => k !== i);
+      const r = plan(ctx2, needs, over, prices[0].length, pr2, rate, money);
+      const row: GapCost = {
+        need: n, label: m.label, id: t.id, name: t.name, expected_price: price, enough_90: q90(prices[i]),
+        need_met: r.need_met[n], cost: res.mean_strength - r.mean_strength,
+      };
+      if (best === null || (row.cost as number) < (best.cost as number) || (row.cost === best.cost && (row.id as string) < (best.id as string))) best = row;
+    }
+    out.push(best ?? { need: n, label: m.label, id: null, name: null, expected_price: null, enough_90: null, need_met: res.need_met[n], cost: null });
+  }
+  return out;
 }
 
 // ---- output helpers ----
@@ -1363,7 +1601,7 @@ export function chainText(chain: Chain): string {
 /** The targets table as CSV rows (same columns as bidplan.py `to_csv_rows`). */
 export function toCsvRows(res: BidPlan): string[][] {
   const head = [
-    "priority", "player", "role", "slot", "overseas", "from_team", "value", "market_price_cr",
+    "priority", "player", "role", "slot", "overseas", "from_team", "value", "value_next_season", "market_price_cr",
     "p_bought", "expected_price_cr", "enough_90_cr", "max_bid_cr", "your_max_bid", "p_land_at_max_bid",
     "p_land_in_plan", "gain_runs", "likely",
   ];
@@ -1377,6 +1615,7 @@ export function toCsvRows(res: BidPlan): string[][] {
       x.overseas ? "yes" : "no",
       x.from_team ?? "",
       fmtNum(x.value, 1),
+      x.value_now === null || x.value_now === undefined ? "" : fmtNum(x.value_now, 1),
       fmtNum(x.price, 2),
       x.p_bought === null || x.p_bought === undefined ? "" : fmtNum(x.p_bought, 2),
       fmtNum(x.expected_price, 2),

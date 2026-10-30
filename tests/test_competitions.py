@@ -271,7 +271,7 @@ def test_availability_file_is_sourced():
     assert recs, "no availability records"
     for cid, r in recs.items():
         assert r.get("_name"), cid
-        assert r["status"] in ("retired", "not_registered", "banned"), cid
+        assert r["status"] in ("retired", "not_registered", "banned", "unconfirmed"), cid
         if r["status"] == "retired":
             assert r["scope"] in ("ipl", "all") and len(r["date"]) == 10, cid
         else:
@@ -289,6 +289,17 @@ def test_unavailable_by_season():
     assert competitions.unavailable(2027, records=recs) == {"a": "retired"}
     assert competitions.unavailable(2026, records=recs) == {"b": "not_registered"}
     assert competitions.unavailable(2028, records=recs) == {"a": "retired", "c": "retired"}
+
+
+def test_unconfirmed_eligibility_is_flagged_not_dropped():
+    """An open eligibility question (no ruling yet) keeps the player in the pool with a note."""
+    recs = {
+        "m": {"status": "unconfirmed", "seasons": [2027], "note": "eligibility unconfirmed"},
+        "r": {"status": "retired", "scope": "all", "date": "2026-01-01"},
+    }
+    assert competitions.unavailable(2027, records=recs) == {"r": "retired"}
+    assert competitions.eligibility_notes(2027, records=recs) == {"m": "eligibility unconfirmed"}
+    assert competitions.eligibility_notes(2028, records=recs) == {}
 
 
 def test_banned_for_listed_seasons_only():

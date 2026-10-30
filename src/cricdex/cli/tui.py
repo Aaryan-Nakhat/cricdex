@@ -129,6 +129,8 @@ COMPARE_ROWS: list[tuple[str, str, tuple[str, ...], int]] = [
     ("Metrics", "Counter-attack SR", ("metrics", "counter_attack", "counter_attack_sr"), 1),
     ("Metrics", "Boundary %", ("metrics", "boundary_dependency", "bdr_pct"), 1),
     ("Metrics", "Dot recovery", ("metrics", "dot_ball_recovery", "runs_per_6_after_dot"), 2),
+    ("Metrics", "Dots avoided / 100", ("metrics", "dot_avoidance", "dots_avoided_per100"), 1),
+    ("Metrics", "Finisher / 100", ("metrics", "finisher", "above_per100"), 1),
 ]
 
 # Every Scout pool in the league registry (config/leagues.toml), keyed by its tier.
@@ -1500,12 +1502,19 @@ class CricDexApp(App):
                 build_pool,
                 load_auction_pool,
                 load_retentions,
+                mini_inputs,
                 retention_inputs,
             )
+            from cricdex.web_parity.loader import load_keep
 
             raw = load_auction_pool("ipl")
             pool = build_pool(raw)
             ret = load_retentions("ipl")
+            try:
+                # the mini auction's start: Keep or release's default plan and costs
+                mini = mini_inputs(load_keep("ipl"), pool)
+            except FileNotFoundError:
+                mini = {}
             # fan-facing names (the priced pool keeps only the scorecard name)
             display = {r["cricsheet_id"]: display_name(r) or r["name"] for r in raw}
             name_to_cid = {p["name"]: p["cricsheet_id"] for p in pool}
@@ -1518,6 +1527,7 @@ class CricDexApp(App):
                 "name_to_cid": name_to_cid,
                 # the real 2025 lists, prices and the slab rule they cost (auction.retention_inputs)
                 **retention_inputs(ret),
+                "mini": mini,
             }
         return self._auction_cache
 
@@ -1538,7 +1548,9 @@ class CricDexApp(App):
 
         if self._retentions is None or self._ret_mode != mode:
             d = self._auction_data()
-            base = default_retentions(d["pool"], self._teams_cfg(), mode, d["mega_ids"])
+            base = default_retentions(
+                d["pool"], self._teams_cfg(), mode, d["mega_ids"], d["mini"].get("mini_ids")
+            )
             if self._drafted:
                 t0 = IPL_TEAMS[0]
                 extra = [c for c in self._drafted if c in d["by_cid"]]
@@ -1667,6 +1679,7 @@ class CricDexApp(App):
                     "retention_slabs": d["retention_slabs"],
                     "slab_holders": d["slab_holders"],
                     "fixed_retained": d["fixed_retained"],
+                    **(d["mini"] if mode == "mini" else {}),
                 },
             )
         except Exception as e:  # noqa: BLE001
@@ -2560,7 +2573,17 @@ class CricDexApp(App):
 
     def on_select_changed(self, event: Select.Changed) -> None:
         sid = getattr(event.select, "id", None)
-        if sid == "sim-ret-team":
+        if sid == "sim-mode" and not _unselected(event.value):
+            # mega: the full 120 cr; mini: the next season's purse (each team then pays for its kept
+            # squad as on the Keep page); without exported data the field is left as it is
+            try:
+                mini = (self._auction_data().get("mini") or {}).get("mini_rules") or {}
+            except FileNotFoundError:
+                return
+            purse = 120 if event.value == "mega" else mini.get("purse")
+            if purse is not None:
+                self.query_one("#sim-purse", Input).value = f"{float(purse):g}"
+        elif sid == "sim-ret-team":
             self._refresh_ret_map()
         elif sid == "sim-squad-team" and not _unselected(event.value):
             self._render_squad(event.value)
