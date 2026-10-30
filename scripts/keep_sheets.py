@@ -70,11 +70,10 @@ def evaluate_all() -> dict:
             team, data["players"], pool, data.get("pool_tags") or {}, data.get("form"), rules
         )
         out[team] = evaluate(squad_of(data, team), market, rules, {}, {}, data.get("form"))
-    bt = json.loads(
-        (ROOT / "data" / "metrics" / "keep_backtest_ipl.json").read_text(encoding="utf-8")
-    )
-    model = next(k for k in bt["validation"] if k.startswith(bt["chosen"].split()[0] + " "))
-    return {"teams": out, "kept_2026": bt["validation"][model]["2026"]["kept_rate"]}
+    # the shipped model's own record of its validation (committed; data/metrics is not)
+    ev = json.loads((ROOT / "config" / "keep_model.json").read_text(encoding="utf-8"))["evaluation"]
+    model = next(k for k in ev["validation"] if k.startswith(ev["chosen"].split()[0] + " "))
+    return {"teams": out, "kept_2026": ev["validation"][model]["2026"]["kept_rate"]}
 
 
 def _cr(x: float | None) -> str:
