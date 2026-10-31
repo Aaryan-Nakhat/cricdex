@@ -8,14 +8,13 @@ versioning starts at v0.1.0.
 
 ## [Unreleased]
 
-### Renamed: CricDex is now CricDesk (2026-10-31)
+### Renamed to CricDesk (2026-10-31)
 
-The old name was already in use by an unrelated cricket product (a card-battling Discord bot at
-cricdex.com) and close to a betting brand. Everything moved: the repo and site address
-(`github.com/Aaryan-Nakhat/cricdesk`, `aaryan-nakhat.github.io/cricdesk/`), the `cricdesk` command, the
-`cricdesk` Python package, the `CRICDESK_*` environment variables and `~/.cricdesk/`. Entries below keep the
-new name. The dated 2027 Keep calls (`data/predictions/ipl_keep_2027.json`) are unchanged: they were
-written at commit ae802bde2, under the old name.
+The earlier name was already used by an unrelated cricket product (a card-battling Discord bot) and was
+close to a betting brand. Everything moved: the repo and site address (`github.com/Aaryan-Nakhat/cricdesk`,
+`aaryan-nakhat.github.io/cricdesk/`), the `cricdesk` command, the `cricdesk` Python package, the
+`CRICDESK_*` environment variables and `~/.cricdesk/`. The dated 2027 Keep calls
+(`data/predictions/ipl_keep_2027.json`) are unchanged: they were written at commit ae802bde2.
 
 ### Fixes from the six-way review (2026-10-29)
 
