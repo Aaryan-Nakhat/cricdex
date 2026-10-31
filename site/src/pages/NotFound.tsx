@@ -5,7 +5,7 @@ export function NotFound() {
   return (
     <Empty>
       <div className="text-4xl font-bold text-fg">404</div>
-      <p>That page isn't in the dex.</p>
+      <p>That page doesn't exist.</p>
       <Link to="/" className="btn btn-accent mt-2">
         Back to overview
       </Link>

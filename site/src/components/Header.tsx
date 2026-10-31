@@ -158,7 +158,7 @@ export function Header() {
           <div className="hidden leading-none min-[420px]:block">
             <div className="text-[17px] font-extrabold tracking-tight">
               <span className="text-fg">Cric</span>
-              <span className="grad-text">Dex</span>
+              <span className="grad-text">Desk</span>
             </div>
             <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-faint">
               open cricket intelligence
