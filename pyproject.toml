@@ -44,9 +44,6 @@ dependencies = [
 
 [project.optional-dependencies]
 ui = ["streamlit>=1.41.0", "plotly>=5.24.0"]
-# Extra SDKs some LiteLLM providers need for service-account / cloud auth — install only if the
-# model you configure in .env requires it (API-key providers need nothing beyond the base install).
-cloud = ["google-cloud-aiplatform>=1.70"]
 # The CLI / TUI are part of the base install now; kept so `--extra cli` in older instructions still works.
 cli = []
 
