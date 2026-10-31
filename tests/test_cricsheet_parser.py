@@ -1,4 +1,4 @@
-from cricdex.scout.ingest.cricsheet import _phase
+from cricdesk.scout.ingest.cricsheet import _phase
 
 
 def test_phase_t20():

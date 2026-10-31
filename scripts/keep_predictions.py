@@ -1,7 +1,7 @@
 """The dated Keep calls for the next retention deadline, written before it (docs/METHODOLOGY.md §10).
 
 Every IPL squad player's chance of being kept and the default call (the same `evaluate` the page and
-`cricdex keep` run, no overrides), from the exported site data. The file is the first true test of the
+`cricdesk keep` run, no overrides), from the exported site data. The file is the first true test of the
 Keep model: it is written before the deadline and scored once the retained lists are published. It
 carries the git commit (and whether the tree had uncommitted changes) and a SHA-256 of every input, so
 the calls can be shown to predate the deadline and to come from this model.
@@ -20,10 +20,10 @@ from pathlib import Path
 
 import typer
 
-from cricdex.config import SITE_DATA
-from cricdex.web_parity import build_pool, load_auction_pool
-from cricdex.web_parity.keep import evaluate, market_for, player_key, squad_of
-from cricdex.web_parity.loader import load_keep
+from cricdesk.config import SITE_DATA
+from cricdesk.web_parity import build_pool, load_auction_pool
+from cricdesk.web_parity.keep import evaluate, market_for, player_key, squad_of
+from cricdesk.web_parity.loader import load_keep
 
 ROOT = Path(__file__).resolve().parents[1]
 INPUTS = (

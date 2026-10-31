@@ -6,13 +6,13 @@ import duckdb
 import polars as pl
 import pytest
 
-from cricdex.common.sql import BOWLER_RUNS, MAIN_INNINGS, table_suffix
-from cricdex.config import DATA_DIR
-from cricdex.records import queries as q
+from cricdesk.common.sql import BOWLER_RUNS, MAIN_INNINGS, table_suffix
+from cricdesk.config import DATA_DIR
+from cricdesk.records import queries as q
 
 DB = (
     DATA_DIR / "cricsheet" / "cricsheet.duckdb"
-)  # same lookup as the code (honours CRICDEX_DATA_DIR)
+)  # same lookup as the code (honours CRICDESK_DATA_DIR)
 needs_data = pytest.mark.skipif(not DB.exists(), reason="needs data/cricsheet/cricsheet.duckdb")
 
 
@@ -59,7 +59,7 @@ def test_on_this_day_keeps_bowling_rows():
 
 @needs_data
 def test_crease_longevity_counts_run_outs_at_the_other_end():
-    from cricdex.metrics import batter
+    from cricdesk.metrics import batter
 
     with duckdb.connect(str(DB), read_only=True) as con:
         # someone run out as the non-striker at least once

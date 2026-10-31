@@ -13,12 +13,12 @@ import duckdb
 import polars as pl
 import pytest
 
-from cricdex.common import sql
-from cricdex.metrics import batter as batter_metrics
-from cricdex.metrics import matchups, ngi, phase
-from cricdex.scout import cohort
-from cricdex.scout.ingest import cricsheet
-from cricdex.scout.ratings import bayesian
+from cricdesk.common import sql
+from cricdesk.metrics import batter as batter_metrics
+from cricdesk.metrics import matchups, ngi, phase
+from cricdesk.scout import cohort
+from cricdesk.scout.ingest import cricsheet
+from cricdesk.scout.ratings import bayesian
 
 
 def _over(over: int, batter: str, bowler: str, non_striker: str, runs: int) -> dict:

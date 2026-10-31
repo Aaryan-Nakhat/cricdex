@@ -7,7 +7,7 @@ import duckdb
 import polars as pl
 import pytest
 
-from cricdex.scout.search import style_twin as st
+from cricdesk.scout.search import style_twin as st
 
 # Batting runs per ball, cycled: how each kind of batter scores.
 PATTERNS = {

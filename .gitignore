@@ -63,7 +63,7 @@ data/curated/*
 !data/curated/wikidata_players.json
 !data/curated/wikipedia_infobox.json
 !data/curated/international_caps.json
-# Afghanistan internationals Cricsheet withholds (src/cricdex/scout/identity/withheld.py)
+# Afghanistan internationals Cricsheet withholds (src/cricdesk/scout/identity/withheld.py)
 !data/curated/withheld_internationals.json
 !data/curated/ipl_squads_2026.json
 # IPL auction record (Wikipedia personnel pages) and sourced availability (retirements): read by the

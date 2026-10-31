@@ -7,8 +7,8 @@ import re
 
 import pytest
 
-from cricdex import leagues
-from cricdex.config import SITE_DATA
+from cricdesk import leagues
+from cricdesk.config import SITE_DATA
 
 COLLECTIONS = [
     c["collection"]

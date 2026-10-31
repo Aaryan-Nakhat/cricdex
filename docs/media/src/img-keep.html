@@ -72,6 +72,6 @@
     + `<div><div class="muted" style="font:600 14px Inter">Open places</div><div class="big" style="font-size:34px;margin-top:6px">${K.slots_left} <span class="muted" style="font-size:18px">(${K.overseas_slots_left} overseas)</span></div></div>`);
   fill("gaps", K.gaps.filter((g) => g.gap > 0).map((g) => `<div class="gap"><span>${esc(g.label)}</span><span class="warn">${g.kept} of ${g.target} · ${g.gap} to fill</span></div>`).join(""));
   fill("foot-l", `Squads and salaries: Wikipedia's IPL pages (CC BY-SA)${K.purse_assumed ? ` · *the 2027 purse is assumed at ${fx(K.purse, 0)} cr until published` : ""} · flip any call`);
-  fill("foot-r", `cricdex keep --team ${K.team}`);
+  fill("foot-r", `cricdesk keep --team ${K.team}`);
 </script>
 </body></html>

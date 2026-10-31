@@ -11,7 +11,7 @@ from __future__ import annotations
 import duckdb
 import polars as pl
 
-from cricdex.metrics.batter import pressure_runs
+from cricdesk.metrics.batter import pressure_runs
 
 
 def _seed_duckdb(db_path: str) -> None:

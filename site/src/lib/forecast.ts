@@ -1,5 +1,5 @@
 // Form forecast: a player's value (runs per 100 balls above the average ball) over the next three
-// seasons. Computed offline by scripts/form_forecast.py (cricdex.scout.forecast); the method is in
+// seasons. Computed offline by scripts/form_forecast.py (cricdesk.scout.forecast); the method is in
 // docs/METHODOLOGY.md §11. This file only types and reads `<collection>/forecast.json`.
 
 export type ForecastFlag = "hold" | "improve" | "hold_then_decline" | "decline";

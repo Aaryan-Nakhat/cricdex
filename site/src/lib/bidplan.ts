@@ -1,6 +1,6 @@
 // Bid plan: the auction bidding-plan optimiser. EXACT mirror of
-// src/cricdex/web_parity/bidplan.py — same constants, same formulas, same order of operations — so
-// the page and `cricdex bidplan` show identical numbers (test_scripts/test_bidplan_parity.py runs
+// src/cricdesk/web_parity/bidplan.py — same constants, same formulas, same order of operations — so
+// the page and `cricdesk bidplan` show identical numbers (test_scripts/test_bidplan_parity.py runs
 // both). The method in plain words: docs/METHODOLOGY.md §12.
 //
 // 1. Rivals: the Auction room's simulator (auction.ts `oneTrial`) runs the other nine franchises,

@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from cricdex import leagues
-from cricdex.scout.identity import countries, master, names, sources
+from cricdesk import leagues
+from cricdesk.scout.identity import countries, master, names, sources
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -244,7 +244,7 @@ def test_wikidata_dob_keeps_only_day_precision():
 
 
 def test_dob_prefers_the_infobox_and_skips_implausible_dates():
-    from cricdex.scout.identity import master as m
+    from cricdesk.scout.identity import master as m
 
     review = {"dob": []}
     # the infobox wins a disagreement with Wikidata, which is logged

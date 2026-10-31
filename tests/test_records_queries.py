@@ -10,7 +10,7 @@ import datetime as dt
 
 import duckdb
 
-from cricdex.records import queries
+from cricdesk.records import queries
 
 
 def _seed_db(path):

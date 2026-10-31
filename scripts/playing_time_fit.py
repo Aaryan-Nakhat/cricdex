@@ -1,5 +1,5 @@
 """Fit and validate the playing-time model: expected balls, replacement levels and P(plays)
-(docs/METHODOLOGY.md §6c; `src/cricdex/scout/playing_time.py`).
+(docs/METHODOLOGY.md §6c; `src/cricdesk/scout/playing_time.py`).
 
 The frozen protocol (audit items 4 and 6, 2026-10-22): every candidate is declared below before any
 test number; candidates are fitted on seasons up to 2023 and chosen on 2024 (validation); the chosen
@@ -29,13 +29,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import ipl_price_model as ipm  # noqa: E402
 
-from cricdex import leagues  # noqa: E402
-from cricdex.config import DATA_DIR  # noqa: E402
-from cricdex.scout import playing_time as pt  # noqa: E402
-from cricdex.scout import translation  # noqa: E402
-from cricdex.scout.identity import captains, master  # noqa: E402
-from cricdex.scout.identity.sources import IPL_TEAM_CODES_ALL  # noqa: E402
-from cricdex.scout.ratings import bayesian  # noqa: E402
+from cricdesk import leagues  # noqa: E402
+from cricdesk.config import DATA_DIR  # noqa: E402
+from cricdesk.scout import playing_time as pt  # noqa: E402
+from cricdesk.scout import translation  # noqa: E402
+from cricdesk.scout.identity import captains, master  # noqa: E402
+from cricdesk.scout.identity.sources import IPL_TEAM_CODES_ALL  # noqa: E402
+from cricdesk.scout.ratings import bayesian  # noqa: E402
 
 app = typer.Typer(add_completion=False)
 
@@ -343,7 +343,7 @@ def balls() -> None:
 def asof_roles(season: int, date: str) -> dict[str, dict[str, tuple[float, float]]]:
     """cid → {"batter": (value, sd), "bowler": (value, sd)} as of an auction, each role blended
     across leagues exactly as the auction pool blends it (every league translated onto the IPL scale
-    and combined with the IPL rating by precision: cricdex.scout.translation.blend). The protocol
+    and combined with the IPL rating by precision: cricdesk.scout.translation.blend). The protocol
     runs (`play`, `free`, `asof-contrib`) use the translation fitted on seasons ≤ 2024, so the 2025-26
     test sees no later outcome; `ship` uses the shipped one (`_WHICH`)."""
     own, other = ipm.asof_sources(season, date)
@@ -366,7 +366,7 @@ def _time_aware(vals: dict, shares: dict, season: int, date: str) -> dict:
     """The as-of values moved from his career level to his level in `season` (scout/ratings/drift.py,
     METHODOLOGY §4b): the protocol runs use the time-aware model fitted on seasons up to 2024
     (`model_le2024`), `ship` the shipped one. Unchanged when config/rating_drift.json is missing."""
-    from cricdex.scout.ratings import drift
+    from cricdesk.scout.ratings import drift
 
     m = drift.load_model(which="model" if _WHICH["which"] == "roles" else "model_le2024")
     if m is None:
@@ -384,7 +384,7 @@ def _time_aware(vals: dict, shares: dict, season: int, date: str) -> dict:
                           _WHICH["which"])  # fmt: skip
     # how far each value is trusted (scout/ratings/shrink.py, METHODOLOGY §4c): shrunk toward its
     # role's mean by the fitted calibration (`model_le2024` in the protocol runs)
-    from cricdex.scout.ratings import shrink
+    from cricdesk.scout.ratings import shrink
 
     sm = shrink.load_model(which="model" if _WHICH["which"] == "roles" else "model_le2024")
     out, _ = shrink.adjust(out, shares, shrink.years_since(o, date), sm)
@@ -1021,7 +1021,7 @@ def fa_rows(u, roles, hist, play_data: dict, cache: Path) -> dict[int, list[dict
     import datetime as _dt
     import pickle
 
-    from cricdex import leagues as _lg
+    from cricdesk import leagues as _lg
 
     eligible = _lg.auction_target().auction_eligible
     done: dict = pickle.loads(cache.read_bytes()) if cache.exists() else {}

@@ -9,7 +9,7 @@ import math
 import numpy as np
 import pytest
 
-from cricdex.scout.ratings import drift
+from cricdesk.scout.ratings import drift
 
 P = drift.GroupParams(mu0=3.0, tau2=80.0, q=6.0, c=900.0, e=15.0,
                       curve=(4.0, 2.5, 1.0, 0.0, -1.0, -4.0, -8.0, -12.0))  # fmt: skip

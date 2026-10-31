@@ -15,8 +15,8 @@ from pathlib import Path
 import typer
 from loguru import logger
 
-from cricdex import leagues
-from cricdex.scout.ingest import cricsheet
+from cricdesk import leagues
+from cricdesk.scout.ingest import cricsheet
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -40,7 +40,7 @@ def ingest(
     force: bool = typer.Option(False, "--force"),
 ) -> None:
     # Single shared pipeline (cricsheet.build) so the script + the
-    # `cricdex data ingest cricsheet` CLI can't drift. `extract` auto-reruns
+    # `cricdesk data ingest cricsheet` CLI can't drift. `extract` auto-reruns
     # when the downloaded zip is newer, so a refreshed Cricsheet is picked up.
     cricsheet.build(collection=_check(collection), out=out, force=force)
 

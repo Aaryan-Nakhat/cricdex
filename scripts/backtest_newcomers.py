@@ -6,7 +6,7 @@ rated from the other auction-pool leagues only (every `auction_pool` league in
 config/leagues.toml except the IPL; the first published run used BBL, SA20,
 CPL, T20 Blast and SMAT — `--leagues` repeats it), each fitted on matches
 before S. Their value there, translated onto the IPL scale exactly as the
-auction pool does it (cricdex.scout.translation, per league and role; until
+auction pool does it (cricdesk.scout.translation, per league and role; until
 2026-10-23 one hand-set discount per league), is compared with how the IPL
 season went. This backtest scores RANK only; the level of the translation is
 validated by scripts/league_translation_fit.py (bias, MAE and calibration of the
@@ -59,10 +59,10 @@ import typer
 from backtest_ratings import LABEL, _spearman, _totals, _z, holm
 from loguru import logger
 
-from cricdex import leagues
-from cricdex.config import DATA_DIR
-from cricdex.scout import translation
-from cricdex.scout.ratings import bayesian, runs_value
+from cricdesk import leagues
+from cricdesk.config import DATA_DIR
+from cricdesk.scout import translation
+from cricdesk.scout.ratings import bayesian, runs_value
 
 app = typer.Typer(add_completion=False)
 
@@ -106,7 +106,7 @@ def _fit_task(args: tuple) -> str:
 
 
 def _pool_model(rated: list[tuple[str, pl.DataFrame]], role: str) -> pl.DataFrame:
-    """Per player: value (each league's translated onto the IPL scale, cricdex.scout.translation)
+    """Per player: value (each league's translated onto the IPL scale, cricdesk.scout.translation)
     pooled as the auction pool pools it (translation.league_composite: weighted by 1 / the variance
     of his rating and the fitted line; the translation sd is his own, shared by his leagues, so it
     doesn't weight them), each axis skill by 1 / sd²."""

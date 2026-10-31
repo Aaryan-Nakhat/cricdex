@@ -1,5 +1,5 @@
 """Fit, validate and ship the league translations: how a rating in another league carries over to
-the IPL, per league and per role (docs/METHODOLOGY.md §6d; `src/cricdex/scout/translation.py`).
+the IPL, per league and per role (docs/METHODOLOGY.md §6d; `src/cricdesk/scout/translation.py`).
 
 Until 2026-10-23 a league's rating was moved onto the IPL by one hand-set number per league (SMAT −17,
 BBL / SA20 −6, CPL / Blast −8.5, eight leagues borrowing one of those), with a guessed translation sd
@@ -60,7 +60,7 @@ Frozen protocol (declared 2026-10-23, before any test number)
     uv run python scripts/league_translation_fit.py pairs      # ~1 min: the pairs and outcomes
     uv run python scripts/league_translation_fit.py fit        # ~15 min: validate, test, ship
 
-Writes config/league_translation.json (read by `cricdex.scout.translation`) and
+Writes config/league_translation.json (read by `cricdesk.scout.translation`) and
 data/metrics/league_translation_ipl.json (every table).
 """
 
@@ -77,11 +77,11 @@ import polars as pl
 import typer
 from loguru import logger
 
-from cricdex import leagues
-from cricdex.common.sql import keyed_balls, materialize_keyed
-from cricdex.config import DATA_DIR
-from cricdex.scout import translation
-from cricdex.scout.ratings import bayesian, runs_value
+from cricdesk import leagues
+from cricdesk.common.sql import keyed_balls, materialize_keyed
+from cricdesk.config import DATA_DIR
+from cricdesk.scout import translation
+from cricdesk.scout.ratings import bayesian, runs_value
 
 app = typer.Typer(add_completion=False)
 
@@ -106,7 +106,7 @@ LAST_TRAIN = 2024
 
 # The scheme this replaces (config/leagues.toml until 2026-10-23), kept only as the baseline: one
 # discount per league, translation sd 6.5 / 10.5, a role record of 300+ IPL balls standing alone
-# (cricdex.scout.translation.legacy_blend).
+# (cricdesk.scout.translation.legacy_blend).
 
 # Candidates, declared before any test number (2026-10-23). `groups`: how leagues are pooled
 # ("registry" = the [tiers.*] group in config/leagues.toml; "one" = every non-IPL league in one group).

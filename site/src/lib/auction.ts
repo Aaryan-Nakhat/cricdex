@@ -89,7 +89,7 @@ export function priceTier(pv: number): number {
 }
 
 // A rating from another league is put on the IPL rating scale by the fitted league translation
-// (cricdex.scout.translation, per league and role) at export: the pool's `value` and Scout's `ipl_value`
+// (cricdesk.scout.translation, per league and role) at export: the pool's `value` and Scout's `ipl_value`
 // come translated, so every price here takes a value already on the IPL scale. (Until 2026-10-23: one
 // hand-set discount per league, `tierDiscount`, taken off here and in pricing.py.)
 export type PriceTier = string; // a tier key from leagues.json: "ipl" | "smat" | "bbl" | …

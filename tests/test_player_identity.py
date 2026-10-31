@@ -7,8 +7,8 @@ import json
 import duckdb
 import pytest
 
-from cricdex.common.sql import base_suffix, player_ids, scorecard_names, wickets_rel
-from cricdex.scout.ingest import cricsheet
+from cricdesk.common.sql import base_suffix, player_ids, scorecard_names, wickets_rel
+from cricdesk.scout.ingest import cricsheet
 
 
 def _delivery(batter, bowler, non_striker="C Partner", runs=0, wickets=None, extras=None):
@@ -268,7 +268,7 @@ def test_base_suffix():
 
 
 def test_dismissal_metrics_see_the_second_wicket(id_db):
-    from cricdex.metrics import batter, dismissal_fingerprint
+    from cricdesk.metrics import batter, dismissal_fingerprint
 
     modes = dismissal_fingerprint.batter_modes("C Partner", collection="ipl", db_path=id_db)
     assert modes["total"] == 1 and modes["rows"][0]["kind"] == "run out"
@@ -280,7 +280,7 @@ def test_dismissal_metrics_see_the_second_wicket(id_db):
 
 
 def test_alias_map_goes_through_identifier(id_db):
-    from cricdex.profiles import identity
+    from cricdesk.profiles import identity
 
     with duckdb.connect(str(id_db)) as con:
         con.execute("CREATE TABLE people_names (identifier TEXT, name TEXT)")

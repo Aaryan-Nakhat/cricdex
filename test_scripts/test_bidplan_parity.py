@@ -1,10 +1,10 @@
-"""Parity lock: Bid plan's Python optimiser (`cricdex.web_parity.bidplan`) must match the web
+"""Parity lock: Bid plan's Python optimiser (`cricdesk.web_parity.bidplan`) must match the web
 optimiser (`site/src/lib/bidplan.ts`) on the same inputs: every rival price in every run, the
 exchange rate, every target's max bid and odds, the fallback chains, the squad summary and the CSV.
 
 Runs `site/scripts/bidplan_parity_dump.ts` under Node on fixed synthetic leagues (overrides, role
 needs, open places, a purse change, a register, a tight squad) plus, when present, every real team
-from the exported keep.json + auction_pool.json (point CRICDEX_SITE_DATA at a scratch export).
+from the exported keep.json + auction_pool.json (point CRICDESK_SITE_DATA at a scratch export).
 Skips if Node is unavailable (fails in CI, see conftest.py).
 """
 
@@ -19,10 +19,10 @@ from pathlib import Path
 import pytest
 from test_web_parity import _approx_eq  # test_scripts/ is on sys.path (rootdir import mode)
 
-from cricdex.config import SITE_DATA
-from cricdex.web_parity import build_pool
-from cricdex.web_parity.auction import auction_lots, one_trial, open_squad_places
-from cricdex.web_parity.bidplan import (
+from cricdesk.config import SITE_DATA
+from cricdesk.web_parity import build_pool
+from cricdesk.web_parity.auction import auction_lots, one_trial, open_squad_places
+from cricdesk.web_parity.bidplan import (
     REPLACEMENT,
     XI_SIZE,
     best_xi,
@@ -234,14 +234,14 @@ def _pieces(ps: list[dict]) -> list[dict]:
 
 
 def _keep_model() -> dict | None:
-    from cricdex.web_parity.keep import load_keep_model
+    from cricdesk.web_parity.keep import load_keep_model
 
     load_keep_model.cache_clear()
     return load_keep_model()
 
 
 def _model() -> dict | None:
-    from cricdex.web_parity.pricing import load_price_model
+    from cricdesk.web_parity.pricing import load_price_model
 
     load_price_model.cache_clear()
     return load_price_model()
@@ -443,7 +443,7 @@ def test_best_xi_rules():
 def test_best_xi_balls_budget():
     """An XI whose expected balls faced pass a side's innings has its batting parts scaled down to
     TEAM_BALLS, every member alike; bowling parts too; nothing is scaled up."""
-    from cricdex.web_parity.bidplan import TEAM_BALLS
+    from cricdesk.web_parity.bidplan import TEAM_BALLS
 
     pieces = [piece(p["id"], p["name"], p["value"], p["role"], p["overseas"], p["tags"],
                     tuple(p["parts"])) for p in XI_CASES[3]]  # fmt: skip
@@ -463,7 +463,7 @@ def test_bench_cap_by_p_play():
     """The side's missed appearances (12 × 0.3 = 3.6 a match) go to the bench, best contribution a
     match first, each candidate at most his P(plays): the veteran (7 a match, P 0.04) fills 0.04,
     the kid (2 a match, P 0.3) 0.3, the squad's bench bowler (1 a match) a whole appearance."""
-    from cricdex.web_parity.bidplan import bench_fill
+    from cricdesk.web_parity.bidplan import bench_fill
 
     pieces = _pieces(XI_CASES[4])
     b = best_xi(pieces)
@@ -511,7 +511,7 @@ def test_unspent_purse_worth_what_later_lots_can_buy():
     """ROADMAP I17b (2026-10-27): a crore's worth at a lot is the gain per crore of the marginal later
     lot the money could still buy at its expected price, and a place's worth the gain of the lot it
     would push out when places run out first; both 0 after the last lot."""
-    from cricdex.web_parity.bidplan import DEFAULT_NEEDS, _cands, _Gains, _median, _MoneyValue
+    from cricdesk.web_parity.bidplan import DEFAULT_NEEDS, _cands, _Gains, _median, _MoneyValue
 
     data = {k: v for k, v in LEAGUE.items() if k != "_pool"}
     ctx = build_context(data, build_pool(LEAGUE["_pool"]), "CCC", {}, None, 6)
@@ -540,7 +540,7 @@ def test_opportunity_rule_bids_what_paying_gives_up():
     keeps what paying gives up (the later lots its money and place would have bought) within his gain,
     so it is finite and never above the money left, and the plan never lands a likely buy above his max
     bid on average. Every run reaches the squad minimum."""
-    from cricdex.web_parity.bidplan import DEFAULT_NEEDS, _cands, _Gains, _median, _OppValue
+    from cricdesk.web_parity.bidplan import DEFAULT_NEEDS, _cands, _Gains, _median, _OppValue
 
     data = {k: v for k, v in LEAGUE.items() if k != "_pool"}
     for team in ("AAA", "CCC"):

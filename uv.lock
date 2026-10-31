@@ -712,7 +712,7 @@ wheels = [
 ]
 
 [[package]]
-name = "cricdex"
+name = "cricdesk"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [

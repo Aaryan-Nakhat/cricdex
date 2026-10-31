@@ -86,10 +86,10 @@ def _real_auctions() -> list[dict]:
 
 @pytest.fixture(scope="module")
 def plans() -> dict:
-    """The ten default 2027 Bid plans, as the page and `cricdex bidplan` build them."""
-    from cricdex.web_parity import build_pool, load_auction_pool
-    from cricdex.web_parity.bidplan import OPEN_SLOTS, TRIALS, build_context, plan, rival_runs
-    from cricdex.web_parity.loader import load_auction_register, load_bidplan_rivals, load_keep
+    """The ten default 2027 Bid plans, as the page and `cricdesk bidplan` build them."""
+    from cricdesk.web_parity import build_pool, load_auction_pool
+    from cricdesk.web_parity.bidplan import OPEN_SLOTS, TRIALS, build_context, plan, rival_runs
+    from cricdesk.web_parity.loader import load_auction_register, load_bidplan_rivals, load_keep
 
     data = load_keep("ipl")
     raw = load_auction_pool("ipl")
@@ -136,7 +136,7 @@ def _p_bids(lot: dict, kept: list[dict], rules: dict) -> float:
     """The fitted chance a franchise bids at all for this lot at the start of the auction (the
     Auction room's demand model, config/auction_demand.json, fitted on the 2019-2026 auctions; the
     purse and upgrade terms at their mean, 0)."""
-    from cricdex.web_parity import auction as au
+    from cricdesk.web_parity import auction as au
 
     dm = au.demand({})
     os_cap = int(rules["overseas_max"])
@@ -319,8 +319,8 @@ def test_keep_calls_keep_the_first_slab_stars():
     One who missed most of it may be a toss-up (since 2026-10-30, the keep model reads matches last
     season): franchises kept about 90% of their top earners at the mini deadlines 2019-2026, not all
     (Venkatesh Iyer, 23.75 cr, released in 2026; Ben Stokes, 16.25, after missing most of 2023)."""
-    from cricdex.web_parity.keep import evaluate, squad_of
-    from cricdex.web_parity.loader import load_keep
+    from cricdesk.web_parity.keep import evaluate, squad_of
+    from cricdesk.web_parity.loader import load_keep
 
     data = load_keep("ipl")
     gaps = {"keeper": 0, "opener": 0, "death": 0, "spinner": 0, "overseas": 0}
@@ -343,7 +343,7 @@ def test_star_market_price_within_documented_error():
     real price is not below the documented 0.36 (AUCTION_MATH Part 0). Failed (xfail, ROADMAP I18)
     until the 2026-10-30 price refit: 0.347 under recipe Z, 0.369 under BH. Kartik Sharma and Prashant
     Veer stay far off (bought on 2025-26 SMAT / UP T20 form and trials, none of it in the data)."""
-    from cricdex.web_parity import build_pool
+    from cricdesk.web_parity import build_pool
 
     pool = {r["cricsheet_id"]: r["projected_value"] for r in build_pool(_load("auction_pool.json"))}
     hist = json.loads(HISTORY.read_text(encoding="utf-8"))

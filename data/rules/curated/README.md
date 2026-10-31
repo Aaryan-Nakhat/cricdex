@@ -37,7 +37,7 @@ One JSON object per line, matching the parser output schema:
 ```
 
 - `source_id` must also be registered in
-  `src/cricdex/rules/manifest.py` with `tier="supplementary"` and full
+  `src/cricdesk/rules/manifest.py` with `tier="supplementary"` and full
   provenance notes.
 - `law_number` should use a custom namespace (e.g. `IP.1`, `IP.2` …)
   separate from the auto-parsed clause numbering, so they never collide.

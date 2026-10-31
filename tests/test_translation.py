@@ -1,4 +1,4 @@
-"""League translations onto the IPL (cricdex.scout.translation; audit item 5, 2026-10-23)."""
+"""League translations onto the IPL (cricdesk.scout.translation; audit item 5, 2026-10-23)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import math
 
 import pytest
 
-from cricdex import leagues
-from cricdex.scout import translation as tr
+from cricdesk import leagues
+from cricdesk.scout import translation as tr
 
 ROW = {"a": -10.0, "b": 0.8, "tsd": 9.0, "cov": [[4.0, -0.1], [-0.1, 0.01]]}
 

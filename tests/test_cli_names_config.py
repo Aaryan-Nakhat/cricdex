@@ -1,7 +1,7 @@
 """CLI name lookup, leaderboard sorting and config.toml writing.
 
 Names resolve from the exported players.json, so the JSON-backed commands work on
-a fresh clone with no DuckDB (checked in a subprocess with an empty CRICDEX_DATA_DIR).
+a fresh clone with no DuckDB (checked in a subprocess with an empty CRICDESK_DATA_DIR).
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ import tomllib
 
 from typer.testing import CliRunner
 
-from cricdex.cli import _shared, app
-from cricdex.cli._shared import load_players, match_player, sort_missing_last
+from cricdesk.cli import _shared, app
+from cricdesk.cli._shared import load_players, match_player, sort_missing_last
 
 runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -39,14 +39,14 @@ def _fresh_clone(tmp_path, *args):
     """Run the CLI in a subprocess whose DATA_DIR is empty (no DuckDB, no metrics)."""
     env = {
         **os.environ,
-        "CRICDEX_DATA_DIR": str(tmp_path / "data"),
-        "CRICDEX_HOME": str(tmp_path / "home"),
+        "CRICDESK_DATA_DIR": str(tmp_path / "data"),
+        "CRICDESK_HOME": str(tmp_path / "home"),
         "NO_COLOR": "1",
         "COLUMNS": "200",
         "PYTHONIOENCODING": "utf-8",
     }
     r = subprocess.run(
-        [sys.executable, "-c", "from cricdex.cli import main; main()", *args],
+        [sys.executable, "-c", "from cricdesk.cli import main; main()", *args],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -150,7 +150,7 @@ def test_sort_missing_last_both_directions():
 
 
 def test_cli_leaderboard_puts_missing_values_last(tmp_path, monkeypatch):
-    import cricdex.cli.metrics_cmd as metrics_cmd
+    import cricdesk.cli.metrics_cmd as metrics_cmd
 
     board = tmp_path / "ipl" / "leaderboards"
     board.mkdir(parents=True)
@@ -174,7 +174,7 @@ def test_cli_leaderboard_puts_missing_values_last(tmp_path, monkeypatch):
 
 
 def test_config_set_escapes_quotes_and_backslashes(tmp_path):
-    env = {"CRICDEX_HOME": str(tmp_path)}
+    env = {"CRICDESK_HOME": str(tmp_path)}
     value = 'C:\\Users\\me\\"quoted"\tpath'
     code, out = _run("config", "set", "llm_api_base", value, env=env)
     assert code == 0, out
@@ -191,7 +191,7 @@ def test_config_set_escapes_quotes_and_backslashes(tmp_path):
 
 def test_corrupt_config_gives_a_clear_error(tmp_path):
     (tmp_path / "config.toml").write_text('llm_model = "broken\n', encoding="utf-8")
-    code, out = _run("config", "get", env={"CRICDEX_HOME": str(tmp_path)})
+    code, out = _run("config", "get", env={"CRICDESK_HOME": str(tmp_path)})
     assert code == 1
     assert "not valid TOML" in out and "config.toml" in out
 

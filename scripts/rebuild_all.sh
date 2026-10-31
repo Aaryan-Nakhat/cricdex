@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Rebuild everything from Cricsheet, for every league the registry exports (config/leagues.toml).
-# A thin wrapper: the steps, their order and the resume markers live in src/cricdex/pipeline.py
-# (docs/PIPELINE.md). `python -m cricdex.pipeline --list` prints them.
+# A thin wrapper: the steps, their order and the resume markers live in src/cricdesk/pipeline.py
+# (docs/PIPELINE.md). `python -m cricdesk.pipeline --list` prints them.
 #
-# Resumable: each finished step leaves a marker in $CRICDEX_REBUILD_STATE (default
+# Resumable: each finished step leaves a marker in $CRICDESK_REBUILD_STATE (default
 # data/.rebuild_state); re-run to continue after a failure or a reboot. Output goes to
-# $CRICDEX_REBUILD_LOG (default data/rebuild.log). Multi-hour on a laptop: on Windows run it as a
+# $CRICDESK_REBUILD_LOG (default data/rebuild.log). Multi-hour on a laptop: on Windows run it as a
 # scheduled task.
 #
 #   bash scripts/rebuild_all.sh                  # resume (or start)
@@ -23,4 +23,4 @@ if [ -x ".venv/Scripts/python.exe" ]; then PY=".venv/Scripts/python.exe"
 elif [ -x ".venv/bin/python" ]; then PY=".venv/bin/python"
 else PY="uv run python"; fi
 
-exec $PY -m cricdex.pipeline "$@"
+exec $PY -m cricdesk.pipeline "$@"

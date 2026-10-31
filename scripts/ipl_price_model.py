@@ -37,13 +37,13 @@ import typer
 from loguru import logger
 from sklearn.base import BaseEstimator, RegressorMixin
 
-from cricdex import leagues
-from cricdex.config import DATA_DIR
-from cricdex.scout import translation
-from cricdex.scout.identity import captains, master, pageviews, sources
-from cricdex.scout.identity.countries import normalise
-from cricdex.scout.ratings import bayesian
-from cricdex.web_parity import pricing
+from cricdesk import leagues
+from cricdesk.config import DATA_DIR
+from cricdesk.scout import translation
+from cricdesk.scout.identity import captains, master, pageviews, sources
+from cricdesk.scout.identity.countries import normalise
+from cricdesk.scout.ratings import bayesian
+from cricdesk.web_parity import pricing
 
 app = typer.Typer(add_completion=False)
 
@@ -192,7 +192,7 @@ def asof_sources(
 def asof_values(season: int, date: str, which: str = "roles") -> dict[str, dict]:
     """Each player's value as of an auction, blended across leagues exactly as the auction pool
     blends them (export_site._export_auction_pool): per role, every league translated onto the IPL
-    scale and combined with his IPL rating by precision (cricdex.scout.translation.blend; `which` =
+    scale and combined with his IPL rating by precision (cricdesk.scout.translation.blend; `which` =
     "roles" for the shipped translation, "roles_le2024" for the one fitted on seasons ≤ 2024); best
     role wins. `value_legacy` / `value_sd_legacy`: the scheme it replaced on 2026-10-23 (one discount
     per league, the 300-ball switch), the market price's input until a recipe on the translated
@@ -242,7 +242,7 @@ _TA: dict = {}
 def _time_aware_best(roles: dict, shares: dict, season: int, date: str) -> dict:
     """cid → (value, sd) of his better role after the time-aware shift (`model_le2024`: the price
     protocol's selection and test must not see 2025-26); {} without the model."""
-    from cricdex.scout.ratings import drift
+    from cricdesk.scout.ratings import drift
 
     if "model" not in _TA:
         _TA["model"] = drift.load_model(which="model_le2024")
@@ -1992,7 +1992,7 @@ def resale(model_path: Path = typer.Option(MODEL_PATH, "--model")) -> None:
 
 
 def _next_competition() -> dict:
-    from cricdex import competitions
+    from cricdesk import competitions
 
     comps = [c for c in competitions.load().values() if c.league == "ipl"]
     c = max(comps, key=lambda c: (c.season, c.auction_date))

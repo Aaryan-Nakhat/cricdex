@@ -1,4 +1,4 @@
-"""Parity lock: the Python FilterBar port (`cricdex.common.filters.apply_filters`)
+"""Parity lock: the Python FilterBar port (`cricdesk.common.filters.apply_filters`)
 must reproduce the canonical TS `applyFilters` (`site/src/lib/filters.ts`) on the
 same fixture + filter cases. If this fails, the desktop filters have drifted from
 the web. Skips (does not fail) if Node is unavailable.
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from cricdex.common.filters import Filters, apply_filters, default_min_matches
+from cricdesk.common.filters import Filters, apply_filters, default_min_matches
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"

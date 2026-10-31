@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 from test_web_parity import _approx_eq  # test_scripts/ is on sys.path (rootdir import mode)
 
-from cricdex.scout.ratings import head_to_head as h2h
+from cricdesk.scout.ratings import head_to_head as h2h
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"

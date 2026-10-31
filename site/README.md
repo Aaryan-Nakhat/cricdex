@@ -1,18 +1,18 @@
-# CricDex — static web frontend
+# CricDesk — static web frontend
 
 A React + Vite + Tailwind single-page app that displays the pre-cooked
-CricDex data snapshot. **No backend**: everything is computed offline by
+CricDesk data snapshot. **No backend**: everything is computed offline by
 `scripts/export_site.py` and served as static JSON under
 `public/data/`. The browser only ever renders numbers.
 
-Live: https://aaryan-nakhat.github.io/cricdex/
+Live: https://aaryan-nakhat.github.io/cricdesk/
 
 ## Develop
 
 ```bash
 cd site
 pnpm install
-pnpm dev          # http://localhost:5173/cricdex/
+pnpm dev          # http://localhost:5173/cricdesk/
 ```
 
 The app reads `public/data/<collection>/…`. Regenerate that snapshot
@@ -26,7 +26,7 @@ uv run python scripts/export_site.py -c ipl     # one
 ## Build
 
 ```bash
-pnpm build        # → dist/  (base path /cricdex/)
+pnpm build        # → dist/  (base path /cricdesk/)
 pnpm preview      # serve the build locally
 ```
 

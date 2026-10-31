@@ -28,8 +28,8 @@ import urllib.request
 
 import typer
 
-from cricdex.config import DATA_DIR
-from cricdex.scout.identity import master
+from cricdesk.config import DATA_DIR
+from cricdesk.scout.identity import master
 
 app = typer.Typer(add_completion=False)
 
@@ -42,7 +42,7 @@ API = (
 )
 # Wikimedia's User-Agent policy: a tool name and a way to contact its maintainer (here the project
 # page). A compliant agent may make up to 200 requests a minute; one without contact details 10.
-UA = "CricDex/1.0 (https://github.com/Aaryan-Nakhat/cricdex; player pageviews for a price model)"
+UA = "CricDesk/1.0 (https://github.com/Aaryan-Nakhat/cricdesk; player pageviews for a price model)"
 PAUSE = 0.4  # seconds between requests: about 150 a minute, under the limit
 
 

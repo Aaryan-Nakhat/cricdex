@@ -1,6 +1,6 @@
 """METHODOLOGY §10's worked example, reality table and default calls, generated from the exported data.
 
-Each franchise's Keep or release picture is built exactly as the page and `cricdex keep` build it, and the
+Each franchise's Keep or release picture is built exactly as the page and `cricdesk keep` build it, and the
 three blocks are written between their markers (`<!-- keep-example -->`, `<!-- keep-reality -->`,
 `<!-- keep-calls -->`), so the docs can't drift from the site (they had: Rohit Sharma read 71% and Dhoni
 73% after the Keep model behind them was refitted). `tests/test_reality_gate.py` rebuilds them and fails
@@ -57,9 +57,9 @@ def evaluate_all() -> dict:
     """team → the evaluated squad (keep.py `evaluate`, the page's defaults), plus the 2026 kept rate."""
     import json
 
-    from cricdex.web_parity import build_pool, load_auction_pool
-    from cricdex.web_parity.keep import evaluate, market_for, squad_of
-    from cricdex.web_parity.loader import load_keep
+    from cricdesk.web_parity import build_pool, load_auction_pool
+    from cricdesk.web_parity.keep import evaluate, market_for, squad_of
+    from cricdesk.web_parity.loader import load_keep
 
     data = load_keep("ipl")
     pool = build_pool(load_auction_pool("ipl"))

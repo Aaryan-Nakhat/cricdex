@@ -1,28 +1,28 @@
-# CricDex local stack — `docker compose up -d` runs the app; add
-# `--profile dashboard` for the Streamlit UI. CricDex is data-file driven
+# CricDesk local stack — `docker compose up -d` runs the app; add
+# `--profile dashboard` for the Streamlit UI. CricDesk is data-file driven
 # (DuckDB + exported JSON) — no vector DB or graph DB needed.
 #
 # Both services run as the unprivileged `app` user (uid 1000) and publish their ports on
 # 127.0.0.1 only, so nothing is reachable from your network by default. To expose them on
-# purpose (a LAN box, a reverse proxy in another container), set CRICDEX_BIND in .env or the
-# shell, e.g. `CRICDEX_BIND=0.0.0.0 docker compose up -d`. The API has no login, so put it
+# purpose (a LAN box, a reverse proxy in another container), set CRICDESK_BIND in .env or the
+# shell, e.g. `CRICDESK_BIND=0.0.0.0 docker compose up -d`. The API has no login, so put it
 # behind a proxy with auth before you do that on an untrusted network.
 # On a Linux host whose user is not uid 1000, add `user: "<uid>:<gid>"` to a service so the
 # bind-mounted data/ stays writable.
 
 services:
-  cricdex:
+  cricdesk:
     build:
       context: .
       dockerfile: Dockerfile
-    image: cricdex:dev
-    container_name: cricdex-app
+    image: cricdesk:dev
+    container_name: cricdesk-app
     restart: unless-stopped
     env_file:
       - path: .env
         required: false
     ports:
-      - "${CRICDEX_BIND:-127.0.0.1}:8080:8080"
+      - "${CRICDESK_BIND:-127.0.0.1}:8080:8080"
     volumes:
       # Mount data dir so Parquet / DuckDB / curated JSON persist across
       # container restarts and stay editable from the host.
@@ -38,22 +38,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: cricdex:dev
-    container_name: cricdex-dashboard
+    image: cricdesk:dev
+    container_name: cricdesk-dashboard
     restart: unless-stopped
     profiles: ["dashboard"]
     env_file:
       - path: .env
         required: false
     ports:
-      - "${CRICDEX_BIND:-127.0.0.1}:8511:8501"
+      - "${CRICDESK_BIND:-127.0.0.1}:8511:8501"
     volumes:
       - ./data:/app/data
       - ./site/public/data:/app/site/public/data
       - ./src:/app/src
       - ./config:/app/config
     command: >
-      uv run --frozen streamlit run src/cricdex/dashboard/app.py
+      uv run --frozen streamlit run src/cricdesk/dashboard/app.py
       --server.address 0.0.0.0
       --server.port 8501
       --server.headless true

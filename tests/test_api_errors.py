@@ -8,7 +8,7 @@ pytest.importorskip("fastapi", reason="fastapi not installed")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-import cricdex.api.main as api  # noqa: E402
+import cricdesk.api.main as api  # noqa: E402
 
 client = TestClient(api.app)
 
@@ -63,12 +63,12 @@ def test_ngi_cache_miss_is_503_not_a_live_fit(tmp_path, monkeypatch):
     def _boom(*a, **k):
         raise AssertionError("must not fit NGI inside a GET")
 
-    import cricdex.metrics.ngi as ngi
+    import cricdesk.metrics.ngi as ngi
 
     monkeypatch.setattr(ngi, "compute", _boom)
     r = client.get("/v1/metrics/ngi", params={"collection": "ipl"})
     assert r.status_code == 503
-    assert "cricdex data ingest metrics" in r.json()["detail"]
+    assert "cricdesk data ingest metrics" in r.json()["detail"]
 
 
 def test_unknown_collection_is_400_listing_the_registry(fake_db):
@@ -84,7 +84,7 @@ def test_time_window_of_a_registry_league_passes_the_check(fake_db):
 
 
 def test_leagues_endpoint_serves_the_registry():
-    from cricdex import leagues
+    from cricdesk import leagues
 
     r = client.get("/v1/leagues")
     assert r.status_code == 200

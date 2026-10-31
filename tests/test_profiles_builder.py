@@ -7,9 +7,9 @@ import json
 import duckdb
 import pytest
 
-from cricdex.common.metrics import METRICS
-from cricdex.comparator import compare as cmp
-from cricdex.profiles import builder
+from cricdesk.common.metrics import METRICS
+from cricdesk.comparator import compare as cmp
+from cricdesk.profiles import builder
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-"""Parity lock: Keep or release's Python calculator (`cricdex.web_parity.keep`) must match the web
+"""Parity lock: Keep or release's Python calculator (`cricdesk.web_parity.keep`) must match the web
 calculator (`site/src/lib/keep.ts`) on the same inputs — every price, surplus, call, reason
 sentence, purse figure, gap pick and CSV cell.
 
@@ -21,9 +21,9 @@ from pathlib import Path
 import pytest
 from test_web_parity import _approx_eq  # test_scripts/ is on sys.path (rootdir import mode)
 
-from cricdex.config import SITE_DATA
-from cricdex.web_parity import build_pool
-from cricdex.web_parity.keep import (
+from cricdesk.config import SITE_DATA
+from cricdesk.web_parity import build_pool
+from cricdesk.web_parity.keep import (
     cr,
     cr_exact,
     evaluate,
@@ -230,7 +230,7 @@ FMT = [0, 0.05, 0.25, 0.3, 0.75, 1.0, 1.05, 2.25, 9.95, 13.25, 16.35, -0.04, -0.
 
 
 def _model() -> dict | None:
-    from cricdex.web_parity.pricing import load_price_model
+    from cricdesk.web_parity.pricing import load_price_model
 
     load_price_model.cache_clear()
     return load_price_model()
@@ -381,7 +381,7 @@ def test_keep_parity():
 def test_keep_synthetic_calls():
     """The calls follow the retention model's chance kept (Keep ≥ 65%, Release < 35%, Toss-up
     between, kept by default from 50%), and the purse follows the default plan."""
-    from cricdex.web_parity.keep import BORDER_BAND, KEEP_CALL
+    from cricdesk.web_parity.keep import BORDER_BAND, KEEP_CALL
 
     if _keep_model() is None:
         pytest.skip("no keep model")
@@ -433,7 +433,7 @@ def test_keep_synthetic_calls():
 def test_keep_model_is_the_backtested_one():
     """The shipped retention model is scripts/keep_backtest.py's: chosen on 2018-2024, scored on
     2025-26 (the protocol's one test; those seasons have been seen several times since across
-    CricDex), and its features are keep_features'."""
+    CricDesk), and its features are keep_features'."""
     km = _keep_model()
     if km is None:
         pytest.skip("no keep model")
@@ -447,7 +447,7 @@ def test_keep_model_is_the_backtested_one():
 def test_keep_no_match_data_is_priced_from_the_market():
     """A squad player with no ball-by-ball record gets the market model's prior as his price (never
     a rating), and the reason says so (issue I6)."""
-    from cricdex.web_parity.keep import NO_DATA_LABEL, assess
+    from cricdesk.web_parity.keep import NO_DATA_LABEL, assess
 
     if _model() is None:
         pytest.skip("no price model")
@@ -469,7 +469,7 @@ def test_keep_no_match_data_is_priced_from_the_market():
 
 def test_keep_stale_share_in_the_reason():
     """A rating resting mostly on stale SMAT data says so with its share; a small share doesn't."""
-    from cricdex.web_parity.keep import assess
+    from cricdesk.web_parity.keep import assess
 
     assert assess(SQUAD[2], FORM)["reason"].endswith(
         " 85% of his rating rests on SMAT data to Dec 2024 (stale)."
@@ -513,7 +513,7 @@ def test_keep_should_they():
     """ "Should they?" reads the market price against the cost, apart from the fitted call: Yes when
     the median price is at least the cost, No when even the upper quartile is below it, Close in
     between, nothing without a price."""
-    from cricdex.web_parity.keep import assess, should_of
+    from cricdesk.web_parity.keep import assess, should_of
 
     assert should_of(5.0, 9.0, 5.0) == "yes"
     assert should_of(4.0, 9.0, 5.0) == "close"
@@ -535,7 +535,7 @@ def test_keep_form_unseen():
     """An uncapped Indian bought at the last auction for more than the upper quartile of players like
     him was bought on domestic form we can't see: the reason says so and "should they?" stays open.
     Not for a capped player, an overseas one, a retention, or a buy from an earlier auction."""
-    from cricdex.web_parity.keep import assess, form_unseen
+    from cricdesk.web_parity.keep import assess, form_unseen
 
     row = next(p for p in MARKET_SQUAD if p["id"] == "mu1")
     a = assess(row, FORM)
@@ -552,7 +552,7 @@ def test_keep_form_unseen():
 def test_keep_slab_costs():
     """Under the retention slabs a team's 2025 retentions cost max(slab total, salary total)
     together, each one's cost is what releasing him alone frees, and the purse follows."""
-    from cricdex.web_parity.keep import purse_charged, retention_costs, slab_charge
+    from cricdesk.web_parity.keep import purse_charged, retention_costs, slab_charge
 
     rules = {**RULES, **SLAB_RULES}
     holders = [p for p in SQUAD if p.get("slab_holder")]
@@ -573,7 +573,7 @@ def test_keep_slab_costs():
     # BBB's keeper costs his 18 cr slab in the market AAA shops in, not his 12 cr salary
     m = market_for("AAA", SQUAD + OTHERS, build_pool(POOL), POOL_TAGS, FORM, rules)
     assert retention_costs(OTHERS, rules)["s21"] == 18
-    from cricdex.web_parity.keep import assess
+    from cricdesk.web_parity.keep import assess
 
     a = assess(OTHERS[0], FORM, 18.0)
     assert a["cost"] == 18

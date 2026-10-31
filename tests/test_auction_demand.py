@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from cricdex.web_parity import auction
+from cricdesk.web_parity import auction
 
 ROOT = Path(__file__).resolve().parents[1]
 CFG = json.loads((ROOT / "config" / "auction_demand.json").read_text(encoding="utf-8"))

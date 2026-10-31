@@ -52,8 +52,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import ipl_price_model as ipm  # noqa: E402
 
-from cricdex.web_parity import bidplan as bp  # noqa: E402
-from cricdex.web_parity.pricing import load_price_model, market_price  # noqa: E402
+from cricdesk.web_parity import bidplan as bp  # noqa: E402
+from cricdesk.web_parity.pricing import load_price_model, market_price  # noqa: E402
 
 app = typer.Typer(add_completion=False)
 SEASONS = (2025, 2026)
@@ -84,8 +84,8 @@ def _slab_extra(season: int, team: str, hist: dict) -> float:
     published 2025 and 2026 purse). 0 outside that cycle."""
     if season not in (2025, 2026):
         return 0.0
-    from cricdex import competitions
-    from cricdex.web_parity.keep import slab_charge
+    from cricdesk import competitions
+    from cricdesk.web_parity.keep import slab_charge
 
     comp = competitions.get("ipl_2027")
     sq = competitions.load_squads(comp)
@@ -137,7 +137,7 @@ def _p_play(season: int) -> tuple[dict, dict]:
 
         import playing_time_fit as ptf
 
-        from cricdex.scout import playing_time as pt
+        from cricdesk.scout import playing_time as pt
 
         rep_ = ptf._read()
         by_era = ptf._xi_by_era()
@@ -168,7 +168,7 @@ def _buy(season: int) -> tuple[dict | None, dict]:
 
         import playing_time_fit as ptf
 
-        from cricdex.scout import playing_time as pt
+        from cricdesk.scout import playing_time as pt
 
         rep_ = ptf._read()
         model = None
@@ -228,7 +228,7 @@ def _next_season_values(season: int) -> dict[str, tuple[float, tuple]]:
     import playing_time_fit as ptf
     import polars as pl
 
-    from cricdex.scout import playing_time as pt
+    from cricdesk.scout import playing_time as pt
 
     repl = pickle.loads(ptf.CACHE_PLAY.read_bytes())[season]["repl"]
     _tm, _pl, share = ptf.ipl_shares(ptf._u())
@@ -310,7 +310,7 @@ def _season_inputs(season: int, rows, hist, pm, apps, tags) -> dict:
     # the unsold: recent IPL players neither retained nor bought (the P(bought) risk set; the pages list
     # no unsold lots, so this mixes unsold, unregistered and retired players). They are alternatives the
     # simulated teams can buy, never something the real replay counts as bought (`_price` None).
-    from cricdex.web_parity.pricing import price_tier
+    from cricdesk.web_parity.pricing import price_tier
 
     seen = {x["cricsheet_id"] for x in avail}
     for f in risk_rows:

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import duckdb
 
-from cricdex.scout.ingest.people_register import load
+from cricdesk.scout.ingest.people_register import load
 
 
 def _write_people_csv(path) -> None:

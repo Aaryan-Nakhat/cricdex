@@ -18,9 +18,9 @@ from pathlib import Path
 
 import pytest
 
-from cricdex import leagues
-from cricdex.config import SITE_DATA
-from cricdex.web_parity import (
+from cricdesk import leagues
+from cricdesk.config import SITE_DATA
+from cricdesk.web_parity import (
     IPL_TEAMS_DEFAULT,
     build_pool,
     default_retentions,
@@ -36,8 +36,8 @@ from cricdex.web_parity import (
     similar_to,
     simulate_auction,
 )
-from cricdex.web_parity.pricing import _MODEL_PATHS, load_price_model, market_features
-from cricdex.web_parity.scout import slot_band
+from cricdesk.web_parity.pricing import _MODEL_PATHS, load_price_model, market_features
+from cricdesk.web_parity.scout import slot_band
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
@@ -60,8 +60,8 @@ def _node_dump() -> dict:
             text=True,
             env={
                 **os.environ,
-                "CRICDEX_LEAGUES_JSON": str(reg),
-                "CRICDEX_SITE_DATA": str(SITE_DATA),
+                "CRICDESK_LEAGUES_JSON": str(reg),
+                "CRICDESK_SITE_DATA": str(SITE_DATA),
                 **_model_env(),
             },
         )
@@ -74,8 +74,8 @@ def _model_env() -> dict[str, str]:
     """Hand the TS the same market-price model file the Python reads (config/price_model.json)."""
     for p in _MODEL_PATHS:
         if p.exists():
-            return {"CRICDEX_PRICE_MODEL_JSON": str(p)}
-    return {"CRICDEX_PRICE_MODEL_JSON": str(ROOT / "no-price-model.json")}
+            return {"CRICDESK_PRICE_MODEL_JSON": str(p)}
+    return {"CRICDESK_PRICE_MODEL_JSON": str(ROOT / "no-price-model.json")}
 
 
 # mirrored in site/scripts/parity_dump.ts (MARKET_CASES)
@@ -256,8 +256,8 @@ def test_web_parity():
 
     # 4b) the calibration's top tail (hi_slope), the saturating link and the slab-rule retention
     # charge, on fixed inputs (mirrored in parity_dump.ts)
-    from cricdex.web_parity.auction import retention_spend
-    from cricdex.web_parity.pricing import calibrate, link_share
+    from cricdesk.web_parity.auction import retention_spend
+    from cricdesk.web_parity.pricing import calibrate, link_share
 
     cal_part = {"intercept": 0, "coef": {}, "shift": -0.1,
                 "calibration": {"x": [-4, -3, -1.5], "y": [-4.2, -3.1, -2.2], "hi_slope": 0.4}}  # fmt: skip

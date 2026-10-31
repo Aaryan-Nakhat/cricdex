@@ -1,9 +1,9 @@
-# CricDex competition rules: one entry per auction / retention cycle of a franchise league.
+# CricDesk competition rules: one entry per auction / retention cycle of a franchise league.
 #
-# A cycle's rules are data, not code: the "Keep or release" calculator (`cricdex keep`, the
+# A cycle's rules are data, not code: the "Keep or release" calculator (`cricdesk keep`, the
 # website's Keep or release page) reads its purse, squad limits, overseas cap and retention rules
 # from here, so another league's cycle (SA20, ILT20, MLC, WPL ...) is one more `[[competition]]`
-# entry plus a squads file. Validated on load (`uv run python -m cricdex.competitions check`):
+# entry plus a squads file. Validated on load (`uv run python -m cricdesk.competitions check`):
 # known league key, sane limits, ISO dates, and every rule either backed by a source or listed in
 # `assumed`, so a guess can never pass for a fact.
 #
@@ -13,7 +13,7 @@
 #   season, cycle       the season the squads are being built for; "mega" or "mini"
 #   currency, unit      money is in `unit` of `currency` throughout (IPL: INR crore)
 #   squads              the hand-editable squads + salaries file, relative to the data folder
-#                       (`data/` in the repo, or $CRICDEX_DATA_DIR)
+#                       (`data/` in the repo, or $CRICDESK_DATA_DIR)
 #   retention_deadline  ISO dates; `auction_venue` free text
 #   auction_date
 #   purse               each team's auction purse for this cycle (before retentions)

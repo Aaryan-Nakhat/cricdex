@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from cricdex.scout.identity import taxonomy
+from cricdesk.scout.identity import taxonomy
 
 
 def test_good_record_kept_and_country_normalised():

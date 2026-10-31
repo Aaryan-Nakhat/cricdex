@@ -1,4 +1,4 @@
-# Multi-stage build for the CricDex Python service.
+# Multi-stage build for the CricDesk Python service.
 # Stage 1 installs the locked dependencies into a uv-managed virtualenv (cached layer).
 # Stage 2 copies the source + the exported site data the API, CLI and dashboard read.
 # Everything runs as the unprivileged user `app` (uid 1000), never as root.
@@ -52,4 +52,4 @@ ENV UV_NO_DEV=1
 EXPOSE 8080
 # 0.0.0.0 is inside the container only (the port mapping needs it). docker-compose.yml publishes
 # the port on the host's 127.0.0.1, so the API is not reachable from the network by default.
-CMD ["uv", "run", "--frozen", "uvicorn", "cricdex.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "--frozen", "uvicorn", "cricdesk.api.main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -40,7 +40,7 @@ export function Collapsible({
 }
 
 // Only one info popover is open at a time: opening one tells the others to close.
-const INFO_OPEN_EVENT = "cricdex:infotip-open";
+const INFO_OPEN_EVENT = "cricdesk:infotip-open";
 
 /** A small "i" button that pops a panel anchored to it. One open at a time; closes on outside click,
  * Escape (focus returns to the button) or scrolling it out of view. Rendered in a portal so a card's

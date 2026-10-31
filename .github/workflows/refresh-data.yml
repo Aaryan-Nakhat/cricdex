@@ -2,7 +2,7 @@ name: refresh-data
 
 # The "refresh to today" backend. GitHub Pages can't recompute in the
 # browser (no JAX / XGBoost in WASM), so this Action is the compute layer:
-# it runs the default steps of the rebuild pipeline (src/cricdex/pipeline.py,
+# it runs the default steps of the rebuild pipeline (src/cricdesk/pipeline.py,
 # docs/PIPELINE.md: re-download Cricsheet, People Register, player master,
 # dismissal-aware Bayesian ratings, metrics, form forecast, the static JSON
 # snapshot), commits the snapshot, runs CI on that commit and, once CI
@@ -65,10 +65,10 @@ jobs:
         run: |
           set -euo pipefail
           set -f # no glob expansion of the input words
-          KNOWN=" $(uv run python -m cricdex.leagues list --sep ' ') "
+          KNOWN=" $(uv run python -m cricdesk.leagues list --sep ' ') "
           if [ -z "${INPUT//[[:space:]]/}" ]; then
             # every league marked `export = true` in config/leagues.toml
-            INPUT="$(uv run python -m cricdex.leagues list --exported --sep ' ')"
+            INPUT="$(uv run python -m cricdesk.leagues list --exported --sep ' ')"
           fi
           LIST=""
           for C in $INPUT; do
@@ -84,15 +84,15 @@ jobs:
 
       # Ingest, People Register, player master (Wikidata, Wikipedia, Cricsheet internationals; the
       # LLM name check runs only when an LLM is configured), ratings, metrics, form forecast, export.
-      # Output streams to the job log (CRICDEX_REBUILD_LOG=-).
-      - name: Rebuild (python -m cricdex.pipeline)
+      # Output streams to the job log (CRICDESK_REBUILD_LOG=-).
+      - name: Rebuild (python -m cricdesk.pipeline)
         env:
           LEAGUES: ${{ steps.cols.outputs.list }}
-          CRICDEX_REBUILD_LOG: "-"
+          CRICDESK_REBUILD_LOG: "-"
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_API_BASE: ${{ secrets.LLM_API_BASE }}
-        run: uv run python -m cricdex.pipeline --fresh
+        run: uv run python -m cricdesk.pipeline --fresh
 
       # The taxonomy reads the players from the snapshot, so it runs after a first cook and the snapshot is
       # cooked again — new players get their role / country in this same refresh.
@@ -114,15 +114,15 @@ jobs:
       - name: Re-cook the snapshot with the new players' taxonomy
         if: steps.tax.outputs.ran == '1'
         env:
-          CRICDEX_REBUILD_LOG: "-"
-        run: uv run python -m cricdex.pipeline --only export
+          CRICDESK_REBUILD_LOG: "-"
+        run: uv run python -m cricdesk.pipeline --only export
 
       - name: Commit refreshed snapshot
         id: commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name  "cricdex-bot"
+          git config user.name  "cricdesk-bot"
           git config user.email "actions@users.noreply.github.com"
           git add site/public/data
           if git diff --cached --quiet; then

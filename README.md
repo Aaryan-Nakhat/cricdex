@@ -1,4 +1,4 @@
-# CricDex
+# CricDesk
 
 ### The numbers behind cricket, honestly modelled.
 
@@ -12,11 +12,11 @@ it predicts anything.
 ![Store](https://img.shields.io/badge/store-DuckDB-FFF000?logo=duckdb&logoColor=black)
 ![Surfaces](https://img.shields.io/badge/use%20it-web%20·%20CLI%20·%20TUI%20·%20Streamlit%20·%20API-0088CC)
 ![License](https://img.shields.io/badge/license-MIT-informational)
-[![CI](https://github.com/Aaryan-Nakhat/cricdex/actions/workflows/ci.yml/badge.svg)](https://github.com/Aaryan-Nakhat/cricdex/actions/workflows/ci.yml)
+[![CI](https://github.com/Aaryan-Nakhat/cricdesk/actions/workflows/ci.yml/badge.svg)](https://github.com/Aaryan-Nakhat/cricdesk/actions/workflows/ci.yml)
 
-<p align="center"><a href="https://github.com/Aaryan-Nakhat/cricdex/raw/main/docs/media/hero.mp4"><img src="docs/media/hero.gif" alt="A 54-second tour of CricDex: the IPL mega auction run 300 times on a bidding model fitted on real auctions; Keep or release and Bid plan (draft); a real chase scored ball by ball for win probability; Bayesian ratings with their uncertainty; cross-league look-alikes at market prices; the honest backtest" width="100%"></a></p>
+<p align="center"><a href="https://github.com/Aaryan-Nakhat/cricdesk/raw/main/docs/media/hero.mp4"><img src="docs/media/hero.gif" alt="A 54-second tour of CricDesk: the IPL mega auction run 300 times on a bidding model fitted on real auctions; Keep or release and Bid plan (draft); a real chase scored ball by ball for win probability; Bayesian ratings with their uncertainty; cross-league look-alikes at market prices; the honest backtest" width="100%"></a></p>
 
-<p align="center"><b><a href="https://aaryan-nakhat.github.io/cricdex/">Open the live site</a></b> · no install, runs in your browser</p>
+<p align="center"><b><a href="https://aaryan-nakhat.github.io/cricdesk/">Open the live site</a></b> · no install, runs in your browser</p>
 
 **[Auction room](#-run-the-ipl-mega-auction-yourself)** · **[Keep or release](#-keep-or-release-before-the-retention-deadline)** · **[Bid plan](#-bid-plan-for-the-auction-room-draft)** · **[Form forecast](#-form-forecast-the-next-three-seasons)** · **[Net Game Impact](#-who-really-won-it)** ·
 **[Bayesian ratings](#-skill-judged-by-who-it-came-against)** · **[Scout](#-same-mould-other-leagues)** ·
@@ -88,7 +88,7 @@ bowlers, spinners, overseas) with the cheapest players in the likely pool who fi
 the purse or a role target, export the table to CSV, or share the link. Squads and salaries come from
 Wikipedia's personnel pages (CC BY-SA); the cycle's rules live in
 [`config/competitions.toml`](config/competitions.toml), each one sourced or marked as an assumption (the 2027
-purse isn't published yet). In the terminal: `cricdex keep --team RCB`.
+purse isn't published yet). In the terminal: `cricdesk keep --team RCB`.
 → [How it decides](docs/METHODOLOGY.md#10-keep-or-release)
 
 ## 📋 Bid plan, for the auction room (draft)
@@ -107,7 +107,7 @@ misses (no hand-set depth weight or need penalty); a team never buys back its ow
 (each with its source) and anyone without a T20 match in three years. Its "P(≤ max bid)" is checked against
 what happened: about right overall (said 0.38, came true 0.39 in 2025; 0.48 / 0.52 in 2026), high in the top band
 (said 0.89, came true 0.76 in 2025). A starting sheet, not a
-forecast. In the terminal: `cricdex bidplan --team RCB`.
+forecast. In the terminal: `cricdesk bidplan --team RCB`.
 → [How it plans, and the replay](docs/METHODOLOGY.md#12-bid-plan-draft)
 
 
@@ -122,8 +122,8 @@ likely to hold that for two seasons, then decline"), and a reality check of 15 s
 seasons, each disagreement explained. The age curve is corrected for the players who were dropped
 (survivorship). Backtested from 2021–23: for batters the lowest error of every baseline at every horizon; for
 bowlers a tie with the career rating (which the data says is already their best current level); P(regular) beats
-every baseline. Also the "3-season outlook" column in Keep or release. In the terminal: `cricdex forecast
-"Kohli"` or `cricdex forecast --team RCB`.
+every baseline. Also the "3-season outlook" column in Keep or release. In the terminal: `cricdesk forecast
+"Kohli"` or `cricdesk forecast --team RCB`.
 → [Method, survivorship and backtest](docs/METHODOLOGY.md#11-form-forecast)
 
 ## 📈 Who really won it?
@@ -155,7 +155,7 @@ how fast he scores. A player
 with 400 balls gets a wide range; one with 7,000 gets a narrow one. Head-to-heads ("how likely is A
 better than B?") use both ranges, so a thin record can't win the argument on its own.
 
-→ [The rating model](docs/METHODOLOGY.md#4-bayesian-skill-ratings) · [Model notes](src/cricdex/scout/ratings/README.md)
+→ [The rating model](docs/METHODOLOGY.md#4-bayesian-skill-ratings) · [Model notes](src/cricdesk/scout/ratings/README.md)
 
 ## 🔭 Same mould, other leagues
 
@@ -190,7 +190,7 @@ ranking of players is compared with how the season went (Spearman rank correlati
 0 = no link). The baselines get the same league adjustment as the model, every fit is run with 3 seeds,
 and the newcomer gaps are bootstrapped 2,000 times with a correction for running six tests:
 
-| | CricDex | Plain baseline |
+| | CricDesk | Plain baseline |
 |---|---|---|
 | Established IPL batters, next season (2021–26) | **0.19** | 0.15 (career average) |
 | Established IPL bowlers, next season (2021–26) | **0.15** | 0.11 (career average) |
@@ -213,7 +213,7 @@ yourself with `scripts/backtest_ratings.py` and `scripts/backtest_newcomers.py`.
 
 **About the 2025–26 numbers on this page.** The auction, price and Keep models were each chosen on data up
 to 2024 and then scored on the 2025 and 2026 seasons. Those two seasons have since been looked at many times
-while building CricDex (several price recipes were scored on them, and the Bid plan replays have seen them
+while building CricDesk (several price recipes were scored on them, and the Bid plan replays have seen them
 five times), so they are no longer a clean test: treat every 2025–26 figure as optimistic. The clean test is
 the 2027 retention lists (15 Nov 2026) and auction.
 → [The backtest in detail](docs/METHODOLOGY.md#8-does-it-predict-the-backtest)
@@ -229,29 +229,29 @@ the 2027 retention lists (15 Nov 2026) and auction.
   Every stat and rating is computed.
 - **One logic, five surfaces.** A Python pipeline builds the ratings and metrics into JSON. The static
   website reads it and runs the auction and Scout in your browser. The CLI, terminal UI, Streamlit
-  dashboard and API run the same logic through `cricdex.web_parity`, a Python port with a bit-exact
+  dashboard and API run the same logic through `cricdesk.web_parity`, a Python port with a bit-exact
   seeded random generator. Parity tests in CI keep the two identical, trial for trial.
 - **Honest by default.** Super overs are left out, renamed grounds are merged into one venue, every
   rating carries its uncertainty, and the limits are written down. → [Methodology](docs/METHODOLOGY.md)
 
 ## 🚀 Quickstart
 
-The quickest way is the [live site](https://aaryan-nakhat.github.io/cricdex/). To run it on your own
+The quickest way is the [live site](https://aaryan-nakhat.github.io/cricdesk/). To run it on your own
 machine (Python 3.12 and [uv](https://docs.astral.sh/uv/)):
 
 ```bash
-git clone https://github.com/Aaryan-Nakhat/cricdex.git
-cd cricdex
+git clone https://github.com/Aaryan-Nakhat/cricdesk.git
+cd cricdesk
 uv sync                                        # CLI + terminal UI  (uv sync --extra ui adds Streamlit)
 
-uv run cricdex init                            # set-up wizard (an LLM key is optional)
-uv run cricdex data ingest cricsheet -c ipl    # IPL ball-by-ball, a few MB
-uv run cricdex data ingest metrics -c ipl      # leaderboards + rebuilds the site data
-uv run cricdex leaderboard ngi -c ipl --top 15 # your first query
+uv run cricdesk init                            # set-up wizard (an LLM key is optional)
+uv run cricdesk data ingest cricsheet -c ipl    # IPL ball-by-ball, a few MB
+uv run cricdesk data ingest metrics -c ipl      # leaderboards + rebuilds the site data
+uv run cricdesk leaderboard ngi -c ipl --top 15 # your first query
 ```
 
-Bare `cricdex` opens the terminal UI, `cricdex dashboard` the Streamlit app, `cricdex auction room`
-runs the auction in your terminal and `cricdex keep --team RCB` the retention calculator. Docker: [`docs/DOCKER.md`](docs/DOCKER.md). Every command:
+Bare `cricdesk` opens the terminal UI, `cricdesk dashboard` the Streamlit app, `cricdesk auction room`
+runs the auction in your terminal and `cricdesk keep --team RCB` the retention calculator. Docker: [`docs/DOCKER.md`](docs/DOCKER.md). Every command:
 [`docs/CLI.md`](docs/CLI.md). Step by step: [`docs/FIRST_RUN.md`](docs/FIRST_RUN.md).
 
 ## 📚 Docs
@@ -273,7 +273,7 @@ Typer + Textual (CLI, terminal UI) · Streamlit · React + Vite + Tailwind (stat
 Docker · GitHub Actions (tests, parity tests, on-demand data refresh and redeploy).
 
 ```
-src/cricdex/     the Python package, one folder per module
+src/cricdesk/     the Python package, one folder per module
 scripts/         pipeline, export, backtest and README-render scripts (see scripts/README.md)
 site/            the React website; site/public/data is the committed data snapshot
 tests/           pytest
@@ -287,4 +287,4 @@ Ball-by-ball data and the People Register come from [Cricsheet](https://cricshee
 dates of birth and photos from [Wikidata](https://www.wikidata.org/). IPL squads, salaries and every
 auction's prices 2008–2026 come from Wikipedia's IPL personnel pages (CC BY-SA 4.0; the derived
 `data/curated/ipl_auction_history.json` and squads file are CC BY-SA too), and US$ auction prices are
-converted at the Federal Reserve's H.10 rates (public domain). CricDex's code is MIT licensed.
+converted at the Federal Reserve's H.10 rates (public domain). CricDesk's code is MIT licensed.

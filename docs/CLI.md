@@ -1,13 +1,13 @@
-# CricDex CLI reference
+# CricDesk CLI reference
 
-`cricdex` is the one console entry point — available after `uv sync`
-(run as `uv run cricdex …`, or inside the activated venv).
+`cricdesk` is the one console entry point — available after `uv sync`
+(run as `uv run cricdesk …`, or inside the activated venv).
 
 ```
-cricdex                          open the interactive TUI (`cricdex --help` for the commands)
-cricdex --version / -V           print version
-cricdex --help / -h              top-level help
-cricdex <subcommand> --help      per-subcommand help
+cricdesk                          open the interactive TUI (`cricdesk --help` for the commands)
+cricdesk --version / -V           print version
+cricdesk --help / -h              top-level help
+cricdesk <subcommand> --help      per-subcommand help
 ```
 
 Exit codes:
@@ -16,7 +16,7 @@ Exit codes:
 |---|---|
 | 0 | success |
 | 1 | user error (bad arguments / missing argument) |
-| 2 | missing data (run `cricdex data ingest …` first) |
+| 2 | missing data (run `cricdesk data ingest …` first) |
 | 4 | a pipeline step (ingest / metrics / export) failed |
 
 ---
@@ -24,10 +24,10 @@ Exit codes:
 ## init
 
 ```
-cricdex init
+cricdesk init
 ```
 
-First-run wizard. Creates `$CRICDEX_HOME` (default `~/.cricdex/`),
+First-run wizard. Creates `$CRICDESK_HOME` (default `~/.cricdesk/`),
 prompts for an optional LLM model + key (used for the player taxonomy enrichment),
 prints the next-step commands. Idempotent.
 
@@ -36,14 +36,14 @@ prints the next-step commands. Idempotent.
 ## config
 
 ```
-cricdex config path
-cricdex config get [KEY]
-cricdex config set KEY VALUE
-cricdex config unset KEY
-cricdex config edit
+cricdesk config path
+cricdesk config get [KEY]
+cricdesk config set KEY VALUE
+cricdesk config unset KEY
+cricdesk config edit
 ```
 
-Stored at `$CRICDEX_HOME/config.toml` (valid TOML, values escaped), chmod 600.
+Stored at `$CRICDESK_HOME/config.toml` (valid TOML, values escaped), chmod 600.
 A hand-edited file that isn't valid TOML gives a clear error naming the file
 instead of breaking every command. Allowed keys:
 `llm_model`, `llm_api_key`, `llm_api_base`.
@@ -55,8 +55,8 @@ Env vars override the file (e.g., `LLM_MODEL=<provider>/<model>`).
 ## data
 
 ```
-cricdex data status
-cricdex data ingest <slice> [-c <collection>] [--force]
+cricdesk data status
+cricdesk data ingest <slice> [-c <collection>] [--force]
 ```
 
 Slices: `cricsheet`, `ratings`, `metrics`, `wikidata`.
@@ -72,7 +72,7 @@ which `leaderboard`, `matchups`, `phase`, `form`, `partnerships`,
 ## leaderboard
 
 ```
-cricdex leaderboard <metric> [-c <collection>] [--top 15] [--json]
+cricdesk leaderboard <metric> [-c <collection>] [--top 15] [--json]
 ```
 
 Metrics: `ngi`, `pressure_runs`, `intent_curve`, `dot_ball_recovery`,
@@ -80,23 +80,23 @@ Metrics: `ngi`, `pressure_runs`, `intent_curve`, `dot_ball_recovery`,
 `wicket_quality`, `crease_longevity`, `slow_start_cost`, `keeping`
 (wicketkeeping dismissals), `fielding` (outfield dismissals). Reads
 the exported `site/public/data/<collection>/leaderboards/<metric>.json`
-(shipped with the repo; `cricdex data ingest metrics` rebuilds it).
+(shipped with the repo; `cricdesk data ingest metrics` rebuilds it).
 
 ---
 
 ## profile / compare / records / venues
 
 ```
-cricdex profile "V Kohli" [-c ipl]
-cricdex compare "V Kohli" "RG Sharma"
-cricdex records today                        # on-this-day
-cricdex records list                         # list record keys
-cricdex records career_run_leaders --top-n 25
-cricdex venues "Wankhede Stadium, Mumbai"   # exact Cricsheet venue name
+cricdesk profile "V Kohli" [-c ipl]
+cricdesk compare "V Kohli" "RG Sharma"
+cricdesk records today                        # on-this-day
+cricdesk records list                         # list record keys
+cricdesk records career_run_leaders --top-n 25
+cricdesk venues "Wankhede Stadium, Mumbai"   # exact Cricsheet venue name
 ```
 
 These four query the local DuckDB (`data/cricsheet.duckdb`) plus `data/metrics/`,
-so they need `cricdex data ingest cricsheet` (and `metrics`) first; they don't
+so they need `cricdesk data ingest cricsheet` (and `metrics`) first; they don't
 read the exported snapshot.
 
 ---
@@ -104,11 +104,11 @@ read the exported snapshot.
 ## matchups / phase / form
 
 ```
-cricdex matchups "V Kohli" [-c ipl] [--top 15] [--min-balls 6] [--json]
-cricdex phase [powerplay|middle|death] [-c ipl] [--top 15] \
+cricdesk matchups "V Kohli" [-c ipl] [--top 15] [--min-balls 6] [--json]
+cricdesk phase [powerplay|middle|death] [-c ipl] [--top 15] \
               [--role …] [--bowling seam|spin] [--position …] \
               [--activity all|active|retired] [--country IND] [--min-matches 0] [--json]
-cricdex form <metric> [-c ipl] [--top 15] [--window last1y|last3y] \
+cricdesk form <metric> [-c ipl] [--top 15] [--window last1y|last3y] \
              [--role …] [--bowling …] [--position …] [--activity …] \
              [--country IND] [--min-matches 0]
 ```
@@ -124,7 +124,7 @@ cricdex form <metric> [-c ipl] [--top 15] [--window last1y|last3y] \
   cooling-down, with the full player filter bar.
 
 ```
-cricdex partnerships [<name>] [-c ipl] [--top 15] [--min-runs 50] [--json]
+cricdesk partnerships [<name>] [-c ipl] [--top 15] [--min-runs 50] [--json]
 ```
 
 - **partnerships** — batter-pair stands. With a name: that player's most
@@ -132,7 +132,7 @@ cricdex partnerships [<name>] [-c ipl] [--top 15] [--min-runs 50] [--json]
   stand, SR, average, fifty/hundred stands).
 
 ```
-cricdex aging [--role batting|bowling] [--metric sr|average|economy|strike_rate] [-c ipl] [--json]
+cricdesk aging [--role batting|bowling] [--metric sr|average|economy|strike_rate] [-c ipl] [--json]
 ```
 
 - **aging** — performance-vs-age curve (per-age mean over player-seasons), with a
@@ -144,7 +144,7 @@ scorecard or full name, then a unique prefix / part of the name; several
 matches are listed instead of guessed), so they work without the DuckDB.
 `profile` and `compare` build live from the DuckDB and say so when it's
 missing. The filter flags share the
-`cricdex.common.filters` port with Leaderboards (role values: batter / bowler /
+`cricdesk.common.filters` port with Leaderboards (role values: batter / bowler /
 allrounder / wk_batter).
 
 ---
@@ -152,7 +152,7 @@ allrounder / wk_batter).
 ## scout
 
 ```
-cricdex scout look-alikes "V Kohli" [--role batter] [--pos same|any|opener|no3|middle|finisher|lower|tailender] [--country same|overseas|all] [-k 8]
+cricdesk scout look-alikes "V Kohli" [--role batter] [--pos same|any|opener|no3|middle|finisher|lower|tailender] [--country same|overseas|all] [-k 8]
 ```
 
 Cross-competition look-alike finder across every Scout pool in the
@@ -160,14 +160,14 @@ league registry (IPL peers, SMAT, then each overseas league in
 `config/leagues.toml`), ranked by within-tier Bayesian
 skill-standing z-score. Each row carries an est. crore price +
 saving-vs-pick, an uncapped-gem flag, and role/slot filters. Shares
-one implementation with the web via `cricdex.web_parity`.
+one implementation with the web via `cricdesk.web_parity`.
 
 ---
 
 ## auction
 
 ```
-cricdex auction room [--mode mega|mini] [--purse 120] [--squad-size 25] [--overseas-cap 8] [--trials 300] [--top-n 20]
+cricdesk auction room [--mode mega|mini] [--purse 120] [--squad-size 25] [--overseas-cap 8] [--trials 300] [--top-n 20]
 ```
 
 Real-rules IPL auction Monte-Carlo: cross-collection pool (IPL +
@@ -175,7 +175,7 @@ free agents from SMAT and every overseas league in the registry), Mega/Mini
 retentions from the real 2025 lists (editable in the TUI / web), overseas cap + retention slabs,
 every team bidding by the demand model fitted on real auctions, ladder clearing (one step above the
 second-best bid), 18–25-man squads (~300 trials). Shares one implementation with the web via
-`cricdex.web_parity` (locked by `test_scripts/test_web_parity.py`).
+`cricdesk.web_parity` (locked by `test_scripts/test_web_parity.py`).
 See [`AUCTION_MATH.md`](AUCTION_MATH.md).
 
 ---
@@ -183,7 +183,7 @@ See [`AUCTION_MATH.md`](AUCTION_MATH.md).
 ## keep
 
 ```
-cricdex keep --team RCB [--keep NAME]… [--release NAME]… [--purse 125] [--need TAG=N]… [--sort surplus|price|onfield|outlook|salary|value|age|name] [--csv out.csv] [--check]
+cricdesk keep --team RCB [--keep NAME]… [--release NAME]… [--purse 125] [--need TAG=N]… [--sort surplus|price|onfield|outlook|salary|value|age|name] [--csv out.csv] [--check]
 ```
 
 Keep or release, the retention calculator: one franchise's squad with each
@@ -204,7 +204,7 @@ assumed rules are listed under the table.
   data check against the published 2026 purses and the players we can't rate.
 
 Reads `site/public/data/ipl/keep.json` + `auction_pool.json`; the same
-calculator as the website's Keep or release page (`cricdex.web_parity.keep`,
+calculator as the website's Keep or release page (`cricdesk.web_parity.keep`,
 locked by `test_scripts/test_keep_parity.py`). Method:
 [METHODOLOGY §10](METHODOLOGY.md#10-keep-or-release).
 
@@ -213,7 +213,7 @@ locked by `test_scripts/test_keep_parity.py`). Method:
 ## bidplan
 
 ```
-cricdex bidplan --team RCB [--keep NAME]… [--release NAME]… [--purse 125] [--open 8] [--need NEED=N]…
+cricdesk bidplan --team RCB [--keep NAME]… [--release NAME]… [--purse 125] [--open 8] [--need NEED=N]…
                 [--max "NAME=CR"]… [--squad-max 25] [--squad-min 18] [--overseas-cap 8] [--trials 200]
                 [--register list.json] [--csv out.csv]
 ```
@@ -234,7 +234,7 @@ the plan never buys back its own releases). About 5–15 seconds (200 rival auct
 - `--csv` writes the targets (same columns as the page's Export CSV).
 
 Reads `site/public/data/ipl/keep.json` + `auction_pool.json`; the same optimiser as the website's Bid plan
-page (`cricdex.web_parity.bidplan`, locked by `test_scripts/test_bidplan_parity.py`). The buy model and the rival plans
+page (`cricdesk.web_parity.bidplan`, locked by `test_scripts/test_bidplan_parity.py`). The buy model and the rival plans
 (`bidplan_rivals.json`) are read when the export writes them; both are switched off since 2026-10-27. Method and the replay
 of the 2025 and 2026 auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-draft).
 
@@ -243,8 +243,8 @@ of the 2025 and 2026 auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-dra
 ## forecast
 
 ```bash
-cricdex forecast "Virat Kohli" [--json]
-cricdex forecast --team RCB [--json]
+cricdesk forecast "Virat Kohli" [--json]
+cricdesk forecast --team RCB [--json]
 ```
 
 **Form forecast**: a player's `value` (runs per 100 balls above the average ball) over the next three
@@ -265,7 +265,7 @@ players and players without an IPL season in the last two have no forecast. Meth
 ## dashboard
 
 ```
-cricdex dashboard
+cricdesk dashboard
 ```
 
 Launches the Streamlit dashboard (needs `uv sync --extra ui`; run from
@@ -278,9 +278,9 @@ as the web app and the JSON-backed CLI commands.
 ## tui
 
 ```
-cricdex tui
+cricdesk tui
 ```
 
-Full Textual TUI for interactive browsing (same as bare `cricdex`), part of
+Full Textual TUI for interactive browsing (same as bare `cricdesk`), part of
 the base install (`uv sync`). 14 tabs: Leaders, Records, Compare, H2H,
 Matchups, Phase, Form, Partners, Aging, Venues, Profile, Auction, Scout, Update.

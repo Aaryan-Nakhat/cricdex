@@ -1,7 +1,7 @@
-# CricDex REST API
+# CricDesk REST API
 
-FastAPI app at `cricdex.api.main:app`, served on port 8080 inside the
-`cricdex-app` container. Auto-generated OpenAPI explorer at
+FastAPI app at `cricdesk.api.main:app`, served on port 8080 inside the
+`cricdesk-app` container. Auto-generated OpenAPI explorer at
 [`http://localhost:8080/docs`](http://localhost:8080/docs).
 
 ## Conventions
@@ -16,7 +16,7 @@ FastAPI app at `cricdex.api.main:app`, served on port 8080 inside the
   planned) before exposing publicly.
 - Every endpoint queries the local DuckDB (`data/cricsheet.duckdb`) and
   `data/metrics/`, not the exported site snapshot — run
-  `cricdex data ingest cricsheet` / `metrics` (or `make refresh`) first.
+  `cricdesk data ingest cricsheet` / `metrics` (or `make refresh`) first.
 
 ## Endpoints
 
@@ -53,7 +53,7 @@ FastAPI app at `cricdex.api.main:app`, served on port 8080 inside the
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/v1/metrics/ngi?collection=&min_matches=&top_n=` | NGI leaderboard as `{collection, rows}` (defaults `ipl`, 20, 50), sorted by NGI per match. Reads `data/metrics/ngi_<collection>.json`; when that file is missing it returns 503 with a hint to run `cricdex data ingest metrics -c <collection>` (the model fit is too heavy for a request). |
+| GET | `/v1/metrics/ngi?collection=&min_matches=&top_n=` | NGI leaderboard as `{collection, rows}` (defaults `ipl`, 20, 50), sorted by NGI per match. Reads `data/metrics/ngi_<collection>.json`; when that file is missing it returns 503 with a hint to run `cricdesk data ingest metrics -c <collection>` (the model fit is too heavy for a request). |
 
 ## Quick curl examples
 

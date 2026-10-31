@@ -8,9 +8,9 @@ import json
 import duckdb
 import pytest
 
-from cricdex.metrics import ngi
-from cricdex.metrics.batter import pressure_runs
-from cricdex.scout.ingest import cricsheet
+from cricdesk.metrics import ngi
+from cricdesk.metrics.batter import pressure_runs
+from cricdesk.scout.ingest import cricsheet
 
 PEOPLE = {n: f"id-{n}" for n in ("a1", "a2", "a3", "a4", "a12", "b1", "b2", "b3", "b4", "sub1")}
 

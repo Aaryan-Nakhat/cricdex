@@ -1,6 +1,6 @@
 """Sanity-check the IPL mega auction on the exported data: purse use, squad sizes and the price spread.
 
-Runs the real simulator (cricdex.web_parity, the same code as the website) with the real 2025
+Runs the real simulator (cricdesk.web_parity, the same code as the website) with the real 2025
 retentions, so a data rebuild or a bidding change can be checked before it ships: every team should
 reach the squad minimum (18) within its purse, and the dearest lots should look like an IPL auction.
 
@@ -15,7 +15,7 @@ import statistics
 
 import typer
 
-from cricdex.web_parity import (
+from cricdesk.web_parity import (
     IPL_TEAMS_DEFAULT,
     build_pool,
     default_retentions,

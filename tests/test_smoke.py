@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
-from cricdex import __version__
-from cricdex.api.main import app
+from cricdesk import __version__
+from cricdesk.api.main import app
 
 
 def test_version_is_string():

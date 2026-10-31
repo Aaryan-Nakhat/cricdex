@@ -1,6 +1,6 @@
 // Parity harness: runs the canonical TS Auction + Scout logic on the exported
 // JSON and dumps a compact result to stdout. The Python port
-// (src/cricdex/web_parity) must reproduce this byte-for-byte —
+// (src/cricdesk/web_parity) must reproduce this byte-for-byte —
 // test_scripts/test_web_parity.py runs this and diffs. Run via:
 //   node --no-warnings --experimental-strip-types scripts/parity_dump.ts
 import { readFileSync } from "node:fs";
@@ -31,13 +31,13 @@ import type { ScoutPlayer } from "../src/lib/data.ts";
 import { registerLeagues, scoutPools, type LeagueRegistry } from "../src/lib/leagues.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-// CRICDEX_SITE_DATA points the harness at another export (a scratch one), as it does the Python side
-const dataDir = join(process.env.CRICDEX_SITE_DATA || join(here, "..", "public", "data"), "ipl");
+// CRICDESK_SITE_DATA points the harness at another export (a scratch one), as it does the Python side
+const dataDir = join(process.env.CRICDESK_SITE_DATA || join(here, "..", "public", "data"), "ipl");
 const load = (f: string) => JSON.parse(readFileSync(join(dataDir, f), "utf8"));
 
-// The market-price model: the test passes config/price_model.json in CRICDEX_PRICE_MODEL_JSON so
+// The market-price model: the test passes config/price_model.json in CRICDESK_PRICE_MODEL_JSON so
 // both sides price with the same coefficients; else the exported copy (if any).
-const modelPath = process.env.CRICDEX_PRICE_MODEL_JSON || join(dataDir, "price_model.json");
+const modelPath = process.env.CRICDESK_PRICE_MODEL_JSON || join(dataDir, "price_model.json");
 let model: PriceModel | null = null;
 try {
   model = JSON.parse(readFileSync(modelPath, "utf8")) as PriceModel;
@@ -49,8 +49,8 @@ const pool = buildPool(load("auction_pool.json"));
 const ret = load("retentions.json");
 const scout = load("scout_index.json");
 // The league registry: the test passes the Python payload (config/leagues.toml) in
-// CRICDEX_LEAGUES_JSON so both sides price with the same table; else the exported copy.
-const leaguesPath = process.env.CRICDEX_LEAGUES_JSON || join(dataDir, "..", "leagues.json");
+// CRICDESK_LEAGUES_JSON so both sides price with the same table; else the exported copy.
+const leaguesPath = process.env.CRICDESK_LEAGUES_JSON || join(dataDir, "..", "leagues.json");
 const registry = JSON.parse(readFileSync(leaguesPath, "utf8")) as LeagueRegistry;
 registerLeagues(registry);
 // every registry Scout pool the export has (a pool added since the last export is skipped)

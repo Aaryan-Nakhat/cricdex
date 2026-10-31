@@ -34,12 +34,12 @@ jobs:
           context: .
           push: false
           load: true
-          tags: cricdex:ci
+          tags: cricdesk:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Smoke test (API imports, CLI runs)
         run: |
-          docker run --rm cricdex:ci uv run --frozen python -c "import cricdex.api.main; print('api import ok')"
-          docker run --rm cricdex:ci uv run --frozen cricdex --help
+          docker run --rm cricdesk:ci uv run --frozen python -c "import cricdesk.api.main; print('api import ok')"
+          docker run --rm cricdesk:ci uv run --frozen cricdesk --help
       - name: Compose file is valid
         run: docker compose config --quiet

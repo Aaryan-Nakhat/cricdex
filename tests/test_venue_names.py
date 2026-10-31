@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import duckdb
 
-from cricdex.common.venue_names import aliases_for, canonical_names, normalize_venues
+from cricdesk.common.venue_names import aliases_for, canonical_names, normalize_venues
 
 
 def test_spellings_and_renames_become_one_ground():

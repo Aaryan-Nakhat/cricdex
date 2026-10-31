@@ -1,7 +1,7 @@
 // Parity harness for the player-row FilterBar. Runs the canonical TS
 // `applyFilters` (src/lib/filters.ts) on a fixed fixture + filter cases and
 // dumps the surviving ids per case to stdout. The Python port
-// (src/cricdex/common/filters.py) must reproduce this — test_scripts/
+// (src/cricdesk/common/filters.py) must reproduce this — test_scripts/
 // test_filters_parity.py runs this and diffs. Run via:
 //   node --no-warnings --experimental-strip-types scripts/filters_parity_dump.ts
 import { applyFilters, defaultMinMatches, type Filters } from "../src/lib/filters.ts";

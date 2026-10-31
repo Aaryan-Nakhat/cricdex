@@ -1,6 +1,6 @@
 // Written by scripts/media_data.py: the numbers the README visuals show. Do not edit by hand.
 window.MEDIA = {
- "generated": "2026-10-30",
+ "generated": "2026-10-31",
  "data_as_of": "2026-05-31",
  "auction": {
   "purse": 120.0,

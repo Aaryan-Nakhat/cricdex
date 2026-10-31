@@ -5,7 +5,7 @@ import { leagueLabel } from "./leagues";
 /** The site's byline (sidebar, home page). */
 export const AUTHOR = "Aaryan Nakhat";
 export const AUTHOR_URL = "https://github.com/Aaryan-Nakhat";
-export const REPO_URL = "https://github.com/Aaryan-Nakhat/cricdex";
+export const REPO_URL = "https://github.com/Aaryan-Nakhat/cricdesk";
 
 /** A link to a section of docs/METHODOLOGY.md on GitHub (`anchor` = GitHub's heading slug). */
 export function methodologyUrl(anchor: string): string {

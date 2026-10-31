@@ -1,9 +1,9 @@
 """International appearances Cricsheet withholds (Afghanistan): the Wikipedia-revision method
-(src/cricdex/scout/identity/withheld.py, docs/METHODOLOGY.md §1)."""
+(src/cricdesk/scout/identity/withheld.py, docs/METHODOLOGY.md §1)."""
 
 from __future__ import annotations
 
-from cricdex.scout.identity import withheld as W
+from cricdesk.scout.identity import withheld as W
 
 
 def _rev(ts: str, **counts: int) -> tuple[str, dict[str, tuple[int, str]]]:

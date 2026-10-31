@@ -9,7 +9,7 @@ import pytest
 
 st_testing = pytest.importorskip("streamlit.testing.v1", reason="needs the `ui` extra")
 
-DASH = Path(__file__).resolve().parents[1] / "src" / "cricdex" / "dashboard"
+DASH = Path(__file__).resolve().parents[1] / "src" / "cricdesk" / "dashboard"
 # pages that only read the exported JSON (Head-to-Head and Update Data need the local DuckDB / scripts)
 PAGES = sorted(p for p in (DASH / "pages").glob("*.py") if not p.name.startswith(("4_", "10_")))
 
@@ -61,7 +61,7 @@ def test_auction_result_survives_lookups_and_resets_on_settings():
 
 
 def test_scout_drafts_accumulate_across_picks():
-    from cricdex.web_parity import load_auction_pool, load_scout_index
+    from cricdesk.web_parity import load_auction_pool, load_scout_index
 
     idx = load_scout_index("ipl")
     pool = {p["cricsheet_id"] for p in load_auction_pool("ipl")}
@@ -140,8 +140,8 @@ def test_compare_players_sharing_a_short_name(tmp_path, monkeypatch):
     """Two picked players with the same scorecard name stay two columns."""
     import streamlit as st
 
-    import cricdex.dashboard._widgets as widgets
-    import cricdex.web_parity.loader as loader
+    import cricdesk.dashboard._widgets as widgets
+    import cricdesk.web_parity.loader as loader
 
     players = json.loads((SITE / "ipl" / "players.json").read_text())[:2]
     site = tmp_path / "data"
@@ -173,7 +173,7 @@ def test_compare_players_sharing_a_short_name(tmp_path, monkeypatch):
 def _read_corrupt(path: str) -> None:
     from pathlib import Path
 
-    from cricdex.dashboard._widgets import read_json
+    from cricdesk.dashboard._widgets import read_json
 
     read_json(Path(path), {})
 

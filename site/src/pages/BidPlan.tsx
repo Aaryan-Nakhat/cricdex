@@ -176,7 +176,7 @@ max bid  = the price at which he gives up as much as he adds: the later
           Replayed on the 2024 auction (full purse, before the rule was chosen) its squads beat the real ones on
           the next season for 7 of 10 teams; on 2025 and 2026 at the real team's spend, for 2 of 10 and 1 of 10
           (those two seasons have been looked at many times while building it): see{" "}
-          <a className="text-accent-glow underline" href="https://github.com/Aaryan-Nakhat/cricdex/blob/main/docs/METHODOLOGY.md#12-bid-plan-draft" target="_blank" rel="noreferrer">the methodology, section 12</a>.
+          <a className="text-accent-glow underline" href="https://github.com/Aaryan-Nakhat/cricdesk/blob/main/docs/METHODOLOGY.md#12-bid-plan-draft" target="_blank" rel="noreferrer">the methodology, section 12</a>.
           Treat it as a starting sheet for the war room, not a verdict.
         </p>
       </div>
@@ -205,7 +205,7 @@ export function BidPlan() {
         Replaying real auctions with only what was known beforehand, its squads beat the real ones on the next
         season for 7 of 10 teams in 2024, but only 2 of 10 in 2025 and 1 of 10 in 2026 at the real franchise's
         spend. Use it to explore targets and fallbacks. Full results in{" "}
-        <a className="text-accent-glow underline" href="https://github.com/Aaryan-Nakhat/cricdex/blob/main/docs/METHODOLOGY.md#12-bid-plan-draft" target="_blank" rel="noreferrer">the methodology (section 12)</a>.
+        <a className="text-accent-glow underline" href="https://github.com/Aaryan-Nakhat/cricdesk/blob/main/docs/METHODOLOGY.md#12-bid-plan-draft" target="_blank" rel="noreferrer">the methodology (section 12)</a>.
       </Card>
       {keep.error || poolData.error ? (
         <ErrorBox message={(keep.error || poolData.error)!} />
@@ -463,7 +463,7 @@ function Planner({ data, raw, register, rivalBids }: { data: KeepData; raw: Auct
       )}
       <Card className="space-y-2 px-5 py-4 text-xs leading-relaxed text-muted">
         <p>
-          Same squads, pool and optimiser as <code className="text-fg">cricdex bidplan --team {team}</code> on the command
+          Same squads, pool and optimiser as <code className="text-fg">cricdesk bidplan --team {team}</code> on the command
           line (one implementation in Python and the browser, locked by a parity test). A model's view for discussion, not
           advice. Ratings data to the end of the 2026 IPL.
         </p>
@@ -838,7 +838,7 @@ function Assumptions({ ctx, res, data, openSlots, trials, register }: {
       </div>
       <p className="mt-3 text-xs leading-relaxed text-muted">
         Rules come from <code className="text-fg">config/competitions.toml</code> (sources on the Keep or release page). The
-        model's constants are in <code className="text-fg">src/cricdex/web_parity/bidplan.py</code> ⇄{" "}
+        model's constants are in <code className="text-fg">src/cricdesk/web_parity/bidplan.py</code> ⇄{" "}
         <code className="text-fg">site/src/lib/bidplan.ts</code>.
       </p>
     </Collapsible>

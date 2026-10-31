@@ -1,4 +1,4 @@
-"""Export every computed CricDex artifact into a static JSON tree the
+"""Export every computed CricDesk artifact into a static JSON tree the
 GitHub Pages frontend reads — no backend, no live compute in the
 browser.
 
@@ -46,8 +46,8 @@ import polars as pl
 import typer
 from loguru import logger
 
-from cricdex import leagues
-from cricdex.common.sql import (
+from cricdesk import leagues
+from cricdesk.common.sql import (
     BOWLER_RUNS,
     BOWLER_WICKET,
     DISMISSAL,
@@ -61,12 +61,12 @@ from cricdex.common.sql import (
     player_ids,
     table_suffix,
 )
-from cricdex.config import CURATED_DIR, DATA_DIR
-from cricdex.config import SITE_DATA as _DEFAULT_SITE_DATA
-from cricdex.metrics import provenance
-from cricdex.scout import forecast, playing_time, translation
-from cricdex.scout.identity import captains, countries, pageviews
-from cricdex.scout.identity import master as player_master
+from cricdesk.config import CURATED_DIR, DATA_DIR
+from cricdesk.config import SITE_DATA as _DEFAULT_SITE_DATA
+from cricdesk.metrics import provenance
+from cricdesk.scout import forecast, playing_time, translation
+from cricdesk.scout.identity import captains, countries, pageviews
+from cricdesk.scout.identity import master as player_master
 
 app = typer.Typer(add_completion=False)
 
@@ -110,7 +110,7 @@ def _load_taxonomy() -> dict[str, dict]:
     logger.warning("player master not built — falling back to the raw LLM taxonomy")
     if not TAXONOMY_PATH.exists():
         return {}
-    from cricdex.scout.identity.taxonomy import load_taxonomy
+    from cricdesk.scout.identity.taxonomy import load_taxonomy
 
     raw = load_taxonomy(TAXONOMY_PATH)  # LLM output: allow-lists checked
     out = {}
@@ -566,7 +566,7 @@ AUCTION_TARGET = "ipl"  # the league the auction is for (competition-rules confi
 
 def _target_competition(col: str):
     """The latest competition run on this league (config/competitions.toml), or None."""
-    from cricdex import competitions
+    from cricdesk import competitions
 
     comps = [c for c in competitions.load().values() if c.league == col]
     return max(comps, key=lambda c: (c.season, c.auction_date)) if comps else None
@@ -584,7 +584,7 @@ def _price_inputs(con: duckdb.DuckDBPyConnection, ref_date: str | None, season: 
     import bisect as _bisect
     import datetime as _dt
 
-    from cricdex.scout.identity import sources as _src
+    from cricdesk.scout.identity import sources as _src
 
     # cid → sorted dates of his international XIs (read once per export: the ODI / Test archives)
     if "intl" not in _INTL_DATES:
@@ -662,7 +662,7 @@ def _prior_inputs(key: str, season: int) -> dict:
     one with no match data) before `season`'s auction: his last auction price or mega-auction
     retention in data/curated/<target>_auction_history.json (pricing.market_verdicts; the price
     model is trained on the same)."""
-    from cricdex.web_parity import pricing as _pricing
+    from cricdesk.web_parity import pricing as _pricing
 
     if "v" not in _VERDICTS:
         f = CURATED_DIR / f"{AUCTION_TARGET}_auction_history.json"
@@ -677,7 +677,7 @@ def _prior_inputs(key: str, season: int) -> dict:
 def _export_price_model(out_dir: Path, col: str) -> bool:
     """data/<league>/price_model.json: the fitted market-price model (config/price_model.json),
     its default competition set to the league's next one (cycle + purse)."""
-    from cricdex.web_parity.pricing import load_price_model
+    from cricdesk.web_parity.pricing import load_price_model
 
     load_price_model.cache_clear()
     model = load_price_model()
@@ -693,11 +693,11 @@ def _export_price_model(out_dir: Path, col: str) -> bool:
 
 def _export_bidplan_rivals(out_dir: Path, col: str) -> None:
     """data/<league>/bidplan_rivals.json: every franchise's default Bid plan, each built seeing the
-    others' (web_parity.bidplan.rival_plan_bids; ROADMAP I2 / I18). The page and `cricdex bidplan`
+    others' (web_parity.bidplan.rival_plan_bids; ROADMAP I2 / I18). The page and `cricdesk bidplan`
     let the other nine teams bid for their own plans' targets from it. About a minute."""
-    from cricdex.web_parity import build_pool, load_auction_pool
-    from cricdex.web_parity.bidplan import rival_plan_bids
-    from cricdex.web_parity.loader import load_auction_register, load_keep
+    from cricdesk.web_parity import build_pool, load_auction_pool
+    from cricdesk.web_parity.bidplan import rival_plan_bids
+    from cricdesk.web_parity.loader import load_auction_register, load_keep
 
     base = out_dir.parent
     data = load_keep(col, base)
@@ -748,7 +748,7 @@ def _export_auction_pool(
 
     # Value isn't comparable across leagues (a number against weak SMAT attacks isn't one against the
     # IPL's), so each league's rating is translated onto the IPL rating scale, per role, by the fitted
-    # league translation (cricdex.scout.translation, config/league_translation.json: IPL rating ≈
+    # league translation (cricdesk.scout.translation, config/league_translation.json: IPL rating ≈
     # a + b × league rating with its own translation sd, per league and role, METHODOLOGY §6d), and a
     # player's sources (his IPL rating and every translated league) are BLENDED by precision: a long
     # IPL record dominates because its sd is small, a thin one is filled in by the other leagues, with
@@ -783,7 +783,7 @@ def _export_auction_pool(
     # discount per league, the 300-ball switch), since 2026-10-27 moved to the coming season by the
     # time-aware rating (recipe Z, METHODOLOGY §6b / §4b) — for the price input only; `value`,
     # contributions, ranking and strength use the translation.
-    from cricdex.web_parity import pricing as _pricing
+    from cricdesk.web_parity import pricing as _pricing
 
     price_input = _pricing.value_input()
     price_on_translated = price_input == "translated"
@@ -926,7 +926,7 @@ def _export_auction_pool(
     unavail: dict[str, str] = {}
     elig: dict[str, str] = {}
     if comp is not None:
-        from cricdex import competitions as _comps
+        from cricdesk import competitions as _comps
 
         contract = {
             r["cricsheet_id"]: t
@@ -1093,7 +1093,7 @@ def _time_aware_roles(per_role, shares, comp, asof, dob_by_cid, taxonomy, db_pat
     database file (an in-memory connection); a pool league not in the database is skipped."""
     import datetime as _dt
 
-    from cricdex.scout.ratings import drift
+    from cricdesk.scout.ratings import drift
 
     model = drift.load_model()
     if model is None:
@@ -1119,7 +1119,7 @@ def _shrunk_roles(per_role, shares, comp, asof, db_path):
     or without a database file to read the seasons from)."""
     import datetime as _dt
 
-    from cricdex.scout.ratings import drift, shrink
+    from cricdesk.scout.ratings import drift, shrink
 
     model = shrink.load_model()
     if model is None:
@@ -1191,7 +1191,7 @@ def _playing_time_rows(
     season: bought and picked), his contribution measured against the median squad's XI line."""
     import datetime as _dt
 
-    from cricdex import competitions
+    from cricdesk import competitions
 
     before = comp.auction_date if comp else (asof or _dt.date.today().isoformat())
     season = comp.season if comp else int(before[:4]) + 1
@@ -1472,7 +1472,7 @@ def _keep_form(con: duckdb.DuckDBPyConnection, col: str) -> tuple[dict, dict[str
 
 def _keep_squad_cids(col: str) -> set[str]:
     """Every Cricsheet id in the squads of the competitions run on this league."""
-    from cricdex import competitions
+    from cricdesk import competitions
 
     out: set[str] = set()
     for c in competitions.load().values():
@@ -1512,12 +1512,12 @@ def _export_keep(
     rated: dict[str, dict],
     death: set[str],
 ) -> int:
-    """keep.json for the Keep-or-release page and `cricdex keep`: the competition's rules (with
+    """keep.json for the Keep-or-release page and `cricdesk keep`: the competition's rules (with
     sources and assumptions), every squad player with salary, value, tags, age and last season,
     and the tags of the pool's free agents (the replacement market)."""
     import datetime as _dt
 
-    from cricdex import competitions
+    from cricdesk import competitions
 
     comps = [c for c in competitions.load().values() if c.league == col]
     if not comps:
@@ -1547,7 +1547,7 @@ def _export_keep(
     role_map = {"wk_batter": "keeper", "allrounder": "all_rounder", "bowler": "bowler"}
     # franchise ties for the retention model (keep.py `keep_features`): IPL seasons with this side
     # before the deadline, and whether it was his first IPL side
-    from cricdex.scout.identity import sources as _src
+    from cricdesk.scout.identity import sources as _src
 
     team_seasons = _src.ipl_team_seasons(con) if col == "ipl" else {}
 
@@ -1746,7 +1746,7 @@ def _buy_model_payload(comp) -> dict | None:
 
 def _keep_model_payload() -> dict | None:
     """What keep.ts needs of config/keep_model.json (intercept, coefficients, fit date), or None."""
-    from cricdex.web_parity.keep import load_keep_model
+    from cricdesk.web_parity.keep import load_keep_model
 
     load_keep_model.cache_clear()
     m = load_keep_model()
@@ -1805,7 +1805,7 @@ def _export_scout_index(
     import datetime as _dt
     import statistics as _st
 
-    from cricdex.web_parity import pricing as _pricing
+    from cricdesk.web_parity import pricing as _pricing
 
     # scout_index.json is keyed by each Scout pool's tier (`smat` for indian_domestic_male …)
     pools = leagues.scout_pools()
@@ -1915,7 +1915,7 @@ def _export_scout_index(
             role = role_map.get(tax.get("primary_role"), "batter")
             b, w = bat.get(cid), bowl.get(cid)
             # each side on the IPL rating scale (the fitted league translation, per role:
-            # cricdex.scout.translation; the IPL's own ratings unchanged); the price basis is the
+            # cricdesk.scout.translation; the IPL's own ratings unchanged); the price basis is the
             # better side there, its translated sd feeding the cautious price
             # (value − PRICE_CAUTION_SD × sd), as in the auction pool
             on_ipl = {
@@ -2000,7 +2000,7 @@ def _export_retentions(players: list[dict], out_dir: Path) -> None:
             if n:
                 by_name.setdefault(n.lower(), p)
     # capped / uncapped AT RETENTION (the squads file's 2025 block), for the slab charge
-    from cricdex import competitions
+    from cricdesk import competitions
 
     comp = _target_competition(AUCTION_TARGET)
     block = ((competitions.load_squads(comp).get("mega_retentions_2025") or {}).get("teams")) or {}
@@ -2150,7 +2150,7 @@ def _players(
     counts = _match_counts(con, collection)
     # Full display names (Wikidata label) so search matches "Manish"
     # not just the Cricsheet short form "MK Pandey" (used only without a player master).
-    from cricdex.profiles import builder
+    from cricdesk.profiles import builder
 
     wiki = builder._wikidata_cache()
     stats = {
@@ -2252,7 +2252,7 @@ def _disambiguate_names(players: list[dict]) -> None:
 
 
 def _has_registry(con: duckdb.DuckDBPyConnection, collection: str) -> bool:
-    from cricdex.common.sql import match_name_map
+    from cricdesk.common.sql import match_name_map
 
     return match_name_map(con, collection) is not None
 
@@ -2263,7 +2263,7 @@ def _match_counts(con: duckdb.DuckDBPyConnection, collection: str) -> dict[str, 
     `match_players_<col>` table, counted in this collection's — or time window's — matches), so a
     batter who never got in or a bowler who didn't bowl still played; matches batted or bowled in
     are added for anyone the XI tables miss (a DB ingested before them)."""
-    from cricdex.metrics.ngi import appearances
+    from cricdesk.metrics.ngi import appearances
 
     return appearances(con, collection)
 
@@ -2413,7 +2413,7 @@ def _export_leaderboards(
     """All-time (window=None) or a recomputed time window. Window metrics
     live in data/metrics/<slug>_<collection>_<window>.json (cooked by the
     subprocess pass); the site file gets a `.<window>` suffix. A cache computed from other data or
-    older metric code than now (its `.stamp.json`, cricdex.metrics.provenance) fails the export."""
+    older metric code than now (its `.stamp.json`, cricdesk.metrics.provenance) fails the export."""
     src_col = f"{collection}_{window}" if window else collection
     suffix = f".{window}" if window else ""
     n = 0
@@ -2553,9 +2553,9 @@ def _export_records_venues(
     name_ident: dict[str, dict] | None = None,
 ) -> None:
     """Record leaderboards + venue conditions, pre-computed to JSON."""
-    from cricdex.common.venue_names import aliases_for
-    from cricdex.records import queries as rq
-    from cricdex.venues import profile as vp
+    from cricdesk.common.venue_names import aliases_for
+    from cricdesk.records import queries as rq
+    from cricdesk.venues import profile as vp
 
     recs: dict = {}
     for key, fn in rq.RECORDS.items():
@@ -2608,8 +2608,8 @@ def _export_profiles_and_cohorts(
     activity: dict[str, dict],
     name_ident: dict[str, dict] | None = None,
 ) -> tuple[int, int]:
-    from cricdex.profiles import builder
-    from cricdex.scout import cohort
+    from cricdesk.profiles import builder
+    from cricdesk.scout import cohort
 
     # The export's connection + one ball-volume pass, reused across players
     # so the graph cohort (co_faced) costs ~one query per player. The profile
@@ -2691,7 +2691,7 @@ def _export_matchups(
 ) -> int:
     """matchups/<cid>.json — per player: as_batter (vs each bowler), as_bowler
     (vs each batter), and the batter's pace/spin splits."""
-    from cricdex.metrics import matchups as mm
+    from cricdesk.metrics import matchups as mm
 
     pairs = mm.pairwise(collection, min_balls=6)
     # bowler type by registry id (the player master / taxonomy are keyed by id)
@@ -2740,7 +2740,7 @@ def _export_phase(
     Each row is tagged with match count + the LLM taxonomy (role / bowling
     type / position / country) + activity, exactly like the leaderboards, so the
     UI filter bar works per-row."""
-    from cricdex.metrics import phase as ph
+    from cricdesk.metrics import phase as ph
 
     # Fuller pool (top 150) so the UI filter bar has material to narrow.
     boards = ph.phase_leaders(collection, top=150)
@@ -3020,7 +3020,7 @@ def _drop_temp_tables(con: duckdb.DuckDBPyConnection, keep: str | None = None) -
 
 def _free_league_memory(con: duckdb.DuckDBPyConnection) -> None:
     """Between leagues: temp tables, the style-twin feature cache, then Python's garbage."""
-    from cricdex.scout.search import style_twin
+    from cricdesk.scout.search import style_twin
 
     _drop_temp_tables(con)
     style_twin._features_cached.cache_clear()

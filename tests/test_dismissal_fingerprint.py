@@ -5,7 +5,7 @@ from __future__ import annotations
 import duckdb
 import pytest
 
-from cricdex.metrics import dismissal_fingerprint as df
+from cricdesk.metrics import dismissal_fingerprint as df
 
 
 @pytest.fixture

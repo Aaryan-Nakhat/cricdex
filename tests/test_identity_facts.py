@@ -2,7 +2,7 @@
 same identity for a player in every league, an age for every rated Keep player, and role tags that
 match cricket reality for players whose role nobody disputes.
 
-Skipped when there is no export (CI without data); point `CRICDEX_SITE_DATA` at another export to
+Skipped when there is no export (CI without data); point `CRICDESK_SITE_DATA` at another export to
 check that one."""
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from cricdex.config import SITE_DATA
+from cricdesk.config import SITE_DATA
 
 IDX = SITE_DATA / "collections.json"
 COLLECTIONS = (

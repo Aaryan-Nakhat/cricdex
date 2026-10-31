@@ -1,5 +1,5 @@
 // Head-to-head P(A better than B). CANONICAL for the web; the Python engine
-// `src/cricdex/scout/ratings/head_to_head.py` is the same logic (locked by
+// `src/cricdesk/scout/ratings/head_to_head.py` is the same logic (locked by
 // test_scripts/test_h2h_parity.py) — change both together.
 
 import type { RatingRow } from "./data";

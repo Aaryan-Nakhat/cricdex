@@ -23,12 +23,12 @@ import polars as pl
 import typer
 from loguru import logger
 
-from cricdex.common.sql import is_window
-from cricdex.config import DATA_DIR
-from cricdex.metrics import batter as batter_metrics
-from cricdex.metrics import bowler as bowler_metrics
-from cricdex.metrics import bowler_wicket_quality, provenance, splits
-from cricdex.metrics import fielding as fielding_metrics
+from cricdesk.common.sql import is_window
+from cricdesk.config import DATA_DIR
+from cricdesk.metrics import batter as batter_metrics
+from cricdesk.metrics import bowler as bowler_metrics
+from cricdesk.metrics import bowler_wicket_quality, provenance, splits
+from cricdesk.metrics import fielding as fielding_metrics
 
 DB_PATH = DATA_DIR / "cricsheet" / "cricsheet.duckdb"
 
@@ -206,7 +206,7 @@ def ngi_cmd(
     top_n: int = typer.Option(100, "--top-n"),
     out_json: Path | None = typer.Option(None, "--json"),
 ) -> None:
-    from cricdex.metrics import ngi
+    from cricdesk.metrics import ngi
 
     res = ngi.compute(collection=collection)
     df = res["career"]
@@ -233,7 +233,7 @@ def ngi_diagnostics_cmd(
     in-sample vs out-of-fold NGI."""
     import json
 
-    from cricdex.metrics import ngi
+    from cricdesk.metrics import ngi
 
     res = ngi.diagnose(collection)
     text = json.dumps(res, indent=2)
@@ -366,7 +366,7 @@ def all_cmd(
         collection,
         None,
     )
-    from cricdex.metrics import ngi as _ngi
+    from cricdesk.metrics import ngi as _ngi
 
     # NGI is per-match, so a player with one great game would top the board — keep a matches floor
     # (lower for the time windows, which hold far fewer games).

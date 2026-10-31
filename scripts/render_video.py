@@ -7,7 +7,7 @@
 Each frame is the page at exactly t = i / fps (``window.render(t)``), screenshotted in headless Chromium and piped
 to ffmpeg, so the result is deterministic with no dropped frames. Needs ffmpeg on PATH. Playwright is not a project
 dependency (hence ``--with playwright``); the browser is the installed Microsoft Edge (``channel="msedge"``), so no
-``playwright install`` download is needed. Set CRICDEX_BROWSER_CHANNEL=chromium to use Playwright's own build.
+``playwright install`` download is needed. Set CRICDESK_BROWSER_CHANNEL=chromium to use Playwright's own build.
 Run from the repo root.
 """
 
@@ -22,7 +22,7 @@ import tempfile
 from pathlib import Path
 
 W, H = 1600, 900
-CHANNEL = os.environ.get("CRICDEX_BROWSER_CHANNEL", "msedge")
+CHANNEL = os.environ.get("CRICDESK_BROWSER_CHANNEL", "msedge")
 FONTS_READY = """Promise.all([
   document.fonts.load('500 16px Inter'), document.fonts.load('800 16px Inter'),
   document.fonts.load('700 16px "JetBrains Mono"'),
@@ -140,7 +140,7 @@ def main() -> None:
     ap.add_argument("--gif-colors", type=int, default=80)
     ap.add_argument("--stills", help="comma-separated times (s) -> PNG previews instead of a video")
     ap.add_argument(
-        "--stills-dir", type=Path, default=Path(tempfile.gettempdir()) / "cricdex-media-preview"
+        "--stills-dir", type=Path, default=Path(tempfile.gettempdir()) / "cricdesk-media-preview"
     )
     a = ap.parse_args()
     if a.stills:

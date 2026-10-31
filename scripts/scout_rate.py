@@ -14,8 +14,8 @@ import polars as pl
 import typer
 from loguru import logger
 
-from cricdex.config import DATA_DIR
-from cricdex.scout.ratings import bayesian
+from cricdesk.config import DATA_DIR
+from cricdesk.scout.ratings import bayesian
 
 
 def _attach_names(df: pl.DataFrame, db_path: Path) -> pl.DataFrame:

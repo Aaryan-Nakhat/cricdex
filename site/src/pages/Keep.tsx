@@ -110,7 +110,7 @@ function HowItWorks({ data }: { data: KeepData }) {
           ceiling. Under it, the chance a franchise buys a player like him if he's released (which also
           weighs the price he last fetched). The recipe was chosen on auctions up to 2024. On the 2025–26
           auctions it is off by a factor of about 1.9 on a typical player, but those two seasons have since
-          been looked at several times while building CricDex, so treat that figure as optimistic. The value the
+          been looked at several times while building CricDesk, so treat that figure as optimistic. The value the
           price uses is not always the one in the Value column: the price was fitted on the rating the market
           models were built on (one discount per league), which priced later auctions better than the value
           shown, so under each price is the value it was <b>priced on</b>.{" "}

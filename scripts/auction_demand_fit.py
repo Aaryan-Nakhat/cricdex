@@ -61,7 +61,7 @@ from scipy.optimize import minimize
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from cricdex.web_parity.auction import ladder_next, ladder_step  # noqa: E402
+from cricdesk.web_parity.auction import ladder_next, ladder_step  # noqa: E402
 
 app = typer.Typer(add_completion=False)
 ROOT = Path(__file__).resolve().parents[1]
@@ -111,7 +111,7 @@ def inputs(work: Path = typer.Option(..., "--work")) -> None:
     import bidplan_backtest as bt
     import ipl_price_model as ipm
 
-    from cricdex.scout.identity import master
+    from cricdesk.scout.identity import master
 
     work.mkdir(parents=True, exist_ok=True)
     todo = [s for s in SEASONS if not (work / f"season_{s}.pkl").exists()]
@@ -161,7 +161,7 @@ def mk(work: Path = typer.Option(..., "--work")) -> None:
     walk-forward price (`projected_value`: auctions before only). Cached per season."""
     import ipl_price_model as ipm
 
-    from cricdex.web_parity.pricing import load_price_model, market_price
+    from cricdesk.web_parity.pricing import load_price_model, market_price
 
     todo = [s for s in SEASONS if not (work / f"mk_{s}.json").exists()]
     if not todo:

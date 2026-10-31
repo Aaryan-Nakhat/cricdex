@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from cricdex.web_parity import pricing
+from cricdesk.web_parity import pricing
 
 ROOT = Path(__file__).resolve().parents[1]
 POOL = ROOT / "site" / "public" / "data" / "ipl" / "auction_pool.json"

@@ -1,4 +1,4 @@
-/* CricDex — design system. Sibling of EquityShastra's UI: glass panels, gradient accents, Inter + JetBrains Mono
+/* CricDesk — design system. Sibling of EquityShastra's UI: glass panels, gradient accents, Inter + JetBrains Mono
    bundled locally (public/fonts, SIL OFL), light / dark / auto themes. Theme: <html data-theme="dark|light">,
    set before first paint from the saved choice or the system (index.html). Colours are RGB channels so Tailwind's
    opacity modifiers work (tailwind.config.js). */

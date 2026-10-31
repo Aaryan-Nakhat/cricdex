@@ -1,7 +1,7 @@
 // The 10 novel metrics + the two fielding boards — one catalog entry each. Drives
 // the metric switcher, the leaderboard columns, the sort, the filters that make
 // sense on each board, and the explainer copy. The copy is mirrored word for word
-// in src/cricdex/common/metrics.py (tests/test_metrics_copy_parity.py).
+// in src/cricdesk/common/metrics.py (tests/test_metrics_copy_parity.py).
 
 import type { Dim } from "./filters";
 

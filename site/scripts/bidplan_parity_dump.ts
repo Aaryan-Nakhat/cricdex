@@ -1,6 +1,6 @@
 // Parity harness for Bid plan: runs the canonical TS optimiser (src/lib/bidplan.ts) on a fixture and
 // prints the results as JSON. test_scripts/test_bidplan_parity.py runs the Python twin
-// (cricdex.web_parity.bidplan) on the same fixture and diffs. Run via:
+// (cricdesk.web_parity.bidplan) on the same fixture and diffs. Run via:
 //   node --no-warnings --experimental-strip-types scripts/bidplan_parity_dump.ts <fixture.json>
 // fixture = { cases: [{ data (keep.json shape), pool (auction_pool rows), team, decisions, purse,
 //             open_slots, rules, register, needs, overrides, trials }], model: price model or null }

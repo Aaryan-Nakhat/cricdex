@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from cricdex.scout.ratings import head_to_head as h2h
+from cricdesk.scout.ratings import head_to_head as h2h
 
 
 def test_phi_known_values():

@@ -1,12 +1,12 @@
 """Tests for the real-IPL franchise list the desktop Auction reads.
 
-(The live auction Monte-Carlo lives in `cricdex.web_parity`; the hand-assigned
+(The live auction Monte-Carlo lives in `cricdesk.web_parity`; the hand-assigned
 bidding personalities were replaced by a fitted demand model on 2026-10-23.)
 """
 
 from __future__ import annotations
 
-from cricdex.auction import real_pool
+from cricdesk.auction import real_pool
 
 
 def test_ten_unique_franchises():

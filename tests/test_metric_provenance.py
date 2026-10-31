@@ -1,11 +1,11 @@
 """A metric cache carries what it was computed from; the export refuses one whose data or code moved
-on (cricdex.metrics.provenance)."""
+on (cricdesk.metrics.provenance)."""
 
 from __future__ import annotations
 
 import duckdb
 
-from cricdex.metrics import provenance
+from cricdesk.metrics import provenance
 
 
 def _con(n_matches: int) -> duckdb.DuckDBPyConnection:

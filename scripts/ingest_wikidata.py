@@ -14,7 +14,7 @@ from pathlib import Path
 import typer
 from loguru import logger
 
-from cricdex.scout.ingest import wikidata
+from cricdesk.scout.ingest import wikidata
 
 app = typer.Typer(add_completion=False)
 

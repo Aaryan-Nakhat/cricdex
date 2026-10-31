@@ -1,4 +1,4 @@
-"""Competition rules (config/competitions.toml → cricdex.competitions) and the squads + salaries
+"""Competition rules (config/competitions.toml → cricdesk.competitions) and the squads + salaries
 file Keep or release reads (data/curated/ipl_squads_2026.json)."""
 
 from __future__ import annotations
@@ -7,9 +7,9 @@ import json
 
 import pytest
 
-from cricdex import competitions
-from cricdex.competitions import RULE_FIELDS, CompetitionError, parse
-from cricdex.config import DATA_DIR as DATA
+from cricdesk import competitions
+from cricdesk.competitions import RULE_FIELDS, CompetitionError, parse
+from cricdesk.config import DATA_DIR as DATA
 
 # Hand-curated IPL files kept local (gitignored, data/curated/*): the tests that read them skip
 # where they are absent (CI), as tests/test_reality_gate.py does.
@@ -218,7 +218,7 @@ def test_slab_rule_reproduces_2025_and_2026_purses(ipl):
     That reproduces every team's published purse entering the 2025 mega auction and, charging the
     2025 retentions still on each squad on 15 Nov 2025, the 2026 one (and the hand-kept per-team
     `slab_charge`)."""
-    from cricdex.web_parity.keep import slab_charge
+    from cricdesk.web_parity.keep import slab_charge
 
     c, sq = ipl
     rules = c.rules()

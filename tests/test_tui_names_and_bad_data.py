@@ -21,11 +21,11 @@ from textual.widgets import (  # noqa: E402
     TabbedContent,
 )
 
-import cricdex.config as config  # noqa: E402
-import cricdex.web_parity.loader as loader  # noqa: E402
+import cricdesk.config as config  # noqa: E402
+import cricdesk.web_parity.loader as loader  # noqa: E402
 
-tui = importlib.import_module("cricdex.cli.tui")  # the package also has a `tui` command
-from cricdex.config import SITE_DATA  # noqa: E402
+tui = importlib.import_module("cricdesk.cli.tui")  # the package also has a `tui` command
+from cricdesk.config import SITE_DATA  # noqa: E402
 
 
 def _cells(table: DataTable) -> str:
@@ -44,7 +44,7 @@ def _run(act, check, tab: str | None = None) -> None:
     """Mount the app (showing `tab`), do `act(app)`, let it settle, then `check(app)`."""
 
     async def main():
-        app = tui.CricDexApp()
+        app = tui.CricDeskApp()
         async with app.run_test(size=(200, 60)) as pilot:
             await pilot.pause()
             if tab:

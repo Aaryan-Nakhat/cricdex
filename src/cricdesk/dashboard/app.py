@@ -1,0 +1,145 @@
+"""CricDesk Streamlit home — sidebar nav routes to per-feature pages.
+
+Streamlit auto-discovers everything under `pages/`; this module is the
+landing page that explains what CricDesk is, what each page does, and
+what the underlying data source is so a first-time viewer can navigate
+without reading the codebase.
+"""
+
+from __future__ import annotations
+
+import json
+
+import streamlit as st
+
+from cricdesk.web_parity.loader import SITE_DATA
+
+st.set_page_config(page_title="CricDesk", page_icon="🏏", layout="wide")
+st.title("🏏 CricDesk")
+st.caption(
+    "Open cricket intelligence — novel metrics, cross-competition scouting, and a "
+    "real-rules IPL auction. The desktop mirror of the web app, over one data dir."
+)
+
+
+def _meta(collection: str = "ipl") -> dict:
+    path = SITE_DATA / collection / "meta.json"
+    try:
+        return json.loads(path.read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+# Live dataset tiles — mirrors the web Overview hero stats.
+_m = _meta()
+if _m:
+    t = st.columns(4)
+    t[0].metric("Matches", f"{_m.get('n_matches', 0):,}")
+    t[1].metric("Balls bowled", f"{_m.get('n_balls', 0):,}")
+    t[2].metric("Players rated", f"{_m.get('n_players', 0):,}")
+    t[3].metric("Data up to", str(_m.get("data_as_of", "—")))
+    st.caption(f"`ipl` collection · {_m.get('n_active', 0):,} active players")
+
+st.markdown(
+    """
+### What CricDesk is
+
+An open cricket-analytics platform built entirely from public
+**[Cricsheet](https://cricsheet.org/) ball-by-ball data** + the
+**[Cricsheet People Register](https://cricsheet.org/register/)** for
+cross-source identity. No scraping, no live feed, no LLM guessing — a
+Python pipeline computes everything offline.
+
+These pages **mirror the React web app** ([live](https://aaryan-nakhat.github.io/cricdesk/));
+the Scout + Auction run the *same* logic as the site via `cricdesk.web_parity`
+(locked by a parity test). Every page is also a terminal command
+(`cricdesk --help`); both read `$CRICDESK_HOME/data/` (default
+`~/.cricdesk/data/`).
+
+---
+
+### Pages
+
+| Page | What it answers | Source |
+|---|---|---|
+| **Leaderboards** | Top players by each of the 12 metrics — with a time-window switcher (all-time / last 3 yrs / last 1 yr), full filter bar (role / activity / bowling / position / country / min matches), inline magnitude bars + the Intent-Curve sparkline | exported leaderboards |
+| **Records** | Highest score, fastest fifty / hundred, most sixes, best bowling, team totals | exported `records.json` |
+| **Head-to-head** | P(A is better than B) from the Bayesian posteriors | local scout ratings |
+| **Compare** | 2–4 players side-by-side, radar + table | exported profiles |
+| **Venues** | Per-venue totals, chase vs set, phase run-rates | exported `venues.json` |
+| **Auction** | Real-rules IPL auction Monte-Carlo (retain → bid), web-identical | exported pool via `cricdesk.web_parity` |
+| **Player Profile** | Everything CricDesk knows about one player | exported profiles + cohorts |
+| **Scout** | Cross-competition look-alikes (IPL, SMAT and every overseas league in the registry) + est. price, savings, gem flag, draft | exported scout index via `cricdesk.web_parity` |
+| **Update Data** | Refresh a collection → re-export the JSON every page reads | local pipeline → exported JSON |
+| **Matchups** | One player vs every bowler / batter faced, plus pace vs spin | exported `matchups/` |
+| **Phase** | Best strike rates and tightest economies in the powerplay / middle / death | exported `phase.json` |
+| **Form** | Who is heating up or cooling down: recent window vs career, per metric | exported leaderboards |
+| **Partnerships** | A player's most productive partners, and the best pairs all-time | exported `partnerships.json` |
+| **Aging** | Strike rate / average / economy by age, with one player's curve on top | exported `aging.json` |
+
+The read-only pages read the **exported JSON** (the same files the web app
+fetches), except **Head-to-head**, which reads the local scout ratings.
+**Update Data** is the one page that *writes* — it re-ingests + re-exports so
+the rest stay in sync. Best of both worlds: edit once, read everywhere.
+
+---
+
+### The 12 metrics, in plain English
+
+The Leaderboards page splits these across tabs; the Player Profile page
+surfaces them per-player with the same definitions.
+
+- **NGI (Net Game Impact)** — the flagship. Per ball we estimate the
+  win-probability swing and credit batter (+) / bowler (−). **Win chance added
+  per match** is the per-game average as a percentage (+5% = five percentage
+  points a game); **wins added** is the career total, which grows with matches
+  played, like career runs. One currency for batting + bowling + clutch.
+- **Pressure Runs** — strike rate when the required rate is climbing in a
+  chase. Higher = lifts when it's tight.
+- **Dot-Ball Recovery** — runs in the six balls after a dot. Higher =
+  doesn't let dots spiral.
+- **Counter-Attack** — strike rate right after a partner is dismissed.
+- **Boundary Dependency** — share of runs from 4s + 6s. A style, not a level:
+  lower = rotates strike; higher = relies on the rope.
+- **Intent Curve** — strike rate from ball one: ranks batters by **early SR**
+  (balls 1–10) with the full innings curve as an inline sparkline.
+- **Pressure Conversion (bowler)** — how often the next ball after a 4+ dot
+  streak (same bowler, same over) is a wicket. Higher = finishes the squeeze.
+- **Crease Longevity (batter)** — balls survived per dismissal vs the cohort.
+- **Slow-Start Cost (batter)** — career SR minus SR over the first 20 balls of an innings.
+- **Wicket Quality (bowler)** — wickets weighted by the Bayes batting skill
+  of the batter dismissed.
+- **Wicketkeeping** — keeper dismissals: catches + stumpings + run-outs.
+- **Fielding** — outfield dismissals: catches + run-outs.
+
+### CLI commands you'll touch
+
+```bash
+cricdesk data status                              # inventory
+
+# refresh data (add --force to regenerate)
+cricdesk data ingest cricsheet -c ipl             # ball-by-ball -> DuckDB
+cricdesk data ingest ratings   -c ipl             # Bayesian scout fit
+cricdesk data ingest metrics   -c ipl             # every leaderboard JSON
+
+# the queries
+cricdesk leaderboard ngi -c ipl --top 25
+cricdesk profile "V Kohli"                        # fuzzy — "Kohli" works too
+cricdesk compare "V Kohli" "RG Sharma"
+cricdesk scout look-alikes "JJ Bumrah"            # 6-pool look-alikes
+cricdesk auction room --mode mega                 # real-rules auction sim
+
+cricdesk tui                                       # full Textual UI
+```
+
+### Available collections
+
+`-c <collection>` accepts any league key in `config/leagues.toml` (the league
+registry; `python -m cricdesk.leagues list --exported` prints the exported ones,
+e.g. `ipl`, `indian_domestic_male` for SMAT, `bbl`, `psl`). Ratings / metrics are
+fit per-collection so cross-collection comparisons stay honest.
+
+Full reference: `docs/CLI.md` in the repo. Onboarding: `docs/FIRST_RUN.md`.
+Architecture: `docs/ARCHITECTURE.md`.
+"""
+)

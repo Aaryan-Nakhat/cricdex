@@ -46,12 +46,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import ipl_price_model as ipm  # noqa: E402
 
-from cricdex.config import DATA_DIR  # noqa: E402
-from cricdex.scout import forecast as fc  # noqa: E402
-from cricdex.scout.identity import captains, master  # noqa: E402
-from cricdex.scout.ratings import bayesian  # noqa: E402
-from cricdex.web_parity import keep as kp  # noqa: E402
-from cricdex.web_parity import pricing  # noqa: E402
+from cricdesk.config import DATA_DIR  # noqa: E402
+from cricdesk.scout import forecast as fc  # noqa: E402
+from cricdesk.scout.identity import captains, master  # noqa: E402
+from cricdesk.scout.ratings import bayesian  # noqa: E402
+from cricdesk.web_parity import keep as kp  # noqa: E402
+from cricdesk.web_parity import pricing  # noqa: E402
 
 app = typer.Typer(add_completion=False)
 
@@ -158,7 +158,7 @@ def _played() -> tuple[dict, dict]:
     """((season, team) → cids who played for it; cid → [(season, team)] in order)."""
     import duckdb
 
-    from cricdex.scout.identity import sources
+    from cricdesk.scout.identity import sources
 
     with duckdb.connect(str(bayesian.DEFAULT_DB_PATH), read_only=True) as con:
         hist = sources.ipl_team_seasons(con)
@@ -478,7 +478,7 @@ def _playing_time(data: dict) -> None:
     `p_play`, `matches_last`."""
     import playing_time_fit as ptf
 
-    from cricdex.scout import playing_time as pt
+    from cricdesk.scout import playing_time as pt
 
     rep_ = ptf._read()
     feats = ptf.PLAY_CANDIDATES[rep_["play"]["chosen"]]

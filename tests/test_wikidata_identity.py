@@ -5,7 +5,7 @@ from __future__ import annotations
 import duckdb
 import pytest
 
-from cricdex.scout.ingest import wikidata
+from cricdesk.scout.ingest import wikidata
 
 
 def _claim(value):

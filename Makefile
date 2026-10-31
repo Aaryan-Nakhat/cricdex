@@ -34,7 +34,7 @@ test:
 	uv run pytest
 
 api:
-	uv run uvicorn cricdex.api.main:app --reload --port 8080
+	uv run uvicorn cricdesk.api.main:app --reload --port 8080
 
 clean:
 	uv run python -c "import pathlib, shutil; [shutil.rmtree(p, ignore_errors=True) for p in [*pathlib.Path('.').rglob('__pycache__'), *map(pathlib.Path, ['.pytest_cache', '.mypy_cache', '.ruff_cache', 'htmlcov', 'dist', 'build'])]]"
@@ -56,48 +56,48 @@ docker-down:
 	docker compose down
 
 docker-logs:
-	docker compose logs -f cricdex
+	docker compose logs -f cricdesk
 
 docker-shell:
-	docker compose exec cricdex bash
+	docker compose exec cricdesk bash
 
 docker-test:
-	docker compose run --rm -e UV_NO_DEV=false cricdex uv run --frozen --group dev pytest -q
+	docker compose run --rm -e UV_NO_DEV=false cricdesk uv run --frozen --group dev pytest -q
 
 docker-ingest-cricsheet:
-	docker compose run --rm cricdex uv run python scripts/ingest_cricsheet.py ingest --collection "$${COLLECTION:-recently_played_30_male}"
+	docker compose run --rm cricdesk uv run python scripts/ingest_cricsheet.py ingest --collection "$${COLLECTION:-recently_played_30_male}"
 
 # Every exported league in config/leagues.toml (SMAT is one more collection now: sma_json.zip).
 docker-ingest-all:
-	docker compose run --rm cricdex uv run python scripts/ingest_cricsheet.py all
+	docker compose run --rm cricdesk uv run python scripts/ingest_cricsheet.py all
 
 docker-ingest-people:
-	docker compose run --rm cricdex uv run python scripts/ingest_people.py
+	docker compose run --rm cricdesk uv run python scripts/ingest_people.py
 
 docker-ingest-wikidata:
-	docker compose run --rm cricdex uv run python scripts/ingest_wikidata.py
+	docker compose run --rm cricdesk uv run python scripts/ingest_wikidata.py
 
 docker-scout-rate:
-	docker compose run --rm cricdex uv run python scripts/scout_rate.py --collection "$${COLLECTION:-ipl}" --advi-steps "$${STEPS:-12000}"
+	docker compose run --rm cricdesk uv run python scripts/scout_rate.py --collection "$${COLLECTION:-ipl}" --advi-steps "$${STEPS:-12000}"
 
 docker-style-twin:
 	@if [ -z "$$NAME" ]; then echo 'usage: make docker-style-twin NAME="MS Dhoni" [ROLE=batter|bowler] [K=10] [COLLECTION=ipl]'; exit 2; fi
-	docker compose run --rm cricdex uv run python scripts/style_twin.py "$$NAME" --role "$${ROLE:-batter}" -k "$${K:-10}" --collection "$${COLLECTION:-ipl}"
+	docker compose run --rm cricdesk uv run python scripts/style_twin.py "$$NAME" --role "$${ROLE:-batter}" -k "$${K:-10}" --collection "$${COLLECTION:-ipl}"
 
 docker-records-all:
-	docker compose run --rm cricdex uv run python scripts/records.py all --collection "$${COLLECTION:-ipl}" --top-n "$${TOP_N:-25}"
+	docker compose run --rm cricdesk uv run python scripts/records.py all --collection "$${COLLECTION:-ipl}" --top-n "$${TOP_N:-25}"
 
 docker-records-today:
-	docker compose run --rm cricdex uv run python scripts/records.py today --collection "$${COLLECTION:-ipl}"
+	docker compose run --rm cricdesk uv run python scripts/records.py today --collection "$${COLLECTION:-ipl}"
 
 docker-pressure-runs:
-	docker compose run --rm cricdex uv run python scripts/compute_metrics.py pressure-runs --collection "$${COLLECTION:-recently_played_30_male}" --top-n "$${TOP_N:-50}"
+	docker compose run --rm cricdesk uv run python scripts/compute_metrics.py pressure-runs --collection "$${COLLECTION:-recently_played_30_male}" --top-n "$${TOP_N:-50}"
 
 docker-export:
-	docker compose run --rm cricdex uv run python scripts/export_site.py $${COLLECTION:+-c "$$COLLECTION"}
+	docker compose run --rm cricdesk uv run python scripts/export_site.py $${COLLECTION:+-c "$$COLLECTION"}
 
 docker-metrics-all:
-	docker compose run --rm cricdex uv run python scripts/compute_metrics.py all --collection "$${COLLECTION:-recently_played_30_male}" --top-n "$${TOP_N:-100}"
+	docker compose run --rm cricdesk uv run python scripts/compute_metrics.py all --collection "$${COLLECTION:-recently_played_30_male}" --top-n "$${TOP_N:-100}"
 
 docker-dashboard-up:
 	docker compose --profile dashboard up -d dashboard
@@ -108,7 +108,7 @@ docker-dashboard-down:
 	docker compose --profile dashboard rm -f dashboard
 
 dashboard:
-	uv run streamlit run src/cricdex/dashboard/app.py
+	uv run streamlit run src/cricdesk/dashboard/app.py
 
 # Refresh one collection end to end on this machine: download → ratings → metrics → site data.
 # Ratings come before metrics: Wicket Quality reads the fitted scout ratings.
@@ -119,11 +119,11 @@ refresh:
 	uv run python scripts/export_site.py -c "$${COLLECTION:-ipl}"
 
 # Every exported league in config/leagues.toml, end to end, from scratch: the default steps of
-# src/cricdex/pipeline.py (ingest, People Register, player master, ratings, metrics, forecast, ONE
-# export; `uv run python -m cricdex.pipeline --list`). Set LEAGUES="ipl psl" to limit the per-league
-# steps. The model fits run only on request: `uv run python -m cricdex.pipeline --refit`.
+# src/cricdesk/pipeline.py (ingest, People Register, player master, ratings, metrics, forecast, ONE
+# export; `uv run python -m cricdesk.pipeline --list`). Set LEAGUES="ipl psl" to limit the per-league
+# steps. The model fits run only on request: `uv run python -m cricdesk.pipeline --refit`.
 refresh-all:
-	LEAGUES="$(LEAGUES)" uv run python -m cricdex.pipeline --fresh
+	LEAGUES="$(LEAGUES)" uv run python -m cricdesk.pipeline --fresh
 
 # The player master alone (display names, capped, roles, country, squads, DOB): open data in cached
 # batches plus the LLM name check if one is configured. Read by export_site.py.
@@ -132,7 +132,7 @@ player-master:
 
 # The league registry (config/leagues.toml): validate it and list every collection.
 leagues:
-	uv run python -m cricdex.leagues check
+	uv run python -m cricdesk.leagues check
 	uv run python scripts/ingest_cricsheet.py list
 
 # One-command, resumable rebuild of every exported league (see scripts/README.md).

@@ -13,7 +13,7 @@ const CSP_META = /<meta\s+http-equiv="Content-Security-Policy"[^>]*>\s*/i;
 // - dev: the meta tag is removed, since Vite's dev server injects its own inline scripts and HMR socket.
 function contentSecurityPolicy(): Plugin {
   return {
-    name: "cricdex-csp",
+    name: "cricdesk-csp",
     transformIndexHtml: {
       order: "post",
       handler(html, ctx) {
@@ -34,11 +34,11 @@ function contentSecurityPolicy(): Plugin {
   };
 }
 
-// Project page lives at https://aaryan-nakhat.github.io/cricdex/ — the
+// Project page lives at https://aaryan-nakhat.github.io/cricdesk/ — the
 // repo name is the base path. The root portfolio at the bare domain is
 // a separate repo and is untouched.
 export default defineConfig({
-  base: "/cricdex/",
+  base: "/cricdesk/",
   plugins: [react(), contentSecurityPolicy()],
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },

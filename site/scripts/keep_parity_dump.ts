@@ -1,6 +1,6 @@
 // Parity harness for Keep or release: runs the canonical TS calculator (src/lib/keep.ts) on a
 // fixture and prints the results as JSON. test_scripts/test_keep_parity.py runs the Python
-// calculator (cricdex.web_parity.keep) on the same fixture and diffs. Run via:
+// calculator (cricdesk.web_parity.keep) on the same fixture and diffs. Run via:
 //   node --no-warnings --experimental-strip-types scripts/keep_parity_dump.ts <fixture.json>
 // fixture = { cases: [{ team, players, pool, pool_tags, rules, decisions, needs, form }], fmt: number[],
 //             model: the market-price model or null, keep_model: the retention model or null,

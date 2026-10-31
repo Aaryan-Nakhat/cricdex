@@ -11,7 +11,7 @@ The link preview (Open Graph / Twitter card) is docs/media/src/og.html -> site/p
 Each page is 1600 px wide; the image is the #stage element at its natural height. The sources share theme.css
 (the same look as the hero video: hero.html -> scripts/render_video.py). Playwright is not a project dependency
 (hence ``--with playwright``); the browser is the installed Microsoft Edge (``channel="msedge"``), so no
-``playwright install`` download is needed. Set CRICDEX_BROWSER_CHANNEL=chromium to use Playwright's own build.
+``playwright install`` download is needed. Set CRICDESK_BROWSER_CHANNEL=chromium to use Playwright's own build.
 Run from the repo root.
 """
 
@@ -25,7 +25,7 @@ SRC = Path("docs/media/src")
 OUT = Path("docs/media")
 # the link-preview card: source, output and its fixed size
 OG_SRC, OG_OUT, OG_SIZE = SRC / "og.html", Path("site/public/og.png"), (1200, 630)
-CHANNEL = os.environ.get("CRICDEX_BROWSER_CHANNEL", "msedge")
+CHANNEL = os.environ.get("CRICDESK_BROWSER_CHANNEL", "msedge")
 FONTS_READY = """Promise.all([
   document.fonts.load('500 16px Inter'), document.fonts.load('800 16px Inter'),
   document.fonts.load('700 16px "JetBrains Mono"'),

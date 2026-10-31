@@ -1,16 +1,16 @@
 # The rebuild pipeline
 
-One list of steps takes CricDex from the Cricsheet download to the site's JSON. It lives in
-[`src/cricdex/pipeline.py`](../src/cricdex/pipeline.py) and nowhere else: `scripts/rebuild_all.sh`,
+One list of steps takes CricDesk from the Cricsheet download to the site's JSON. It lives in
+[`src/cricdesk/pipeline.py`](../src/cricdesk/pipeline.py) and nowhere else: `scripts/rebuild_all.sh`,
 `make refresh-all` and the refresh workflow (`.github/workflows/refresh-data.yml`) all run it.
 
 ```bash
-uv run python -m cricdex.pipeline --list            # every step, its commands, inputs and outputs
-uv run python -m cricdex.pipeline                   # resume (or start) the default steps
-uv run python -m cricdex.pipeline --fresh           # clear the markers and start over
-uv run python -m cricdex.pipeline --from ratings    # keep the ingested data; ratings onward
-uv run python -m cricdex.pipeline --only export     # just these steps (comma-separated)
-uv run python -m cricdex.pipeline --refit           # the default steps plus the model fits
+uv run python -m cricdesk.pipeline --list            # every step, its commands, inputs and outputs
+uv run python -m cricdesk.pipeline                   # resume (or start) the default steps
+uv run python -m cricdesk.pipeline --fresh           # clear the markers and start over
+uv run python -m cricdesk.pipeline --from ratings    # keep the ingested data; ratings onward
+uv run python -m cricdesk.pipeline --only export     # just these steps (comma-separated)
+uv run python -m cricdesk.pipeline --refit           # the default steps plus the model fits
 ```
 
 ## The steps, in order
@@ -43,11 +43,11 @@ test the chosen one once on 2025 and 2026, and ship it to `config/`. That protoc
 
 ## Resuming
 
-Each finished step leaves a marker file in `$CRICDEX_REBUILD_STATE` (default
+Each finished step leaves a marker file in `$CRICDESK_REBUILD_STATE` (default
 `data/.rebuild_state`, per league for per-league steps). A re-run skips the marked steps, so after a
 failure or a reboot run the same command again. `--from STEP` marks the steps before it as done and
 clears the markers from it on; `--only` always reruns the steps it names. Command output goes to
-`$CRICDEX_REBUILD_LOG` (default `data/rebuild.log`; `-` prints it instead). The first failing step
+`$CRICDESK_REBUILD_LOG` (default `data/rebuild.log`; `-` prints it instead). The first failing step
 stops the run and prints the end of the log.
 
 A full rebuild takes hours on a laptop. On Windows, run `bash scripts/rebuild_all.sh` as a scheduled

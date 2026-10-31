@@ -1,7 +1,7 @@
 """Enrich every player with cricket taxonomy via an LLM.
 
 For each player we ask the configured LLM (any provider, via LiteLLM — see
-cricdex/common/llm.py) for the facts
+cricdesk/common/llm.py) for the facts
 ball-by-ball data can't give us: bowling type (seam vs spin + exact
 style), primary role, usual batting position bucket, batting hand, and
 country. Stored permanently in data/curated/player_taxonomy.json keyed
@@ -24,9 +24,9 @@ import time
 import typer
 from loguru import logger
 
-from cricdex.common import llm
-from cricdex.config import CURATED_DIR, SITE_DATA  # importing config loads .env
-from cricdex.scout.identity import taxonomy
+from cricdesk.common import llm
+from cricdesk.config import CURATED_DIR, SITE_DATA  # importing config loads .env
+from cricdesk.scout.identity import taxonomy
 
 CACHE = CURATED_DIR / "player_taxonomy.json"
 
@@ -133,7 +133,7 @@ def run(
             if not g:
                 continue
             # the LLM answer is untrusted: every field is checked against its allow-list and a
-            # bad value is dropped with a warning (cricdex.scout.identity.taxonomy)
+            # bad value is dropped with a warning (cricdesk.scout.identity.taxonomy)
             rec = taxonomy.clean_record(
                 {**g, "name": p["name"], "full_name": p["full_name"]}, cid=p["id"]
             )

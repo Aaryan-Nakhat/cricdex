@@ -1,12 +1,21 @@
 # Changelog
 
-All notable changes to CricDex. Format roughly follows
+All notable changes to CricDesk. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); semantic
 versioning starts at v0.1.0.
 
 ---
 
 ## [Unreleased]
+
+### Renamed: CricDex is now CricDesk (2026-10-31)
+
+The old name was already in use by an unrelated cricket product (a card-battling Discord bot at
+cricdex.com) and close to a betting brand. Everything moved: the repo and site address
+(`github.com/Aaryan-Nakhat/cricdesk`, `aaryan-nakhat.github.io/cricdesk/`), the `cricdesk` command, the
+`cricdesk` Python package, the `CRICDESK_*` environment variables and `~/.cricdesk/`. Entries below keep the
+new name. The dated 2027 Keep calls (`data/predictions/ipl_keep_2027.json`) are unchanged: they were
+written at commit ae802bde2, under the old name.
 
 ### Fixes from the six-way review (2026-10-29)
 
@@ -188,9 +197,9 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
 
 ### Engineering: one pipeline, a safe export, loud failures (2026-10-27)
 
-- **One written-down pipeline.** `src/cricdex/pipeline.py` lists every rebuild step in order
+- **One written-down pipeline.** `src/cricdesk/pipeline.py` lists every rebuild step in order
   (ingest, People Register, player master, ratings, metrics, the model fits, form forecast, export)
-  with its commands, inputs and outputs; `python -m cricdex.pipeline --list / --from / --only /
+  with its commands, inputs and outputs; `python -m cricdesk.pipeline --list / --from / --only /
   --refit / --fresh`, resumable through marker files ([PIPELINE.md](PIPELINE.md)).
   `scripts/rebuild_all.sh`, `make refresh-all` and the refresh workflow now run it, so the player
   master and the form forecast are part of every rebuild. The model fits (translation, drift,
@@ -225,7 +234,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
   passes its token to the one `git push`. The refresh's `collections` input reaches the shell
   through an environment variable and must be league keys from `config/leagues.toml`. Its Python
   install is locked (`uv sync --locked`, `UV_LOCKED=1`).
-- **LLM answers are checked.** A new module, `cricdex.scout.identity.taxonomy`, holds every field
+- **LLM answers are checked.** A new module, `cricdesk.scout.identity.taxonomy`, holds every field
   of the LLM taxonomy and the name check to a fixed list (role, bowling category and style, batting
   slot, hand, confidence, country code) or a bounded plain name. It runs when an answer is saved
   (`scripts/enrich_taxonomy.py`, the name check) and when the cached files are read (player master,
@@ -236,7 +245,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
   styles, fonts and data only from the site, images also from Wikimedia, and the inline theme
   script by a hash that the build computes (`site/vite.config.ts`). Dev mode drops the tag.
 - **Docker.** The image runs as the unprivileged user `app`. Compose publishes the API and the
-  dashboard on `127.0.0.1`; set `CRICDEX_BIND=0.0.0.0` to expose them (docs/DOCKER.md).
+  dashboard on `127.0.0.1`; set `CRICDESK_BIND=0.0.0.0` to expose them (docs/DOCKER.md).
 - **SECURITY.md** says how to report a problem and what is hardened.
 
 ### Keep or release: "Should they?", honest test wording, link previews (2026-10-27)
@@ -456,7 +465,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
 ### README visuals refreshed from current data (issue I1, 2026-10-23)
 
 - **Every visual is now filled from data, not typed in.** `scripts/media_data.py` computes the numbers from the
-  exported site data with the same `cricdex.web_parity` code the CLI uses (the default 300-run mega auction, Keep
+  exported site data with the same `cricdesk.web_parity` code the CLI uses (the default 300-run mega auction, Keep
   or release for RCB, Scout for Jasprit Bumrah, ratings and head to heads, the NGI leaders, the backtest JSON) and
   writes `docs/media/src/data.js`; the `img-*.html` pages and `hero.html` read it. `render_images.py` and
   `render_video.py` stop on a page error instead of filming a half-filled page.
@@ -520,14 +529,14 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
   so **beta stays**. P(≤ max bid) is no longer over-confident: top band 0.92 → 0.89 came true (2025), 0.91 → 1.00
   (2026); 0.35 / 0.35 on the lots a 2025 team bought itself; it errs low in the validation (0.40 / 0.56); no
   recalibration map (decided after seeing the test tables; disclosed).
-- **Surfaces**: the Auction page, TUI and Streamlit lose the personality pickers; `cricdex.auction.real_pool` is
+- **Surfaces**: the Auction page, TUI and Streamlit lose the personality pickers; `cricdesk.auction.real_pool` is
   the franchise list only; the Auction and Bid plan pages, README, About, AUCTION_MATH, METHODOLOGY §7 / §12,
   STUDY_GUIDE and ROADMAP (I2, #12, #26) rewritten. `tests/test_auction_demand.py` locks the constants to the fit
   (Python and TS); the parity tests run the new simulator with every demand path on.
 
 ### League translation: fitted per league and role, no 300-ball switch (2026-10-23)
 
-- **Fitted, not hand-set** (audit item 5; `scripts/league_translation_fit.py`, `src/cricdex/scout/translation.py`,
+- **Fitted, not hand-set** (audit item 5; `scripts/league_translation_fit.py`, `src/cricdesk/scout/translation.py`,
   `config/league_translation.json`, METHODOLOGY §6d). How a rating in another league carries over to the IPL is
   fitted per league and per role on every player seen in both: a player's observed IPL value in a season against
   his league rating as of that season (time-matched: played the league in the two years before), with a
@@ -564,7 +573,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
 
 ### Playing time: P(plays) × contribution per match replaces the relevance penalty and the all-rounder rule (2026-10-22, late evening)
 
-- **One valuation** (audit items 4 and 6; `src/cricdex/scout/playing_time.py`, `scripts/playing_time_fit.py`,
+- **One valuation** (audit items 4 and 6; `src/cricdesk/scout/playing_time.py`, `scripts/playing_time_fit.py`,
   `config/playing_time_model.json`, METHODOLOGY §6c): expected season value = P(plays a match) × contribution
   per match × 14, contribution = (batting value − replacement for his slot) × balls faced a match / 100 +
   (bowling value − replacement for his group) × balls bowled a match / 100. Fitted on real IPL XIs
@@ -633,7 +642,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
   (70%) for the old rule. Kohli, Suryakumar, Jadeja, Samson, Rashid, Cummins, Klaasen are Keeps; Rohit,
   Dhoni and Tejasvi Singh Borderline and kept by default. `config/keep_model.json` (shipped in the package
   and in `keep.json`), `keep.py` ⇄ `keep.ts`, CSV `p_keep`, a "Kept by franchises" column (the page's and
-  `cricdex keep`'s default sort), export `seasons_here` / `home_grown`.
+  `cricdesk keep`'s default sort), export `seasons_here` / `home_grown`.
 - **Auction room: retentions cost the slab rule.** The 2025 replay charged salaries (KKR 57 cr); it now
   charges the 2025 rule (KKR 69), including real retentions too new to rate, and reproduces all ten
   published 2025 purses (`retention_spend` ⇄ `retentionSpend`; `slabs.ts` shared with Keep).
@@ -655,7 +664,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
   franchise (`mega_retentions_2025` in the squads file) is charged by the slabs; his cost is what releasing
   him alone frees (Kohli 15 cr, not 21; Jurel and Parag 18, not 14). The call compares the market price
   with that cost; purse left = purse − what the kept players cost. `keep.py` ⇄ `keep.ts`
-  (`slab_charge`, `purse_charged`, `retention_costs`), CSV `cost_cr`, the page, `cricdex keep` (cost column,
+  (`slab_charge`, `purse_charged`, `retention_costs`), CSV `cost_cr`, the page, `cricdesk keep` (cost column,
   `--sort cost`) and Bid plan's purse; parity cases with slabs.
 - **Market price: retentions are floors.** The price is a censored (Tobit) regression: lots are prices,
   mega-auction retentions only "at least this" (`TobitRidge`). Mini-year retentions as floors were tried and
@@ -717,7 +726,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
   uncapped 4), not his salary (DNA India). With that charge (`purse_check_2026.slab_charge`) and Vipraj
   Nigam's 2025 price corrected to 50 lakh (Wikipedia had 30; `salary_note`, kept through `--force`), 125
   − salaries − slab = the published pre-auction purse, and that − our auction prices = the published
-  post-auction purse (CSK 2.4, DC 0.35, KKR 0.45, RR 2.65), exactly. The Keep page / `cricdex keep --check`
+  post-auction purse (CSK 2.4, DC 0.35, KKR 0.45, RR 2.65), exactly. The Keep page / `cricdesk keep --check`
   show the slab; `tests/test_competitions.py` now requires all ten. Whether the slab counts in 2027 is
   unpublished: `retained_cost` is marked assumed.
 - **I6, squad players with no match data.** Three of the 22 had played IPL 2026 under initials and are
@@ -732,7 +741,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
 - **I7, SMAT staleness made explicit.** Cricsheet still has no SMAT after 15 Dec 2024 (its missing page
   lists the 2024-25 group stage and all of 2025-26) and there is no other open-licence source. Auction-pool
   and Keep rows now carry `stale_share` (share of the evidence behind his value from a stale league) and
-  `stale_note` ("SMAT data to Dec 2024"): a badge on the Auction and Bid plan pages, a column in `cricdex
+  `stale_note` ("SMAT data to Dec 2024"): a badge on the Auction and Bid plan pages, a column in `cricdesk
   auction`, and a sentence in the Keep reason at 10%+ ("85% of his rating rests on SMAT data to Dec 2024
   (stale)."). Scout's SMAT pool and gem board already carried the stale badge; Form forecast is IPL-only.
 - **I8, captaincy gaps.** Rising Pune Supergiant (Dhoni 2016, Smith 2017) and Gujarat Lions (Raina 2016-17)
@@ -763,7 +772,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
 
 ### Bid plan: the auction bidding sheet (roadmap Tier A 26b)
 
-- **New page, Bid plan** (`/bidplan`, Scout group, next to Keep or release) and **`cricdex bidplan --team
+- **New page, Bid plan** (`/bidplan`, Scout group, next to Keep or release) and **`cricdesk bidplan --team
   RCB`**: the squad and purse from Keep or release (its URL state, so your keep / release calls carry
   over; Keep or release has a "Plan the auction bids" button), the other nine teams bidding 200 times in
   the Auction room's simulator for the price to beat, and an optimiser that picks the targets adding the
@@ -772,7 +781,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
   buys), P(≤ max bid), how often the plan lands him; fallback chains per role; the likely squad, expected
   strength / spend, needs met and still missing. Editable: purse, squad max / min, overseas cap, places
   each team opens (default 8), role needs, your own max bid per player, rival runs; all in the URL; CSV
-  export and a print / PDF view. `cricdex.web_parity.bidplan` ⇄ `site/src/lib/bidplan.ts`, locked by
+  export and a print / PDF view. `cricdesk.web_parity.bidplan` ⇄ `site/src/lib/bidplan.ts`, locked by
   `test_scripts/test_bidplan_parity.py` (synthetic leagues + all ten real teams). Method: METHODOLOGY §12.
 - **The pool as data**: `data/curated/ipl_auction_register.json` (the official list once published) is
   exported as `ipl/auction_register.json` and replaces the inferred pool on the page and the CLI
@@ -801,7 +810,7 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
 
 ### Form forecast: value over the next three seasons (roadmap Tier A 11b)
 
-- **`cricdex.scout.forecast`** + **`scripts/form_forecast.py`** (`fits` → `backtest` → `build` → `export`):
+- **`cricdesk.scout.forecast`** + **`scripts/form_forecast.py`** (`fits` → `backtest` → `build` → `export`):
   every IPL player's season value 2008–2026 in the rating's own currency and his career rating at every
   season end (walk-forward refits, the price model's cache).
 - **Starts from the current level** (owner's call: the first version anchored on the career rating and had
@@ -828,8 +837,8 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
   `site/public/data/ipl/forecast.json`, which `scripts/export_site.py` now writes for the IPL. **Keep or
   release**: a sortable "3-season outlook" column (the three medians, the shape, P(regular) in 2029), in
   `keep.json` (`forecast`), `web_parity/keep.py` ⇄ `site/src/lib/keep.ts` (`forecast_note`, parity-tested),
-  the CSV (`outlook_3y_avg`, `outlook_3y`) and `cricdex keep --sort outlook`. **CLI**: `cricdex forecast
-  "<name>"` and `cricdex forecast --team RCB`. Retired players get no forecast.
+  the CSV (`outlook_3y_avg`, `outlook_3y`) and `cricdesk keep --sort outlook`. **CLI**: `cricdesk forecast
+  "<name>"` and `cricdesk forecast --team RCB`. Retired players get no forecast.
 - Tests: `tests/test_forecast.py` (the level model's causality and parameter recovery, projection math on
   synthetic careers, the outlook text, the Keep outlook pick, the site file and backtest schemas) and the
   Keep parity fixtures. Docs: METHODOLOGY §10–11, README, About, CLI, RUNNING, scripts README.
@@ -886,13 +895,13 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
   captain stints from each franchise article's captains table, filled in from "List of Indian Premier
   League captains" (97 stints, all matched), and men's Test / ODI / T20I captains from 11 Test nations'
   captain lists (1,296 rows, 85% matched); Wikipedia, CC BY-SA, pages cached and pinned in
-  `data/curated/ipl_captain_pages/`. `cricdex.scout.identity.captains`: `as_of(cid, season)` (regular IPL
+  `data/curated/ipl_captain_pages/`. `cricdesk.scout.identity.captains`: `as_of(cid, season)` (regular IPL
   captain last season, seasons as captain, national captain in the two years before; stand-ins never
   count as last season's captain) and `summary(cid)`.
 - **Captaincy in the price**: three new market features (`captain_ipl`, `captain_seasons`,
   `captain_intl`); a regular IPL captain fetches about +22%. Out of time they don't improve the score
   (reported). Shown as a **Captain** badge in Keep or release (with "the market pays captains a premium"
-  in the reason; `(C)` in `cricdex keep`), a **C** badge in the Auction room's squads, and IPL / national
+  in the reason; `(C)` in `cricdesk keep`), a **C** badge in the Auction room's squads, and IPL / national
   captaincy badges in the profile identity block (`identity.captaincy`). Pool, squad and Scout rows carry
   `captain_ipl_last`, `captain_ipl_seasons`, `captain_intl_2y`, `captain_teams`.
 - **Top-end calibration** (`calibrate` ⇄ `calibrate`, knots in `config/price_model.json`): the linear
@@ -905,17 +914,17 @@ several times). METHODOLOGY §4c, §6b, §6c, §10, §12, §13; ROADMAP I19.
 
 ### Keep or release: the retention calculator (roadmap Tier A #7)
 
-- **New page, Keep or release** (`/keep`, in the Scout group next to the Auction room) and **`cricdex keep
+- **New page, Keep or release** (`/keep`, in the Scout group next to the Auction room) and **`cricdesk keep
   --team RCB`**: for each player in a franchise's squad, his salary against our estimated auction price
   (the pool's curve: cautious estimate, IPL-evidence ceiling), surplus, a Keep / Release / Borderline call
   with a one-line reason, age and outlook, and last season's raw numbers; then the squad if you follow it
   (purse left, open slots, warnings) and the role gaps (keepers, openers, death bowlers, spinners, overseas)
   filled cheapest-first from free agents plus the other teams' release calls. Any call can be flipped and
   the purse / role targets changed (kept in the URL); CSV export on the page and with `--csv`.
-  `cricdex.web_parity.keep` ⇄ `site/src/lib/keep.ts`, locked by `test_scripts/test_keep_parity.py`
+  `cricdesk.web_parity.keep` ⇄ `site/src/lib/keep.ts`, locked by `test_scripts/test_keep_parity.py`
   (synthetic squads covering every branch plus every real team). Method: METHODOLOGY §10.
-- **Competition rules as config**: `config/competitions.toml` + `cricdex.competitions` (validated like the
-  league registry; `python -m cricdex.competitions check`). One entry, `ipl_2027`: deadline 15 Nov 2026,
+- **Competition rules as config**: `config/competitions.toml` + `cricdesk.competitions` (validated like the
+  league registry; `python -m cricdesk.competitions check`). One entry, `ipl_2027`: deadline 15 Nov 2026,
   auction likely 16 Dec 2026 in Goa, 25-man squads with 8 overseas, no retention limit, kept players cost
   their salary, no RTM, 18 cr overseas fee cap. Every rule cites a source or is listed as `assumed`
   (purse: no 2027 figure published, 125 cr assumed; squad minimum 18; no minimum spend; replacements
@@ -1051,7 +1060,7 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 ### League registry and complete Cricsheet ingest
 
 - **One league registry** — `config/leagues.toml` (read with the standard-library `tomllib` by the new
-  `cricdex.leagues`, validated on load; `python -m cricdex.leagues check | list | json`) is the only list of
+  `cricdesk.leagues`, validated on load; `python -m cricdesk.leagues check | list | json`) is the only list of
   competitions: key, name, Cricsheet zip(s), gender, kind, region, strength tier and discount (with a
   `calibrated` flag), export, Scout pool (draftable, gem pool), auction pool, and the auction target's
   nationality allow/deny lists (Pakistan excluded as data). It replaces six disagreeing hard-coded lists:
@@ -1079,7 +1088,7 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 - **Dead Cricsheet download names** — ILT20, The Hundred (men, women) and WBBL were never ingested
   (`ilt20_male`, `hundred_male`, `hundred_female`, `wbbl_female` 404); now `ilt_male`, `hnd_male`,
   `hnd_female`, `wbb_female`. MLC was listed but never pulled; now exported. An opt-in network test
-  (`CRICDEX_NET_TESTS=1`) HEADs every registry zip.
+  (`CRICDESK_NET_TESTS=1`) HEADs every registry zip.
 - **SMAT from Cricsheet's one `sma_json.zip`** (695 matches) instead of 38 state-team zips (689 — the
   six missing matches were between Himachal, Jammu & Kashmir and Punjab, sides no state-team zip covered).
   The collection key stays `indian_domestic_male`; `ingest_cricsheet.py indian-domestic` is a deprecated
@@ -1114,7 +1123,7 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 - **`docs/METHODOLOGY.md`** — one plain-English explanation of every model (data and identity, NGI, the
   nine metrics, Bayesian ratings, Scout, skill → crore pricing, the auction, the backtest) with worked
   examples and an honest limits section. New `docs/README.md` index, plus READMEs for
-  `src/cricdex/web_parity/` and `scripts/`.
+  `src/cricdesk/web_parity/` and `scripts/`.
 - **One roadmap** — `docs/TODO.md`, `docs/VNEXT.md`, `docs/DEFERRED.md` and `docs/SHIPPING.md` merged into
   `docs/ROADMAP.md` (shipped / next / later / out of scope); hosting notes moved into `ARCHITECTURE.md`.
 - **Drift fixed** — `STUDY_GUIDE.md` (auction pricing and tier penalties in today's value units,
@@ -1157,7 +1166,7 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
   rows (`last_ipl`, `home_league`, `age`, `ipl_relevance`) plus a new
   per-player **`activity_index.json`** (cross-league last-played + age). Effect:
   Tahir 0.40 → 0.155 (≈ #5 → #96); current stars unchanged (Kohli #15, Bumrah #2).
-- **`cricdex.web_parity`** — a Python port of the web Auction + Scout logic
+- **`cricdesk.web_parity`** — a Python port of the web Auction + Scout logic
   (`site/src/lib/auction.ts`, `site/src/pages/Scout.tsx`): same pricing
   constants, same look-alike formula, same franchise personalities, and a
   **bit-exact LCG RNG** so the Monte-Carlo reproduces the browser
@@ -1186,9 +1195,9 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 
   New surfaces: web **Matchups / Phase / Form** pages; Streamlit
   **11_Matchups / 12_Phase / 13_Form**; TUI **Matchups / Phase / Form** tabs;
-  CLI `cricdex matchups|phase|form`.
-- Canonical desktop entry points: `cricdex scout look-alikes`,
-  `cricdex auction room`; Streamlit **Scout** + **Auction room** pages; the
+  CLI `cricdesk matchups|phase|form`.
+- Canonical desktop entry points: `cricdesk scout look-alikes`,
+  `cricdesk auction room`; Streamlit **Scout** + **Auction room** pages; the
   TUI **Scout** + **Sim** tabs — all web-identical.
 - **Full desktop↔web feature parity** for the analytical pages. The Streamlit +
   TUI Leaderboards gained the **time-window switcher** (all-time / last 3 yrs /
@@ -1330,24 +1339,24 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 ### Removed
 
 - **Rules Q&A** — the entire natural-language rulebook Q&A feature is gone:
-  `src/cricdex/rules/`, the `cricdex rules` CLI command, the `/v1/rules/ask`
+  `src/cricdesk/rules/`, the `cricdesk rules` CLI command, the `/v1/rules/ask`
   API endpoint, the Streamlit **Rules Chat** page, the `data ingest rules`
   slice, the rulebook PDFs + parsed/curated clauses, Qdrant (vector store),
   and the Jina cross-encoder rerank. `jina_api_key` / `qdrant_url` config
   slots removed.
-- **Neo4j scout graph** — `src/cricdex/scout/graph/`, the
-  `cricdex scout twins` / `find-replacement` commands, the
+- **Neo4j scout graph** — `src/cricdesk/scout/graph/`, the
+  `cricdesk scout twins` / `find-replacement` commands, the
   `/v1/scout/twins` + `/v1/scout/find-replacement` API endpoints, the
   graph-cohort sections on the Player Profile, the `data ingest graph`
   slice, and the Neo4j docker service. (Cosine **style twins** stay on the
   Player Profile — those never used the graph.) `neo4j_*` config slots
   removed.
 - **MILP auction solver + war-room advisor + GRPO RL** —
-  `src/cricdex/auction/advisor.py`, the
-  `cricdex auction solve` / `recommend` / `simulate` / `train-grpo`
+  `src/cricdesk/auction/advisor.py`, the
+  `cricdesk auction solve` / `recommend` / `simulate` / `train-grpo`
   commands, the `/v1/auction/solve` + `/v1/auction/recommend` endpoints, and
   the Streamlit **Auction Simulator** page + war-room section. The auction
-  is now solely the real-rules Monte-Carlo **room** (`cricdex auction room`).
+  is now solely the real-rules Monte-Carlo **room** (`cricdesk auction room`).
 - **docker-compose** `qdrant` + `neo4j` services dropped; the local stack is
   now file-driven (DuckDB + exported JSON).
 - **Streamlit Player Twins page** removed; relational graph twins no longer
@@ -1359,18 +1368,18 @@ at all): the **Rules Q&A** RAG stack, the **Neo4j scout graph**, and the
 
 The first cut a non-developer can install + browse. Terminal-first
 distribution; Streamlit dashboard kept as a parallel browser surface
-over the same `~/.cricdex/data/`.
+over the same `~/.cricdesk/data/`.
 
 ### Added
 
-- **CLI** — single `cricdex` console entry point with `init / config
+- **CLI** — single `cricdesk` console entry point with `init / config
   / data / leaderboard / profile / compare / records / venues /
   match-report / translate / rules / scout / auction / dashboard /
-  tui` subcommands. `cricdex init` is a one-shot first-run wizard;
+  tui` subcommands. `cricdesk init` is a one-shot first-run wizard;
   every produce-command supports `--force` for opt-in refresh.
-- **Textual TUI** — `cricdex tui` launches an interactive 6-tab
+- **Textual TUI** — `cricdesk tui` launches an interactive 6-tab
   app (Leaderboard / Profile / Scout / Auction / Rules / Records).
-- **Streamlit dashboard** — 12 pages over the same `~/.cricdex/data/`:
+- **Streamlit dashboard** — 12 pages over the same `~/.cricdesk/data/`:
   Home, Leaderboards (10 metric tabs), Rules Chat, Records, Match
   Reports, Compare, Venues, Auction (MILP + war-room advisor),
   Player Profile (Wikidata photo + DOB + social links), Translate
@@ -1396,7 +1405,7 @@ over the same `~/.cricdex/data/`.
   Coetzee / Vyshak / Madhwal / Deshpande / etc., otherwise
   middle-overs-% heuristic (≥55% → spin, <50% → pace). CLI +
   Streamlit + advisor all expose a `--style pace|spin` filter.
-- **Wikidata enrichment** — `cricdex data ingest wikidata` resolves
+- **Wikidata enrichment** — `cricdesk data ingest wikidata` resolves
   cricketer Q-ids via the action-API's
   `haswbstatement:P2697=<statsguru_id>` bridge (sidesteps WDQS rate
   limits) and fetches the entity JSON. 289 / 300 of the top
@@ -1418,7 +1427,7 @@ over the same `~/.cricdex/data/`.
   composite `value` is the two axes summed, so a fast slogger who
   gets out often no longer outranks a complete batter on scoring
   alone.
-- **Probabilistic skill head-to-head** — `cricdex compare A B`
+- **Probabilistic skill head-to-head** — `cricdesk compare A B`
   reports `P(A is genuinely better than B)` per role (complete
   batting / bowling value) from the difference of their Bayesian
   posteriors; near-50% reads as "too close to call". Surfaced in
@@ -1429,7 +1438,7 @@ over the same `~/.cricdex/data/`.
   metadata, separate from the skill model.
 - **Auction** — MILP squad optimiser, Monte-Carlo price-band
   simulator (10 real IPL franchises with editable bidding
-  personalities + a `~/.cricdex/teams.yaml` override), GRPO RL
+  personalities + a `~/.cricdesk/teams.yaml` override), GRPO RL
   self-play scaffold (real-IPL pool + 6 franchise archetypes +
   terminal squad-quality bonus), war-room substitute advisor.
   Player pricing keys off the dismissal-aware complete value.
@@ -1462,7 +1471,7 @@ over the same `~/.cricdex/data/`.
   `cricket_aus_oneday_cup_2025_26 §24.2.1` to human-readable
   `Marsh One-Day Cup 2025-26 Playing Conditions, clause 24.2.1` +
   publisher URL.
-- `cricdex dashboard` auto-picks a free ephemeral port (8501 was
+- `cricdesk dashboard` auto-picks a free ephemeral port (8501 was
   colliding on dev VMs).
 - Player Twins / find_replacement direction-bug — bowler targets
   used to surface batter cohorts (and vice versa) because the
@@ -1503,7 +1512,7 @@ over the same `~/.cricdex/data/`.
   facing copy (kept in CHANGELOG); calibration described in plain
   terms instead.
 - Cloudflare R2 backup CLI + `r2_*` config (terminal users own
-  their `~/.cricdex/data/`).
+  their `~/.cricdesk/data/`).
 - Newsletter email send via Resend (BYO mailer if needed; digest
   remains a Markdown artifact).
 - `python-telegram-bot` + `praw` extras (never wired).

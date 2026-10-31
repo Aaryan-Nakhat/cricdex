@@ -1,4 +1,4 @@
-# Running CricDex
+# Running CricDesk
 
 Two supported paths: **Docker (recommended for first-time users)** and **local uv**.
 
@@ -13,8 +13,8 @@ Two supported paths: **Docker (recommended for first-time users)** and **local u
 ### Boot the stack
 
 ```bash
-git clone https://github.com/Aaryan-Nakhat/cricdex.git
-cd cricdex
+git clone https://github.com/Aaryan-Nakhat/cricdesk.git
+cd cricdesk
 cp .env.example .env   # optional — only for the LLM taxonomy (LLM_MODEL + the provider's key)
 make docker-up
 ```
@@ -24,7 +24,7 @@ compose profile, see below):
 
 | Service | Container name | Port | Purpose |
 |---|---|---|---|
-| `cricdex` | `cricdex-app` | 8080 | FastAPI app (`/health` for liveness) |
+| `cricdesk` | `cricdesk-app` | 8080 | FastAPI app (`/health` for liveness) |
 
 ### Run the data pipelines (one-shot)
 
@@ -48,10 +48,10 @@ make docker-dashboard-down # stop it
 ### Scout look-alikes
 
 Cross-competition look-alike finder (IPL / SMAT / BBL / SA20 / CPL /
-Blast), shared with the web via `cricdex.web_parity`.
+Blast), shared with the web via `cricdesk.web_parity`.
 
 ```bash
-cricdex scout look-alikes "V Kohli"
+cricdesk scout look-alikes "V Kohli"
 ```
 
 UI: dashboard page **Scout** (web-identical).
@@ -59,10 +59,10 @@ UI: dashboard page **Scout** (web-identical).
 ### Auction room
 
 Real-rules IPL auction Monte-Carlo, shared with the web via
-`cricdex.web_parity`.
+`cricdesk.web_parity`.
 
 ```bash
-cricdex auction room --mode mega
+cricdesk auction room --mode mega
 ```
 
 UI: dashboard page **Auction** (web-identical). After a run, look up any
@@ -72,17 +72,17 @@ player (retained / sold / unsold) via the post-sim search. See
 ### Keep or release (retentions)
 
 The retention calculator for one franchise, shared with the web page
-**Keep or release** via `cricdex.web_parity.keep`:
+**Keep or release** via `cricdesk.web_parity.keep`:
 
 ```bash
-cricdex keep --team RCB
-cricdex keep --team CSK --release "MS Dhoni" --keep "Shivam Dube" --need spinner=4 --csv csk.csv
+cricdesk keep --team RCB
+cricdesk keep --team CSK --release "MS Dhoni" --keep "Shivam Dube" --need spinner=4 --csv csk.csv
 ```
 
 It reads `site/public/data/ipl/keep.json`, which `scripts/export_site.py` writes with the IPL
 collection (`-c ipl`). The inputs it is built from:
 
-- the cycle's rules: `config/competitions.toml` (`uv run python -m cricdex.competitions check`);
+- the cycle's rules: `config/competitions.toml` (`uv run python -m cricdesk.competitions check`);
 - the squads and salaries: `data/curated/ipl_squads_2026.json`, refreshed from Wikipedia by
   `uv run python scripts/ipl_squad_salaries.py` (hand edits are kept unless `--force`);
 - captaincy: `data/curated/ipl_captains.json`, from Wikipedia by `uv run python scripts/ipl_captains.py
@@ -103,8 +103,8 @@ uv run python scripts/export_site.py -c ipl --skip-prep
 Built on Keep or release's data (no extra export): the page **Bid plan**, or
 
 ```bash
-cricdex bidplan --team RCB
-cricdex bidplan --team CSK --release "Prashant Veer" --need spinner=4 --max "Rashid Khan=12" --csv csk.csv
+cricdesk bidplan --team RCB
+cricdesk bidplan --team CSK --release "Prashant Veer" --need spinner=4 --max "Rashid Khan=12" --csv csk.csv
 ```
 
 When the official auction list is published (after the 15 November retentions), write it to
@@ -121,8 +121,8 @@ It needs the walk-forward fits of `scripts/ipl_price_model.py fits` (cached).
 
 ### Form forecast (next three seasons)
 
-Each IPL player's value projected over the next three seasons (profile section, `cricdex forecast
-"<name>"`, `cricdex forecast --team RCB`; method: [METHODOLOGY §11](METHODOLOGY.md#11-form-forecast)):
+Each IPL player's value projected over the next three seasons (profile section, `cricdesk forecast
+"<name>"`, `cricdesk forecast --team RCB`; method: [METHODOLOGY §11](METHODOLOGY.md#11-form-forecast)):
 
 ```bash
 uv run python scripts/form_forecast.py fits --seeds 42      # the ratings at every season end (shares
@@ -167,8 +167,8 @@ make docker-down    # stop everything
 ### Setup
 
 ```bash
-git clone https://github.com/Aaryan-Nakhat/cricdex.git
-cd cricdex
+git clone https://github.com/Aaryan-Nakhat/cricdesk.git
+cd cricdesk
 uv sync --group dev --extra ui
 cp .env.example .env
 # Set LLM_MODEL (+ the provider's key) for the taxonomy
@@ -182,7 +182,7 @@ make refresh COLLECTION=ipl   # download → ratings → metrics → site data, 
 make refresh-all              # every exported league, one export at the end (hours)
 make rebuild-all              # same, resumable: re-run to continue after a failure or reboot
 bash scripts/rebuild_all.sh --from ratings   # keep the ingested data: refit ratings, metrics, export
-uv run python -m cricdex.pipeline --list      # the steps in order (docs/PIPELINE.md)
+uv run python -m cricdesk.pipeline --list      # the steps in order (docs/PIPELINE.md)
 make auction-check            # sanity-check the IPL auction on the exported data
 
 # or step by step:
@@ -196,12 +196,12 @@ uv run python scripts/export_site.py -c ipl
 
 Which collections exist, which Cricsheet zip each comes from and which ones are
 exported is set in [`config/leagues.toml`](../config/leagues.toml)
-(`uv run python -m cricdex.leagues list --exported`; how to add one:
+(`uv run python -m cricdesk.leagues list --exported`; how to add one:
 [LEAGUES.md](LEAGUES.md)). The Auction pool and Scout read every league's
 ratings at once, so after re-ingesting several leagues refit all of them
 before the final `export_site.py`.
 
-`CRICDEX_LEAGUES=/path/to/leagues.toml` points every command at a different
+`CRICDESK_LEAGUES=/path/to/leagues.toml` points every command at a different
 registry (a franchise's own league list, say) without editing the repo copy.
 
 ### Run the API
@@ -226,9 +226,9 @@ list). The most important ones:
 |---|---|---|
 | `LLM_MODEL` | for the taxonomy enrichment | Any LiteLLM model string, `<provider>/<model>`. The provider's key goes in the variable LiteLLM documents for that provider. |
 | `LLM_API_KEY` / `LLM_API_BASE` | optional | Override the key / endpoint (a self-hosted or custom server). |
-| `CRICDEX_HOME` | optional | Where config lives (default `~/.cricdex`). |
-| `CRICDEX_DATA_DIR` | optional | Override the data folder (default: the repo's `data/` in a clone). |
-| `CRICDEX_LEAGUES` | optional | Path to a league registry TOML (default: `config/leagues.toml`; see [LEAGUES.md](LEAGUES.md)). |
+| `CRICDESK_HOME` | optional | Where config lives (default `~/.cricdesk`). |
+| `CRICDESK_DATA_DIR` | optional | Override the data folder (default: the repo's `data/` in a clone). |
+| `CRICDESK_LEAGUES` | optional | Path to a league registry TOML (default: `config/leagues.toml`; see [LEAGUES.md](LEAGUES.md)). |
 
 ### Persistence
 

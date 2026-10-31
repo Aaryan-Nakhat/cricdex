@@ -17,7 +17,7 @@ web app, dashboard, TUI and leaderboard CLI read.
 
 ---
 
-## Pressure Runs — `cricdex.metrics.batter.pressure_runs`
+## Pressure Runs — `cricdesk.metrics.batter.pressure_runs`
 
 **What it captures:** runs scored by a batter on chase deliveries where
 the required run rate per ball is meaningfully higher than the venue
@@ -53,7 +53,7 @@ batting-first chase pressure — see below).
 
 ---
 
-## Intent Curve — `cricdex.metrics.batter.intent_curve`
+## Intent Curve — `cricdesk.metrics.batter.intent_curve`
 
 **What it captures:** how a batter's strike rate changes as they spend
 more time at the crease. Slow starters who heat up look very different
@@ -79,7 +79,7 @@ buckets (plain strike rate, once set) dominate the top.
 
 ---
 
-## Dot-Ball Recovery — `cricdex.metrics.batter.dot_ball_recovery`
+## Dot-Ball Recovery — `cricdesk.metrics.batter.dot_ball_recovery`
 
 **What it captures:** a batter's ability to re-engage after a dot ball.
 Mental-reset proxy.
@@ -100,7 +100,7 @@ means the dot tends to spread into more dots.
 
 ---
 
-## Counter-Attack Coefficient — `cricdex.metrics.batter.counter_attack_coefficient`
+## Counter-Attack Coefficient — `cricdesk.metrics.batter.counter_attack_coefficient`
 
 **What it captures:** the surviving batter's strike rate in the 12
 balls immediately after a *partner* wicket. Quantifies who absorbs
@@ -120,7 +120,7 @@ batter has survived.
 
 ---
 
-## Boundary Dependency Ratio — `cricdex.metrics.batter.boundary_dependency`
+## Boundary Dependency Ratio — `cricdesk.metrics.batter.boundary_dependency`
 
 **What it captures:** what fraction of a batter's career runs come
 from boundaries vs running between wickets.
@@ -139,7 +139,7 @@ exists to distinguish *style*.
 ## Pressure Conversion — retired 2026-10-29
 
 Wicket rate on balls bowled after a pressure spell. The v1 board counted the ball after 4+ dots inside
-one bowler's over (a handful of chances a season); `cricdex.metrics.bowler.pressure_conversion` now
+one bowler's over (a handful of chances a season); `cricdesk.metrics.bowler.pressure_conversion` now
 counts every ball after the batting side's 4+ ball drought (no run, no wicket, across overs and
 bowlers), shrunk toward the league rate by a fitted beta-binomial prior (`conversion_pct`; raw
 `wicket_rate_pct`, `league_pct`, `prior_balls`). Even so the fitted spread between bowlers is zero and a
@@ -147,14 +147,14 @@ player's odd and even matches don't agree (split-half r −0.18), so no board is
 
 ---
 
-## Dot-Ball Avoidance — `cricdex.metrics.splits.dot_avoidance`
+## Dot-Ball Avoidance — `cricdesk.metrics.splits.dot_avoidance`
 
 Per batter, over legal balls faced (wides excluded): `dots_avoided_raw` = 100 × mean(league dot rate in
 the ball's phase − dot), `dots_avoided_per100` = that shrunk toward 0 (`_shrink`: × n / (n + k),
 k = per-ball residual variance ÷ the spread of true player means, method of moments). Also `dot_pct`,
 `expected_dot_pct`, `balls`. Minimum 150 balls (last 3 yrs 100, last year 60). Split-half r 0.70.
 
-## Pace vs Spin — `cricdex.metrics.splits.pace_spin`
+## Pace vs Spin — `cricdesk.metrics.splits.pace_spin`
 
 Per batter, against each bowling type (player master `bowling_category`: seam / spin): runs per 100
 balls above the league against that type in the same phase (`above_vs_spin(_raw)`,
@@ -163,14 +163,14 @@ balls. `spin_edge` = (raw spin − raw pace) × τ² / (τ² + its noise), its n
 s²_pace/n_pace and τ² the spread of true edges (`_shrink_edge`); `spin_edge_raw` unshrunk. Minimum 100
 balls against each (70 / 40). Split-half r 0.37 (0.66 for scoring against spin alone).
 
-## Finisher Index — `cricdex.metrics.splits.finisher`
+## Finisher Index — `cricdesk.metrics.splits.finisher`
 
 Per batter, legal balls faced in overs 17–20 of the second innings: `above_raw` = 100 × mean(runs − the
 league's average in that over of a chase), `above_per100` shrunk as above; `sr`, `balls`, `innings`
 (chases he faced a ball in those overs) and `not_out_pct` (of those, not dismissed). Minimum 40 balls
 (25 / 15). Split-half r 0.44.
 
-## Left vs Right — `cricdex.metrics.splits.hand_split`
+## Left vs Right — `cricdesk.metrics.splits.hand_split`
 
 Per bowler, legal balls against each batting hand (player master `batting_hand`): runs saved per 100
 balls against the league on that hand in the same phase (`saved_vs_left(_raw)`, `saved_vs_right(_raw)`,
@@ -202,7 +202,7 @@ Minimum 90 balls against each hand (60 / 36). Split-half r 0.30, the weakest tha
   bowler dismissed (run outs, retirements and obstructing the field
   excluded); higher = harder wickets. It uses the batter's scoring
   `skill`, not the complete `value`. Filter: `min_wickets` (default 15).
-  Lives in `cricdex.metrics.bowler_wicket_quality`. Needs the
+  Lives in `cricdesk.metrics.bowler_wicket_quality`. Needs the
   scout NumPyro ratings (`scout_ratings_<collection>.json`) — see
   `docs/SCOUT.md`.
 - **Crease Longevity** ✅ — crease longevity: a batter's average balls
@@ -210,20 +210,20 @@ Minimum 90 balls against each hand (60 / 36). Split-half r 0.30, the weakest tha
   retired hurt not) divided by the cohort average. >1 = bats longer
   than the typical qualifying batter; <1 = shorter, higher-tempo
   innings. The cohort is batters with 5+ dismissals; the board needs
-  `min_dismissals` (default 10). Lives in `cricdex.metrics.batter`.
+  `min_dismissals` (default 10). Lives in `cricdesk.metrics.batter`.
 - **Slow-Start Cost** ✅ — career strike rate minus strike rate over the
   first 20 balls of an innings. Positive = slow starts cost tempo;
   ~0 or negative = aggressive from ball one. Filters: 200 career balls,
-  50 balls inside the first 20. Lives in `cricdex.metrics.batter`.
+  50 balls inside the first 20. Lives in `cricdesk.metrics.batter`.
 - **Wicketkeeping** ✅ — dismissals a keeper is credited with: catches +
   stumpings + run-out involvements, from every wicket's `fielders` (a second
   wicket off one delivery counts too). A fielder is a keeper if the player
   master (by registry id) says so or they have any stumping.
-  Lives in `cricdex.metrics.fielding.keeping`.
+  Lives in `cricdesk.metrics.fielding.keeping`.
 - **Fielding** ✅ — outfield dismissals: catches + run-out involvements
   (caught-and-bowled is a bowling wicket, excluded; every fielder in a
   multi-fielder run-out is credited). A dismissal *count*, not diving range
-  (that needs video). Lives in `cricdex.metrics.fielding.fielding`.
+  (that needs video). Lives in `cricdesk.metrics.fielding.fielding`.
 
 ## Still planned
 
@@ -240,11 +240,11 @@ Minimum 90 balls against each hand (60 / 36). Split-half r 0.30, the weakest tha
 ## Output schema
 
 Every metric writes a flat JSON list of records. Columns documented in
-each metric function's docstring and in `cricdex/metrics/README.md`.
+each metric function's docstring and in `cricdesk/metrics/README.md`.
 The leaderboard surfaces don't read `data/metrics/` directly: they (and the
 Streamlit Leaderboards page's collection list) come from the exported
 `site/public/data/` snapshot, so
-re-run `scripts/export_site.py` (or `cricdex data ingest metrics`, which
+re-run `scripts/export_site.py` (or `cricdesk data ingest metrics`, which
 exports for you) after recomputing.
 
 ## Common rules (all metrics, records and boards)

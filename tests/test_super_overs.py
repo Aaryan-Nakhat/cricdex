@@ -13,9 +13,9 @@ import duckdb
 import polars as pl
 import pytest
 
-from cricdex.metrics import batter, bowler, fielding, matchups
-from cricdex.scout import cohort
-from cricdex.scout.ratings import bayesian
+from cricdesk.metrics import batter, bowler, fielding, matchups
+from cricdesk.scout import cohort
+from cricdesk.scout.ratings import bayesian
 
 COLUMNS = (
     "match_id VARCHAR, match_type VARCHAR, match_date VARCHAR, venue VARCHAR, phase VARCHAR, "

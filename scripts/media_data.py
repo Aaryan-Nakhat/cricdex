@@ -4,7 +4,7 @@
 
 The visuals' HTML sources (docs/media/src/img-*.html, hero.html) read their numbers from data.js, so a refresh
 is: re-export the site data, run this, re-render. Everything comes from the same exported JSON and the same
-Python twins of the site's logic the CLI uses (`cricdex.web_parity`, parity-locked to the TypeScript):
+Python twins of the site's logic the CLI uses (`cricdesk.web_parity`, parity-locked to the TypeScript):
 
 - auction: the Auction room's default mega run (real 2025 retentions, 120 cr, 300 seeded trials)
 - keep: Keep or release for one franchise (`--keep-team`, default RCB) on the exported keep.json
@@ -72,8 +72,8 @@ def r2(x: float) -> float:
 
 
 def auction_block() -> dict:
-    from cricdex.common.display import display_name
-    from cricdex.web_parity import (
+    from cricdesk.common.display import display_name
+    from cricdesk.web_parity import (
         IPL_TEAMS_DEFAULT,
         build_pool,
         default_retentions,
@@ -152,9 +152,9 @@ def auction_block() -> dict:
 
 
 def scout_block(pick: str) -> dict:
-    from cricdex import leagues
-    from cricdex.common.display import display_name
-    from cricdex.web_parity import load_retentions, load_scout_index, scout_price, similar_to
+    from cricdesk import leagues
+    from cricdesk.common.display import display_name
+    from cricdesk.web_parity import load_retentions, load_scout_index, scout_price, similar_to
 
     idx = load_scout_index("ipl")
     sel = next(p for p in idx["ipl"] if display_name(p) == pick)
@@ -235,7 +235,7 @@ def scout_block(pick: str) -> dict:
 
 
 def ratings_block() -> dict:
-    from cricdex.scout.ratings.head_to_head import compare_rows
+    from cricdesk.scout.ratings.head_to_head import compare_rows
 
     rows = _read(SITE / "ipl/ratings.json")
     players = {p["cricsheet_id"]: p for p in _read(SITE / "ipl/players.json")}
@@ -341,9 +341,9 @@ def backtest_block() -> dict | None:
 
 
 def keep_block(team: str) -> dict:
-    from cricdex.web_parity import build_pool, load_auction_pool
-    from cricdex.web_parity.keep import BORDER_BAND, KEEP_CALL, evaluate, market_for, squad_of
-    from cricdex.web_parity.loader import load_keep
+    from cricdesk.web_parity import build_pool, load_auction_pool
+    from cricdesk.web_parity.keep import BORDER_BAND, KEEP_CALL, evaluate, market_for, squad_of
+    from cricdesk.web_parity.loader import load_keep
 
     data = load_keep("ipl")
     pool = build_pool(load_auction_pool("ipl"))
@@ -403,11 +403,11 @@ def keep_block(team: str) -> dict:
 
 
 def bidplan_sheet(team: str) -> dict:
-    """Bid plan's live sheet for one team (the CLI's `cricdex bidplan --team <team>` defaults: Keep or
+    """Bid plan's live sheet for one team (the CLI's `cricdesk bidplan --team <team>` defaults: Keep or
     release's plan, 8 places opened, 200 rival runs): its top five targets and the fallback chain for
     the role it is shortest of (else the first chain)."""
-    from cricdex.web_parity import build_pool, load_auction_pool
-    from cricdex.web_parity.bidplan import (
+    from cricdesk.web_parity import build_pool, load_auction_pool
+    from cricdesk.web_parity.bidplan import (
         OPEN_SLOTS,
         SLOT_LABEL,
         TRIALS,
@@ -415,7 +415,7 @@ def bidplan_sheet(team: str) -> dict:
         plan,
         rival_prices,
     )
-    from cricdex.web_parity.loader import load_auction_register, load_keep
+    from cricdesk.web_parity.loader import load_auction_register, load_keep
 
     data = load_keep("ipl")
     raw = load_auction_pool("ipl")

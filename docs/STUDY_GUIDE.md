@@ -1,4 +1,4 @@
-# CricDex — Study Guide
+# CricDesk — Study Guide
 
 A deep-dive technical reference covering every algorithm, design
 choice, and data pipeline in this repository. Written so a reader
@@ -15,7 +15,7 @@ results, read [`METHODOLOGY.md`](METHODOLOGY.md) first.
 
 ## 0. Table of Contents
 
-1. Project overview — what CricDex is, what problem it solves
+1. Project overview — what CricDesk is, what problem it solves
 2. Architecture — module layout, data flow, how pieces fit
 3. Data layer — Cricsheet, People Register, Wikidata
 4. The 10 novel cricket metrics — formula + intuition each
@@ -32,7 +32,7 @@ results, read [`METHODOLOGY.md`](METHODOLOGY.md) first.
 
 ## 1. Project overview
 
-**CricDex** is an open cricket intelligence platform that sits on top
+**CricDesk** is an open cricket intelligence platform that sits on top
 of publicly available cricket data (primarily
 [Cricsheet's](https://cricsheet.org/) ball-by-ball JSON dumps) and
 emits four things — all from Cricsheet ball-by-ball, no live feeds or
@@ -53,22 +53,22 @@ scrapes:
    cross-collection pool with editable retentions, overseas cap,
    second-price clearing and a two-phase fill.
 
-The web app is the **canonical surface**; a single `cricdex` console
+The web app is the **canonical surface**; a single `cricdesk` console
 script, a Streamlit dashboard, and a Textual TUI mirror the same
 analytical pages. Scout and the Auction room run identical logic on
-every surface via `cricdex.web_parity` (a Python port of the web's
+every surface via `cricdesk.web_parity` (a Python port of the web's
 TypeScript, locked by `test_scripts/test_web_parity.py`), so behaviour
 stays in lockstep.
 
 **Why open?** Existing cricket platforms (Cricbuzz, CricViz, ESPN)
-hide methodology behind paywalls. CricDex publishes the formulas, the
+hide methodology behind paywalls. CricDesk publishes the formulas, the
 Cricsheet-only inputs, a live static demo
-(aaryan-nakhat.github.io/cricdex), and the full stack reproducible via
+(aaryan-nakhat.github.io/cricdesk), and the full stack reproducible via
 `make docker-up`.
 
 **Why the obsession with context-adjusted metrics?** A 25-ball 40 in
 a slack chase scores the same as a 25-ball 40 chasing 12 an over.
-Standard scorecards are context-blind. CricDex's metrics put context
+Standard scorecards are context-blind. CricDesk's metrics put context
 back in (venue median, phase, partnership state, opponent skill).
 
 ---
@@ -78,7 +78,7 @@ back in (venue median, phase, partnership state, opponent skill).
 Top-level layout:
 
 ```
-src/cricdex/
+src/cricdesk/
 ├── api/                   FastAPI REST surface + /docs
 ├── auction/               IPL team list (the sim is in web_parity/)
 ├── cli/                   typer console script (one file per command group)
@@ -127,11 +127,11 @@ People Register (cricsheet) ──> cross-source ID bridge ──> Wikidata enri
 ```
 
 Two storage roots. The pipeline writes to `DATA_DIR` — the repo's
-`data/` when running from a clone (`CRICDEX_DATA_DIR` overrides; an
-installed package falls back to `~/.cricdex/data/`). The read-only
+`data/` when running from a clone (`CRICDESK_DATA_DIR` overrides; an
+installed package falls back to `~/.cricdesk/data/`). The read-only
 surfaces (web, Streamlit, TUI and the JSON-backed CLI commands) read the
 exported snapshot in `site/public/data/`, so a refresh only shows up
-after an export — `cricdex data ingest metrics` re-exports for you. The
+after an export — `cricdesk data ingest metrics` re-exports for you. The
 CLI `profile` / `compare` / `records` / `venues` commands and the
 FastAPI app query `DATA_DIR` (DuckDB + `data/metrics/`) directly.
 
@@ -179,7 +179,7 @@ registry first (`players_<col>`, which knows that "Navdeep Saini" and
 
 ### 3.3 Wikidata enrichment
 
-`cricdex data ingest wikidata` enriches each cricketer with DOB,
+`cricdesk data ingest wikidata` enriches each cricketer with DOB,
 country / birthplace Q-ids, profile photo URL, Twitter / Instagram
 handles, and ESPNcricinfo / Cricbuzz IDs. See §9 for the technical
 bridge (the public SPARQL endpoint rate-limits datacenter IPs, so we use
@@ -194,7 +194,7 @@ Each metric outputs a polars DataFrame and writes to
 `data/metrics/<slug>_<collection>.json`. `scripts/export_site.py`
 cooks those into `site/public/data/<collection>/leaderboards/`, which
 the web, the Streamlit Leaderboards page, the TUI and the CLI
-`cricdex leaderboard <slug>` all read. Wicketkeeping and Fielding
+`cricdesk leaderboard <slug>` all read. Wicketkeeping and Fielding
 dismissal boards make 12 leaderboards in all.
 
 Common scaffolding: every metric SQL excludes wides from the legal
@@ -817,7 +817,7 @@ xgb.train(params, dtrain, num_boost_round=600, evals=[(dcal, "cal")],
 ### 6.3 Smooth (beta) calibration
 
 The raw probabilities are good rankings but not exact probabilities.
-CricDex calibrates them with **beta calibration** (Kull et al. 2017):
+CricDesk calibrates them with **beta calibration** (Kull et al. 2017):
 `logit(p_cal) = a·ln p − b·ln(1 − p) + c`, fitted by Newton's method on
 the calibration matches, with `a, b ≥ 0` so it stays monotone. It used to
 be isotonic regression, a step function: two states on one step get the
@@ -878,7 +878,7 @@ Scout answers "who plays like X, that I could realistically sign?"
 across six competition pools (IPL, SMAT, BBL, SA20, CPL, T20 Blast).
 It is **file-driven** — DuckDB + an exported JSON index, no graph
 database — and shares one implementation with the web via
-`cricdex.web_parity` (a Python port of `site/src/pages/Scout.tsx`,
+`cricdesk.web_parity` (a Python port of `site/src/pages/Scout.tsx`,
 locked by `test_scripts/test_web_parity.py`).
 
 ### 7.1 The look-alike formula
@@ -915,7 +915,7 @@ For an active IPL pick, Scout surfaces three tiers in order: similar
   as a retention (`/auction?draft=<id>`).
 
 The scout index emits per-player `balls` for the gem cutoff. The CLI
-entry point is `cricdex scout look-alikes`; the same view ships on the
+entry point is `cricdesk scout look-alikes`; the same view ships on the
 web, Streamlit, and the TUI **Scout** tab.
 
 ### 7.3 Style twins (Player Profile)
@@ -942,10 +942,10 @@ computed in plain DuckDB SQL (it replaced the old graph traversal).
 The auction is a **real-rules IPL auction Monte-Carlo** — a market
 simulation, not a squad optimiser. The same logic runs in the browser
 (`site/src/lib/auction.ts`) and on the CLI / TUI / Streamlit (Python,
-`cricdex.web_parity`), over the **same** exported JSON and with a
+`cricdesk.web_parity`), over the **same** exported JSON and with a
 **bit-exact seeded LCG RNG**, so a run reproduces everywhere
 trial-for-trial (locked by `test_scripts/test_web_parity.py`). The CLI
-entry point is `cricdex auction room`. The plain-words walkthrough is
+entry point is `cricdesk auction room`. The plain-words walkthrough is
 in [`AUCTION_MATH.md`](AUCTION_MATH.md); this section is the technical
 summary.
 
@@ -1111,9 +1111,9 @@ every 25 players so a crash doesn't lose progress.
 
 The React web app is the source of truth; the CLI, TUI, and Streamlit
 dashboard mirror its analytical pages, and Scout + the Auction room run
-identical logic on every surface via `cricdex.web_parity`.
+identical logic on every surface via `cricdesk.web_parity`.
 
-### 10.1 CLI — `cricdex/cli/`
+### 10.1 CLI — `cricdesk/cli/`
 
 `typer`-backed console script; full reference in `docs/CLI.md`. Every
 command renderer uses the shared `_render.py` helpers (Rich Panels,
@@ -1121,17 +1121,17 @@ command renderer uses the shared `_render.py` helpers (Rich Panels,
 `spinner`) and pulls explainer strings from `_copy.py` so the prose
 stays at parity with the Streamlit dashboard.
 
-### 10.2 TUI — `cricdex/cli/tui.py`
+### 10.2 TUI — `cricdesk/cli/tui.py`
 
 Textual app whose 14 tabs mirror the web pages: Leaders, Records,
 Compare, H2H, Matchups, Phase, Form, Partners, Aging, Venues, Profile,
 Auction (with the post-sim player search + Mega/Mini toggle), Scout,
 and Update (buttons that shell into `data_cmd.run_ingest` and re-export).
 
-Default behaviour: `cricdex` (no args) launches TUI. `cricdex
+Default behaviour: `cricdesk` (no args) launches TUI. `cricdesk
 --help` lists subcommands as before.
 
-### 10.3 Streamlit dashboard — `cricdex/dashboard/`
+### 10.3 Streamlit dashboard — `cricdesk/dashboard/`
 
 Home + 14 pages mirroring the web + TUI: Leaderboards, Records,
 Head-to-head, Compare, Venues, Auction, Player Profile, Scout, Update
@@ -1139,7 +1139,7 @@ Data, Matchups, Phase, Form, Partnerships, Aging. Same `_widgets.py`
 helpers (`player_select`, `player_multiselect`, `collection_picker`,
 `provenance_banner`) across pages so the chrome stays uniform.
 
-### 10.4 FastAPI — `cricdex/api/`
+### 10.4 FastAPI — `cricdesk/api/`
 
 REST endpoints (records / venues / players / compare / NGI) over the
 local DuckDB + OpenAPI at `/docs`. Public surface for programmatic access. Currently no auth
@@ -1184,7 +1184,7 @@ DuckDB, metrics and Bayes JSONs can always be rebuilt from Cricsheet
 ## 12. Roadmap
 
 What's shipped, next, later and out of scope lives in one place:
-[`ROADMAP.md`](ROADMAP.md). In short: CricDex is deliberately
+[`ROADMAP.md`](ROADMAP.md). In short: CricDesk is deliberately
 **Cricsheet-only** (scrapes, live feeds and the LLM-written features
 built on them were removed, not deferred); fielder credit in NGI and
 season / phase / innings / venue effects in the ratings have shipped;
@@ -1200,7 +1200,7 @@ A worked example: "Who plays like Kohli that I could realistically
 sign?"
 
 1. **CLI / TUI / web** call the Scout look-alike search for "V Kohli"
-   in `cricdex.web_parity` (the same code the React `Scout.tsx` page
+   in `cricdesk.web_parity` (the same code the React `Scout.tsx` page
    runs), reading the exported `scout_index.json`.
 2. Kohli's archetype (role + seam/spin) is read from the LLM
    taxonomy, and his **within-tier skill-standing z-score** is computed

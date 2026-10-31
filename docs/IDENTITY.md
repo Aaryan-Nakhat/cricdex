@@ -1,6 +1,6 @@
 # Player identity resolution
 
-CricDex keys every player on the canonical Cricsheet `identifier` and
+CricDesk keys every player on the canonical Cricsheet `identifier` and
 carries the cross-source IDs the rest of the ecosystem uses (ESPNcricinfo,
 BCCI, CricHeroes, …) straight from Cricsheet's People Register. That's
 what lets a Cricsheet ball-by-ball record link out to an ESPNcricinfo
@@ -27,7 +27,7 @@ their register costs us one HTTPS GET and gives us a free ID bridge.
 ## Implementation
 
 ```python
-from cricdex.scout.ingest import people_register
+from cricdesk.scout.ingest import people_register
 
 people_register.ingest()        # downloads → DuckDB tables in cricsheet.duckdb
 ```
@@ -64,7 +64,7 @@ SELECT identifier, name FROM people_names WHERE name ILIKE 'v%kohli%';
 | CricHeroes | 111 | 0.6 |
 | Cricbuzz | 50 | 0.3 |
 
-The Cricbuzz / CricHeroes register layers are thin, but CricDex is
+The Cricbuzz / CricHeroes register layers are thin, but CricDesk is
 **Cricsheet-only** — it relies on the register's existing bridges and
 does not scrape these sources.
 
@@ -83,7 +83,7 @@ Two on-disk caches extend the register by `cricsheet_id`, both committed:
 ## The player master
 
 `scripts/build_player_master.py` (`make player-master`; code in
-`src/cricdex/scout/identity/`) builds one identity record per player of every exported league
+`src/cricdesk/scout/identity/`) builds one identity record per player of every exported league
 and writes `data/curated/player_master.json`, which `scripts/export_site.py` reads. It reads the
 DuckDB file read-only, so it can run at any time; every source is cached on disk and fetched in
 polite batches (rerun = only what's missing; `--force` refetches, `--no-fetch` works offline).
@@ -170,7 +170,7 @@ rest mostly pre-2000); Ireland's 22 all match. One page error is fixed by hand (
 first T20I; he led from 2008 to June 2018 (ESPNcricinfo, 6 Jun 2018).
 A stint covers every year from..to, except a stand-in (fewer than 4 matches a year): only its first
 and last years count, and a stand-in is never "last season's captain".
-`cricdex.scout.identity.captains.as_of(cid, season)` gives what was known before an auction
+`cricdesk.scout.identity.captains.as_of(cid, season)` gives what was known before an auction
 (regular IPL captain last season, IPL seasons as captain, captained his country in the two years
 before), used by the market price; `summary(cid)` is the profile identity block's `captaincy`.
 
@@ -187,7 +187,7 @@ Cricsheet's match JSON carries `info.registry.people`, a per-match map of
 scorecard name → identifier. The ingester keeps it as a
 `players_<collection>` table (`match_id, name, identifier`), and every
 metric, rating and export resolves names through
-`cricdex.common.sql.player_ids`:
+`cricdesk.common.sql.player_ids`:
 
 1. **The match registry first.** It's authoritative: the ball data can
    spell a player differently from the People Register's `unique_name`

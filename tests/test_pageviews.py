@@ -1,10 +1,10 @@
 """The brand feature's input: a player's Wikipedia pageviews in the 12 months before an auction
-(src/cricdex/scout/identity/pageviews.py; METHODOLOGY §6b)."""
+(src/cricdesk/scout/identity/pageviews.py; METHODOLOGY §6b)."""
 
 import math
 
-from cricdex.scout.identity import pageviews
-from cricdex.web_parity import pricing
+from cricdesk.scout.identity import pageviews
+from cricdesk.web_parity import pricing
 
 DATA = {
     "first_month": "2015-07",

@@ -151,7 +151,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg/75 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-4 sm:px-6">
-        <Link to="/" className="flex items-center gap-2.5 rounded-xl" aria-label="CricDex home">
+        <Link to="/" className="flex items-center gap-2.5 rounded-xl" aria-label="CricDesk home">
           <span className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-accent/30 bg-accent/10 shadow-glow">
             <CircleDot className="h-[18px] w-[18px] text-accent" />
           </span>

@@ -1,4 +1,4 @@
-/* A tiny deterministic motion engine for the CricDex README video (ported from the EquityShastra one): the page is a
+/* A tiny deterministic motion engine for the CricDesk README video (ported from the EquityShastra one): the page is a
    function of time. window.render(t) sets every animated element for time t (seconds), so frames can be captured one by one
    (scripts/render_video.py) — no real-time playback, no dropped frames.
 

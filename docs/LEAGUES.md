@@ -1,10 +1,10 @@
 # Leagues: the registry and how to add one
 
-Every competition CricDex knows is one `[[league]]` entry in
+Every competition CricDesk knows is one `[[league]]` entry in
 [`config/leagues.toml`](../config/leagues.toml). Nothing else in the code names a league: ingest,
 the exporter, pricing, the Scout pools, the auction pool and its nationality rule, the API's
 collection check, every CLI / TUI / Streamlit picker, the Makefile and the refresh workflow all read
-this file through `cricdex.leagues`. The exporter copies it to `site/public/data/leagues.json`,
+this file through `cricdesk.leagues`. The exporter copies it to `site/public/data/leagues.json`,
 which is where the web app gets its labels, Scout panels and each league's fitted translation onto the
 IPL.
 
@@ -54,7 +54,7 @@ So **adding a league is one TOML entry and an ingest**, never a code change.
    league takes its group's typical translation, with the spread between the group's leagues added to
    its uncertainty.
 
-3. **Check it:** `uv run python -m cricdex.leagues check` (or `make leagues`). The loader refuses
+3. **Check it:** `uv run python -m cricdesk.leagues check` (or `make leagues`). The loader refuses
    duplicate keys, unknown fields, a missing tier, a malformed zip name, a pool that isn't
    exported, two Scout pools on one tier, and so on, with a message naming the entry.
 
@@ -114,7 +114,7 @@ Then re-export (`scripts/export_site.py -c <key>`): the exporter builds `balls_<
 `matches_<key>_era_<era>`, runs every metric over it like the time windows, and lists it in that
 league's `meta.json` (`windows`, `window_labels`), so the period selector on the site's Leaderboards,
 the Streamlit Leaderboards page and the TUI's LEADERS tab offers it.
-`python -m cricdex.leagues check` validates the entry; the eras are also in `leagues.json`. Eras
+`python -m cricdesk.leagues check` validates the entry; the eras are also in `leagues.json`. Eras
 are display windows: the rating model doesn't need them, since it already fits a level per season.
 
 ## Tiers and translations
@@ -123,7 +123,7 @@ A rating is relative to its own league's average ball, so a +20 in SMAT isn't a 
 league's rating is moved onto the IPL rating scale by a **translation fitted per league and per role**
 (batter / bowler) on every player seen in both, `IPL rating ≈ a + b × league rating` with its own
 translation sd, by `scripts/league_translation_fit.py` into `config/league_translation.json`
-(read by `cricdex.scout.translation`; method and tests in [METHODOLOGY.md](METHODOLOGY.md) §6d). A
+(read by `cricdesk.scout.translation`; method and tests in [METHODOLOGY.md](METHODOLOGY.md) §6d). A
 tier only names its **pooling `group`**: in the fit, a league's intercept and slope shrink toward its
 group's mean (`india`: SMAT; `overseas_a`: BBL, SA20, PSL, ILT20, The Hundred; `overseas_b`: CPL, T20
 Blast, MLC, BPL, LPL, Super Smash, CSA T20 Challenge; `reference`: the IPL), so a league with few
@@ -148,8 +148,8 @@ be ingested on request (`ingest_cricsheet.py all --include-unexported` ingests e
 
 ## Other registry files
 
-`CRICDEX_LEAGUES=/path/to/leagues.toml` points every command at another registry, for example a
-franchise group's own league list, without editing the repo copy. An installed `cricdex` package
+`CRICDESK_LEAGUES=/path/to/leagues.toml` points every command at another registry, for example a
+franchise group's own league list, without editing the repo copy. An installed `cricdesk` package
 carries a copy of the repo file.
 
 ## What is still competition-specific

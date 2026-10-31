@@ -1,4 +1,4 @@
-"""The league registry (config/leagues.toml → cricdex.leagues): the one list every surface reads."""
+"""The league registry (config/leagues.toml → cricdesk.leagues): the one list every surface reads."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ import sys
 
 import pytest
 
-from cricdex import leagues
-from cricdex.leagues import RegistryError, parse
+from cricdesk import leagues
+from cricdesk.leagues import RegistryError, parse
 
 # The men's leagues the product exports (the original eight plus the six added with the registry).
 EXPORTED_MEN = {
@@ -155,7 +155,7 @@ def test_auction_nationality_rule_is_data():
 
 
 def test_pricing_has_no_per_league_discount():
-    from cricdex.web_parity import pricing
+    from cricdesk.web_parity import pricing
 
     assert not hasattr(pricing, "TIER_PENALTY")
 
@@ -195,7 +195,7 @@ def test_site_payload_shape():
 
 def test_cli_lists_exported_keys():
     out = subprocess.run(
-        [sys.executable, "-m", "cricdex.leagues", "list", "--exported", "--sep", " "],
+        [sys.executable, "-m", "cricdesk.leagues", "list", "--exported", "--sep", " "],
         capture_output=True,
         text=True,
         check=True,
@@ -295,7 +295,7 @@ def test_nationality_lists_only_on_the_target():
 def test_registry_path_override(tmp_path, monkeypatch):
     f = tmp_path / "leagues.toml"
     f.write_text(MINIMAL, encoding="utf-8")
-    monkeypatch.setenv("CRICDEX_LEAGUES", str(f))
+    monkeypatch.setenv("CRICDESK_LEAGUES", str(f))
     assert leagues.keys() == ["alpha", "beta"]
     assert leagues.auction_target().key == "alpha"
 
@@ -304,8 +304,8 @@ def test_registry_path_override(tmp_path, monkeypatch):
 
 
 @pytest.mark.skipif(
-    os.environ.get("CRICDEX_NET_TESTS") != "1",
-    reason="set CRICDEX_NET_TESTS=1 to hit cricsheet.org",
+    os.environ.get("CRICDESK_NET_TESTS") != "1",
+    reason="set CRICDESK_NET_TESTS=1 to hit cricsheet.org",
 )
 @pytest.mark.parametrize("url", sorted({u for lg in leagues.all() for u in lg.urls}))
 def test_every_registry_zip_exists(url):
@@ -375,7 +375,7 @@ def test_python_window_pickers_list_the_exported_eras(tmp_path):
     """The Streamlit / TUI period pickers read the eras a league was exported with from meta.json."""
     import json
 
-    from cricdex.common import filters as cf
+    from cricdesk.common import filters as cf
 
     (tmp_path / "ipl").mkdir()
     (tmp_path / "ipl" / "meta.json").write_text(

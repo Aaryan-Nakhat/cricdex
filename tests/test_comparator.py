@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from cricdex.comparator import compare as cmp
+from cricdesk.comparator import compare as cmp
 
 
 def test_safe_get_returns_none_on_empty():

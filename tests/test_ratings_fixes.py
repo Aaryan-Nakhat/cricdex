@@ -12,9 +12,9 @@ import numpy as np
 import polars as pl
 import pytest
 
-from cricdex.scout.ratings import bayesian, runs_value
-from cricdex.scout.search import style_twin
-from cricdex.web_parity import gem_threshold
+from cricdesk.scout.ratings import bayesian, runs_value
+from cricdesk.scout.search import style_twin
+from cricdesk.web_parity import gem_threshold
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -245,8 +245,8 @@ def test_scout_z_scores_the_matched_role_over_the_shown_players(tmp_path, monkey
 
 
 def test_price_uses_the_cautious_estimate():
-    from cricdex.web_parity import build_pool
-    from cricdex.web_parity.pricing import PRICE_CAUTION_SD, est_value, priced_value
+    from cricdesk.web_parity import build_pool
+    from cricdesk.web_parity.pricing import PRICE_CAUTION_SD, est_value, priced_value
 
     assert priced_value(20.0, 4.0) == pytest.approx(20.0 - PRICE_CAUTION_SD * 4.0)
     # a missing / non-finite sd counts as 0
@@ -265,7 +265,7 @@ def test_price_uses_the_cautious_estimate():
 
 
 def test_price_ceiling_rises_with_ipl_evidence():
-    from cricdex.web_parity.pricing import PV_MAX, est_value, price_ceiling
+    from cricdesk.web_parity.pricing import PV_MAX, est_value, price_ceiling
 
     assert price_ceiling(0) == price_ceiling(None) == PV_MAX / 2  # no IPL record: 13.5 cr at most
     assert price_ceiling(300) == pytest.approx(PV_MAX * 0.75)

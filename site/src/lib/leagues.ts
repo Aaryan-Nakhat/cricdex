@@ -75,7 +75,7 @@ export function leagueShort(key: string): string {
 }
 
 /** What a league rating of `at` becomes on the IPL scale, per role (null when not fitted). Mirror of
- * cricdex.scout.translation.summary, for copy. */
+ * cricdesk.scout.translation.summary, for copy. */
 export function translatedAt(info: LeagueInfo, at = 10): { batter: number; bowler: number } | null {
   const t = info.translation;
   if (!t) return null;

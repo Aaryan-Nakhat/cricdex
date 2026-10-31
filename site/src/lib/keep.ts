@@ -1,6 +1,6 @@
 // Keep or release: the franchise retention calculator. EXACT mirror of
-// src/cricdex/web_parity/keep.py — same constants, same formulas, same sentences — so the page
-// and `cricdex keep` show identical numbers (test_scripts/test_keep_parity.py runs both).
+// src/cricdesk/web_parity/keep.py — same constants, same formulas, same sentences — so the page
+// and `cricdesk keep` show identical numbers (test_scripts/test_keep_parity.py runs both).
 // The method in plain words: docs/METHODOLOGY.md §10.
 import { hasMarketInputs, iplPrice, marketPrice, type MarketInputs, type Role } from "./auction.ts";
 import { purseCharged as slabsPurseCharged, slabCharge } from "./slabs.ts";

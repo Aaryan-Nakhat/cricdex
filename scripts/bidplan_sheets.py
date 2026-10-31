@@ -1,6 +1,6 @@
 """The 2027 Bid plan sheets table of docs/METHODOLOGY.md §12, generated from the exported data (METHODOLOGY §12).
 
-Builds every franchise's default plan exactly as the page and `cricdex bidplan` do and writes the table
+Builds every franchise's default plan exactly as the page and `cricdesk bidplan` do and writes the table
 between the `<!-- bidplan-sheets:start -->` / `<!-- bidplan-sheets:end -->` markers, so the docs can't
 drift from the site. `tests/test_reality_gate.py` rebuilds it from the same plans and fails when they
 differ.
@@ -25,8 +25,8 @@ TOP = 5
 
 def ages() -> dict[str, float | None]:
     """cid → age, from the exported pool and squads."""
-    from cricdex.web_parity import load_auction_pool
-    from cricdex.web_parity.loader import load_keep
+    from cricdesk.web_parity import load_auction_pool
+    from cricdesk.web_parity.loader import load_keep
 
     players = load_keep("ipl")["players"]
     players = players.values() if isinstance(players, dict) else players
@@ -37,9 +37,9 @@ def ages() -> dict[str, float | None]:
 
 def build_plans() -> dict:
     """team → {"ctx", "res"} for the ten default 2027 plans, as the page and the CLI build them."""
-    from cricdex.web_parity import build_pool, load_auction_pool
-    from cricdex.web_parity.bidplan import OPEN_SLOTS, TRIALS, build_context, plan, rival_runs
-    from cricdex.web_parity.loader import load_auction_register, load_bidplan_rivals, load_keep
+    from cricdesk.web_parity import build_pool, load_auction_pool
+    from cricdesk.web_parity.bidplan import OPEN_SLOTS, TRIALS, build_context, plan, rival_runs
+    from cricdesk.web_parity.loader import load_auction_register, load_bidplan_rivals, load_keep
 
     data = load_keep("ipl")
     raw = load_auction_pool("ipl")

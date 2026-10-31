@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from cricdex import pipeline
+from cricdesk import pipeline
 
 
 @pytest.fixture
@@ -17,8 +17,8 @@ def ran(monkeypatch, tmp_path):
         return 1 if any(a in fail for a in argv) else 0
 
     monkeypatch.setattr(pipeline, "_run", fake_run)
-    monkeypatch.setenv("CRICDEX_REBUILD_STATE", str(tmp_path / "state"))
-    monkeypatch.setenv("CRICDEX_REBUILD_LOG", str(tmp_path / "rebuild.log"))
+    monkeypatch.setenv("CRICDESK_REBUILD_STATE", str(tmp_path / "state"))
+    monkeypatch.setenv("CRICDESK_REBUILD_LOG", str(tmp_path / "rebuild.log"))
     monkeypatch.setenv("LEAGUES", "ipl psl")
     return calls, fail, tmp_path / "state"
 

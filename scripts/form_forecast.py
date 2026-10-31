@@ -36,9 +36,9 @@ from loguru import logger
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from cricdex.config import DATA_DIR  # noqa: E402
-from cricdex.scout import forecast  # noqa: E402
-from cricdex.scout.ratings import bayesian  # noqa: E402
+from cricdesk.config import DATA_DIR  # noqa: E402
+from cricdesk.scout import forecast  # noqa: E402
+from cricdesk.scout.ratings import bayesian  # noqa: E402
 
 app = typer.Typer(add_completion=False)
 
@@ -124,7 +124,7 @@ def _history(refresh: bool, last: int) -> pl.DataFrame:
 
 
 def _dobs() -> dict[str, str]:
-    from cricdex.scout.identity import master
+    from cricdesk.scout.identity import master
 
     return {cid: r["dob"] for cid, r in master.load().items() if r.get("dob")}
 
@@ -167,7 +167,7 @@ def _backtest_seed(
     min_balls: float,
 ) -> dict:
     """One seed's cells. `sts[T]`: the states as known at origin T (levels fitted on seasons <= T)."""
-    from cricdex.scout.ratings import runs_value
+    from cricdesk.scout.ratings import runs_value
 
     last = _newest_season(history)
     models = {T: forecast.fit_all(sts[T], history, T) for T in origins}
@@ -261,7 +261,7 @@ def backtest(
     out_json: Path = typer.Option(BACKTEST_PATH, "--json"),
 ) -> None:
     """Projections made with data through each origin, scored against what happened next."""
-    from cricdex.scout.ratings import runs_value
+    from cricdesk.scout.ratings import runs_value
 
     history = _history(refresh, 2026)
     dob = _dobs()
@@ -365,7 +365,7 @@ def build(
         infer_schema_length=None,
     )
     ratings[last] = current.select("cricsheet_id", "role", "value", "value_sd", "balls")
-    from cricdex.scout.identity import master
+    from cricdesk.scout.identity import master
 
     retired = [cid for cid, r in master.load().items() if r.get("retired")]
     payload = forecast.build_forecast(ratings, history, _dobs(), last, exclude=retired)

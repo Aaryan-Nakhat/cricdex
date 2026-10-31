@@ -1,5 +1,5 @@
 """Fit, choose and test how far a value is trusted given its evidence (docs/METHODOLOGY.md §4c;
-`src/cricdex/scout/ratings/shrink.py`; ROADMAP I18).
+`src/cricdesk/scout/ratings/shrink.py`; ROADMAP I18).
 
 Frozen protocol. The candidates below were declared on 2026-10-27 before any number.
 
@@ -37,8 +37,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import playing_time_fit as ptf  # noqa: E402
 import rating_drift_fit as rf  # noqa: E402
 
-from cricdex.config import DATA_DIR  # noqa: E402
-from cricdex.scout.ratings import bayesian, drift, shrink  # noqa: E402
+from cricdesk.config import DATA_DIR  # noqa: E402
+from cricdesk.scout.ratings import bayesian, drift, shrink  # noqa: E402
 
 app = typer.Typer(add_completion=False)
 

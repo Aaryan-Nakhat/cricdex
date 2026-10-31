@@ -2,10 +2,10 @@
 
 The design log: dated choices and the reasoning behind them, oldest first. Append new entries with a
 date. This is a historical record, so some entries describe plans that were later reversed; for what
-CricDex is today, read [`ARCHITECTURE.md`](ARCHITECTURE.md), [`METHODOLOGY.md`](METHODOLOGY.md) and
+CricDesk is today, read [`ARCHITECTURE.md`](ARCHITECTURE.md), [`METHODOLOGY.md`](METHODOLOGY.md) and
 [`ROADMAP.md`](ROADMAP.md).
 
-> **Reversed since these entries were written.** CricDex is now **Cricsheet-only** and **file-driven**
+> **Reversed since these entries were written.** CricDesk is now **Cricsheet-only** and **file-driven**
 > (DuckDB + exported JSON; no Postgres, vector or graph database). Removed from the codebase, not
 > deferred:
 > - non-Cricsheet sources (Reddit / Cricbuzz / ESPNcricinfo scraping, BCCI Ranji / Hazare) and the
@@ -16,10 +16,10 @@ CricDex is today, read [`ARCHITECTURE.md`](ARCHITECTURE.md), [`METHODOLOGY.md`](
 > - the **MILP auction solver, war-room advisor and RL prototype**.
 >
 > Scout is now cross-competition look-alikes and the Auction is the real-rules Monte-Carlo room, both
-> shared with the web via `cricdex.web_parity`. The only LLM use left is the AI-classified player
+> shared with the web via `cricdesk.web_parity`. The only LLM use left is the AI-classified player
 > taxonomy.
 
-## 2026-05-11 — Name: CricDex
+## 2026-05-11 — Name: CricDesk
 
 Cricket-prefixed, evokes pokedex-style catalog metaphor — fits scout-first thesis. Unique vs CricInfo / CricViz / CricVision / Cricbuzz.
 
@@ -78,7 +78,7 @@ Pakistan Super League playing conditions excluded from rule-RAG ingest. Re-evalu
 ## 2026-05-11 — Docker is the single deployment artefact
 
 Every contributor runs the stack the same way: `make docker-up`. The
-same image is the production artefact. Compose covers the `cricdex` app
+same image is the production artefact. Compose covers the `cricdesk` app
 (API) + `dashboard` (behind a compose profile) today, and nothing
 else. No database, cache, vector or graph DB is involved — the stack is file-driven (DuckDB + exported JSON).
 
@@ -122,7 +122,7 @@ Two modules deferred outright: `predict` (needs the unblocked
 `live` feed first) and the voice-cloned half of `commentary_translate`
 (year-2 final-feature milestone per the scope cut earlier).
 
-Stack now: docker-compose with `qdrant`, `cricdex` (API), `dashboard`
+Stack now: docker-compose with `qdrant`, `cricdesk` (API), `dashboard`
 (11 Streamlit pages), and an optional `neo4j` profile for scout.
 ~70 source files, ~16 docs, ~14 tests, CI green.
 

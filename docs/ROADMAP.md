@@ -1,10 +1,10 @@
 # Roadmap
 
-What CricDex does today, what comes next, what's further out, and what it deliberately won't do. How each
+What CricDesk does today, what comes next, what's further out, and what it deliberately won't do. How each
 shipped model works is in [METHODOLOGY.md](METHODOLOGY.md); the reasoning behind past choices is in
 [DECISIONS.md](DECISIONS.md); dated changes are in [CHANGELOG.md](CHANGELOG.md).
 
-CricDex is **Cricsheet-only**: every number comes from Cricsheet's ball-by-ball data, plus the Cricsheet
+CricDesk is **Cricsheet-only**: every number comes from Cricsheet's ball-by-ball data, plus the Cricsheet
 People Register for identity, a one-time Wikidata pull for dates of birth and photos, and one AI-classified
 taxonomy (role, bowling type, batting slot, country).
 
@@ -53,9 +53,9 @@ taxonomy (role, bowling type, batting slot, country).
 
 **Surfaces**
 - Static website on GitHub Pages (React + Vite), the canonical surface:
-  https://aaryan-nakhat.github.io/cricdex/
-- `cricdex` CLI and Textual TUI, Streamlit dashboard and FastAPI REST API, all reading the same data.
-- `cricdex.web_parity`: the Python twin of the web's Scout, Auction and Head-to-Head logic, held
+  https://aaryan-nakhat.github.io/cricdesk/
+- `cricdesk` CLI and Textual TUI, Streamlit dashboard and FastAPI REST API, all reading the same data.
+- `cricdesk.web_parity`: the Python twin of the web's Scout, Auction and Head-to-Head logic, held
   identical by parity tests in CI.
 - Docker image and Compose stack; a manual `refresh-data` workflow that re-ingests, refits, re-cooks and
   redeploys the site.
@@ -187,7 +187,7 @@ disagreements left for a human are in `data/curated/player_master_review.json`.
 - [ ] 38. The CI job named `lint-test` doesn't run ruff or mypy. Add both.
 - [ ] 39. The refresh workflow fails silently (`set +e`, best-effort per league, no validation gate, ~70 MB
   committed per run, never run on GitHub). Fail on errors, add assertions, move snapshots out of git.
-  *In part 2026-10-27: the refresh runs `python -m cricdex.pipeline` and stops on the first failing step; CI
+  *In part 2026-10-27: the refresh runs `python -m cricdesk.pipeline` and stops on the first failing step; CI
   runs on its data commit before the deploy; the export is atomic per league. Still open: moving the
   snapshot out of git, and a run on GitHub.*
 
@@ -226,7 +226,7 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   both backtests re-run (METHODOLOGY §8).*
 - [x] 7. Current squads, salaries and purses JSON plus a retention calculator (M): hand-built from the
   Wikipedia 2026 personnel-changes page; retain/release value minus cost, purse left, replacement cost per
-  role. Check the official 2027 retention rules first. *Done 2026-10-21: **Keep or release** (`cricdex
+  role. Check the official 2027 retention rules first. *Done 2026-10-21: **Keep or release** (`cricdesk
   keep`, the site page): salaries for all 274 squad players (`scripts/ipl_squad_salaries.py`, 2027 trades
   and retirements applied), the cycle's rules as data in `config/competitions.toml` (each rule sourced or
   marked assumed; the 2027 purse isn't published, 125 cr assumed), price vs salary → Keep / Release /
@@ -241,10 +241,10 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   Empirical-Bayes shrunk values, an n-balls badge and shrunk estimate on head-to-heads.
 
 - [x] 11b. Form forecast (M): each player's value over the next three seasons with an 80% range and
-  P(regular), for retention and mega-auction contracts. *Done 2026-10-21: `cricdex.scout.forecast` +
+  P(regular), for retention and mega-auction contracts. *Done 2026-10-21: `cricdesk.scout.forecast` +
   `scripts/form_forecast.py` (walk-forward ratings at every season end, regression to the mean + an age curve
   with an inverse-probability survivorship correction, walk-forward-calibrated ranges); a "Form forecast"
-  section on the player profile, `cricdex forecast "<name>"` / `--team`; backtest from 2021–23 against
+  section on the player profile, `cricdesk forecast "<name>"` / `--team`; backtest from 2021–23 against
   four baselines (METHODOLOGY §11). 2026-10-22: starts from each player's current level (a Kalman
   level model with age drift, blended with the career rating by weights chosen on validation), a 15-player
   reality check in §11, and the "3-season outlook" column in Keep or release (page, CLI, CSV, parity).*
@@ -252,7 +252,7 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
 - [ ] 12. The IPL 2027 mini-auction room in its real state (M): real squads, released players, remaining
   purses, capped/uncapped base rules, RTM if the 2027 rules allow it, lots run by sets, the registered list
   when published, manual availability and injury flags. *Next step: competition rules are now config
-  (`config/competitions.toml`, `cricdex.competitions`, used by Keep or release); wire the auction simulator
+  (`config/competitions.toml`, `cricdesk.competitions`, used by Keep or release); wire the auction simulator
   (purse, squad limits, overseas cap, retention cost; still hard-coded IPL constants in `auction.ts` ⇄
   `auction.py` and `AUCTION_TARGET` in `export_site.py`) to that file, and start its Mini mode from the real
   squads and the purses Keep or release computes. SA20 / ILT20 / MLC / WPL cycles are further entries.
@@ -312,7 +312,7 @@ Effort: S = up to 2 days, M = 3–7 days, L = 2+ weeks.
   wins rather than runs a match.*
 - [x] 26b. Bid plan (M): an auction bidding-plan optimiser for one franchise: rivals simulated for the price to
   beat, targets by marginal squad strength per crore, max bids, fallback chains per role, every assumption
-  editable. *Done 2026-10-21/22: page Bid plan + `cricdex bidplan`, web ⇄ Python parity; the auction
+  editable. *Done 2026-10-21/22: page Bid plan + `cricdesk bidplan`, web ⇄ Python parity; the auction
   simulator's bidding calibrated to the 2022–24 auctions and tested on 2025–26 (`scripts/auction_calibrate.py`,
   AUCTION_MATH Part 3b); no buying back own releases ("reconsider keeping" instead); the 2025 and 2026
   auctions replayed (`scripts/bidplan_backtest.py`: level with the real squads in 2025, worse in 2026).
@@ -468,7 +468,7 @@ All to fix. Order: data fixes and price model first, then Bid plan, then visuals
 - [x] I7. SMAT data ends Dec 2024 (prospects judged on stale form) — check for newer open data; otherwise make
   staleness explicit in every SMAT-based number. *Done 2026-10-22: Cricsheet lists SMAT 2024-25 groups and
   2025-26 as missing, no other open source; pool / Keep rows carry `stale_share` + `stale_note`, shown on
-  Auction, Bid plan, `cricdex auction` and the Keep reason (METHODOLOGY §9). Re-check Cricsheet each refresh.*
+  Auction, Bid plan, `cricdesk auction` and the Keep reason (METHODOLOGY §9). Re-check Cricsheet each refresh.*
 - [x] I8. Captaincy gaps: Rising Pune Supergiant, Gujarat Lions, Ireland. *Done 2026-10-22: season articles
   for RPS / GL, "List of Ireland cricket captains" for Ireland (IDENTITY.md).*
 - [x] I9. Afghanistan internationals missing (Rashid Khan, Noor Ahmad, Gurbaz and the rest counted as

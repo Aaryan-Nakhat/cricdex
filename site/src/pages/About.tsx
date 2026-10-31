@@ -172,7 +172,7 @@ const SECTIONS: Section[] = [
         plus the players our calls release elsewhere. Squads and salaries come from Wikipedia's personnel pages
         (CC BY-SA); the rules are data in <code>config/competitions.toml</code>, each one sourced or marked as an
         assumption (no 2027 purse has been published, so 125 cr is assumed). Every call can be flipped on the
-        page, and the same calculator runs on the CLI (<code>cricdex keep</code>), locked by a parity test.
+        page, and the same calculator runs on the CLI (<code>cricdesk keep</code>), locked by a parity test.
       </>
     ),
   },
@@ -198,7 +198,7 @@ const SECTIONS: Section[] = [
         each disagreement (Kohli, 37 in the 2026 season and 38 by the 2027 one, comes out at +5 after three big seasons: players like him have
         averaged +6 the season after). Keep or release shows it as a "3-season outlook" column.
         The medians are <em>if he plays</em>; read them with the chance he does. Also on the CLI:{" "}
-        <code>cricdex forecast "Kohli"</code>, <code>cricdex forecast --team RCB</code>.
+        <code>cricdesk forecast "Kohli"</code>, <code>cricdesk forecast --team RCB</code>.
       </>
     ),
   },
@@ -224,7 +224,7 @@ const SECTIONS: Section[] = [
         real ones on the next season for 7 of 10 teams at the 2024 auction (full purse), but only 2 of 10 in 2025 and
         1 of 10 in 2026 at the real team's spend (seasons looked at many times while building it), so it stays a
         draft, a starting sheet, not a forecast. Same optimiser on the CLI
-        (<code>cricdex bidplan</code>), locked by a parity test.
+        (<code>cricdesk bidplan</code>), locked by a parity test.
       </>
     ),
   },
@@ -261,7 +261,7 @@ export function About() {
       <PageTitle
         title="How it works"
         icon={<BookOpen className="h-6 w-6" />}
-        desc="The models behind CricDex, explained without the jargon. No black boxes — if a number is on this site, you can find out exactly how it was made."
+        desc="The models behind CricDesk, explained without the jargon. No black boxes — if a number is on this site, you can find out exactly how it was made."
       />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {SECTIONS.map((s) => (
@@ -276,9 +276,9 @@ export function About() {
       </div>
 
       <Card className="mt-5 px-5 py-4 text-sm text-muted">
-        CricDex is open source. The full pipeline — ingestion, the NumPyro Bayesian model, the metrics,
+        CricDesk is open source. The full pipeline — ingestion, the NumPyro Bayesian model, the metrics,
         and a typer CLI / Textual TUI / Streamlit dashboard with the same features — lives on{" "}
-        <a className="text-accent-glow underline" href="https://github.com/Aaryan-Nakhat/cricdex" target="_blank" rel="noreferrer">
+        <a className="text-accent-glow underline" href="https://github.com/Aaryan-Nakhat/cricdesk" target="_blank" rel="noreferrer">
           GitHub
         </a>
         .

@@ -1,5 +1,5 @@
 // Scout look-alikes + gems. CANONICAL; the Python port
-// `src/cricdex/web_parity/scout.py` mirrors this (locked by
+// `src/cricdesk/web_parity/scout.py` mirrors this (locked by
 // test_scripts/test_web_parity.py). Scout.tsx renders these; the desktop
 // surfaces re-use the Python port.
 

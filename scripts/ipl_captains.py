@@ -37,9 +37,9 @@ import time
 import typer
 from ipl_auction_history import Matcher, page_tables
 
-from cricdex.config import DATA_DIR
-from cricdex.scout.identity import master, sources
-from cricdex.scout.identity.captains import STAND_IN_PER_YEAR
+from cricdesk.config import DATA_DIR
+from cricdesk.scout.identity import master, sources
+from cricdesk.scout.identity.captains import STAND_IN_PER_YEAR
 
 app = typer.Typer(add_completion=False)
 

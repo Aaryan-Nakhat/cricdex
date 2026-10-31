@@ -7,8 +7,8 @@ import math
 
 import pytest
 
-from cricdex.scout import playing_time as pt
-from cricdex.web_parity import bidplan as bp
+from cricdesk.scout import playing_time as pt
+from cricdesk.web_parity import bidplan as bp
 
 REPL = {"bat": {"top": -7.0, "middle": -17.0, "lower": -23.0, "tail": -63.0},
         "bowl": {"frontline": -11.0, "part_time": -27.0}}  # fmt: skip

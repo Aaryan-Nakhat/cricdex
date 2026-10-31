@@ -3,14 +3,14 @@
 > This describes the Auction room — a Monte-Carlo of a real IPL auction.
 > The **same** logic runs on every surface: in the browser (TS,
 > `site/src/lib/auction.ts`) and on the CLI / TUI / Streamlit (Python,
-> `cricdex.web_parity`), from the **same** exported JSON and with a
+> `cricdesk.web_parity`), from the **same** exported JSON and with a
 > bit-exact seeded RNG, so a run reproduces everywhere trial-for-trial
 > (locked by `test_scripts/test_web_parity.py`). It is driven from the CLI
-> by `cricdex auction room`. The skill ratings it starts from, and every
+> by `cricdesk auction room`. The skill ratings it starts from, and every
 > other model, are explained in [`METHODOLOGY.md`](METHODOLOGY.md).
 >
 > Before an auction comes the retention deadline: **Keep or release**
-> (`cricdex keep`, the site's Keep or release page) uses the same market
+> (`cricdesk keep`, the site's Keep or release page) uses the same market
 > price (Part 0) against what keeping each squad player costs, and calls
 > the chance a franchise keeps a player like him (a model of every real
 > retention deadline since 2018), with the same pool as the likely
@@ -429,7 +429,7 @@ of the others' within the ladder step below it (below the base price for a sale 
 **Frozen protocol, in two rounds.** Round 1: nine candidates (market price only; + role and overseas need;
 + purse per place; + upgrade; + stage; + a mega level; + team effects; + needs in whether a team bids; + his own
 contribution), chosen by leave-one-auction-out over 2019–2024, then scored on the 2025 mega and 2026 mini
-auctions (seen several times since across CricDex, so optimistic): the team's needs in both whether it bids and how high (D7). Team effects ("personalities" learned
+auctions (seen several times since across CricDesk, so optimistic): the team's needs in both whether it bids and how high (D7). Team effects ("personalities" learned
 from the data) lost out of time. D7 priced the 2025 stars at about a third of their real price (Pant 9.0 cr
 against 27; the market price alone 21.5), so round 2 tested the causes, with a reality criterion on the 2019–2024
 auctions declared first (METHODOLOGY §7 has every number): the auction likelihood already uses the order
@@ -479,7 +479,7 @@ Cameron Green 17.3, Rishabh Pant 17.3, Jofra Archer 16.7, Arshdeep Singh 16.1, S
 ## Part 4 — Bid plan: the same simulator, turned into a bidding sheet
 
 The room answers "where does each star go?". **Bid plan** (a draft: max bids are not reliable yet) answers "what should *my* team bid?"
-(page *Bid plan*, `cricdex bidplan --team RCB`; full method and the replay of the 2025 and 2026
+(page *Bid plan*, `cricdesk bidplan --team RCB`; full method and the replay of the 2025 and 2026
 auctions: [METHODOLOGY §12](METHODOLOGY.md#12-bid-plan-draft)).
 
 1. **Rivals only.** Your team steps out; the other nine (their Keep-or-release squads, each opening

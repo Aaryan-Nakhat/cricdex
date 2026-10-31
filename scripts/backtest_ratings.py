@@ -48,8 +48,8 @@ import polars as pl
 import typer
 from loguru import logger
 
-from cricdex.config import DATA_DIR
-from cricdex.scout.ratings import bayesian, runs_value
+from cricdesk.config import DATA_DIR
+from cricdesk.scout.ratings import bayesian, runs_value
 
 app = typer.Typer(add_completion=False)
 

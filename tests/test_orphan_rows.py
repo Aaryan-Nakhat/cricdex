@@ -2,7 +2,7 @@
 
 import duckdb
 
-from cricdex.scout.ingest.cricsheet import drop_orphan_rows
+from cricdesk.scout.ingest.cricsheet import drop_orphan_rows
 
 
 def test_drop_orphan_rows_keeps_only_ingested_matches():

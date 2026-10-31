@@ -1,4 +1,4 @@
-"""Form forecast (cricdex.scout.forecast): the projection math on synthetic careers, the plain-English
+"""Form forecast (cricdesk.scout.forecast): the projection math on synthetic careers, the plain-English
 outlook, and the schemas of the backtest output and the site's forecast.json."""
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from cricdex.scout import forecast as F
+from cricdesk.scout import forecast as F
 
 ROOT = Path(__file__).resolve().parents[1]
 

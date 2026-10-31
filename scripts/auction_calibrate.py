@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import auction_demand_fit as adf  # noqa: E402
 
-from cricdex.web_parity.auction import one_trial  # noqa: E402
+from cricdesk.web_parity.auction import one_trial  # noqa: E402
 
 app = typer.Typer(add_completion=False)
 CONTEST = 2.0  # scored lots: market price ≥ CONTEST × base price (the model expects a contest)

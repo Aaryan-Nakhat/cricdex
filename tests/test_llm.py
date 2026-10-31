@@ -4,7 +4,7 @@ import types
 
 import pytest
 
-from cricdex.common import llm
+from cricdesk.common import llm
 
 
 def _fake(text):

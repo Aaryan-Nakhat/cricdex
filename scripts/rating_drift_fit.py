@@ -1,4 +1,4 @@
-"""Fit, choose and test the time-aware rating (docs/METHODOLOGY.md §4b; `src/cricdex/scout/ratings/drift.py`;
+"""Fit, choose and test the time-aware rating (docs/METHODOLOGY.md §4b; `src/cricdesk/scout/ratings/drift.py`;
 ROADMAP Tier D #34, I18).
 
 The frozen protocol. The candidates below were declared on 2026-10-27 before any number was seen.
@@ -40,11 +40,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ipl_price_model as ipm  # noqa: E402
 import playing_time_fit as ptf  # noqa: E402
 
-from cricdex.config import DATA_DIR  # noqa: E402
-from cricdex.scout import playing_time as pt  # noqa: E402
-from cricdex.scout import translation  # noqa: E402
-from cricdex.scout.identity import master  # noqa: E402
-from cricdex.scout.ratings import (
+from cricdesk.config import DATA_DIR  # noqa: E402
+from cricdesk.scout import playing_time as pt  # noqa: E402
+from cricdesk.scout import translation  # noqa: E402
+from cricdesk.scout.identity import master  # noqa: E402
+from cricdesk.scout.ratings import (
     bayesian,  # noqa: E402
     drift,  # noqa: E402
 )

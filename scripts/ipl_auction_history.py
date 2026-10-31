@@ -41,9 +41,9 @@ import time
 import typer
 from bs4 import BeautifulSoup
 
-from cricdex.config import DATA_DIR
-from cricdex.scout.identity import master, sources
-from cricdex.scout.identity.countries import normalise
+from cricdesk.config import DATA_DIR
+from cricdesk.scout.identity import master, sources
+from cricdesk.scout.identity.countries import normalise
 
 app = typer.Typer(add_completion=False)
 

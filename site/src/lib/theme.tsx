@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 export type ThemeChoice = "auto" | "light" | "dark";
 export type Theme = "light" | "dark";
 
-const KEY = "cricdex.theme";
+const KEY = "cricdesk.theme";
 
 function systemTheme(): Theme {
   return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";

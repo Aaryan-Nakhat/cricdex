@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cricdex.common.metrics import METRICS
+from cricdesk.common.metrics import METRICS
 
 TS = Path(__file__).resolve().parents[1] / "site" / "src" / "lib" / "metrics.ts"
 

@@ -13,7 +13,7 @@ pytest.importorskip("fastapi", reason="fastapi not installed")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from cricdex.api.main import app  # noqa: E402
+from cricdesk.api.main import app  # noqa: E402
 
 
 @pytest.fixture(scope="module")

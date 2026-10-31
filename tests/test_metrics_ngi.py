@@ -6,12 +6,12 @@ import numpy as np
 import polars as pl
 import pytest
 
-from cricdex.config import DATA_DIR
-from cricdex.metrics import ngi
+from cricdesk.config import DATA_DIR
+from cricdesk.metrics import ngi
 
 DB = (
     DATA_DIR / "cricsheet" / "cricsheet.duckdb"
-)  # same lookup as the code (honours CRICDEX_DATA_DIR)
+)  # same lookup as the code (honours CRICDESK_DATA_DIR)
 needs_data = pytest.mark.skipif(not DB.exists(), reason="needs data/cricsheet/cricsheet.duckdb")
 
 

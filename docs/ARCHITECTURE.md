@@ -1,6 +1,6 @@
 # Architecture
 
-CricDex is **Cricsheet-only**: one public ball-by-ball source, everything
+CricDesk is **Cricsheet-only**: one public ball-by-ball source, everything
 else derived from it offline. No scraping, no live feeds, no LLM-written
 content.
 
@@ -27,13 +27,13 @@ surfaces just *read* it. The dashed line is the git boundary.
                                                └───► • wikidata_enrichment.json                                  • auction_pool · retentions
                                                      • bowling_styles.json                                       • scout_index.json · matchups/<cid>.json · phase.json · activity_index.json · partnerships.json · aging.json
                                                                                                           (+ root collections.json, leagues.json)
-        each step = `cricdex data ingest <cricsheet|ratings|metrics|wikidata>`              ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ git: this snapshot (+ data/curated player facts) is committed
+        each step = `cricdesk data ingest <cricsheet|ratings|metrics|wikidata>`              ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ git: this snapshot (+ data/curated player facts) is committed
                                                                                                                           │
                                                               ┌───────────────────────────────────────────────────────────┤  read-only views read the SAME JSON (see Fresh checkout)
                                                               ▼                                ▼                ▼          ▼
                                                         React (web)                     Streamlit            TUI         CLI
                                                         getJSON("<col>/…")              web_parity.loader.SITE_DATA + common.filters/metrics
-                                                        Scout/Auction/H2H               Scout/Auction → cricdex.web_parity (Python port,
+                                                        Scout/Auction/H2H               Scout/Auction → cricdesk.web_parity (Python port,
                                                         in-browser TS                   bit-exact, parity-locked to the TS)
                                                         (auction.ts /                   H2H → data/metrics/scout_ratings_<col>.json
                                                          headtohead.ts)                 Update tab/page → re-runs ingest→compute→export
@@ -43,13 +43,13 @@ surfaces just *read* it. The dashed line is the git boundary.
   (writes `data/` + the snapshot); downstream everyone only reads the snapshot.
 - **Parity by construction**: every surface eats identical inputs, and
   Scout/Auction/H2H run identical logic — TypeScript in the browser, a bit-exact
-  Python port (`cricdex.web_parity`) elsewhere, locked by
+  Python port (`cricdesk.web_parity`) elsewhere, locked by
   `test_scripts/test_web_parity.py` + `test_filters_parity.py`.
 - **Fresh checkout**: the web app, the Streamlit/TUI read-only tabs and the
   JSON-backed CLI commands (`leaderboard`, `matchups`, `phase`, `form`,
   `partnerships`, `aging`, `scout`, `auction`) work from the committed
   `site/public/data` alone. These need the local `data/` (DuckDB +
-  `data/metrics/`, rebuilt via `cricdex data ingest …`, `make refresh` or the
+  `data/metrics/`, rebuilt via `cricdesk data ingest …`, `make refresh` or the
   Update tab): the CLI `profile` / `compare` / `records` / `venues` commands,
   the whole FastAPI app, H2H (`scout_ratings_<col>.json`) and the Update path.
   The curated player facts (`data/curated/player_taxonomy.json`,
@@ -57,13 +57,13 @@ surfaces just *read* it. The dashed line is the git boundary.
 
 ## The league registry
 
-Every competition CricDex knows is one entry in
+Every competition CricDesk knows is one entry in
 [`config/leagues.toml`](../config/leagues.toml), read through
-`cricdex.leagues` (standard-library `tomllib`, validated on load): its key
+`cricdesk.leagues` (standard-library `tomllib`, validated on load): its key
 (the `<col>` of every table and folder), display name, Cricsheet zip(s),
 gender, kind, region, strength tier (and the group it is pooled with when its
 translation onto the IPL is fitted: `scripts/league_translation_fit.py` →
-`config/league_translation.json`, read by `cricdex.scout.translation`), whether it is exported, whether it is a Scout pool
+`config/league_translation.json`, read by `cricdesk.scout.translation`), whether it is exported, whether it is a Scout pool
 (draftable, gem pool) or feeds the auction pool, and the auction target's
 nationality allow/deny lists. Ingest, the exporter, pricing
 (`web_parity/pricing.py`), the API's collection check (an unknown
@@ -121,24 +121,24 @@ offers "Impact Player era"). Adding a league or an era: [LEAGUES.md](LEAGUES.md)
      out-of-fold scores are cached per league in `data/metrics/.ngi_cache/`
      so the time-window and era boards reuse them.
    - Scout look-alikes + auction Monte-Carlo run through
-     `cricdex.web_parity`, a Python port of the web's TypeScript logic
+     `cricdesk.web_parity`, a Python port of the web's TypeScript logic
      locked by `test_scripts/test_web_parity.py`.
 5. **Serve — the web is canonical; the others mirror it**
    - **Static web** (`site/`, React + Vite) on GitHub Pages — single
      source of truth; reads a pre-cooked JSON snapshot, no backend.
-   - **CLI** (`cricdex …`, typer) and **TUI** (Textual).
-   - **Streamlit** dashboard (`cricdex.dashboard`).
-   - **FastAPI** REST (`cricdex.api.main`).
+   - **CLI** (`cricdesk …`, typer) and **TUI** (Textual).
+   - **Streamlit** dashboard (`cricdesk.dashboard`).
+   - **FastAPI** REST (`cricdesk.api.main`).
    The CLI, TUI, Streamlit, and web all run the same analytical pages and
-   the same scout/auction logic via `cricdex.web_parity`.
+   the same scout/auction logic via `cricdesk.web_parity`.
 
 ## Data pipeline cadence
 
 - Cricsheet ingest + metrics + Bayes ratings + scout/auction snapshot +
   static-site re-cook → on demand via GitHub Actions (`refresh-data.yml`,
   manual "Run workflow"): re-downloads every exported league in the registry
-  (`python -m cricdex.leagues list --exported`) with `--force` and runs the
-  default steps of `python -m cricdex.pipeline` ([PIPELINE.md](PIPELINE.md)),
+  (`python -m cricdesk.leagues list --exported`) with `--force` and runs the
+  default steps of `python -m cricdesk.pipeline` ([PIPELINE.md](PIPELINE.md)),
   runs the LLM taxonomy for new players only if the `LLM_MODEL` secret is
   set, commits the snapshot, runs CI on that commit, then calls `deploy.yml`
   (`workflow_call`) to redeploy Pages. This is the only "refresh to the
@@ -149,22 +149,22 @@ offers "Impact Player era"). Adding a league or an era: [LEAGUES.md](LEAGUES.md)
   the same resumably; `--from ratings` keeps the ingested data, People
   Register and player master and refits ratings, recomputes metrics and the
   forecast and exports (`--from metrics`, `--from export` start later still).
-  The order of the steps lives in one place, `src/cricdex/pipeline.py`. Manual (not cron) so the ~70 MB snapshot isn't re-committed
+  The order of the steps lives in one place, `src/cricdesk/pipeline.py`. Manual (not cron) so the ~70 MB snapshot isn't re-committed
   on a schedule.
 - People Register / Wikidata / taxonomy → one-time, refreshed on demand.
 
 ## Module boundaries
 
-Each `src/cricdex/<module>/` owns its ingest, schema, processing and
+Each `src/cricdesk/<module>/` owns its ingest, schema, processing and
 serve layer. The static export (`scripts/export_site.py`) flattens every
 module's output into `site/public/data/`.
 
 ## Deployment
 
-CricDex ships as a **free static website** plus a **run-it-yourself toolkit**; there is no hosted server
+CricDesk ships as a **free static website** plus a **run-it-yourself toolkit**; there is no hosted server
 and no paid infrastructure.
 
-- **The website** (https://aaryan-nakhat.github.io/cricdex/) is the public face. `scripts/export_site.py`
+- **The website** (https://aaryan-nakhat.github.io/cricdesk/) is the public face. `scripts/export_site.py`
   cooks everything into `site/public/data/`; `deploy.yml` builds `site/` and publishes it to GitHub Pages
   on every push that touches `site/**`.
 - **Refreshing the data** is the manual `refresh-data.yml` workflow (described above): it re-ingests,

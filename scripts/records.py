@@ -14,8 +14,8 @@ import datetime as dt
 import typer
 from loguru import logger
 
-from cricdex.config import DATA_DIR
-from cricdex.records import queries
+from cricdesk.config import DATA_DIR
+from cricdesk.records import queries
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from cricdex.scout.ratings import shrink
+from cricdesk.scout.ratings import shrink
 
 
 def test_flat_shrink_moves_toward_the_mean():

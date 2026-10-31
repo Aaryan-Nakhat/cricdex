@@ -30,7 +30,7 @@ before you talk about it in public.
 **LLM answers**
 
 The player taxonomy and the display-name check come from an LLM, so their
-answers are treated as untrusted input. `cricdex.scout.identity.taxonomy`
+answers are treated as untrusted input. `cricdesk.scout.identity.taxonomy`
 checks every field against a fixed list (roles, bowling styles, batting
 slots, hands, confidence, country codes) or a bounded plain-text name, both
 when an answer is saved and when a cached file is read. A bad value is dropped
@@ -47,7 +47,7 @@ itself; the one inline script is allowed by its hash, computed at build time
 **Docker**
 
 The image runs as an unprivileged user, not root. Compose publishes the API
-and dashboard on `127.0.0.1` only. Set `CRICDEX_BIND=0.0.0.0` to expose them,
+and dashboard on `127.0.0.1` only. Set `CRICDESK_BIND=0.0.0.0` to expose them,
 and put a proxy with auth in front first: the API has no login.
 
 ## Known gaps

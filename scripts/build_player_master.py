@@ -5,7 +5,7 @@ Reads the DuckDB file read-only; fetches Wikidata, Wikipedia and Cricsheet's ODI
 in polite cached batches; asks the configured LLM (if any) to check display names. Writes
 data/curated/player_master.json (read by scripts/export_site.py) and
 data/curated/player_master_review.json (source disagreements to settle in
-data/curated/player_overrides.json). See src/cricdex/scout/identity/master.py.
+data/curated/player_overrides.json). See src/cricdesk/scout/identity/master.py.
 
 Run:
     uv run python scripts/build_player_master.py              # fetch what's missing, check names
@@ -20,7 +20,7 @@ import json
 
 import typer
 
-from cricdex.scout.identity import master
+from cricdesk.scout.identity import master
 
 app = typer.Typer(add_completion=False)
 

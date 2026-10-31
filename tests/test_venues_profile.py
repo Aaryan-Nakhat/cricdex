@@ -1,4 +1,4 @@
-"""Regression tests for cricdex.venues.profile.
+"""Regression tests for cricdesk.venues.profile.
 
 Specifically guards the JOIN-USING ambiguity bug in phase_run_rates
 that crashed the dashboard Venues page (Eden Gardens).
@@ -9,12 +9,12 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from cricdex.config import DATA_DIR
-from cricdex.venues import profile
+from cricdesk.config import DATA_DIR
+from cricdesk.venues import profile
 
 DB = (
     DATA_DIR / "cricsheet" / "cricsheet.duckdb"
-)  # same lookup as the code (honours CRICDEX_DATA_DIR)
+)  # same lookup as the code (honours CRICDESK_DATA_DIR)
 needs_data = pytest.mark.skipif(not DB.exists(), reason="needs cricsheet duckdb")
 
 

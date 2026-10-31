@@ -24,7 +24,7 @@ interface Store {
 
 const Ctx = createContext<Store | null>(null);
 
-const LS_KEY = "cricdex.collection";
+const LS_KEY = "cricdesk.collection";
 
 /** A shared link's `?c=<league>` wins over the remembered league (validated once the list loads). */
 function initialCollection(): string {

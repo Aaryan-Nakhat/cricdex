@@ -2,7 +2,7 @@
 profiles, links that resolve, numeric JSON, windowed match counts, capped / retired rules.
 
 Skipped on a snapshot exported before the player master existed (players.json rows without
-`display_name`); point `CRICDEX_SITE_DATA` at another export to check that one instead."""
+`display_name`); point `CRICDESK_SITE_DATA` at another export to check that one instead."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ import re
 
 import pytest
 
-from cricdex import leagues
-from cricdex.config import SITE_DATA
-from cricdex.scout.identity import countries
+from cricdesk import leagues
+from cricdesk.config import SITE_DATA
+from cricdesk.scout.identity import countries
 
 IDX = SITE_DATA / "collections.json"
 COLLECTIONS = (

@@ -1,6 +1,6 @@
-# How CricDex works — every model, in plain English
+# How CricDesk works — every model, in plain English
 
-CricDex turns Cricsheet's ball-by-ball records into numbers a scorecard can't give you: how much a player
+CricDesk turns Cricsheet's ball-by-ball records into numbers a scorecard can't give you: how much a player
 moved the result, how good he is once you account for who he faced, who plays like him in another league,
 and what he might fetch at an IPL auction. This page explains every one of those models: **what it does,
 how it does it, a small worked example, and where it falls short**. It was checked against the code in
@@ -10,7 +10,7 @@ No maths background is assumed. Where a formula helps, it comes after the plain-
 
 **A note on the 2025–26 tests.** Each model's recipe is chosen on data up to 2024 and then scored on the
 2025 and 2026 seasons, and the protocols below are written as "the test, once". That was true of each
-protocol when it ran, but the same two seasons have since been looked at again and again across CricDex:
+protocol when it ran, but the same two seasons have since been looked at again and again across CricDesk:
 several price recipes were each scored on them (section 6b), and the Bid plan replays have seen them five
 times (section 12; ROADMAP I17, I18). Choices made after a look are no longer blind to it, so read every
 2025–26 figure on this page as **optimistic**, not as a clean out-of-time test. The clean test is the next
@@ -48,9 +48,9 @@ metric formulas in full: [METRICS.md](METRICS.md) · the auction step by step: [
 
 **Where the balls come from.** Everything starts from [Cricsheet](https://cricsheet.org/), a free,
 volunteer-maintained archive with one JSON file per match and one record per delivery: who bowled it, who
-faced it, what was scored, whether a wicket fell and who took the catch. CricDex downloads a whole
+faced it, what was scored, whether a wicket fell and who took the catch. CricDesk downloads a whole
 *collection* at a time (the IPL, the BBL, men's T20Is and so on), flattens every delivery into a row and
-stores the result in one local DuckDB database (`src/cricdex/scout/ingest/cricsheet.py`). Which
+stores the result in one local DuckDB database (`src/cricdesk/scout/ingest/cricsheet.py`). Which
 collections exist, which Cricsheet zip each comes from and which ones the site ships is one file, the
 league registry [`config/leagues.toml`](../config/leagues.toml) ([LEAGUES.md](LEAGUES.md)). The site ships
 the men's T20 leagues marked `export = true`: IPL, SMAT (Indian domestic), BBL, SA20, CPL, T20 Blast, PSL,
@@ -69,7 +69,7 @@ So the men's T20I, ODI and Test collections have no Afghanistan match at all (ch
 other Test nation and every associate with 50+ matches is present and current). Two consequences:
 
 - *International caps* (the capped flag, and `intl_caps` / `intl_caps_2y` in the market price, 6b) are
-  restored from two sourced records (`src/cricdex/scout/identity/withheld.py`, cached in
+  restored from two sourced records (`src/cricdesk/scout/identity/withheld.py`, cached in
   `data/curated/withheld_internationals.json`): Cricsheet's own `all_json.zip` as archived by the Wayback
   Machine on 10 Mar 2023 (both XIs of every Afghanistan T20I / ODI / Test to 19 Feb 2023, real dates,
   Cricsheet identifiers), and after it the revision history of Wikipedia's Afghanistan T20I / ODI / Test
@@ -89,13 +89,13 @@ other Test nation and every associate with 50+ matches is present and current). 
 another), and two players can share a name. Cricsheet solves this for us: every match file carries a
 *registry* that maps each scorecard name to a stable Cricsheet identifier, and the separate
 [People Register](https://cricsheet.org/register/) links that identifier to ESPNcricinfo and other sites.
-CricDex keeps each match's registry in a `players_<collection>` table and resolves names through it first,
-falling back to the People Register's `unique_name` (`src/cricdex/common/sql.py::player_ids`). Search
+CricDesk keeps each match's registry in a `players_<collection>` table and resolves names through it first,
+falling back to the People Register's `unique_name` (`src/cricdesk/common/sql.py::player_ids`). Search
 also understands the Register's ~7,500 name variants, so "Jasprit Bumrah" finds "JJ Bumrah". Details:
 [IDENTITY.md](IDENTITY.md).
 
 **Every number is keyed by that id, match by match.** The name→id lookup is done per match, not per name:
-the ball table is read through `keyed_balls` (`src/cricdex/common/sql.py`), which swaps every player
+the ball table is read through `keyed_balls` (`src/cricdesk/common/sql.py`), which swaps every player
 column (batter, non-striker, bowler, the batter who is out, the fielders) for the id that *that match's*
 registry gives, and keeps the scorecard spelling next to it. Every metric, rating, board, NGI total,
 record, profile, matchup, partnership, phase board, aging curve, cohort and style twin groups by the id;
@@ -105,7 +105,7 @@ two players: among players who batted or bowled, 38 such names in men's T20Is, 7
 
 **One name per ground.** Cricsheet records the same ground several ways: with or without the city
 ("Wankhede Stadium" / "Wankhede Stadium, Mumbai"), with punctuation ("M.Chinnaswamy Stadium"), or under a
-former name ("Feroz Shah Kotla"). After every ingest, `src/cricdex/common/venue_names.py` rewrites every
+former name ("Feroz Shah Kotla"). After every ingest, `src/cricdesk/common/venue_names.py` rewrites every
 venue to `"<ground>, <city>"`, gives renamed grounds their current name (Feroz Shah Kotla → Arun Jaitley
 Stadium, Sardar Patel Stadium → Narendra Modi Stadium), and keeps every old spelling as a searchable alias.
 The city stays in the name so that England's eight different "County Ground"s don't merge.
@@ -117,7 +117,7 @@ main innings of a limited-overs match count (every innings of a multi-day match 
 in the whole IPL history.
 
 **The one AI step.** Ball-by-ball data can't tell you whether a bowler bowls seam or spin, where a batter
-usually bats, or which country he plays for. For that, and only that, CricDex asks an LLM (via LiteLLM, so
+usually bats, or which country he plays for. For that, and only that, CricDesk asks an LLM (via LiteLLM, so
 any provider you set in `.env`) to tag each player's **primary role, bowling type, usual batting slot,
 batting hand and country** (`scripts/enrich_taxonomy.py`). The answers are cached once in
 `data/curated/player_taxonomy.json` (2,525 players) and every filter that uses them is labelled
@@ -135,11 +135,11 @@ found), used for player profiles and the aging curves.
 of winning?* It credits that change to whoever caused it (the batter for his runs, the bowler for runs,
 extras and wickets, the fielder for a catch or a run out) and averages it per match. A 30 not out that wins
 a tight chase scores more than a hundred in a lost cause, and a wicket at 200/3 chasing 220 counts for more
-than one at 50/3 chasing 250. Code: `src/cricdex/metrics/ngi.py`.
+than one at 50/3 chasing 250. Code: `src/cricdesk/metrics/ngi.py`.
 
 **How.**
 
-1. **A win-probability model.** For every ball of every decided T20 match in a league, CricDex records the
+1. **A win-probability model.** For every ball of every decided T20 match in a league, CricDesk records the
    state *before* the ball: which innings, balls left (scheduled overs minus legal balls bowled), wickets
    left, the score, the target and runs still needed, the required rate, the current rate, how the current
    rate compares with that ground's usual first-innings rate, and three **era** features: the current rate,
@@ -234,7 +234,7 @@ hides. They're all on the Leaderboards page (all-time, last 3 years, last year, 
 league registry defines: the IPL's "Impact Player era", every match since 2023-03-31, so Impact-era
 numbers aren't ranked against pre-2023 ones), with the same explanations as below. Each period
 recomputes the metric over only those matches. Exact formulas and column names: [METRICS.md](METRICS.md); code in
-`src/cricdex/metrics/`. Every board has a minimum sample so a single freak innings can't top it.
+`src/cricdesk/metrics/`. Every board has a minimum sample so a single freak innings can't top it.
 
 **Pressure Runs** — *how fast does a batter score when a chase gets hard?* For every ball of a T20 or ODI
 chase, work out the required runs per ball. A ball is "under pressure" when that's more than **1.5×** the
@@ -345,8 +345,8 @@ the same fifty, and a 2009 strike rate like a 2026 one. The rating model learns 
 and every bowler *at the same time*, so each run is judged against who it came off **and the context it
 came in**: the season's scoring level, the phase of the innings, setting or chasing, and the ground. It is
 **dismissal-aware**: each player gets two skills per role, and every skill comes with a measure of how sure
-the model is. Code: `src/cricdex/scout/ratings/bayesian.py`; model spec:
-[ratings README](../src/cricdex/scout/ratings/README.md).
+the model is. Code: `src/cricdesk/scout/ratings/bayesian.py`; model spec:
+[ratings README](../src/cricdesk/scout/ratings/README.md).
 
 | Role | Skill | Plain meaning (higher = better) |
 |---|---|---|
@@ -358,7 +358,7 @@ the model is. Code: `src/cricdex/scout/ratings/bayesian.py`; model spec:
 **How.**
 
 1. **Every matchup, in context.** For each batter–bowler pair in a league, the balls are grouped by season,
-   phase (powerplay / middle / death), innings and ground, and for each group CricDex counts the legal
+   phase (powerplay / middle / death), innings and ground, and for each group CricDesk counts the legal
    balls, the runs off the bat and the dismissals the bowler was credited with (bowled, caught, lbw,
    stumped, hit wicket; run-outs don't test the duel). Every pairing is kept, even a single ball.
 2. **Two linked models on those groups.** Expected runs per ball rise with the batter's scoring skill and
@@ -393,8 +393,8 @@ the model is. Code: `src/cricdex/scout/ratings/bayesian.py`; model spec:
 log-odds of getting out, so they can't just be added: the question is what a wicket is *worth* in runs.
 That depends on when it falls. A wicket in the 2nd over with nobody out costs a side far more of its
 future runs than one in the 19th, so a finisher who rarely gets out has saved his team much less than an
-opener who rarely gets out. CricDex prices it from the ball-by-ball data
-(`src/cricdex/scout/ratings/runs_value.py`):
+opener who rarely gets out. CricDesk prices it from the ball-by-ball data
+(`src/cricdesk/scout/ratings/runs_value.py`):
 
 1. **The run cost of a wicket.** From every first innings of a full-length, non-rain-affected match in the
    league, count the runs and wickets per ball in each state (over, wickets down), smoothed so a thin state
@@ -457,7 +457,7 @@ uncertainty to match.
 
 **Uncertainty.** Every skill and `value` carries a standard deviation from the fit. The Head-to-Head page
 uses it directly: treating two players' values as bell curves, the chance that A is better than B is
-`Φ((value_A − value_B) / √(sd_A² + sd_B²))` (`src/cricdex/scout/ratings/head_to_head.py`). Two players
+`Φ((value_A − value_B) / √(sd_A² + sd_B²))` (`src/cricdesk/scout/ratings/head_to_head.py`). Two players
 with close values and wide uncertainty come out near 50/50, as they should.
 
 **How it's fitted, and how we checked the shortcut.** The fit runs in NumPyro (JAX). The default is
@@ -486,7 +486,7 @@ P(plays), Bid plan and Keep or release, and the market price's input (6b). So a 
 carried the seasons he played at 29. David Miller (37) was the first Bid plan target on six of ten sheets,
 and with the buy model on (6c) David Warner (40), Mohammad Nabi (42) and Faf du Plessis (42) topped sheets
 (ROADMAP I18, Tier D #34). Since 2026-10-27 each role's value is moved to the coming season before anything
-reads it. Code: `src/cricdex/scout/ratings/drift.py`; fit, choice and test: `scripts/rating_drift_fit.py`;
+reads it. Code: `src/cricdesk/scout/ratings/drift.py`; fit, choice and test: `scripts/rating_drift_fit.py`;
 model: `config/rating_drift.json`; every number below: `data/metrics/rating_drift_ipl.json`.
 
 **What it does.**
@@ -631,7 +631,7 @@ uncertainty into the value's sd. But the contribution per match, P(plays) and Bi
 mean as if it were the player's IPL level: the sd went no further than a display (`contrib_sd`), and
 nothing checked that a mean resting on a thin, old or other-league record predicts the IPL as well as one
 earned there. Since 2026-10-27 each role's value is calibrated against what players then did in the IPL
-before anything reads it. Code: `src/cricdex/scout/ratings/shrink.py`; fit, choice and test:
+before anything reads it. Code: `src/cricdesk/scout/ratings/shrink.py`; fit, choice and test:
 `scripts/value_shrink_fit.py`; model: `config/value_shrink.json`; numbers: `data/metrics/value_shrink_ipl.json`.
 
 **The model** (the measurement-error form of empirical Bayes):
@@ -770,7 +770,7 @@ wicket-taker can rate below a miserly bowler (Rabada 3.0, Arshdeep −0.2 for th
 **What it does.** Pick an active IPL player; Scout finds others of the same mould in every Scout pool of
 the league registry: **IPL peers**, uncapped Indians from the **SMAT**, and overseas players from each
 overseas league (BBL, SA20, CPL, T20 Blast, PSL, ILT20, The Hundred, MLC, BPL, LPL, Super Smash, CSA T20). Each comes with an estimated price and the saving against your pick. Code:
-`src/cricdex/web_parity/scout.py` (Python) and `site/src/lib/scout.ts` (web), kept identical by a parity
+`src/cricdesk/web_parity/scout.py` (Python) and `site/src/lib/scout.ts` (web), kept identical by a parity
 test. More: [SCOUT.md](SCOUT.md).
 
 **How.**
@@ -794,13 +794,13 @@ test. More: [SCOUT.md](SCOUT.md).
 batters has similarity 1 − 0.2 ÷ 2.5 = 0.92, a strong match. One at z = +0.3 has 1 − 1.5 ÷ 2.5 = 0.40.
 
 Separately, every Player Profile shows **style twins** (below) and a **co-faced cohort** (who faced the
-most of the same bowlers, or bowled to the most of the same batters; `src/cricdex/scout/cohort.py`).
+most of the same bowlers, or bowled to the most of the same batters; `src/cricdesk/scout/cohort.py`).
 
 ### 5a. Style twins: players who play like him
 
 **What it does.** For each player, the players in the same league whose game looks most like his, the
 way a fan would describe it: where he bats and how he scores, or what he bowls and when he is bowled. It
-is about style, not quality: a twin can be better or worse. Code: `src/cricdex/scout/search/style_twin.py`.
+is about style, not quality: a twin can be better or worse. Code: `src/cricdesk/scout/search/style_twin.py`.
 
 **Batter axes** (weight in brackets), all from the ball-by-ball of the league:
 
@@ -885,12 +885,12 @@ a batter.
 
 ## 6. From skill to crore
 
-**What it does.** CricDex prices a player two ways. His **market price** is what IPL franchises have
+**What it does.** CricDesk prices a player two ways. His **market price** is what IPL franchises have
 actually paid for players like him: a model fitted to the IPL auctions since 2018 (6b below). His
 **on-field worth** is what his game alone would fetch on a hand-set skill→price curve (6a, the original
 price). The market price is the price wherever a crore figure is shown (the Auction room's pool, Keep or
 release, Scout's est. prices); the on-field worth is shown next to it. Code:
-`src/cricdex/web_parity/pricing.py` ⇄ `site/src/lib/auction.ts` (the same features and coefficients on
+`src/cricdesk/web_parity/pricing.py` ⇄ `site/src/lib/auction.ts` (the same features and coefficients on
 both, locked by `test_scripts/test_web_parity.py`).
 
 ### 6a. On-field worth (the skill→price curve)
@@ -1525,7 +1525,7 @@ player resold a season after his last auction (Resale, above), not the price in 
 ### 6c. Playing time: who plays, and what he adds a match
 
 **What it does.** A rating says how good a player is per ball. A franchise buys matches: whether he plays,
-and how many balls he gets when he does. Since 2026-10-22 (audit items 4 and 6) CricDex values every player
+and how many balls he gets when he does. Since 2026-10-22 (audit items 4 and 6) CricDesk values every player
 as
 
 ```
@@ -1539,7 +1539,7 @@ in the runs currency of section 4; since 2026-10-27 the batting and bowling valu
 4c). It replaces two hand-set patches: the IPL-relevance penalty (6a step 2),
 which ranked the pool, and the all-rounder rule (his better role only, ×1.15), which dropped Narine's batting
 entirely and made Bid plan add per-100-ball rates across an XI as if a No. 7 faced as many balls as an
-opener. Code: `src/cricdex/scout/playing_time.py`, fitted by `scripts/playing_time_fit.py` into
+opener. Code: `src/cricdesk/scout/playing_time.py`, fitted by `scripts/playing_time_fit.py` into
 `config/playing_time_model.json`; every number below is in `data/metrics/playing_time_ipl.json`. Each piece
 follows the frozen protocol of 6b: candidates declared before any test number, fitted on seasons up to 2023,
 chosen on 2024, the chosen one refitted to 2024 and scored **once** on 2025–26, then refitted on everything.
@@ -1934,7 +1934,7 @@ opposition.
 in the IPL. Since 2026-10-23 (audit item 5) each league's rating is moved onto the IPL rating scale by a
 translation **fitted per league and per role** on the players seen in both, and a player's sources (his IPL
 rating and every translated league) are blended by precision with no cut-off. Code:
-`src/cricdex/scout/translation.py` (`translate`, `blend`), fitted by `scripts/league_translation_fit.py`
+`src/cricdesk/scout/translation.py` (`translate`, `blend`), fitted by `scripts/league_translation_fit.py`
 into `config/league_translation.json`; the export applies it (the pool's `value`, Scout's `ipl_value`),
 so the web app and `web_parity/pricing.py` only price values already on the IPL scale.
 
@@ -2157,7 +2157,7 @@ smaller than the pair count.
 
 **What it does.** A Monte-Carlo of a real IPL auction: all ten teams keep their core, then bid for
 everyone else under real rules, hundreds of times over. It answers *who probably lands which star, and
-for roughly how much?* Code: `src/cricdex/web_parity/auction.py` ⇄ `site/src/lib/auction.ts`; the
+for roughly how much?* Code: `src/cricdesk/web_parity/auction.py` ⇄ `site/src/lib/auction.ts`; the
 step-by-step version is [AUCTION_MATH.md](AUCTION_MATH.md).
 
 **The pool.** The active T20 world an IPL auction draws from: the players under contract (each carrying
@@ -2601,13 +2601,13 @@ What the models can't see, and where they approximate. Most of these are on the
 ## 10. Keep or release
 
 **What it does.** Before a retention deadline (IPL 2027: 15 November 2026, as reported), a franchise decides
-which of its players to keep. For each player in its squad, CricDex sets what he would fetch at auction
+which of its players to keep. For each player in its squad, CricDesk sets what he would fetch at auction
 against what keeping him costs the purse (his salary, or for a 2025 retention the retention slabs), gives
 the chance a franchise keeps a player like him (a model of what franchises actually did at every deadline
 since 2018, backtested), makes a Keep / Release / Toss-up call with a one-line reason, and shows the squad
 that follows: purse left, open slots, role gaps and what filling them costs. Every assumption is editable on
-the page (flip any player, change the purse or a role target) and on the CLI (`cricdex keep --team RCB
---release "Virat Kohli" --need spinner=4`). Code: `src/cricdex/web_parity/keep.py` ⇄ `site/src/lib/keep.ts`
+the page (flip any player, change the purse or a role target) and on the CLI (`cricdesk keep --team RCB
+--release "Virat Kohli" --need spinner=4`). Code: `src/cricdesk/web_parity/keep.py` ⇄ `site/src/lib/keep.ts`
 (the same numbers and sentences, locked by `test_scripts/test_keep_parity.py`); the data is
 `site/public/data/ipl/keep.json`, cooked by `scripts/export_site.py`.
 
@@ -3028,9 +3028,9 @@ typical uncapped Indian, not a judgement of the player.
 
 ## 11. Form forecast
 
-*Code: `src/cricdex/scout/forecast.py`, `scripts/form_forecast.py`; on the site: the player profile's
+*Code: `src/cricdesk/scout/forecast.py`, `scripts/form_forecast.py`; on the site: the player profile's
 "Form forecast" section and Keep or release's "3-season outlook" column; in the terminal:
-`cricdex forecast "<name>"` / `--team RCB` and `cricdex keep --sort outlook`.*
+`cricdesk forecast "<name>"` / `--team RCB` and `cricdesk keep --sort outlook`.*
 
 A retention or a mega-auction contract buys a player's **next three seasons**, not his career. Form
 forecast projects his `value` (section 4: runs per 100 balls above the average ball, a wicket priced at its
@@ -3164,7 +3164,7 @@ and 3 seasons ahead. Scored on players who played 60+ balls in the target season
 | Batters: forecast / rate by regular-now / base rate | **0.125** / 0.153 / 0.215 | **0.129** / 0.149 / 0.198 | **0.121** / 0.144 / 0.186 |
 | Bowlers: forecast / rate by regular-now / base rate | **0.137** / 0.166 / 0.224 | **0.148** / 0.175 / 0.217 | **0.144** / 0.166 / 0.203 |
 
-Baselines: **rating now** = his career rating for every future season (what CricDex showed before),
+Baselines: **rating now** = his career rating for every future season (what CricDesk showed before),
 **current level** = the level model's estimate, unchanged, **career numbers** = his raw career totals in the
 same currency, **age curve** = the rating plus the naive survivors-only average change by age (the classic
 cross-sectional curve), **last season** = his value in the origin season. MAE in runs per 100 balls; ρ =
@@ -3278,8 +3278,8 @@ link; its purse left is the purse less what the kept players cost, 2025 retentio
 2026-10-22), the competition's rules and the auction pool, and returns a priority list of targets, each with the
 price rivals would likely pay, a bid that is usually enough, a **max bid** (the walk-away price) and the
 chance of landing him under it, a **fallback chain** per role, and the squad that follows. Every assumption
-is editable on the page and the CLI (`cricdex bidplan --team RCB --release "Rajat Patidar" --need spinner=4
---max "Rashid Khan=12"`). Code: `src/cricdex/web_parity/bidplan.py` ⇄ `site/src/lib/bidplan.ts` (the same
+is editable on the page and the CLI (`cricdesk bidplan --team RCB --release "Rajat Patidar" --need spinner=4
+--max "Rashid Khan=12"`). Code: `src/cricdesk/web_parity/bidplan.py` ⇄ `site/src/lib/bidplan.ts` (the same
 numbers on both, locked by `test_scripts/test_bidplan_parity.py` on synthetic leagues, all ten real teams and
 the simulator with every calibration path switched on). It reads Keep or release's `keep.json` and the
 auction pool; the only new export is an optional official auction list.

@@ -6,7 +6,7 @@ import json
 
 import duckdb
 
-from cricdex.metrics import bowler_wicket_quality as wq
+from cricdesk.metrics import bowler_wicket_quality as wq
 
 
 def _seed_db(path):

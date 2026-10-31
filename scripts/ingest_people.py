@@ -13,7 +13,7 @@ from pathlib import Path
 import typer
 from loguru import logger
 
-from cricdex.scout.ingest import people_register
+from cricdesk.scout.ingest import people_register
 
 app = typer.Typer(add_completion=False)
 

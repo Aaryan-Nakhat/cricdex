@@ -21,7 +21,7 @@ import json
 import polars as pl
 import typer
 
-from cricdex.config import DATA_DIR
+from cricdesk.config import DATA_DIR
 
 app = typer.Typer(add_completion=False)
 USAGE = DATA_DIR / "metrics" / ".playing_time" / "usage.parquet"

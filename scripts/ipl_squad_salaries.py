@@ -32,8 +32,8 @@ from pathlib import Path
 
 import typer
 
-from cricdex.scout.identity import master, sources
-from cricdex.scout.identity.countries import normalise
+from cricdesk.scout.identity import master, sources
+from cricdesk.scout.identity.countries import normalise
 
 app = typer.Typer(add_completion=False)
 

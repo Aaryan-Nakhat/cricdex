@@ -7,8 +7,8 @@ import re
 
 from typer.testing import CliRunner
 
-from cricdex.cli import app
-from cricdex.config import SITE_DATA
+from cricdesk.cli import app
+from cricdesk.config import SITE_DATA
 
 # CI terminals get coloured output, whose escape codes split words like "--pos"; plain text, wide, no colour.
 runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})

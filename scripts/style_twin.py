@@ -1,4 +1,4 @@
-"""CLI: find a player's style twins (how he bats / bowls; see cricdex.scout.search.style_twin).
+"""CLI: find a player's style twins (how he bats / bowls; see cricdesk.scout.search.style_twin).
 
 Examples:
     uv run python scripts/style_twin.py "MS Dhoni" --collection ipl
@@ -10,7 +10,7 @@ from __future__ import annotations
 import typer
 from loguru import logger
 
-from cricdex.scout.search import style_twin as twin
+from cricdesk.scout.search import style_twin as twin
 
 app = typer.Typer(add_completion=False)
 
